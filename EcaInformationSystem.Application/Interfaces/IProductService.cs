@@ -6,8 +6,8 @@ namespace EcaInformationSystem.Application.Interfaces
     {
         Task<List<ProductDto>> GetAllAsync();
         Task<ProductDto?> GetByIdAsync(Guid id);
-        Task CreateAsync(CreateProductDto dto);
-        Task UpdateAsync(UpdateProductDto dto);
+        Task<ProductDto> CreateAsync(CreateProductDto dto);
+        Task UpdateAsync(Guid id, UpdateProductDto dto);
         Task DeleteAsync(Guid id);
     }
 }

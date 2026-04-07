@@ -18,6 +18,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             return await _context.Products
                 .AsNoTracking()
+                .OrderBy(x => x.Name)
                 .ToListAsync();
         }
 

@@ -38,20 +38,28 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
-        public async Task CreateAsync(CreateProductDto dto)
+        public async Task<ProductDto> CreateAsync(CreateProductDto dto)
         {
             var product = new Product(dto.Name, dto.Price);
             await _repo.AddAsync(product);
             await _repo.SaveChangesAsync();
+
+            return new ProductDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Price = product.Price
+            };
         }
 
-        public async Task UpdateAsync(UpdateProductDto dto)
+        public async Task UpdateAsync(Guid id, UpdateProductDto dto)
         {
             var product = await _repo.GetByIdAsync(dto.Id);
             if (product == null)
                 throw new Exception("Product not found.");
 
             product.Update(dto.Name, dto.Price);
+
             await _repo.UpdateAsync(product);
             await _repo.SaveChangesAsync();
         }
