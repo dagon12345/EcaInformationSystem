@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="EcaInformationSystem.API/EcaInformationSystem.API.csproj" />
+  <Project Path="EcaInformationSystem.Application/EcaInformationSystem.Application.csproj" />
+  <Project Path="EcaInformationSystem.Domain/EcaInformationSystem.Domain.csproj" />
+  <Project Path="EcaInformationSystem.Infrastructure/EcaInformationSystem.Infrastructure.csproj" />
+  <Project Path="EcaInformationSystem.Shared/EcaInformationSystem.Shared.csproj" />
+  <Project Path="EcaInformationSystem.Web/EcaInformationSystem.Web.csproj" />
+</Solution>
