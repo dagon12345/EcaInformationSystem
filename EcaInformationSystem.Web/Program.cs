@@ -1,36 +1,76 @@
+using EcaInformationSystem.Application;
+using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Web.Components;
-using EcaInformationSystem.Web.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ──────────────────────────────────────────────
+// 1️⃣  Core Blazor Server setup
+// ──────────────────────────────────────────────
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Point this to your API’s base URL
-builder.Services.AddScoped(sp => new HttpClient
+// ──────────────────────────────────────────────
+// 2️⃣  Add API controllers + Swagger (optional)
+// ──────────────────────────────────────────────
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(opt =>
 {
-    BaseAddress = new Uri("https://localhost:5001/api/") // From my API project’s launchSettings.json
+    opt.SwaggerDoc("v1", new OpenApiInfo { Title = "ECA Information System API", Version = "v1" });
 });
-builder.Services.AddScoped<ProductService>();
+
+// ──────────────────────────────────────────────
+// 3️⃣  Register DDD layers
+//     (Application, Infrastructure, Domain)
+// ──────────────────────────────────────────────
+builder.Services.AddApplication();                     // e.g., MediatR, CQRS handlers
+builder.Services.AddInfrastructure(builder.Configuration); // EF Core DbContext, repositories, services
+
+// ──────────────────────────────────────────────
+// 4️⃣  General services shared between UI & API
+// ──────────────────────────────────────────────
+//builder.Services.AddScoped<ProductService>(); // your UI service, if any
+builder.Services.AddScoped<HttpClient>(sp =>
+{
+    var navigation = sp.GetRequiredService<NavigationManager>();
+    return new HttpClient
+    {
+        BaseAddress = new Uri(navigation.BaseUri)
+    };
+});
+
 
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+// ──────────────────────────────────────────────
+// 5️⃣  Configure middleware pipeline
+// ──────────────────────────────────────────────
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
 app.UseAntiforgery();
 
-app.MapStaticAssets();
+// ──────────────────────────────────────────────
+// 6️⃣  Map endpoints
+// ──────────────────────────────────────────────
+app.MapControllers(); // REST API controllers under /api/*
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+   .AddInteractiveServerRenderMode();
 
 app.Run();

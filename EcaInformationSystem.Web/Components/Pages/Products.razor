@@ -1,29 +1,76 @@
 ﻿@page "/products"
-@using EcaInformationSystem.Shared.Models
-@using EcaInformationSystem.Web.Services
-@inject ProductService ProductService
+@using EcaInformationSystem.Application.DTOs
+@using EcaInformationSystem.Domain.Entities
+@inject HttpClient Http
 
 <h3>Products</h3>
 
-@if (products == null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <ul>
+<input @bind="newProduct.Name" placeholder="Name" />
+<input type="number" @bind="newProduct.Price" placeholder="Price" />
+<button type="button" class="btn btn-primary" @onclick="AddProduct">Add</button>
+
+<table class="table mt-3">
+    <thead><tr><th>Name</th><th>Price</th><th></th></tr></thead>
+    <tbody>
         @foreach (var p in products)
         {
-            <li>@p.Name - @p.Price.ToString("C")</li>
+            <tr>
+                <td>@p.Name</td>
+                <td>@p.Price</td>
+                <td><button class="btn btn-danger btn-sm" @onclick="() => Delete(p.Id)">Delete</button></td>
+            </tr>
         }
-    </ul>
-}
+    </tbody>
+</table>
 
 @code {
-    private IEnumerable<ProductDto>? products;
+    private List<Product> products = new();
+    private CreateProductDto newProduct = new(); // parameterless constructor
 
     protected override async Task OnInitializedAsync()
     {
-        products = await ProductService.GetProductsAsync();
+        products = await Http.GetFromJsonAsync<List<Product>>("api/products") ?? new();
     }
+
+    // private async Task AddProduct()
+    // {
+    //     var response = await Http.PostAsJsonAsync("api/products", newProduct);
+    //     if (response.IsSuccessStatusCode)
+    //     {
+    //         newProduct = new("", 0);
+    //         products = await Http.GetFromJsonAsync<List<Product>>("api/products") ?? new();
+    //     }
+    // }
+
+    private async Task AddProduct()
+    {
+        Console.WriteLine("BUTTON CLICKED");
+
+        var response = await Http.PostAsJsonAsync("api/products", newProduct);
+
+            if (response.IsSuccessStatusCode)
+            {
+                newProduct = new CreateProductDto();
+                products = await Http.GetFromJsonAsync<List<Product>>("api/products") ?? new();
+            }
+
+        Console.WriteLine("STATUS: " + response.StatusCode);
+    }
+
+    private async Task Delete(Guid id)
+    {
+        var response = await Http.DeleteAsync($"api/products/{id}");
+        Console.WriteLine("DELETE STATUS: " + response.StatusCode);
+
+        if (response.IsSuccessStatusCode)
+        {
+            products = await Http.GetFromJsonAsync<List<Product>>("api/products") ?? new();
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine(error);
+        }
+    }
+
 }
