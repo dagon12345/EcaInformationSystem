@@ -6,6 +6,9 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
+//Blazor Boostrap
+builder.Services.AddBlazorBootstrap();
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

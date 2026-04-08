@@ -1,0 +1,645 @@
+﻿@page "/beneficiary-create"
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+@using EcaInformationSystem.Application.DTOs
+@inject HttpClient Http
+
+<PageTitle>Beneficiary Information</PageTitle>
+<div class="container-fluid py-4">
+    @if(!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="ClearMessages"></button>
+        </div>
+    }
+    @if(!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearMessages"></button>
+        </div>
+    }
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-0">Beneficiary Information Entry</h4>
+                            <small class="opacity-75">Create a new beneficiary record</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger mb-3" />
+                        <!-- Identity Information -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Identity Information</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Batch Code</label>
+                                    <InputText class="form-control" @bind-Value="model.BatchCode" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">OSCA ID Number</label>
+                                    <InputText class="form-control" @bind-Value="model.OscaIdNumber" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">NCSC RRN</label>
+                                    <InputNumber class="form-control" @bind-Value="model.NcscRrn" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Last Name</label>
+                                    <InputText class="form-control" @bind-Value="model.LastName" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">First Name <span class="text-danger">*</span></label>
+                                    <InputText class="form-control" @bind-Value="model.FirstName" />
+                                    <ValidationMessage For="@(() => model.FirstName)" class="text-danger small" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Middle Name</label>
+                                    <InputText class="form-control" @bind-Value="model.MiddleName" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Extension</label>
+                                    <InputText class="form-control" @bind-Value="model.Extension" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Birth Date <span class="text-danger">*</span></label>
+                                    <InputDate class="form-control" @bind-Value="model.BirthDate" />
+                                    <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Sex</label>
+                                    <InputSelect class="form-select" @bind-Value="model.Sex">
+                                        <option value="0">Select Sex</option>
+                                        <option value="1">Male</option>
+                                        <option value="2">Female</option>
+                                    </InputSelect>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Address Information -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Address Information</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Region</label>
+                                    <InputNumber class="form-control" @bind-Value="model.Region" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Province</label>
+                                    <InputNumber class="form-control" @bind-Value="model.Province" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Municipality</label>
+                                    <InputNumber class="form-control" @bind-Value="model.Municipality" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Barangay</label>
+                                    <InputNumber class="form-control" @bind-Value="model.Barangay" />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Validation Information -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Validation Information</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Validator <span class="text-danger">*</span></label>
+                                    <InputText class="form-control" @bind-Value="model.Validator" />
+                                    <ValidationMessage For="@(() => model.Validator)" class="text-danger small" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Validation Date <span class="text-danger">*</span></label>
+                                    <InputDate class="form-control" @bind-Value="model.ValidationDate" />
+                                    <ValidationMessage For="@(() => model.ValidationDate)" class="text-danger small" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
+                                    <div class="form-check mt-4">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.isCompliant" />
+                                        <label class="form-check-label">Is Compliant</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Payment Information -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Payment Information</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Payment Status <span class="text-danger">*</span></label>
+                                    <InputSelect class="form-select" @bind-Value="model.PaymentStatus">
+                                        <option value="0">Select Payment Status</option>
+                                        <option value="1">Pending</option>
+                                        <option value="2">Paid</option>
+                                        <option value="3">Failed</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => model.PaymentStatus)" class="text-danger small" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Payment Date</label>
+                                    <InputDate class="form-control" @bind-Value="model.PaymentDate" disabled="@(model.PaymentStatus != 2)" />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Status & Remarks -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Status & Remarks</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.isDeceased" />
+                                        <label class="form-check-label">Is Deceased</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Date of Death</label>
+                                    <InputDate class="form-control" @bind-Value="model.DateOfDeath" disabled="@(!model.isDeceased)" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.isEligible" />
+                                        <label class="form-check-label">Is Eligible</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Remarks</label>
+                                    <InputTextArea class="form-control" @bind-Value="model.Remarks" rows="3" />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-end gap-2">
+                            @if(isEditMode)
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="CancelEdit" disabled="@isSaving">
+                                    Cancel Edit
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm" disabled="@isSaving">
+                                    Clear
+                                </button>
+                            }
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                @if(isSaving)
+                                {
+                                    <span class="spinner-border spinner-boder-sm me-2"></span>
+                                    <span>@(isEditMode ? "Updating...": "Saving...")</span>
+                                }
+                                else
+                                {
+                                    <span>@(isEditMode ? "Update Beneficiary": "Add Beneficiary")</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- List/Grid Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Beneficiary List</h5>
+                        <span class="badge bg-primary">@beneficiaries.Count Record(s)</span>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="LoadBeneficiariesAsync">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if(isLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 mb-0">Loading beneficiaries...</p>
+                        </div>   
+                    }
+                    else if(!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @errorMessage
+                        </div>
+                    }
+                    else if (!beneficiaries.Any())
+                    {
+                        <div class="text-center py-4 text-muted">
+                            <p class="mb-0">No beneficiary record found.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Batch Code</th>
+                                        <th>OSCA ID</th>
+                                        <th>Full Name</th>
+                                        <th>Birth Date</th>
+                                        <th>Sex</th>
+                                        <th>Barangay</th>
+                                        <th>Validator</th>
+                                        <th>Payment Status</th>
+                                        <th>Eligible</th>
+                                        <th>Compliant</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in beneficiaries)
+                                    {
+                                        <tr>
+                                            <td>@item.BatchCode</td>
+                                            <td>@item.OscaIdNumber</td>
+                                            <td>@GetFullName(item)</td>
+                                            <td>@item.BirthDate.ToString("yyyy-MM-dd")</td>
+                                            <td>@GetSexText(item.Sex)</td>
+                                            <td>@item.Barangay</td>
+                                            <td>@item.Validator</td>
+                                            <td>
+                                                <span class="badge @GetPaymentBadgeClass(item.PaymentStatus)">
+                                                    @GetPaymentStatusText(item.PaymentStatus)
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(item.isEligible ? "bg-success" : "bg-secondary")">
+                                                    @(item.isEligible ? "Yes" : "No")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(item.isCompliant ? "bg-info" : "bg-warning text-dark")">
+                                                    @(item.isCompliant ? "Yes" : "No")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditItem(item)">
+                                                        Edit
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirmationModal(item)">
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<Modal @ref="confirmModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">@confirmationTitle</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-0">@confirmationMessage</p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <Button Type="ButtonType.Button" Color="ButtonColor.Secondary" @onclick="CloseConfirmationModal">
+            Cancel
+        </Button>
+        <Button Type="ButtonType.Button" Color="ButtonColor.Primary" @onclick="ConfirmActionAsync" Disabled="@isSaving">
+            @if (isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                <span>Processing...</span>
+            }
+            else
+            {
+                <span>Yes, Confirm</span>
+            }
+        </Button>
+    </FooterTemplate>
+</Modal>
+
+@code {
+    private BeneficiaryInformationDto model = new()
+    {
+        BirthDate = DateTime.Today,
+        ValidationDate = DateTime.Today
+    };
+    private Modal confirmModal = default!;
+    private string confirmationTitle = "Confirm Action";
+    private string confirmationMessage = string.Empty;
+    private string pendingAction = string.Empty; //"add", "edit", "delete"
+    private BeneficiaryInformationDto? selectedDeleteItem;
+    private List<BeneficiaryInformationDto> beneficiaries = new();
+    private bool isLoading;
+    private bool isSaving;
+    private bool isEditMode;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBeneficiariesAsync();
+    }
+
+    private async Task OpenSaveConfirmationModal()
+    {
+        ClearMessages();
+        pendingAction = isEditMode ? "edit" : "add";
+        confirmationTitle = isEditMode ? "Confirm Update" : "Confirm Add";
+        confirmationMessage = isEditMode
+            ? "Are you sure you want to update this data?"
+            : "Are you sure you want to add this data?";
+        await confirmModal.ShowAsync();
+    }
+    //Delete confirmation modal
+    private async Task OpenDeleteConfirmationModal(BeneficiaryInformationDto item)
+    {
+        ClearMessages();
+
+        selectedDeleteItem = item;
+        pendingAction = "delete";
+        confirmationTitle = "Confirm Delete";
+        confirmationMessage = $"Are you sure you want to delete beneficiary '{item.FirstName} {item.LastName}'?";
+
+        await confirmModal.ShowAsync();
+    }
+
+    private async Task CloseConfirmationModal()
+    {
+        await confirmModal.HideAsync();
+    }
+    //Adding new beneficiary record
+    private async Task AddBeneficiaryAsync()
+    {
+        var createDto = new CreateBeneficiaryInformationDto
+        {
+            BatchCode = model.BatchCode,
+            OscaIdNumber = model.OscaIdNumber,
+            NcscRrn = model.NcscRrn,
+            LastName = model.LastName,
+            FirstName = model.FirstName,
+            MiddleName = model.MiddleName,
+            Extension = model.Extension,
+            BirthDate = model.BirthDate,
+            Sex = model.Sex,
+            Region = model.Region,
+            Province = model.Province,
+            Municipality = model.Municipality,
+            Barangay = model.Barangay,
+            isCompliant = model.isCompliant,
+            Validator = model.Validator,
+            ValidationDate = model.ValidationDate,
+            PaymentStatus = model.PaymentStatus,
+            PaymentDate = model.PaymentDate,
+            isDeceased = model.isDeceased,
+            DateOfDeath = model.DateOfDeath,
+            isEligible = model.isEligible,
+            Remarks = model.Remarks,
+            isDeleted = false
+        };
+        var response = await Http.PostAsJsonAsync("api/BeneficiaryInformation", createDto);
+
+        if (response.IsSuccessStatusCode)
+        {
+            successMessage = "Beneficiary record saved successfully.";
+            try
+            {
+                var createdItem = await response.Content.ReadFromJsonAsync<BeneficiaryInformationDto>();
+                if (createdItem is not null)
+                {
+
+                    successMessage = $"Beneficiary '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
+
+                }
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine($"Warning: Unable to parse created beneficiary from response. {ex.Message}");
+            }
+            // After successful save, reload the grid from database
+            ResetForm();
+            await LoadBeneficiariesAsync();
+        }
+        else if ((int)response.StatusCode == 400)
+        {
+            var validation = await response.Content.ReadFromJsonAsync<ValidationProblemDetailsResponse>();
+            if (validation?.Errors is not null && validation.Errors.Any())
+            {
+                var messages = validation.Errors
+                    .SelectMany(kvp => kvp.Value.Select(v => $"{kvp.Key}: {v}"));
+                errorMessage = "Please fix the following errors: " + string.Join(" | ", messages);
+            }
+            else
+            {
+                errorMessage = validation?.Title ?? "Validation failed.";
+            }
+        }
+        else
+        {
+            var serverMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = $"Failed to save beneficiary record. {serverMessage}";
+        }
+
+    }
+    //Updating
+    private async Task UpdateBeneficiaryAsync()
+    {
+        var updateResponse = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/{model.Id}", model);
+        if (updateResponse.IsSuccessStatusCode)
+        {
+            successMessage = $"Beneficiary '{model.FirstName} {model.LastName}' was updated successfully.";
+            ResetForm();
+            await LoadBeneficiariesAsync();
+        }
+        else
+        {
+            var serverMessage = await updateResponse.Content.ReadAsStringAsync();
+            errorMessage = $"Failed to update beneficiary record. {serverMessage}";
+        }
+    }
+    //Soft delete - set isDeleted to true
+    private async Task SoftDeleteBeneficiaryAsync()
+    {
+        if(selectedDeleteItem is null)
+        {
+            errorMessage = "No beneficiary selected for deletion.";
+            return;
+        }
+        var response = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/soft-delete/{selectedDeleteItem.Id}", selectedDeleteItem);
+
+        if(response.IsSuccessStatusCode)
+        {
+            successMessage = $"Beneficiary '{selectedDeleteItem.FirstName} {selectedDeleteItem.LastName}' was deleted successfully.";
+            if(isEditMode && model.Id == selectedDeleteItem.Id)
+            {
+                ResetForm();
+            }
+            await LoadBeneficiariesAsync();
+        }
+        else
+        {
+            var serverMessage = await response.Content.ReadAsStringAsync();
+            errorMessage = $"Failed to delete beneficiary record. {serverMessage}";
+        }
+    }
+    private async Task ConfirmActionAsync()
+    {
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            await confirmModal.HideAsync();
+
+            if (string.IsNullOrWhiteSpace(pendingAction))
+            {
+                errorMessage = "No action selected.";
+                return;
+            }
+
+            switch (pendingAction)
+            {
+                case "add":
+                    await AddBeneficiaryAsync();
+                    break;
+
+                case "edit":
+                    await UpdateBeneficiaryAsync();
+                    break;
+
+                case "delete":
+                    await SoftDeleteBeneficiaryAsync();
+                    break;
+
+                default:
+                    errorMessage = "Unknown action.";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred while processing. {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+            pendingAction = string.Empty;
+            selectedDeleteItem = null;
+        }
+    }
+
+
+
+    private async Task LoadBeneficiariesAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            beneficiaries = await Http.GetFromJsonAsync<List<BeneficiaryInformationDto>>("api/BeneficiaryInformation")
+            ?? new List<BeneficiaryInformationDto>();
+        }
+        catch (Exception ex)
+        {
+
+            errorMessage = $"Unable to load beneficiary records. {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    private void ResetForm()
+    {
+        isEditMode = false;
+        model = new BeneficiaryInformationDto
+        {
+            BirthDate = DateTime.Today,
+            ValidationDate = DateTime.Today
+        };
+    }
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+    private void EditItem(BeneficiaryInformationDto item)
+    {
+        ClearMessages();
+        isEditMode = true;
+        model = new BeneficiaryInformationDto
+        {
+            Id = item.Id,
+            BatchCode = item.BatchCode,
+            OscaIdNumber = item.OscaIdNumber,
+            NcscRrn = item.NcscRrn,
+            LastName = item.LastName,
+            FirstName = item.FirstName,
+            MiddleName = item.MiddleName,
+            Extension = item.Extension,
+            BirthDate = item.BirthDate,
+            Sex = item.Sex,
+            Region = item.Region,
+            Province = item.Province,
+            Municipality = item.Municipality,
+            Barangay = item.Barangay,
+            isCompliant = item.isCompliant,
+            Validator = item.Validator,
+            ValidationDate = item.ValidationDate,
+            PaymentStatus = item.PaymentStatus,
+            PaymentDate = item.PaymentDate,
+            isDeceased = item.isDeceased,
+            DateOfDeath = item.DateOfDeath,
+            isEligible = item.isEligible,
+            Remarks = item.Remarks,
+            isDeleted = item.isDeleted
+        };
+    }
+    private void CancelEdit()
+    {
+        ResetForm();
+        ClearMessages();
+    }
+
+    private string GetFullName(BeneficiaryInformationDto item)
+    {
+        var middle = string.IsNullOrWhiteSpace(item.MiddleName) ? "" : $" {item.MiddleName}";
+        var extension = string.IsNullOrWhiteSpace(item.Extension) ? "" : $" {item.Extension}";
+        return $"{item.LastName}, {item.FirstName}{middle}{extension}";
+    }
+    private string GetSexText(int sex) => sex switch
+    {
+        1 => "Male",
+        2 => "Female",
+        _ => "N/A"
+    };
+    private string GetPaymentStatusText(int status) => status switch
+    {
+        1 => "Pending",
+        2 => "Paid",
+        3 => "Failed",
+        _ => "Unknown"
+    };
+    private string GetPaymentBadgeClass(int status) => status switch
+    {
+        1 => "bg-warning text-dark",
+        2 => "bg-success",
+        3 => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

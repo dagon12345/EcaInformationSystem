@@ -9,6 +9,7 @@ namespace EcaInformationSystem.Application
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
             services.AddScoped<IProductService, ProductService>();
+            services.AddScoped<IBeneficiaryInformationService, BeneficiaryInformationService>();
             return services;
         }
     }

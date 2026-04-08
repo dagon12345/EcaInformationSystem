@@ -15,6 +15,7 @@ namespace EcaInformationSystem.Infrastructure
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IBeneficiaryInformationRepository, BeneficiaryInformationRepository>();
 
             return services;
         }
