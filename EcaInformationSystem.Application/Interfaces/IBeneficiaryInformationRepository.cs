@@ -7,6 +7,7 @@ namespace EcaInformationSystem.Application.Interfaces
     {
         Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync();
         Task<BeneficiaryInformation?> GetByIdAsync(Guid id);
+        Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter);
         Task AddAsync(BeneficiaryInformation beneficiaryInformation);
         Task UpdateAsync(BeneficiaryInformation beneficiaryInformation);
         Task SaveChangesAsync();

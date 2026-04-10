@@ -12,6 +12,10 @@
         public string? Extension { get; set; }
         public DateTime BirthDate { get; set; }
         public int Sex { get; set; }
+        public bool IsIndigenousPeople { get; set; }
+        public bool IsPersonWithDisability { get; set; }
+        public int? CivilStatus { get; set; }
+        public int? Citizenship { get; set; }
         public int Region { get; set; }
         public int Province { get; set; }
         public int Municipality { get; set; }
@@ -24,12 +28,14 @@
         public bool isDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
         public bool isEligible { get; set; }
+        public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public bool isDeleted { get; set; }
 
         public void Update(string? batchCode, string? oscaIdNumber, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
-            DateTime birthDate, int sex, int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus,
-            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, string? remarks)
+            DateTime birthDate, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
+            int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus,
+            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, int? remarkCategory, string? remarks)
         {
             BatchCode = batchCode;
             OscaIdNumber = oscaIdNumber;
@@ -40,6 +46,10 @@
             Extension = extensionName;
             BirthDate = birthDate;
             Sex = sex;
+            IsIndigenousPeople = isIndigenousPeople;
+            IsPersonWithDisability = isPersonWithDisability;
+            CivilStatus = civilStatus;
+            Citizenship = citizenship;
             Region = region;
             Province = province;
             Municipality = municipality;
@@ -52,6 +62,7 @@
             isDeceased = isdeceased;
             DateOfDeath = dateOfDeath;
             isEligible = iseligible;
+            RemarkCategory = remarkCategory;
             Remarks = remarks;
         }
     }

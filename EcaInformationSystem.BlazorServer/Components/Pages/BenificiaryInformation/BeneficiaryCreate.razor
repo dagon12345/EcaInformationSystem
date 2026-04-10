@@ -76,6 +76,11 @@
                                     <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Age</label>
+                                   <input class="form-control" value="@(GetAge(model.BirthDate)?.ToString() ?? "")" readonly />
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Sex</label>
                                     <InputSelect class="form-select" @bind-Value="model.Sex">
                                         <option value="0">Select Sex</option>
@@ -85,6 +90,48 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Demographic Information -->
+                        <div class="border rounded p-3 mb-4">
+                            <h5 class="text-primary mb-3">Demographic Information</h5>
+                            <div class="row g-3">
+                        
+                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsIndigenousPeople"/>
+                                        <label class="form-check-label">Indigenous People</label>
+                                    </div>
+                                </div>
+                        
+                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsPersonWithDisability" />
+                                        <label class="form-check-label">Person with Disability</label>
+                                    </div>
+                                </div>
+                        
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Civil Status</label>
+                                    <InputSelect class="form-select" @bind-Value="model.CivilStatus">
+                                        <option value="0">Select Civil Status</option>
+                                        <option value="1">Single</option>
+                                        <option value="2">Widowed</option>
+                                        <option value="3">Married</option>
+                                        <option value="4">Live in</option>
+                                    </InputSelect>
+                                </div>
+                        
+                                <div class="col-12 col-md-6 col-lg-3">
+                                    <label class="form-label">Citizenship</label>
+                                    <InputSelect class="form-select" @bind-Value="model.Citizenship">
+                                        <option value="0">Select Citizenship</option>
+                                        <option value="1">Filipino</option>
+                                        <option value="2">Dual Citizenship</option>
+                                    </InputSelect>
+                                </div>
+                        
+                            </div>
+                        </div>
+
                         <!-- Address Information -->
                         <div class="border rounded p-3 mb-4">
                             <h5 class="text-primary mb-3">Address Information</h5>
@@ -92,27 +139,48 @@
 
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Region</label>
-                                    <InputSelect class="form-select" @bind-Value="model.PsgcCodeRegion">
+                                    <select class="form-select" value="@model.PsgcCodeRegion" @onchange="OnRegionChanged">
                                         <option value="0">Select Region</option>
                                         @foreach (var region in regions)
                                         {
                                             <option value="@region.PsgcCodeRegion">@region.Name</option>
                                         }
-                                    </InputSelect>
+                                    </select>
                                 </div>
-                                 
+
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Province</label>
-                                    <InputNumber class="form-control" @bind-Value="model.Province" />
+                                    <select class="form-select" value="@model.PsgcCodeProvince" @onchange="OnProvinceChanged" disabled="@(model.PsgcCodeRegion == 0)">
+                                        <option value="0">Select Province</option>
+                                        @foreach (var province in provinces)
+                                        {
+                                            <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                        }
+                                    </select>
                                 </div>
+
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Municipality</label>
-                                    <InputNumber class="form-control" @bind-Value="model.Municipality" />
+                                    <select class="form-select" value="@model.PsgcCodeMunicipality" @onchange="OnMunicipalityChanged" disabled="@(model.PsgcCodeProvince == 0)">
+                                        <option value="0">Select Municipality</option>
+                                        @foreach (var municipality in municipalities)
+                                        {
+                                            <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
+                                        }
+                                    </select>
                                 </div>
+
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Barangay</label>
-                                    <InputNumber class="form-control" @bind-Value="model.Barangay" />
+                                    <select class="form-select" value="@model.PsgcCodeBarangay" @onchange="OnBarangayChanged" disabled="@(model.PsgcCodeMunicipality == 0)">
+                                        <option value="0">Select Barangay</option>
+                                        @foreach (var barangay in barangays)
+                                        {
+                                            <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
+                                        }
+                                    </select>
                                 </div>
+
                             </div>
                         </div>
                         <!-- Validation Information -->
@@ -145,9 +213,8 @@
                                     <label class="form-label">Payment Status <span class="text-danger">*</span></label>
                                     <InputSelect class="form-select" @bind-Value="model.PaymentStatus">
                                         <option value="0">Select Payment Status</option>
-                                        <option value="1">Pending</option>
+                                        <option value="1">Unpaid</option>
                                         <option value="2">Paid</option>
-                                        <option value="3">Failed</option>
                                     </InputSelect>
                                     <ValidationMessage For="@(() => model.PaymentStatus)" class="text-danger small" />
                                 </div>
@@ -157,7 +224,7 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- Status & Remarks -->
+                       <!-- Status & Remarks -->
                         <div class="border rounded p-3 mb-4">
                             <h5 class="text-primary mb-3">Status & Remarks</h5>
                             <div class="row g-3">
@@ -177,12 +244,23 @@
                                         <label class="form-check-label">Is Eligible</label>
                                     </div>
                                 </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Remark Category</label>
+                                    <InputSelect class="form-select" @bind-Value="model.RemarkCategory">
+                                        <option value="0">Select Remark</option>
+                                        <option value="1">Deceased prior reaching milestone age</option>
+                                        <option value="2">Out of town/Country</option>
+                                        <option value="3">Incomplete required documents</option>
+                                        <option value="4">Inconsistent documents</option>
+                                    </InputSelect>
+                                </div>
                                 <div class="col-12">
                                     <label class="form-label">Remarks</label>
                                     <InputTextArea class="form-control" @bind-Value="model.Remarks" rows="3" />
                                 </div>
                             </div>
                         </div>
+
                         <!-- Action Buttons -->
                         <div class="d-flex justify-content-end gap-2">
                             @if(isEditMode)
@@ -214,6 +292,130 @@
             </div>
         </div>
     </div>
+
+    <!-- Search Card Filtering-->
+    <div class="row mb-4">
+        <div class="col-12">
+            <Card Class="shadow-sm border-0">
+                <CardHeader Class="bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">Filter Beneficiaries</h5>
+                            <small class="text-muted">Search and narrow down beneficiary records</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <Button Color="ButtonColor.Secondary" Size="ButtonSize.Small" @onclick="ClearFilterAsync">
+                                Clear Filters
+                            </Button>
+                            <Button Color="ButtonColor.Primary" Size="ButtonSize.Small" @onclick="ApplyFiltersAsync">
+                                Apply Filters
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+
+                <CardBody>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Region</label>
+                            <select class="form-select" value="@filterModel.PsgcCodeRegion" @onchange="OnFilterRegionChanged">
+                                <option value="0">Select Region</option>
+                                @foreach (var region in regions)
+                                {
+                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Province</label>
+                            <select class="form-select" value="@filterModel.PsgcCodeProvince" @onchange="OnFilterProvinceChanged" disabled="@(filterModel.PsgcCodeRegion == 0)">
+                                <option value="0">Select Province</option>
+                                @foreach (var province in filterProvinces)
+                                {
+                                    <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Municipality</label>
+                            <select class="form-select" value="@filterModel.PsgcCodeMunicipality" @onchange="OnFilterMunicipalityChanged" disabled="@(filterModel.PsgcCodeProvince == 0)">
+                                <option value="0">Select Municipality</option>
+                                @foreach (var municipality in filterMunicipalities)
+                                {
+                                    <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Barangay</label>
+                            <select class="form-select" value="@filterModel.PsgcCodeBarangay" @onchange="OnFilterBarangayChanged" disabled="@(filterModel.PsgcCodeMunicipality == 0)">
+                                <option value="0">Select Barangay</option>
+                                @foreach (var barangay in filterBarangays)
+                                {
+                                    <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Last Name</label>
+                            <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName"/>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">First Name</label>
+                            <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName"/>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <label class="form-label">Specific Age</label>
+                            <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <label class="form-label">Age From</label>
+                            <input type="number" class="form-control" placeholder="Min age" @bind="filterModel.AgeFrom" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-2">
+                            <label class="form-label">Age To</label>
+                            <input type="number" class="form-control" placeholder="Max age" @bind="filterModel.AgeTo" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Sex</label>
+                            <select class="form-select" @bind="filterModel.Sex">
+                                <option value="0">Select Sex</option>
+                                <option value="1">Male</option>
+                                <option value="2">Female</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Specific Birthday</label>
+                            <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Birthday From</label>
+                            <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" />
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <label class="form-label">Birthday To</label>
+                            <input type="date" class="form-control" @bind="filterModel.BirthdayTo" />
+                        </div>
+
+                    </div>
+                </CardBody>
+            </Card>
+        </div>
+    </div>
+
+
     <!-- List/Grid Section -->
     <div class="row">
         <div class="col-12">
@@ -257,8 +459,9 @@
                                         <th>OSCA ID</th>
                                         <th>Full Name</th>
                                         <th>Birth Date</th>
+                                        <th>Age</th>
                                         <th>Sex</th>
-                                        <th>Region</th>
+                                        <th>Municipality</th>
                                         <th>Barangay</th>
                                         <th>Validator</th>
                                         <th>Payment Status</th>
@@ -275,8 +478,14 @@
                                             <td>@item.OscaIdNumber</td>
                                             <td>@GetFullName(item)</td>
                                             <td>@item.BirthDate.ToString("yyyy-MM-dd")</td>
+                                            <td>
+                                                <span class="badge @GetAgeBadgeClass(item.BirthDate)">
+                                                    @item.Age
+                                                </span>
+                                            </td>
+
                                             <td>@GetSexText(item.Sex)</td>
-                                            <td>@item.Region</td>
+                                            <td>@item.Municipality</td>
                                             <td>@item.Barangay</td>
                                             <td>@item.Validator</td>
                                             <td>
@@ -296,9 +505,10 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2">
-                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditItem(item)">
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="async () => await EditItem(item)">
                                                         Edit
                                                     </button>
+
                                                     <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirmationModal(item)">
                                                         Delete
                                                     </button>
@@ -352,6 +562,7 @@
     private string pendingAction = string.Empty; //"add", "edit", "delete"
     private BeneficiaryInformationDto? selectedDeleteItem;
     private List<BeneficiaryInformationDto> beneficiaries = new();
+    private BeneficiaryFilterDto filterModel = new();
     private bool isLoading;
     private bool isSaving;
     private bool isEditMode;
@@ -369,6 +580,25 @@
         public int PsgcCodeRegion { get; set; }
         public string Name { get; set; } = string.Empty;
     }
+    public class ProvinceLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public int PsgcCodeProvince { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class MunicipalityLookupDto
+    {
+        public int PsgcCodeProvince { get; set; }
+        public int PsgcCodeMunicipality { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class BarangayLookupDto
+    {
+        public int PsgcCodeMunicipality { get; set; }
+        public int PsgcCodeBarangay { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
     private async Task LoadRegionsAsync()
     {
         try
@@ -381,9 +611,158 @@
             errorMessage = $"Unable to load regions. {ex.Message}";
         }
     }
+    private async Task LoadProvincesAsync(int psgcCodeRegion)
+    {
+        provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{psgcCodeRegion}")
+                    ?? new List<ProvinceLookupDto>();
+    }
+
+    private async Task LoadMunicipalitiesAsync(int psgcCodeProvince)
+    {
+        municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}")
+                         ?? new List<MunicipalityLookupDto>();
+    }
+
+    private async Task LoadBarangaysAsync(int psgcCodeMunicipality)
+    {
+        barangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}")
+                   ?? new List<BarangayLookupDto>();
+    }
+
+    private async Task OnRegionChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeRegion))
+        {
+            model.PsgcCodeRegion = psgcCodeRegion;
+
+            model.PsgcCodeProvince = 0;
+            model.PsgcCodeMunicipality = 0;
+            model.PsgcCodeBarangay = 0;
+
+            provinces.Clear();
+            municipalities.Clear();
+            barangays.Clear();
+
+            await LoadProvincesAsync(psgcCodeRegion);
+        }
+    }
+
+    private async Task OnProvinceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
+        {
+            model.PsgcCodeProvince = psgcCodeProvince;
+
+            model.PsgcCodeMunicipality = 0;
+            model.PsgcCodeBarangay = 0;
+
+            municipalities.Clear();
+            barangays.Clear();
+
+            await LoadMunicipalitiesAsync(psgcCodeProvince);
+        }
+    }
+
+    private async Task OnMunicipalityChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeMunicipality))
+        {
+            model.PsgcCodeMunicipality = psgcCodeMunicipality;
+
+            model.PsgcCodeBarangay = 0;
+            barangays.Clear();
+
+            await LoadBarangaysAsync(psgcCodeMunicipality);
+        }
+    }
+    private void OnBarangayChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
+        {
+            model.PsgcCodeBarangay = psgcCodeBarangay;
+        }
+    }
+
 
     private List<RegionLookupDto> regions = new();
+    private List<ProvinceLookupDto> provinces = new();
+    private List<MunicipalityLookupDto> municipalities = new();
+    private List<BarangayLookupDto> barangays = new();
 
+    #region Filter dropdowns
+    private List<RegionLookupDto> filterRegions = new();
+    private List<ProvinceLookupDto> filterProvinces = new();
+    private List<MunicipalityLookupDto> filterMunicipalities = new();
+    private List<BarangayLookupDto> filterBarangays = new();
+
+    private async Task OnFilterRegionChanged(ChangeEventArgs e)
+    {
+
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeRegion))
+        {
+            filterModel.PsgcCodeRegion = psgcCodeRegion;
+            filterModel.PsgcCodeProvince = null;
+            filterModel.PsgcCodeMunicipality = null;
+            filterModel.PsgcCodeBarangay = null;
+            filterProvinces.Clear();
+            filterMunicipalities.Clear();
+            filterBarangays.Clear();
+            if (psgcCodeRegion > 0)
+                filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{psgcCodeRegion}") ?? new();
+        }
+    }
+    private async Task OnFilterProvinceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
+        {
+            filterModel.PsgcCodeProvince = psgcCodeProvince;
+            filterModel.PsgcCodeMunicipality = null;
+            filterModel.PsgcCodeBarangay = null;
+            filterMunicipalities.Clear();
+            filterBarangays.Clear();
+            if (psgcCodeProvince > 0)
+                filterMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}") ?? new();
+        }
+    }
+    private async Task OnFilterMunicipalityChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeMunicipality))
+        {
+            filterModel.PsgcCodeMunicipality = psgcCodeMunicipality;
+            filterModel.PsgcCodeBarangay = null;
+            filterBarangays.Clear();
+            if (psgcCodeMunicipality > 0)
+                filterBarangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}") ?? new();
+        }
+    }
+    private void OnFilterBarangayChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
+        {
+            filterModel.PsgcCodeBarangay = psgcCodeBarangay;
+        }
+    }
+    #endregion
+
+    private int? GetAge(DateTime? birthDate)
+    {
+        if (birthDate == null)
+            return null;
+
+        var today = DateTime.Today;
+        var age = today.Year - birthDate.Value.Year;
+
+        if (birthDate.Value.Date > today.AddYears(-age))
+            age--;
+
+        return age;
+    }
+
+    private string GetAgeBadgeClass(DateTime birthDate)
+    {
+        var age = GetAge(birthDate);
+        return age >= 80 ? "bg-success" : "bg-danger";
+    }
     private async Task OpenSaveConfirmationModal()
     {
         ClearMessages();
@@ -394,6 +773,77 @@
             : "Are you sure you want to add this data?";
         await confirmModal.ShowAsync();
     }
+    private async Task ClearFilterAsync()
+    {
+        filterModel = new BeneficiaryFilterDto();
+        await LoadBeneficiariesAsync();
+    }
+    private async Task ApplyFiltersAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var queryParams = new List<string>();
+
+            if (filterModel.PsgcCodeRegion.HasValue && filterModel.PsgcCodeRegion > 0)
+                queryParams.Add($"PsgcCodeRegion={filterModel.PsgcCodeRegion}");
+
+            if (filterModel.PsgcCodeProvince.HasValue && filterModel.PsgcCodeProvince > 0)
+                queryParams.Add($"PsgcCodeProvince={filterModel.PsgcCodeProvince}");
+
+            if (filterModel.PsgcCodeMunicipality.HasValue && filterModel.PsgcCodeMunicipality > 0)
+                queryParams.Add($"PsgcCodeMunicipality={filterModel.PsgcCodeMunicipality}");
+
+            if (filterModel.PsgcCodeBarangay.HasValue && filterModel.PsgcCodeBarangay > 0)
+                queryParams.Add($"PsgcCodeBarangay={filterModel.PsgcCodeBarangay}");
+
+            if (!string.IsNullOrWhiteSpace(filterModel.LastName))
+                queryParams.Add($"LastName={Uri.EscapeDataString(filterModel.LastName)}");
+
+            if (!string.IsNullOrWhiteSpace(filterModel.FirstName))
+                queryParams.Add($"FirstName={Uri.EscapeDataString(filterModel.FirstName)}");
+
+            if (filterModel.SpecificAge.HasValue)
+                queryParams.Add($"SpecificAge={filterModel.SpecificAge}");
+
+            if (filterModel.AgeFrom.HasValue)
+                queryParams.Add($"AgeFrom={filterModel.AgeFrom}");
+
+            if (filterModel.AgeTo.HasValue)
+                queryParams.Add($"AgeTo={filterModel.AgeTo}");
+
+            if (filterModel.Sex.HasValue && filterModel.Sex > 0)
+                queryParams.Add($"Sex={filterModel.Sex}");
+
+            if (filterModel.SpecificBirthday.HasValue)
+                queryParams.Add($"SpecificBirthday={filterModel.SpecificBirthday.Value:yyyy-MM-dd}");
+
+            if (filterModel.BirthdayFrom.HasValue)
+                queryParams.Add($"BirthdayFrom={filterModel.BirthdayFrom.Value:yyyy-MM-dd}");
+
+            if (filterModel.BirthdayTo.HasValue)
+                queryParams.Add($"BirthdayTo={filterModel.BirthdayTo.Value:yyyy-MM-dd}");
+
+            var url = "api/BeneficiaryInformation/filter";
+
+            if (queryParams.Any())
+                url += "?" + string.Join("&", queryParams);
+
+            beneficiaries = await Http.GetFromJsonAsync<List<BeneficiaryInformationDto>>(url)
+                ?? new List<BeneficiaryInformationDto>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to filter beneficiary records. {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
     //Delete confirmation modal
     private async Task OpenDeleteConfirmationModal(BeneficiaryInformationDto item)
     {
@@ -426,9 +876,9 @@
             BirthDate = model.BirthDate,
             Sex = model.Sex,
             PsgcCodeRegion = model.PsgcCodeRegion,
-            Province = model.Province,
-            Municipality = model.Municipality,
-            Barangay = model.Barangay,
+            PsgcCodeProvince = model.PsgcCodeProvince,
+            PsgcCodeMunicipality = model.PsgcCodeMunicipality,
+            PsgcCodeBarangay = model.PsgcCodeBarangay,
             isCompliant = model.isCompliant,
             Validator = model.Validator,
             ValidationDate = model.ValidationDate,
@@ -601,15 +1051,24 @@
         model = new BeneficiaryInformationDto
         {
             BirthDate = DateTime.Today,
-            ValidationDate = DateTime.Today
+            ValidationDate = DateTime.Today,
+            PsgcCodeRegion = 0,
+            PsgcCodeProvince = 0,
+            PsgcCodeMunicipality = 0,
+            PsgcCodeBarangay = 0
         };
+
+        provinces.Clear();
+        municipalities.Clear();
+        barangays.Clear();
     }
+
     private void ClearMessages()
     {
         successMessage = null;
         errorMessage = null;
     }
-    private void EditItem(BeneficiaryInformationDto item)
+    private async Task EditItem(BeneficiaryInformationDto item)
     {
         ClearMessages();
         isEditMode = true;
@@ -625,11 +1084,18 @@
             Extension = item.Extension,
             BirthDate = item.BirthDate,
             Sex = item.Sex,
+            IsIndigenousPeople = item.IsIndigenousPeople,
+            IsPersonWithDisability = item.IsPersonWithDisability,
+            CivilStatus = item.CivilStatus,
+            Citizenship = item.Citizenship,
             Region = item.Region,
             PsgcCodeRegion = item.PsgcCodeRegion,
             Province = item.Province,
+            PsgcCodeProvince = item.PsgcCodeProvince,
             Municipality = item.Municipality,
+            PsgcCodeMunicipality = item.PsgcCodeMunicipality,
             Barangay = item.Barangay,
+            PsgcCodeBarangay = item.PsgcCodeBarangay,
             isCompliant = item.isCompliant,
             Validator = item.Validator,
             ValidationDate = item.ValidationDate,
@@ -638,9 +1104,22 @@
             isDeceased = item.isDeceased,
             DateOfDeath = item.DateOfDeath,
             isEligible = item.isEligible,
+            RemarkCategory = item.RemarkCategory,
             Remarks = item.Remarks,
             isDeleted = item.isDeleted
         };
+        provinces.Clear();
+        municipalities.Clear();
+        barangays.Clear();
+
+        if (model.PsgcCodeRegion > 0)
+            await LoadProvincesAsync(model.PsgcCodeRegion);
+        if (model.PsgcCodeProvince > 0)
+            await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
+        if (model.PsgcCodeMunicipality > 0)
+            await LoadBarangaysAsync(model.PsgcCodeMunicipality);
+
+        StateHasChanged();
     }
     private void CancelEdit()
     {
@@ -662,10 +1141,8 @@
     };
     private string GetPaymentStatusText(int status) => status switch
     {
-        1 => "Pending",
-        2 => "Paid",
-        3 => "Failed",
-        _ => "Unknown"
+        1 => "Unpaid",
+        2 => "Paid"
     };
     private string GetPaymentBadgeClass(int status) => status switch
     {

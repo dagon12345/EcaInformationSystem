@@ -15,10 +15,14 @@ namespace EcaInformationSystem.Application.DTOs
         [Required]
         public DateTime BirthDate { get; set; }
         public int Sex { get; set; }
+        public bool IsIndigenousPeople { get; set; }
+        public bool IsPersonWithDisability { get; set; }
+        public int? CivilStatus { get; set; }
+        public int? Citizenship { get; set; }
         public int PsgcCodeRegion { get; set; }
-        public int Province { get; set; }
-        public int Municipality { get; set; }
-        public int Barangay { get; set; }
+        public int PsgcCodeProvince { get; set; }
+        public int PsgcCodeMunicipality { get; set; }
+        public int PsgcCodeBarangay { get; set; }
         public bool isCompliant { get; set; }
         [Required]
         public string Validator { get; set; } = string.Empty;
@@ -30,6 +34,7 @@ namespace EcaInformationSystem.Application.DTOs
         public bool isDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
         public bool isEligible { get; set; }
+        public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public bool isDeleted { get; set; }
     }

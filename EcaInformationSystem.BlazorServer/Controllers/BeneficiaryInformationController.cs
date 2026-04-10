@@ -53,5 +53,11 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 return NotFound(ex.Message);
             }
         }
+        [HttpGet("filter")]
+        public async Task<ActionResult<List<BeneficiaryInformationDto>>> Filter([FromQuery] BeneficiaryFilterDto filter)
+        {
+            var result = await _beneficiaryInformationService.FilterAsync(filter);
+            return Ok(result);
+        }
     }
 }

@@ -11,6 +11,9 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IBeneficiaryInformationService, BeneficiaryInformationService>();
             services.AddScoped<IRegionService, RegionService>();
+            services.AddScoped<IProvinceService, ProvinceService>();
+            services.AddScoped<IMunicipalityService, MunicipalityService>();
+            services.AddScoped<IBarangayService, BarangayService>();
             return services;
         }
     }

@@ -26,11 +26,15 @@ namespace EcaInformationSystem.Application.Services
                 MiddleName = dto.MiddleName,
                 Extension = dto.Extension,
                 BirthDate = dto.BirthDate,
+                IsIndigenousPeople = dto.IsIndigenousPeople,
+                IsPersonWithDisability = dto.IsPersonWithDisability,
+                CivilStatus = dto.CivilStatus,
+                Citizenship = dto.Citizenship,
                 Sex = dto.Sex,
                 Region = dto.PsgcCodeRegion,
-                Province = dto.Province,
-                Municipality = dto.Municipality,
-                Barangay = dto.Barangay,
+                Province = dto.PsgcCodeProvince,
+                Municipality = dto.PsgcCodeMunicipality,
+                Barangay = dto.PsgcCodeBarangay,
                 isCompliant = dto.isCompliant,
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
@@ -39,6 +43,7 @@ namespace EcaInformationSystem.Application.Services
                 isDeceased = dto.isDeceased,
                 DateOfDeath = dto.DateOfDeath,
                 isEligible = dto.isEligible,
+                RemarkCategory = dto.RemarkCategory,
                 Remarks = dto.Remarks,
                 isDeleted = false
             };
@@ -58,10 +63,14 @@ namespace EcaInformationSystem.Application.Services
                 Extension = beneficiary.Extension,
                 BirthDate = beneficiary.BirthDate,
                 Sex = beneficiary.Sex,
+                IsIndigenousPeople = beneficiary.IsIndigenousPeople,
+                IsPersonWithDisability = beneficiary.IsPersonWithDisability,
+                CivilStatus = beneficiary.CivilStatus,
+                Citizenship = beneficiary.Citizenship,
                 PsgcCodeRegion = beneficiary.Region,
-                Province = beneficiary.Province,
-                Municipality = beneficiary.Municipality,
-                Barangay = beneficiary.Barangay,
+                PsgcCodeProvince = beneficiary.Province,
+                PsgcCodeMunicipality = beneficiary.Municipality,
+                PsgcCodeBarangay = beneficiary.Barangay,
                 isCompliant = beneficiary.isCompliant,
                 Validator = beneficiary.Validator,
                 ValidationDate = beneficiary.ValidationDate,
@@ -70,9 +79,15 @@ namespace EcaInformationSystem.Application.Services
                 isDeceased = beneficiary.isDeceased,
                 DateOfDeath = beneficiary.DateOfDeath,
                 isEligible = beneficiary.isEligible,
+                RemarkCategory = beneficiary.RemarkCategory,
                 Remarks = beneficiary.Remarks,
                 isDeleted = beneficiary.isDeleted
             };
+        }
+
+        public async Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter)
+        {
+            return await _repo.FilterAsync(filter);
         }
 
         public async Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync()
@@ -98,8 +113,9 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Beneficiary not found");
 
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
-                dto.Sex, dto.PsgcCodeRegion, dto.Province, dto.Municipality, dto.Barangay, dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
-                dto.isDeceased, dto.DateOfDeath, dto.isEligible, dto.Remarks);
+                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
+                dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
+                dto.isDeceased, dto.DateOfDeath, dto.isEligible, dto.RemarkCategory, dto.Remarks);
             await _repo.UpdateAsync(beneficiary);
             await _repo.SaveChangesAsync();
 

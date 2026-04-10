@@ -9,6 +9,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<Product> Products => Set<Product>();
         public DbSet<BeneficiaryInformation> BeneficiaryInformations => Set<BeneficiaryInformation>();
         public DbSet<Region> Regions => Set<Region>();
+        public DbSet<Province> Provinces => Set<Province>();
+        public DbSet<Municipality> Municipalities => Set<Municipality>();
+        public DbSet<Barangay> Barangays => Set<Barangay>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Product>(entity =>

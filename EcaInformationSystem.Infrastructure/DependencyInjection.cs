@@ -17,7 +17,9 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<IBeneficiaryInformationRepository, BeneficiaryInformationRepository>();
             services.AddScoped<IRegionRepository, RegionRepository>();
-
+            services.AddScoped<IProvinceRepository, ProvinceRepository>();
+            services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
+            services.AddScoped<IBarangayRepository, BarangayRepository>();
             return services;
         }
     }
