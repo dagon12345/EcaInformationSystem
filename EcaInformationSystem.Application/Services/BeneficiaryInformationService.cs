@@ -27,7 +27,7 @@ namespace EcaInformationSystem.Application.Services
                 Extension = dto.Extension,
                 BirthDate = dto.BirthDate,
                 Sex = dto.Sex,
-                Region = dto.Region,
+                Region = dto.PsgcCodeRegion,
                 Province = dto.Province,
                 Municipality = dto.Municipality,
                 Barangay = dto.Barangay,
@@ -58,7 +58,7 @@ namespace EcaInformationSystem.Application.Services
                 Extension = beneficiary.Extension,
                 BirthDate = beneficiary.BirthDate,
                 Sex = beneficiary.Sex,
-                Region = beneficiary.Region,
+                PsgcCodeRegion = beneficiary.Region,
                 Province = beneficiary.Province,
                 Municipality = beneficiary.Municipality,
                 Barangay = beneficiary.Barangay,
@@ -78,33 +78,7 @@ namespace EcaInformationSystem.Application.Services
         public async Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync()
         {
             var list = await _repo.GetAllAsync();
-            return list.Select(x => new BeneficiaryInformationDto
-            {
-                Id = x.Id,
-                BatchCode = x.BatchCode,
-                OscaIdNumber = x.OscaIdNumber,
-                NcscRrn = x.NcscRrn,
-                LastName = x.LastName,
-                FirstName = x.FirstName,
-                MiddleName = x.MiddleName,
-                Extension = x.Extension,
-                BirthDate = x.BirthDate,
-                Sex = x.Sex,
-                Region = x.Region,
-                Province = x.Province,
-                Municipality = x.Municipality,
-                Barangay = x.Barangay,
-                isCompliant = x.isCompliant,
-                Validator = x.Validator,
-                ValidationDate = x.ValidationDate,
-                PaymentStatus = x.PaymentStatus,
-                PaymentDate = x.PaymentDate,
-                isDeceased = x.isDeceased,
-                DateOfDeath = x.DateOfDeath,
-                isEligible = x.isEligible,
-                Remarks = x.Remarks,
-                isDeleted = x.isDeleted
-            }).ToList();
+            return list;
         }
 
         public async Task SoftDeleteAsync(Guid Id)
@@ -124,7 +98,7 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Beneficiary not found");
 
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
-                dto.Sex, dto.Region, dto.Province, dto.Municipality, dto.Barangay, dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
+                dto.Sex, dto.PsgcCodeRegion, dto.Province, dto.Municipality, dto.Barangay, dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
                 dto.isDeceased, dto.DateOfDeath, dto.isEligible, dto.Remarks);
             await _repo.UpdateAsync(beneficiary);
             await _repo.SaveChangesAsync();

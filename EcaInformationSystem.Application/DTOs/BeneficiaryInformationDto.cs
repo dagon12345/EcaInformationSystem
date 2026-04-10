@@ -12,7 +12,8 @@
         public string? Extension { get; set; }
         public DateTime BirthDate { get; set; }
         public int Sex { get; set; }
-        public int Region { get; set; }
+        public int PsgcCodeRegion { get; set; }
+        public string? Region { get; set; }
         public int Province { get; set; }
         public int Municipality { get; set; }
         public int Barangay { get; set; }

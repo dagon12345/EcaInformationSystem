@@ -89,10 +89,18 @@
                         <div class="border rounded p-3 mb-4">
                             <h5 class="text-primary mb-3">Address Information</h5>
                             <div class="row g-3">
+
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Region</label>
-                                    <InputNumber class="form-control" @bind-Value="model.Region" />
+                                    <InputSelect class="form-select" @bind-Value="model.PsgcCodeRegion">
+                                        <option value="0">Select Region</option>
+                                        @foreach (var region in regions)
+                                        {
+                                            <option value="@region.PsgcCodeRegion">@region.Name</option>
+                                        }
+                                    </InputSelect>
                                 </div>
+                                 
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Province</label>
                                     <InputNumber class="form-control" @bind-Value="model.Province" />
@@ -250,6 +258,7 @@
                                         <th>Full Name</th>
                                         <th>Birth Date</th>
                                         <th>Sex</th>
+                                        <th>Region</th>
                                         <th>Barangay</th>
                                         <th>Validator</th>
                                         <th>Payment Status</th>
@@ -267,6 +276,7 @@
                                             <td>@GetFullName(item)</td>
                                             <td>@item.BirthDate.ToString("yyyy-MM-dd")</td>
                                             <td>@GetSexText(item.Sex)</td>
+                                            <td>@item.Region</td>
                                             <td>@item.Barangay</td>
                                             <td>@item.Validator</td>
                                             <td>
@@ -350,8 +360,29 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadRegionsAsync();
         await LoadBeneficiariesAsync();
     }
+
+    public class RegionLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    private async Task LoadRegionsAsync()
+    {
+        try
+        {
+            regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region")
+                      ?? new List<RegionLookupDto>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load regions. {ex.Message}";
+        }
+    }
+
+    private List<RegionLookupDto> regions = new();
 
     private async Task OpenSaveConfirmationModal()
     {
@@ -394,7 +425,7 @@
             Extension = model.Extension,
             BirthDate = model.BirthDate,
             Sex = model.Sex,
-            Region = model.Region,
+            PsgcCodeRegion = model.PsgcCodeRegion,
             Province = model.Province,
             Municipality = model.Municipality,
             Barangay = model.Barangay,
@@ -595,6 +626,7 @@
             BirthDate = item.BirthDate,
             Sex = item.Sex,
             Region = item.Region,
+            PsgcCodeRegion = item.PsgcCodeRegion,
             Province = item.Province,
             Municipality = item.Municipality,
             Barangay = item.Barangay,
