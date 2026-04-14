@@ -5,5 +5,6 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface IProvinceService
     {
         Task<IEnumerable<Province>> GetByRegionCodeAsync(int psgcCodeRegion);
+        Task<IEnumerable<Province>> GetAllProvinceAsync();
     }
 }

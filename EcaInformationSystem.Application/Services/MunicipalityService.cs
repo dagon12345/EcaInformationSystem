@@ -16,5 +16,10 @@ namespace EcaInformationSystem.Application.Services
             var municipalities = await _municipalityRepository.GetByProvinceCodeAsync(psgcCodeProvince);
             return municipalities;
         }
+
+        public async Task<IEnumerable<Municipality>> GetMunicipalitiesAsync()
+        {
+            return await _municipalityRepository.GetAllMunicipalityAsync();
+        }
     }
 }

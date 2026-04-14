@@ -5,5 +5,6 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface IMunicipalityRepository
     {
         Task<IEnumerable<Municipality>> GetByProvinceCodeAsync(int psgcCodeProvince);
+        Task<IEnumerable<Municipality>> GetAllMunicipalityAsync();
     }
 }

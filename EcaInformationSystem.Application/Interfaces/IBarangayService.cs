@@ -5,5 +5,6 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface IBarangayService
     {
         Task<IEnumerable<Barangay>> GetByMunicipalityCodeAsync(int psgcCodeMunicipality);
+        Task<IEnumerable<Barangay>> GetBarangaysAsync();
     }
 }

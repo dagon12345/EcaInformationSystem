@@ -5,7 +5,7 @@ namespace EcaInformationSystem.BlazorServer.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class BarangayController : ControllerBase    
+    public class BarangayController : ControllerBase
     {
         private readonly IBarangayService _barangayService;
         public BarangayController(IBarangayService barangayService)
@@ -16,6 +16,12 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         public async Task<IActionResult> GetByMunicipality(int psgcCodeMunicipality)
         {
             var barangays = await _barangayService.GetByMunicipalityCodeAsync(psgcCodeMunicipality);
+            return Ok(barangays);
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetBarangays()
+        {
+            var barangays = await _barangayService.GetBarangaysAsync();
             return Ok(barangays);
         }
     }

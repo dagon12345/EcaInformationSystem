@@ -12,6 +12,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             _context = context;
         }
+
+        public async Task<IEnumerable<Barangay>> GetBarangaysAsync()
+        {
+            return await _context.Barangays.AsNoTracking().ToListAsync();
+        }
+
         public async Task<IEnumerable<Barangay>> GetByMunicipalityCodeAsync(int psgcCodeMunicipality)
         {
             return await _context.Barangays

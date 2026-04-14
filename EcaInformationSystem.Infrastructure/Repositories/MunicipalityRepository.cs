@@ -29,5 +29,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Municipality>> GetAllMunicipalityAsync()
+        {
+            return await _context.Municipalities.AsNoTracking().ToListAsync();
+        }
+
     }
 }
