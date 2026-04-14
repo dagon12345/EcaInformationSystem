@@ -19,5 +19,10 @@ namespace EcaInformationSystem.Application.Interfaces
             string? oscaIdNumber,
             int? ncscRrn,
             Guid? excludeId = null);
+
+        Task<int?> GetRegionCodeByNameAsync(string regionName);
+        Task<int?> GetProvinceCodeByNameAsync(string provinceName);
+        Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName);
+        Task<int?> GetBarangayCodeByNameAsync(string barangayName);
     }
 }

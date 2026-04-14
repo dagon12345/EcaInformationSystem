@@ -72,6 +72,18 @@ namespace EcaInformationSystem.BlazorServer.Controllers
             var result = await _beneficiaryInformationService.GetSummaryAsync(filter);
             return Ok(result);
         }
+        [HttpPost("import")]
+        public async Task<IActionResult> ImportExcel([FromForm] IFormFile file)
+        {
+            try
+            {
+                var result = await _beneficiaryInformationService.ImportExcelAsync(file);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
     }
-
 }

@@ -22,10 +22,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<bool> ExistsDuplicateAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn, Guid? excludeId = null)
         {
-            var normalizedLastName = lastName?.Trim().ToLower();
-            var normalizedFirstName = firstName?.Trim().ToLower();
-            var normalizedMiddleName = middleName?.Trim().ToLower();
-            var normalizedOscaIdNumber = oscaIdNumber?.Trim().ToLower();
+            var normalizedLastName = (lastName ?? string.Empty).Trim().ToLower();
+            var normalizedFirstName = (firstName ?? string.Empty).Trim().ToLower();
+            var normalizedMiddleName = (middleName ?? string.Empty).Trim().ToLower();
+            var normalizedOscaIdNumber = (oscaIdNumber ?? string.Empty).Trim().ToLower();
             var normalizedBirthDate = birthDate.Date;
 
             var query = _context.BeneficiaryInformations
@@ -33,20 +33,76 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => !x.isDeleted);
 
             if (excludeId.HasValue)
-            {
                 query = query.Where(x => x.Id != excludeId.Value);
-            }
 
             return await query.AnyAsync(x =>
-                (x.LastName ?? "").Trim().ToLower() == (normalizedLastName ?? "") &&
-                (x.FirstName ?? "").Trim().ToLower() == (normalizedFirstName ?? "") &&
-                (x.MiddleName ?? "").Trim().ToLower() == (normalizedMiddleName ?? "") &&
+                (x.LastName ?? string.Empty).Trim().ToLower() == normalizedLastName &&
+                (x.FirstName ?? string.Empty).Trim().ToLower() == normalizedFirstName &&
+                (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
                 x.BirthDate.Date == normalizedBirthDate &&
-                (x.OscaIdNumber ?? "").Trim().ToLower() == (normalizedOscaIdNumber ?? "") &&
+                (x.OscaIdNumber ?? string.Empty).Trim().ToLower() == normalizedOscaIdNumber &&
                 x.NcscRrn == ncscRrn
-             );
+            );
+        }
+        public async Task<BeneficiaryInformation?> GetByIdAsync(Guid id)
+        {
+            return await _context.BeneficiaryInformations.FirstOrDefaultAsync(x => x.Id == id);
+        }
+        public async Task<int?> GetRegionCodeByNameAsync(string regionName)
+        {
+            if (string.IsNullOrWhiteSpace(regionName))
+                return null;
+
+            var normalized = regionName.Trim().ToLower();
+
+            var region = await _context.Regions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Name!.ToLower() == normalized);
+
+            return region?.PsgcCodeRegion;
         }
 
+        public async Task<int?> GetProvinceCodeByNameAsync(string provinceName)
+        {
+            if (string.IsNullOrWhiteSpace(provinceName))
+                return null;
+
+            var normalized = provinceName.Trim().ToLower();
+
+            var province = await _context.Provinces
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Name!.ToLower() == normalized);
+
+            return province?.PsgcCodeProvince;
+        }
+
+        public async Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName)
+        {
+            if (string.IsNullOrWhiteSpace(municipalityName))
+                return null;
+
+            var normalized = municipalityName.Trim().ToLower();
+
+            var municipality = await _context.Municipalities
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Name!.ToLower() == normalized);
+
+            return municipality?.PsgcCodeMunicipality;
+        }
+
+        public async Task<int?> GetBarangayCodeByNameAsync(string barangayName)
+        {
+            if (string.IsNullOrWhiteSpace(barangayName))
+                return null;
+
+            var normalized = barangayName.Trim().ToLower();
+
+            var barangay = await _context.Barangays
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Name!.ToLower() == normalized);
+
+            return barangay?.PsgcCodeBarangay;
+        }
         public async Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter)
         {
             var query =
@@ -243,11 +299,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
              .ToListAsync();
 
             return result;
-        }
-
-        public async Task<BeneficiaryInformation?> GetByIdAsync(Guid id)
-        {
-            return await _context.BeneficiaryInformations.FirstOrDefaultAsync(x => x.Id == id);
         }
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)

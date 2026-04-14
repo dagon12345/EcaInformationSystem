@@ -1,5 +1,6 @@
 ﻿using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Domain.Entities;
+using Microsoft.AspNetCore.Http;
 
 namespace EcaInformationSystem.Application.Interfaces
 {
@@ -11,5 +12,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task SoftDeleteAsync(Guid Id);
         Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto);
         Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto);
+        Task<BeneficiaryImportResultDto> ImportExcelAsync(IFormFile file);
     }
 }
