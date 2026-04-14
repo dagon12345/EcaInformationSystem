@@ -5,7 +5,7 @@
 @using EcaInformationSystem.Application.DTOs
 @inject HttpClient Http
 
-<PageTitle>Beneficiary Information</PageTitle>
+<PageTitle>Grantee Information</PageTitle>
 <div class="container-fluid py-4">
     @if(!string.IsNullOrWhiteSpace(successMessage))
     {
@@ -28,8 +28,8 @@
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h4 class="mb-0">Beneficiary Information Entry</h4>
-                            <small class="opacity-75">Create a new beneficiary record</small>
+                            <h4 class="mb-0">Grantee Information Entry</h4>
+                            <small class="opacity-75">Create a new Grantee record</small>
                         </div>
                     </div>
                 </div>
@@ -135,22 +135,18 @@
                         <!-- Address Information -->
                         <div class="border rounded p-3 mb-4">
                             <h5 class="text-primary mb-3">Address Information</h5>
-                            <div class="row g-3">
 
-                                <div class="col-12 col-md-6 col-lg-3">
+                            <div class="row g-3 mb-3">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label">Region</label>
-                                    <select class="form-select" value="@model.PsgcCodeRegion" @onchange="OnRegionChanged">
-                                        <option value="0">Select Region</option>
-                                        @foreach (var region in regions)
-                                        {
-                                            <option value="@region.PsgcCodeRegion">@region.Name</option>
-                                        }
-                                    </select>
+                                    <input type="text" class="form-control" value="@DefaultRegionName" readonly />
                                 </div>
 
-                                <div class="col-12 col-md-6 col-lg-3">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label">Province</label>
-                                    <select class="form-select" value="@model.PsgcCodeProvince" @onchange="OnProvinceChanged" disabled="@(model.PsgcCodeRegion == 0)">
+                                    <select class="form-select"
+                                            value="@model.PsgcCodeProvince"
+                                            @onchange="OnProvinceChanged">
                                         <option value="0">Select Province</option>
                                         @foreach (var province in provinces)
                                         {
@@ -158,10 +154,15 @@
                                         }
                                     </select>
                                 </div>
+                            </div>
 
-                                <div class="col-12 col-md-6 col-lg-3">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label">Municipality</label>
-                                    <select class="form-select" value="@model.PsgcCodeMunicipality" @onchange="OnMunicipalityChanged" disabled="@(model.PsgcCodeProvince == 0)">
+                                    <select class="form-select"
+                                            value="@model.PsgcCodeMunicipality"
+                                            @onchange="OnMunicipalityChanged"
+                                            disabled="@(model.PsgcCodeProvince == 0)">
                                         <option value="0">Select Municipality</option>
                                         @foreach (var municipality in municipalities)
                                         {
@@ -170,9 +171,12 @@
                                     </select>
                                 </div>
 
-                                <div class="col-12 col-md-6 col-lg-3">
+                                <div class="col-12 col-md-6">
                                     <label class="form-label">Barangay</label>
-                                    <select class="form-select" value="@model.PsgcCodeBarangay" @onchange="OnBarangayChanged" disabled="@(model.PsgcCodeMunicipality == 0)">
+                                    <select class="form-select"
+                                            value="@model.PsgcCodeBarangay"
+                                            @onchange="OnBarangayChanged"
+                                            disabled="@(model.PsgcCodeMunicipality == 0)">
                                         <option value="0">Select Barangay</option>
                                         @foreach (var barangay in barangays)
                                         {
@@ -180,9 +184,9 @@
                                         }
                                     </select>
                                 </div>
-
                             </div>
                         </div>
+
                         <!-- Validation Information -->
                         <div class="border rounded p-3 mb-4">
                             <h5 class="text-primary mb-3">Validation Information</h5>
@@ -283,7 +287,7 @@
                                 }
                                 else
                                 {
-                                    <span>@(isEditMode ? "Update Beneficiary": "Add Beneficiary")</span>
+                                    <span>@(isEditMode ? "Update Grantee" : "Add Grantee")</span>
                                 }
                             </button>
                         </div>
@@ -300,8 +304,8 @@
                 <CardHeader Class="bg-light">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="mb-0">Filter Beneficiaries</h5>
-                            <small class="text-muted">Search and narrow down beneficiary records</small>
+                            <h5 class="mb-0">Filter Grantees</h5>
+                            <small class="text-muted">Search and narrow down Grantee records</small>
                         </div>
                         <div class="d-flex gap-2">
                             <Button Color="ButtonColor.Secondary" Size="ButtonSize.Small" @onclick="ClearFilterAsync">
@@ -315,102 +319,121 @@
                 </CardHeader>
 
                 <CardBody>
-                    <div class="row g-3">
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Region</label>
-                            <select class="form-select" value="@filterModel.PsgcCodeRegion" @onchange="OnFilterRegionChanged">
-                                <option value="0">Select Region</option>
-                                @foreach (var region in regions)
-                                {
-                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
-                                }
-                            </select>
-                        </div>
+                    <!-- Location Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Location Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Province</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeProvince"
+                                        @onchange="OnFilterProvinceChanged">
+                                    <option value="0">Select Province</option>
+                                    @foreach (var province in filterProvinces)
+                                    {
+                                        <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                    }
+                                </select>
+                            </div>
 
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Province</label>
-                            <select class="form-select" value="@filterModel.PsgcCodeProvince" @onchange="OnFilterProvinceChanged" disabled="@(filterModel.PsgcCodeRegion == 0)">
-                                <option value="0">Select Province</option>
-                                @foreach (var province in filterProvinces)
-                                {
-                                    <option value="@province.PsgcCodeProvince">@province.Name</option>
-                                }
-                            </select>
-                        </div>
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Municipality</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeMunicipality"
+                                        @onchange="OnFilterMunicipalityChanged"
+                                        disabled="@(filterModel.PsgcCodeProvince is null || filterModel.PsgcCodeProvince == 0)">
+                                    <option value="0">Select Municipality</option>
+                                    @foreach (var municipality in filterMunicipalities)
+                                    {
+                                        <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
+                                    }
+                                </select>
+                            </div>
 
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Municipality</label>
-                            <select class="form-select" value="@filterModel.PsgcCodeMunicipality" @onchange="OnFilterMunicipalityChanged" disabled="@(filterModel.PsgcCodeProvince == 0)">
-                                <option value="0">Select Municipality</option>
-                                @foreach (var municipality in filterMunicipalities)
-                                {
-                                    <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
-                                }
-                            </select>
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Barangay</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeBarangay"
+                                        @onchange="OnFilterBarangayChanged"
+                                        disabled="@(filterModel.PsgcCodeMunicipality is null || filterModel.PsgcCodeMunicipality == 0)">
+                                    <option value="0">Select Barangay</option>
+                                    @foreach (var barangay in filterBarangays)
+                                    {
+                                        <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Barangay</label>
-                            <select class="form-select" value="@filterModel.PsgcCodeBarangay" @onchange="OnFilterBarangayChanged" disabled="@(filterModel.PsgcCodeMunicipality == 0)">
-                                <option value="0">Select Barangay</option>
-                                @foreach (var barangay in filterBarangays)
-                                {
-                                    <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
-                                }
-                            </select>
+                    <!-- Personal Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Personal Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName" />
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName" />
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Sex</label>
+                                <select class="form-select" @bind="filterModel.Sex">
+                                    <option value="0">Select Sex</option>
+                                    <option value="1">Male</option>
+                                    <option value="2">Female</option>
+                                </select>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Last Name</label>
-                            <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName"/>
+                    <!-- Age Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Age Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Age</label>
+                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Age From</label>
+                                <input type="number" class="form-control" placeholder="Min age" @bind="filterModel.AgeFrom" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Age To</label>
+                                <input type="number" class="form-control" placeholder="Max age" @bind="filterModel.AgeTo" />
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">First Name</label>
-                            <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName"/>
+                    <!-- Birthday Filters -->
+                    <div>
+                        <h6 class="text-primary mb-3">Birthday Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Birthday</label>
+                                <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday From</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday To</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayTo" />
+                            </div>
                         </div>
-
-                        <div class="col-12 col-md-6 col-lg-2">
-                            <label class="form-label">Specific Age</label>
-                            <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" />
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-2">
-                            <label class="form-label">Age From</label>
-                            <input type="number" class="form-control" placeholder="Min age" @bind="filterModel.AgeFrom" />
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-2">
-                            <label class="form-label">Age To</label>
-                            <input type="number" class="form-control" placeholder="Max age" @bind="filterModel.AgeTo" />
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Sex</label>
-                            <select class="form-select" @bind="filterModel.Sex">
-                                <option value="0">Select Sex</option>
-                                <option value="1">Male</option>
-                                <option value="2">Female</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Specific Birthday</label>
-                            <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" />
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Birthday From</label>
-                            <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" />
-                        </div>
-
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label">Birthday To</label>
-                            <input type="date" class="form-control" @bind="filterModel.BirthdayTo" />
-                        </div>
-
                     </div>
                 </CardBody>
+
             </Card>
         </div>
     </div>
@@ -421,8 +444,8 @@
             <Card Class="shadow-sm border-0">
                 <CardHeader Class="bg-light">
                     <div>
-                        <h4 class="mb-0">Beneficiary Dashboard Summary</h4>
-                        <small class="text-muted">Overview of beneficiary records, age groups, provinces, and municipalities</small>
+                        <h4 class="mb-0">Grantee Dashboard Summary</h4>
+                        <small class="text-muted">Overview of Grantee records, age groups, provinces, and municipalities</small>
                     </div>
                 </CardHeader>
 
@@ -432,11 +455,11 @@
                         <!-- Beneficiary Summary -->
                         <div class="col-12">
                             <div class="border rounded shadow-sm p-3 bg-white">
-                                <h5 class="mb-3 text-primary">Beneficiary Summary</h5>
+                                <h5 class="mb-3 text-primary">Grantee Summary</h5>
                                 <div class="row g-3">
                                     <div class="col-12 col-md-4">
                                         <div class="border rounded p-3 h-100 bg-primary-subtle">
-                                            <h6 class="text-muted mb-2">Total Beneficiaries</h6>
+                                            <h6 class="text-muted mb-2">Total Grantees</h6>
                                             <h3 class="mb-0 text-primary">@summaryResult.TotalBeneficiaries</h3>
                                         </div>
                                     </div>
@@ -591,9 +614,9 @@
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-light">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Beneficiary List</h5>
+                        <h5 class="mb-0">Grantee List</h5>
                         <span class="badge bg-primary">@summaryResult.TotalBeneficiaries Record(s)</span>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="LoadBeneficiariesAsync">
+                        <button class="btn btn-sm btn-outline-primary" @onclick="LoadSummaryAsync">
                             Refresh
                         </button>
                     </div>
@@ -603,7 +626,7 @@
                     {
                         <div class="text-center py-4">
                             <div class="spinner-border text-primary" role="status"></div>
-                            <p class="mt-2 mb-0">Loading beneficiaries...</p>
+                            <p class="mt-2 mb-0">Loading grantees...</p>
                         </div>   
                     }
                     else if(!string.IsNullOrWhiteSpace(errorMessage))
@@ -615,7 +638,7 @@
                     else if (!beneficiaries.Any())
                     {
                         <div class="text-center py-4 text-muted">
-                            <p class="mb-0">No beneficiary record found.</p>
+                            <p class="mb-0">No grantee record found.</p>
                         </div>
                     }
                     else
@@ -723,7 +746,7 @@
     private BeneficiaryInformationDto model = new()
     {
         BirthDate = DateTime.Today,
-        ValidationDate = DateTime.Today
+        ValidationDate = DateTime.Today,
     };
     private Modal confirmModal = default!;
     private string confirmationTitle = "Confirm Action";
@@ -732,7 +755,9 @@
     private BeneficiaryInformationDto? selectedDeleteItem;
     private List<BeneficiaryInformationDto> beneficiaries = new();
     private BeneficiaryFilterDto filterModel = new();
-    private BeneficiarySummaryResultDto summaryResult = new();    
+    private BeneficiarySummaryResultDto summaryResult = new();   
+    private const int DefaultRegionCode = 1600000000;
+    private const string DefaultRegionName = "Region XIII (Caraga)";
     private bool isLoading;
     private bool isSaving;
     private bool isEditMode;
@@ -741,9 +766,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadRegionsAsync();
+        model.PsgcCodeRegion = DefaultRegionCode;
+        filterModel.PsgcCodeRegion = DefaultRegionCode;
+
+        await LoadProvincesAsync(DefaultRegionCode);
+        await LoadFilterProvincesAsync();
         await LoadSummaryAsync();
-        //await LoadBeneficiariesAsync();
+
     }
 
     public class RegionLookupDto
@@ -769,6 +798,12 @@
         public int PsgcCodeBarangay { get; set; }
         public string Name { get; set; } = string.Empty;
     }
+    private async Task LoadFilterProvincesAsync()
+    {
+        filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{DefaultRegionCode}")
+                          ?? new List<ProvinceLookupDto>();
+    }
+
     private async Task LoadSummaryAsync()
     {
         try
@@ -834,19 +869,6 @@
             isLoading = false;
         }
     }
-
-    private async Task LoadRegionsAsync()
-    {
-        try
-        {
-            regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region")
-                      ?? new List<RegionLookupDto>();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Unable to load regions. {ex.Message}";
-        }
-    }
     private async Task LoadProvincesAsync(int psgcCodeRegion)
     {
         provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{psgcCodeRegion}")
@@ -864,25 +886,6 @@
         barangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}")
                    ?? new List<BarangayLookupDto>();
     }
-
-    private async Task OnRegionChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var psgcCodeRegion))
-        {
-            model.PsgcCodeRegion = psgcCodeRegion;
-
-            model.PsgcCodeProvince = 0;
-            model.PsgcCodeMunicipality = 0;
-            model.PsgcCodeBarangay = 0;
-
-            provinces.Clear();
-            municipalities.Clear();
-            barangays.Clear();
-
-            await LoadProvincesAsync(psgcCodeRegion);
-        }
-    }
-
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
@@ -919,34 +922,15 @@
         }
     }
 
-
-    private List<RegionLookupDto> regions = new();
     private List<ProvinceLookupDto> provinces = new();
     private List<MunicipalityLookupDto> municipalities = new();
     private List<BarangayLookupDto> barangays = new();
 
     #region Filter dropdowns
-    private List<RegionLookupDto> filterRegions = new();
     private List<ProvinceLookupDto> filterProvinces = new();
     private List<MunicipalityLookupDto> filterMunicipalities = new();
     private List<BarangayLookupDto> filterBarangays = new();
 
-    private async Task OnFilterRegionChanged(ChangeEventArgs e)
-    {
-
-        if (int.TryParse(e.Value?.ToString(), out var psgcCodeRegion))
-        {
-            filterModel.PsgcCodeRegion = psgcCodeRegion;
-            filterModel.PsgcCodeProvince = null;
-            filterModel.PsgcCodeMunicipality = null;
-            filterModel.PsgcCodeBarangay = null;
-            filterProvinces.Clear();
-            filterMunicipalities.Clear();
-            filterBarangays.Clear();
-            if (psgcCodeRegion > 0)
-                filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{psgcCodeRegion}") ?? new();
-        }
-    }
     private async Task OnFilterProvinceChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
@@ -954,10 +938,16 @@
             filterModel.PsgcCodeProvince = psgcCodeProvince;
             filterModel.PsgcCodeMunicipality = null;
             filterModel.PsgcCodeBarangay = null;
+
             filterMunicipalities.Clear();
             filterBarangays.Clear();
+
             if (psgcCodeProvince > 0)
-                filterMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}") ?? new();
+            {
+                filterMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}") ?? 
+                new List<MunicipalityLookupDto>();
+            }
+
         }
     }
     private async Task OnFilterMunicipalityChanged(ChangeEventArgs e)
@@ -966,9 +956,12 @@
         {
             filterModel.PsgcCodeMunicipality = psgcCodeMunicipality;
             filterModel.PsgcCodeBarangay = null;
+
             filterBarangays.Clear();
+
             if (psgcCodeMunicipality > 0)
-                filterBarangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}") ?? new();
+                filterBarangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}") 
+                ?? new List<BarangayLookupDto>();
         }
     }
     private void OnFilterBarangayChanged(ChangeEventArgs e)
@@ -1011,10 +1004,15 @@
     }
     private async Task ClearFilterAsync()
     {
-        filterModel = new BeneficiaryFilterDto();
-        filterProvinces.Clear();
+        filterModel = new BeneficiaryFilterDto
+        {
+            PsgcCodeRegion = DefaultRegionCode
+        };
+
         filterMunicipalities.Clear();
         filterBarangays.Clear();
+
+        await LoadFilterProvincesAsync();
         await LoadSummaryAsync();
     }
     private async Task ApplyFiltersAsync()
@@ -1030,7 +1028,7 @@
         selectedDeleteItem = item;
         pendingAction = "delete";
         confirmationTitle = "Confirm Delete";
-        confirmationMessage = $"Are you sure you want to delete beneficiary '{item.FirstName} {item.LastName}'?";
+        confirmationMessage = $"Are you sure you want to delete Grantee '{item.FirstName} {item.LastName}'?";
 
         await confirmModal.ShowAsync();
     }
@@ -1053,7 +1051,7 @@
             Extension = model.Extension,
             BirthDate = model.BirthDate,
             Sex = model.Sex,
-            PsgcCodeRegion = model.PsgcCodeRegion,
+            PsgcCodeRegion = DefaultRegionCode,
             PsgcCodeProvince = model.PsgcCodeProvince,
             PsgcCodeMunicipality = model.PsgcCodeMunicipality,
             PsgcCodeBarangay = model.PsgcCodeBarangay,
@@ -1072,25 +1070,25 @@
 
         if (response.IsSuccessStatusCode)
         {
-            successMessage = "Beneficiary record saved successfully.";
+            successMessage = "Grantee record saved successfully.";
             try
             {
                 var createdItem = await response.Content.ReadFromJsonAsync<BeneficiaryInformationDto>();
                 if (createdItem is not null)
                 {
 
-                    successMessage = $"Beneficiary '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
+                    successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
 
                 }
             }
             catch (Exception ex)
             {
 
-                Console.WriteLine($"Warning: Unable to parse created beneficiary from response. {ex.Message}");
+                Console.WriteLine($"Warning: Unable to parse created Grantee from response. {ex.Message}");
             }
             // After successful save, reload the grid from database
             ResetForm();
-            await LoadBeneficiariesAsync();
+            await LoadSummaryAsync();
         }
         else if ((int)response.StatusCode == 400)
         {
@@ -1109,7 +1107,7 @@
         else
         {
             var serverMessage = await response.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to save beneficiary record. {serverMessage}";
+            errorMessage = $"Failed to save Grantee record. {serverMessage}";
         }
 
     }
@@ -1119,14 +1117,14 @@
         var updateResponse = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/{model.Id}", model);
         if (updateResponse.IsSuccessStatusCode)
         {
-            successMessage = $"Beneficiary '{model.FirstName} {model.LastName}' was updated successfully.";
+            successMessage = $"Grantee '{model.FirstName} {model.LastName}' was updated successfully.";
             ResetForm();
-            await LoadBeneficiariesAsync();
+            await LoadSummaryAsync();
         }
         else
         {
             var serverMessage = await updateResponse.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to update beneficiary record. {serverMessage}";
+            errorMessage = $"Failed to update Grantee record. {serverMessage}";
         }
     }
     //Soft delete - set isDeleted to true
@@ -1134,24 +1132,24 @@
     {
         if(selectedDeleteItem is null)
         {
-            errorMessage = "No beneficiary selected for deletion.";
+            errorMessage = "No Grantee selected for deletion.";
             return;
         }
         var response = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/soft-delete/{selectedDeleteItem.Id}", selectedDeleteItem);
 
         if(response.IsSuccessStatusCode)
         {
-            successMessage = $"Beneficiary '{selectedDeleteItem.FirstName} {selectedDeleteItem.LastName}' was deleted successfully.";
+            successMessage = $"Grantee '{selectedDeleteItem.FirstName} {selectedDeleteItem.LastName}' was deleted successfully.";
             if(isEditMode && model.Id == selectedDeleteItem.Id)
             {
                 ResetForm();
             }
-            await LoadBeneficiariesAsync();
+            await LoadSummaryAsync();
         }
         else
         {
             var serverMessage = await response.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to delete beneficiary record. {serverMessage}";
+            errorMessage = $"Failed to delete Grantee record. {serverMessage}";
         }
     }
     private async Task ConfirmActionAsync()
@@ -1201,28 +1199,6 @@
         }
     }
 
-
-
-    private async Task LoadBeneficiariesAsync()
-    {
-        try
-        {
-            isLoading = true;
-            errorMessage = null;
-
-            beneficiaries = await Http.GetFromJsonAsync<List<BeneficiaryInformationDto>>("api/BeneficiaryInformation")
-            ?? new List<BeneficiaryInformationDto>();
-        }
-        catch (Exception ex)
-        {
-
-            errorMessage = $"Unable to load beneficiary records. {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
     private void ResetForm()
     {
         isEditMode = false;
@@ -1230,16 +1206,19 @@
         {
             BirthDate = DateTime.Today,
             ValidationDate = DateTime.Today,
-            PsgcCodeRegion = 0,
+            PsgcCodeRegion = DefaultRegionCode,
             PsgcCodeProvince = 0,
             PsgcCodeMunicipality = 0,
             PsgcCodeBarangay = 0
         };
 
-        provinces.Clear();
         municipalities.Clear();
         barangays.Clear();
+
+        _ = LoadProvincesAsync(DefaultRegionCode);
     }
+
+
 
     private void ClearMessages()
     {
@@ -1267,7 +1246,7 @@
             CivilStatus = item.CivilStatus,
             Citizenship = item.Citizenship,
             Region = item.Region,
-            PsgcCodeRegion = item.PsgcCodeRegion,
+            PsgcCodeRegion = DefaultRegionCode,
             Province = item.Province,
             PsgcCodeProvince = item.PsgcCodeProvince,
             Municipality = item.Municipality,
@@ -1290,8 +1269,7 @@
         municipalities.Clear();
         barangays.Clear();
 
-        if (model.PsgcCodeRegion > 0)
-            await LoadProvincesAsync(model.PsgcCodeRegion);
+            await LoadProvincesAsync(DefaultRegionCode);
         if (model.PsgcCodeProvince > 0)
             await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
         if (model.PsgcCodeMunicipality > 0)

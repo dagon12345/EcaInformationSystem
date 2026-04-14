@@ -7,7 +7,7 @@ namespace EcaInformationSystem.Application.Services
     public class BeneficiaryInformationService : IBeneficiaryInformationService
     {
         private readonly IBeneficiaryInformationRepository _repo;
-
+        private const int DefaultRegionCode = 1600000000;
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo)
         {
             _repo = repo;
@@ -31,7 +31,7 @@ namespace EcaInformationSystem.Application.Services
                 CivilStatus = dto.CivilStatus,
                 Citizenship = dto.Citizenship,
                 Sex = dto.Sex,
-                Region = dto.PsgcCodeRegion,
+                Region = DefaultRegionCode,
                 Province = dto.PsgcCodeProvince,
                 Municipality = dto.PsgcCodeMunicipality,
                 Barangay = dto.PsgcCodeBarangay,
@@ -67,7 +67,7 @@ namespace EcaInformationSystem.Application.Services
                 IsPersonWithDisability = beneficiary.IsPersonWithDisability,
                 CivilStatus = beneficiary.CivilStatus,
                 Citizenship = beneficiary.Citizenship,
-                PsgcCodeRegion = beneficiary.Region,
+                PsgcCodeRegion = DefaultRegionCode,
                 PsgcCodeProvince = beneficiary.Province,
                 PsgcCodeMunicipality = beneficiary.Municipality,
                 PsgcCodeBarangay = beneficiary.Barangay,
@@ -98,6 +98,7 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
+            filter.PsgcCodeRegion = DefaultRegionCode;
             return await _repo.GetSummaryAsync(filter);
         }
 
@@ -118,7 +119,7 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Beneficiary not found");
 
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
-                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
+                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
                 dto.isDeceased, dto.DateOfDeath, dto.isEligible, dto.RemarkCategory, dto.Remarks);
             await _repo.UpdateAsync(beneficiary);
