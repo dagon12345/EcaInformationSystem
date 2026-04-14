@@ -12,5 +12,12 @@ namespace EcaInformationSystem.Application.Interfaces
         Task AddAsync(BeneficiaryInformation beneficiaryInformation);
         Task UpdateAsync(BeneficiaryInformation beneficiaryInformation);
         Task SaveChangesAsync();
+        Task<bool> ExistsDuplicateAsync(string? lastName,
+            string? firstName,
+            string? middleName,
+            DateTime birthDate,
+            string? oscaIdNumber,
+            int? ncscRrn,
+            Guid? excludeId = null);
     }
 }

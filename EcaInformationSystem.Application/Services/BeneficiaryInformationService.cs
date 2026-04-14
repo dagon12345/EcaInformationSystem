@@ -15,6 +15,18 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto)
         {
+            //Check duplicates
+            var isDuplicate = await _repo.ExistsDuplicateAsync(
+                dto.LastName,
+                dto.FirstName,
+                dto.MiddleName,
+                dto.BirthDate,
+                dto.OscaIdNumber,
+                dto.NcscRrn);
+            if (isDuplicate)
+                throw new Exception("Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.");
+
+
             var beneficiary = new BeneficiaryInformation
             {
                 Id = Guid.NewGuid(),
@@ -106,7 +118,7 @@ namespace EcaInformationSystem.Application.Services
         {
             var selectedBeneficiary = await _repo.GetByIdAsync(Id);
             if (selectedBeneficiary == null)
-                throw new Exception("Beneficiary not found");
+                throw new Exception("Grantee not found");
             selectedBeneficiary.isDeleted = true;
             await _repo.UpdateAsync(selectedBeneficiary);
             await _repo.SaveChangesAsync();
@@ -116,7 +128,18 @@ namespace EcaInformationSystem.Application.Services
         {
             var beneficiary = await _repo.GetByIdAsync(Id);
             if (beneficiary == null)
-                throw new Exception("Beneficiary not found");
+                throw new Exception("Grantee not found");
+
+            //Check duplicates
+            var isDuplicate = await _repo.ExistsDuplicateAsync(
+                dto.LastName,
+                dto.FirstName,
+                dto.MiddleName,
+                dto.BirthDate,
+                dto.OscaIdNumber,
+                dto.NcscRrn);
+            if (isDuplicate)
+                throw new Exception("Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.");
 
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,

@@ -71,7 +71,7 @@
                                     <InputText class="form-control" @bind-Value="model.Extension" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">Birth Date <span class="text-danger">*</span></label>
+                                    <label class="form-label">Birth Date (Date/Month/Year) <span class="text-danger">*</span></label>
                                     <InputDate class="form-control" @bind-Value="model.BirthDate" />
                                     <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
                                 </div>
@@ -197,7 +197,7 @@
                                     <ValidationMessage For="@(() => model.Validator)" class="text-danger small" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">Validation Date <span class="text-danger">*</span></label>
+                                    <label class="form-label">Validation Date (Date/Month/Year)<span class="text-danger">*</span></label>
                                     <InputDate class="form-control" @bind-Value="model.ValidationDate" />
                                     <ValidationMessage For="@(() => model.ValidationDate)" class="text-danger small" />
                                 </div>
@@ -1038,8 +1038,12 @@
         await confirmModal.HideAsync();
     }
     //Adding new beneficiary record
+    // Adding new beneficiary record
     private async Task AddBeneficiaryAsync()
     {
+        errorMessage = null;
+        successMessage = null;
+
         var createDto = new CreateBeneficiaryInformationDto
         {
             BatchCode = model.BatchCode,
@@ -1051,6 +1055,10 @@
             Extension = model.Extension,
             BirthDate = model.BirthDate,
             Sex = model.Sex,
+            IsIndigenousPeople = model.IsIndigenousPeople,
+            IsPersonWithDisability = model.IsPersonWithDisability,
+            CivilStatus = model.CivilStatus,
+            Citizenship = model.Citizenship,
             PsgcCodeRegion = DefaultRegionCode,
             PsgcCodeProvince = model.PsgcCodeProvince,
             PsgcCodeMunicipality = model.PsgcCodeMunicipality,
@@ -1063,54 +1071,51 @@
             isDeceased = model.isDeceased,
             DateOfDeath = model.DateOfDeath,
             isEligible = model.isEligible,
+            RemarkCategory = model.RemarkCategory,
             Remarks = model.Remarks,
             isDeleted = false
         };
-        var response = await Http.PostAsJsonAsync("api/BeneficiaryInformation", createDto);
 
-        if (response.IsSuccessStatusCode)
+
+        try
         {
-            successMessage = "Grantee record saved successfully.";
-            try
+            var response = await Http.PostAsJsonAsync("api/BeneficiaryInformation", createDto);
+
+            if (response.IsSuccessStatusCode)
             {
-                var createdItem = await response.Content.ReadFromJsonAsync<BeneficiaryInformationDto>();
-                if (createdItem is not null)
+                successMessage = "Grantee record saved successfully.";
+
+                try
                 {
-
-                    successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
-
+                    var createdItem = await response.Content.ReadFromJsonAsync<BeneficiaryInformationDto>();
+                    if (createdItem is not null)
+                    {
+                        successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Unable to parse created Grantee from response. {ex.Message}");
+                }
 
-                Console.WriteLine($"Warning: Unable to parse created Grantee from response. {ex.Message}");
-            }
-            // After successful save, reload the grid from database
-            ResetForm();
-            await LoadSummaryAsync();
-        }
-        else if ((int)response.StatusCode == 400)
-        {
-            var validation = await response.Content.ReadFromJsonAsync<ValidationProblemDetailsResponse>();
-            if (validation?.Errors is not null && validation.Errors.Any())
-            {
-                var messages = validation.Errors
-                    .SelectMany(kvp => kvp.Value.Select(v => $"{kvp.Key}: {v}"));
-                errorMessage = "Please fix the following errors: " + string.Join(" | ", messages);
+                ResetForm();
+                await LoadSummaryAsync();
             }
             else
             {
-                errorMessage = validation?.Title ?? "Validation failed.";
+                var serverError = await response.Content.ReadAsStringAsync();
+
+                errorMessage = string.IsNullOrWhiteSpace(serverError)
+                    ? "Unable to save grantee record."
+                    : serverError;
             }
         }
-        else
+        catch (Exception ex)
         {
-            var serverMessage = await response.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to save Grantee record. {serverMessage}";
+            errorMessage = $"An error occurred while saving: {ex.Message}";
         }
-
     }
+
     //Updating
     private async Task UpdateBeneficiaryAsync()
     {
@@ -1297,6 +1302,7 @@
     };
     private string GetPaymentStatusText(int status) => status switch
     {
+        0 => "N/A",
         1 => "Unpaid",
         2 => "Paid"
     };

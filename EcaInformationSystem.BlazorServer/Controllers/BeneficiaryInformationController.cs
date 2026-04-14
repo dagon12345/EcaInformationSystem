@@ -22,8 +22,15 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         [HttpPost]
         public async Task<ActionResult<BeneficiaryInformationDto>> Post([FromBody] CreateBeneficiaryInformationDto dto)
         {
-            var created = await _beneficiaryInformationService.CreateAsync(dto);
-            return Ok(created);
+            try
+            {
+                var result = await _beneficiaryInformationService.CreateAsync(dto);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Put(Guid id, [FromBody] BeneficiaryInformationDto dto)
