@@ -414,6 +414,175 @@
             </Card>
         </div>
     </div>
+    <!-- Summary Cards -->
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <Card Class="shadow-sm border-0">
+                <CardHeader Class="bg-light">
+                    <div>
+                        <h4 class="mb-0">Beneficiary Dashboard Summary</h4>
+                        <small class="text-muted">Overview of beneficiary records, age groups, provinces, and municipalities</small>
+                    </div>
+                </CardHeader>
+
+                <CardBody>
+                    <div class="row g-4">
+
+                        <!-- Beneficiary Summary -->
+                        <div class="col-12">
+                            <div class="border rounded shadow-sm p-3 bg-white">
+                                <h5 class="mb-3 text-primary">Beneficiary Summary</h5>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-4">
+                                        <div class="border rounded p-3 h-100 bg-primary-subtle">
+                                            <h6 class="text-muted mb-2">Total Beneficiaries</h6>
+                                            <h3 class="mb-0 text-primary">@summaryResult.TotalBeneficiaries</h3>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-4">
+                                        <div class="border rounded p-3 h-100 bg-info-subtle">
+                                            <h6 class="text-muted mb-2">Male</h6>
+                                            <h3 class="mb-0 text-info">@summaryResult.TotalMale</h3>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-4">
+                                        <div class="border rounded p-3 h-100 bg-danger-subtle">
+                                            <h6 class="text-muted mb-2">Female</h6>
+                                            <h3 class="mb-0 text-danger">@summaryResult.TotalFemale</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Age Group Summary -->
+                        <div class="col-12">
+                            <div class="border rounded shadow-sm p-3 bg-white">
+                                <h5 class="mb-3 text-primary">Age Group Summary</h5>
+                                <div class="row g-3">
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded p-3 text-center bg-success-subtle">
+                                            <h6 class="text-muted mb-1">80</h6>
+                                            <h4 class="mb-0">@summaryResult.Age80Count</h4>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded p-3 text-center bg-info-subtle">
+                                            <h6 class="text-muted mb-1">85</h6>
+                                            <h4 class="mb-0">@summaryResult.Age85Count</h4>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded p-3 text-center bg-warning-subtle">
+                                            <h6 class="text-muted mb-1">90</h6>
+                                            <h4 class="mb-0">@summaryResult.Age90Count</h4>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded p-3 text-center bg-danger-subtle">
+                                            <h6 class="text-muted mb-1">95</h6>
+                                            <h4 class="mb-0">@summaryResult.Age95Count</h4>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 col-md-4 col-lg-2">
+                                        <div class="border rounded p-3 text-center bg-dark-subtle">
+                                            <h6 class="text-muted mb-1">100</h6>
+                                            <h4 class="mb-0">@summaryResult.Age100Count</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Province and Municipality Summary -->
+                        <div class="col-12">
+                            <div class="row g-3">
+
+                                <div class="col-12 col-lg-6">
+                                    <div class="border rounded p-3 h-100 bg-white">
+                                        <h5 class="mb-3 text-primary">Province Count Summary</h5>
+
+                                        @if (summaryResult.ProvinceCounts?.Any() == true)
+                                        {
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover align-middle mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Province</th>
+                                                            <th class="text-end">Count</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var item in summaryResult.ProvinceCounts)
+                                                        {
+                                                            <tr>
+                                                                <td>@item.Province</td>
+                                                                <td class="text-end">
+                                                                    <span class="badge bg-primary">@item.Count</span>
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted mb-0">No province data available.</p>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-lg-6">
+                                    <div class="border rounded p-3 h-100 bg-white">
+                                        <h5 class="mb-3 text-primary">Municipality Count Summary</h5>
+
+                                        @if (summaryResult.MunicipalityCounts?.Any() == true)
+                                        {
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover align-middle mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Municipality</th>
+                                                            <th class="text-end">Count</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var item in summaryResult.MunicipalityCounts)
+                                                        {
+                                                            <tr>
+                                                                <td>@item.Municipality</td>
+                                                                <td class="text-end">
+                                                                    <span class="badge bg-success">@item.Count</span>
+                                                                </td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted mb-0">No municipality data available.</p>
+                                        }
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </CardBody>
+            </Card>
+        </div>
+    </div>
 
 
     <!-- List/Grid Section -->
@@ -423,7 +592,7 @@
                 <div class="card-header bg-light">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Beneficiary List</h5>
-                        <span class="badge bg-primary">@beneficiaries.Count Record(s)</span>
+                        <span class="badge bg-primary">@summaryResult.TotalBeneficiaries Record(s)</span>
                         <button class="btn btn-sm btn-outline-primary" @onclick="LoadBeneficiariesAsync">
                             Refresh
                         </button>
@@ -563,6 +732,7 @@
     private BeneficiaryInformationDto? selectedDeleteItem;
     private List<BeneficiaryInformationDto> beneficiaries = new();
     private BeneficiaryFilterDto filterModel = new();
+    private BeneficiarySummaryResultDto summaryResult = new();    
     private bool isLoading;
     private bool isSaving;
     private bool isEditMode;
@@ -572,7 +742,8 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadRegionsAsync();
-        await LoadBeneficiariesAsync();
+        await LoadSummaryAsync();
+        //await LoadBeneficiariesAsync();
     }
 
     public class RegionLookupDto
@@ -597,6 +768,71 @@
         public int PsgcCodeMunicipality { get; set; }
         public int PsgcCodeBarangay { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+    private async Task LoadSummaryAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var queryParams = new List<string>();
+
+            if (filterModel.PsgcCodeRegion.HasValue && filterModel.PsgcCodeRegion > 0)
+                queryParams.Add($"PsgcCodeRegion={filterModel.PsgcCodeRegion}");
+
+            if (filterModel.PsgcCodeProvince.HasValue && filterModel.PsgcCodeProvince > 0)
+                queryParams.Add($"PsgcCodeProvince={filterModel.PsgcCodeProvince}");
+
+            if (filterModel.PsgcCodeMunicipality.HasValue && filterModel.PsgcCodeMunicipality > 0)
+                queryParams.Add($"PsgcCodeMunicipality={filterModel.PsgcCodeMunicipality}");
+
+            if (filterModel.PsgcCodeBarangay.HasValue && filterModel.PsgcCodeBarangay > 0)
+                queryParams.Add($"PsgcCodeBarangay={filterModel.PsgcCodeBarangay}");
+
+            if (!string.IsNullOrWhiteSpace(filterModel.LastName))
+                queryParams.Add($"LastName={Uri.EscapeDataString(filterModel.LastName)}");
+
+            if (!string.IsNullOrWhiteSpace(filterModel.FirstName))
+                queryParams.Add($"FirstName={Uri.EscapeDataString(filterModel.FirstName)}");
+
+            if (filterModel.SpecificAge.HasValue)
+                queryParams.Add($"SpecificAge={filterModel.SpecificAge}");
+
+            if (filterModel.AgeFrom.HasValue)
+                queryParams.Add($"AgeFrom={filterModel.AgeFrom}");
+
+            if (filterModel.AgeTo.HasValue)
+                queryParams.Add($"AgeTo={filterModel.AgeTo}");
+
+            if (filterModel.Sex.HasValue && filterModel.Sex > 0)
+                queryParams.Add($"Sex={filterModel.Sex}");
+
+            if (filterModel.SpecificBirthday.HasValue)
+                queryParams.Add($"SpecificBirthday={filterModel.SpecificBirthday.Value:yyyy-MM-dd}");
+
+            if (filterModel.BirthdayFrom.HasValue)
+                queryParams.Add($"BirthdayFrom={filterModel.BirthdayFrom.Value:yyyy-MM-dd}");
+
+            if (filterModel.BirthdayTo.HasValue)
+                queryParams.Add($"BirthdayTo={filterModel.BirthdayTo.Value:yyyy-MM-dd}");
+
+            var url = "api/BeneficiaryInformation/summary";
+
+            if (queryParams.Any())
+                url += "?" + string.Join("&", queryParams);
+
+            summaryResult = await Http.GetFromJsonAsync<BeneficiarySummaryResultDto>(url) ?? new BeneficiarySummaryResultDto();
+            beneficiaries = summaryResult.Beneficiaries ?? new List<BeneficiaryInformationDto>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load summary. {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task LoadRegionsAsync()
@@ -776,72 +1012,14 @@
     private async Task ClearFilterAsync()
     {
         filterModel = new BeneficiaryFilterDto();
-        await LoadBeneficiariesAsync();
+        filterProvinces.Clear();
+        filterMunicipalities.Clear();
+        filterBarangays.Clear();
+        await LoadSummaryAsync();
     }
     private async Task ApplyFiltersAsync()
     {
-        try
-        {
-            isLoading = true;
-            errorMessage = null;
-
-            var queryParams = new List<string>();
-
-            if (filterModel.PsgcCodeRegion.HasValue && filterModel.PsgcCodeRegion > 0)
-                queryParams.Add($"PsgcCodeRegion={filterModel.PsgcCodeRegion}");
-
-            if (filterModel.PsgcCodeProvince.HasValue && filterModel.PsgcCodeProvince > 0)
-                queryParams.Add($"PsgcCodeProvince={filterModel.PsgcCodeProvince}");
-
-            if (filterModel.PsgcCodeMunicipality.HasValue && filterModel.PsgcCodeMunicipality > 0)
-                queryParams.Add($"PsgcCodeMunicipality={filterModel.PsgcCodeMunicipality}");
-
-            if (filterModel.PsgcCodeBarangay.HasValue && filterModel.PsgcCodeBarangay > 0)
-                queryParams.Add($"PsgcCodeBarangay={filterModel.PsgcCodeBarangay}");
-
-            if (!string.IsNullOrWhiteSpace(filterModel.LastName))
-                queryParams.Add($"LastName={Uri.EscapeDataString(filterModel.LastName)}");
-
-            if (!string.IsNullOrWhiteSpace(filterModel.FirstName))
-                queryParams.Add($"FirstName={Uri.EscapeDataString(filterModel.FirstName)}");
-
-            if (filterModel.SpecificAge.HasValue)
-                queryParams.Add($"SpecificAge={filterModel.SpecificAge}");
-
-            if (filterModel.AgeFrom.HasValue)
-                queryParams.Add($"AgeFrom={filterModel.AgeFrom}");
-
-            if (filterModel.AgeTo.HasValue)
-                queryParams.Add($"AgeTo={filterModel.AgeTo}");
-
-            if (filterModel.Sex.HasValue && filterModel.Sex > 0)
-                queryParams.Add($"Sex={filterModel.Sex}");
-
-            if (filterModel.SpecificBirthday.HasValue)
-                queryParams.Add($"SpecificBirthday={filterModel.SpecificBirthday.Value:yyyy-MM-dd}");
-
-            if (filterModel.BirthdayFrom.HasValue)
-                queryParams.Add($"BirthdayFrom={filterModel.BirthdayFrom.Value:yyyy-MM-dd}");
-
-            if (filterModel.BirthdayTo.HasValue)
-                queryParams.Add($"BirthdayTo={filterModel.BirthdayTo.Value:yyyy-MM-dd}");
-
-            var url = "api/BeneficiaryInformation/filter";
-
-            if (queryParams.Any())
-                url += "?" + string.Join("&", queryParams);
-
-            beneficiaries = await Http.GetFromJsonAsync<List<BeneficiaryInformationDto>>(url)
-                ?? new List<BeneficiaryInformationDto>();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Unable to filter beneficiary records. {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        await LoadSummaryAsync();
     }
 
     //Delete confirmation modal

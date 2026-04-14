@@ -96,6 +96,11 @@ namespace EcaInformationSystem.Application.Services
             return list;
         }
 
+        public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
+        {
+            return await _repo.GetSummaryAsync(filter);
+        }
+
         public async Task SoftDeleteAsync(Guid Id)
         {
             var selectedBeneficiary = await _repo.GetByIdAsync(Id);
