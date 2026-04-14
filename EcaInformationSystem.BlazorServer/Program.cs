@@ -2,6 +2,7 @@ using EcaInformationSystem.Application;
 using EcaInformationSystem.BlazorServer.Components;
 using EcaInformationSystem.Infrastructure;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,10 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 });
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(@"C:\Keys\EcaInformationSystem"))
+    .SetApplicationName("EcaInformationSystem");
 
 //Application + Infrastructure
 builder.Services.AddApplication();
