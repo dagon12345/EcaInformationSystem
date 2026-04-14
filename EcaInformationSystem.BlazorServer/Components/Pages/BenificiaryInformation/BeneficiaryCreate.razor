@@ -606,7 +606,18 @@
             </Card>
         </div>
     </div>
-
+    <!--Importing-->
+    <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control mb-2" />
+    <button class="btn btn-success" @onclick="UploadExcelAsync" disabled="@isUploading">
+        @if (isUploading)
+        {
+            <span>Importing...</span>
+        }
+        else
+        {
+            <span>Import Excel</span>
+        }
+    </button>
 
     <!-- List/Grid Section -->
     <div class="row">
@@ -748,6 +759,8 @@
         BirthDate = DateTime.Today,
         ValidationDate = DateTime.Today,
     };
+    private IBrowserFile? selectedFile;
+    private bool isUploading;
     private Modal confirmModal = default!;
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
@@ -773,6 +786,77 @@
         await LoadFilterProvincesAsync();
         await LoadSummaryAsync();
 
+    }
+    
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        errorMessage = null;
+        successMessage = null;
+    }
+    private async Task UploadExcelAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (selectedFile == null)
+        {
+            errorMessage = "Please select an Excel file first.";
+            return;
+        }
+
+        try
+        {
+            isUploading = true;
+
+            using var content = new MultipartFormDataContent();
+            using var stream = selectedFile.OpenReadStream(10 * 1024 * 1024);
+            using var fileContent = new StreamContent(stream);
+
+            fileContent.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue(selectedFile.ContentType);
+
+            content.Add(fileContent, "file", selectedFile.Name);
+
+            var response = await Http.PostAsync("api/BeneficiaryInformation/import", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
+
+                if (result != null)
+                {
+                    successMessage =
+                        $"Import completed. Total Rows: {result.TotalRows}, " +
+                        $"Imported: {result.ImportedCount}, " +
+                        $"Duplicates Skipped: {result.SkippedDuplicateCount}, " +
+                        $"Errors: {result.ErrorCount}";
+
+                    if (result.ErrorCount > 0 && result.Errors.Any())
+                    {
+                        errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
+                    }
+                }
+                else
+                {
+                    successMessage = "Import completed successfully.";
+                }
+
+                await LoadSummaryAsync();
+            }
+            else
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
     }
 
     public class RegionLookupDto
