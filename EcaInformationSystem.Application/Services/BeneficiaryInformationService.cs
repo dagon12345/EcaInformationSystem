@@ -5,15 +5,25 @@ using EcaInformationSystem.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using System.Globalization;
 
+
 namespace EcaInformationSystem.Application.Services
 {
     public class BeneficiaryInformationService : IBeneficiaryInformationService
     {
         private readonly IBeneficiaryInformationRepository _repo;
+        private readonly IRegionRepository _regionRepository;
+        private readonly IProvinceRepository _provinceRepository;
+        private readonly IMunicipalityRepository _municipalityRepository;
+        private readonly IBarangayRepository _barangayRepository;
         private const int DefaultRegionCode = 1600000000;
-        public BeneficiaryInformationService(IBeneficiaryInformationRepository repo)
+        public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
+            , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository)
         {
             _repo = repo;
+            _regionRepository = regionRepository;
+            _provinceRepository = provinceRepository;
+            _municipalityRepository = municipalityRepository;
+            _barangayRepository = barangayRepository;
         }
 
         public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto)
@@ -160,43 +170,55 @@ namespace EcaInformationSystem.Application.Services
 
             var result = new BeneficiaryImportResultDto();
 
+            var regions = await _regionRepository.GetAllAsync();
+            var provinces = await _provinceRepository.GetAllProvinceAsync();
+            var municipalities = await _municipalityRepository.GetAllMunicipalityAsync();
+            var barangays = await _barangayRepository.GetBarangaysAsync();
+
             using var stream = file.OpenReadStream();
             using var workbook = new XLWorkbook(stream);
             var worksheet = workbook.Worksheet("Sheet1");
 
-            var rows = worksheet.RangeUsed()!.RowsUsed().Skip(1);
+            var usedRange = worksheet.RangeUsed();
+            if (usedRange == null)
+                throw new Exception("Sheet1 is empty.");
 
-            foreach (var row in rows)
+            var allRows = usedRange.RowsUsed().ToList();
+            if (allRows.Count <= 1)
+                throw new Exception("Sheet1 does not contain data rows.");
+
+            var dataRows = allRows.Skip(1).ToList();
+
+            foreach (var row in dataRows)
             {
                 result.TotalRows++;
 
                 try
                 {
-                    var batchCode = row.Cell(1).GetString().Trim();
-                    var oscaIdNumber = row.Cell(3).GetString().Trim();
-                    var ncscRrnRaw = row.Cell(4).GetString().Trim();
-                    var lastName = row.Cell(5).GetString().Trim();
-                    var firstName = row.Cell(6).GetString().Trim();
-                    var middleName = row.Cell(7).GetString().Trim();
-                    var extension = row.Cell(8).GetString().Trim();
+                    var batchCode = row.Cell(1).GetFormattedString().Trim();
+                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
+                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
+                    var lastName = row.Cell(5).GetFormattedString().Trim();
+                    var firstName = row.Cell(6).GetFormattedString().Trim();
+                    var middleName = row.Cell(7).GetFormattedString().Trim();
+                    var extension = row.Cell(8).GetFormattedString().Trim();
 
-                    // Use the complete BirthDate column from Excel
-                    var birthDateRaw = row.Cell(13).GetString().Trim();
+                    var birthDateRaw = row.Cell(13).GetFormattedString().Trim();
 
-                    var sexRaw = row.Cell(15).GetString().Trim();
-                    var regionName = row.Cell(16).GetString().Trim();
-                    var provinceName = row.Cell(17).GetString().Trim();
-                    var municipalityName = row.Cell(18).GetString().Trim();
-                    var barangayName = row.Cell(19).GetString().Trim();
+                    var sexRaw = row.Cell(15).GetFormattedString().Trim();
+                    var regionName = row.Cell(16).GetFormattedString().Trim();
+                    var provinceName = row.Cell(17).GetFormattedString().Trim();
+                    var municipalityName = row.Cell(18).GetFormattedString().Trim();
+                    var barangayName = row.Cell(19).GetFormattedString().Trim();
 
-                    var complianceRaw = row.Cell(20).GetString().Trim();
-                    var validator = row.Cell(21).GetString().Trim();
-                    var validationDateRaw = row.Cell(22).GetString().Trim();
-                    var paymentStatusRaw = row.Cell(23).GetString().Trim();
-                    var paymentDateRaw = row.Cell(24).GetString().Trim();
-                    var dateOfDeathRaw = row.Cell(25).GetString().Trim();
-                    var coAssessmentRaw = row.Cell(26).GetString().Trim();
-                    var remarks = row.Cell(27).GetString().Trim();
+                    var complianceRaw = row.Cell(20).GetFormattedString().Trim();
+                    var validator = row.Cell(21).GetFormattedString().Trim();
+                    var validationDateRaw = row.Cell(22).GetFormattedString().Trim();
+                    var paymentStatusRaw = row.Cell(23).GetFormattedString().Trim();
+                    var paymentDateRaw = row.Cell(24).GetFormattedString().Trim();
+                    var dateOfDeathRaw = row.Cell(25).GetFormattedString().Trim();
+                    var coAssessmentRaw = row.Cell(26).GetFormattedString().Trim();
+                    var remarks = row.Cell(27).GetFormattedString().Trim();
 
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
@@ -225,33 +247,32 @@ namespace EcaInformationSystem.Application.Services
                         }
                     }
 
-                    var regionCode = await _repo.GetRegionCodeByNameAsync(regionName);
-                    var provinceCode = await _repo.GetProvinceCodeByNameAsync(provinceName);
-                    var municipalityCode = await _repo.GetMunicipalityCodeByNameAsync(municipalityName);
-                    var barangayCode = await _repo.GetBarangayCodeByNameAsync(barangayName);
-
-                    if (!regionCode.HasValue)
+                    var region = FindBestNameMatch(regions, x => x.Name, regionName);
+                    if (region == null)
                     {
                         result.ErrorCount++;
                         result.Errors.Add($"Row {result.TotalRows}: Region '{regionName}' not found.");
                         continue;
                     }
 
-                    if (!provinceCode.HasValue)
+                    var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
+                    if (province == null)
                     {
                         result.ErrorCount++;
                         result.Errors.Add($"Row {result.TotalRows}: Province '{provinceName}' not found.");
                         continue;
                     }
 
-                    if (!municipalityCode.HasValue)
+                    var municipality = FindBestNameMatch(municipalities, x => x.Name, municipalityName);
+                    if (municipality == null)
                     {
                         result.ErrorCount++;
                         result.Errors.Add($"Row {result.TotalRows}: Municipality '{municipalityName}' not found.");
                         continue;
                     }
 
-                    if (!barangayCode.HasValue)
+                    var barangay = FindBestNameMatch(barangays, x => x.Name, barangayName);
+                    if (barangay == null)
                     {
                         result.ErrorCount++;
                         result.Errors.Add($"Row {result.TotalRows}: Barangay '{barangayName}' not found.");
@@ -269,31 +290,32 @@ namespace EcaInformationSystem.Application.Services
                     if (isDuplicate)
                     {
                         result.SkippedDuplicateCount++;
+                        result.Errors.Add($"Row {result.TotalRows}: Duplicate record found.");
                         continue;
                     }
 
                     var beneficiary = new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
-                        BatchCode = string.IsNullOrWhiteSpace(batchCode) ? null : batchCode,
-                        OscaIdNumber = string.IsNullOrWhiteSpace(oscaIdNumber) ? null : oscaIdNumber,
+                        BatchCode = NullIfEmpty(batchCode),
+                        OscaIdNumber = NullIfEmpty(oscaIdNumber),
                         NcscRrn = ncscRrn,
-                        LastName = string.IsNullOrWhiteSpace(lastName) ? null : lastName,
-                        FirstName = firstName,
-                        MiddleName = string.IsNullOrWhiteSpace(middleName) ? null : middleName,
-                        Extension = string.IsNullOrWhiteSpace(extension) ? null : extension,
+                        LastName = NullIfEmpty(lastName),
+                        FirstName = firstName.Trim(),
+                        MiddleName = NullIfEmpty(middleName),
+                        Extension = NullIfEmpty(extension),
                         BirthDate = birthDate,
                         Sex = MapSex(sexRaw),
                         IsIndigenousPeople = false,
                         IsPersonWithDisability = false,
                         CivilStatus = null,
                         Citizenship = null,
-                        Region = regionCode.Value,
-                        Province = provinceCode.Value,
-                        Municipality = municipalityCode.Value,
-                        Barangay = barangayCode.Value,
+                        Region = region.PsgcCodeRegion,
+                        Province = province.PsgcCodeProvince,
+                        Municipality = municipality.PsgcCodeMunicipality,
+                        Barangay = barangay.PsgcCodeBarangay,
                         isCompliant = MapCompliance(complianceRaw),
-                        Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator,
+                        Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
                         PaymentStatus = MapPaymentStatus(paymentStatusRaw),
                         PaymentDate = ParseNullableDate(paymentDateRaw),
@@ -301,7 +323,7 @@ namespace EcaInformationSystem.Application.Services
                         DateOfDeath = ParseNullableDate(dateOfDeathRaw),
                         isEligible = MapEligibility(coAssessmentRaw),
                         RemarkCategory = null,
-                        Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks,
+                        Remarks = NullIfEmpty(remarks),
                         isDeleted = false
                     };
 
@@ -315,11 +337,43 @@ namespace EcaInformationSystem.Application.Services
                 }
             }
 
+            Console.WriteLine(result);
+
             await _repo.SaveChangesAsync();
+
             return result;
         }
 
+
         #region Private helpers
+        private static T? FindBestNameMatch<T>(
+     IEnumerable<T> items,
+     Func<T, string?> nameSelector,
+     string rawName,
+     int minimumScore = 60)
+     where T : class
+        {
+            var matches = items
+                .Select(item => new
+                {
+                    Item = item,
+                    Name = nameSelector(item) ?? string.Empty,
+                    Score = GetMatchScore(rawName, nameSelector(item) ?? string.Empty)
+                })
+                .Where(x => x.Score >= minimumScore)
+                .OrderByDescending(x => x.Score)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            return matches.FirstOrDefault()?.Item;
+        }
+
+
+        private static string? NullIfEmpty(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
         private static string NormalizeName(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -327,25 +381,87 @@ namespace EcaInformationSystem.Application.Services
 
             var normalized = value.Trim().ToUpperInvariant();
 
-            normalized = normalized.Replace(".", "");
-            normalized = normalized.Replace(",", "");
+            normalized = normalized.Replace(".", " ");
+            normalized = normalized.Replace(",", " ");
             normalized = normalized.Replace("-", " ");
             normalized = normalized.Replace("_", " ");
-            normalized = normalized.Replace("  ", " ");
+            normalized = normalized.Replace("(", " ");
+            normalized = normalized.Replace(")", " ");
+            normalized = normalized.Replace("/", " ");
+            normalized = normalized.Replace("'", " ");
 
-            // common PH address abbreviations
             normalized = normalized.Replace("BRGY", "BARANGAY");
             normalized = normalized.Replace("BGY", "BARANGAY");
+            normalized = normalized.Replace("POB.", "POBLACION");
+            normalized = normalized.Replace("POB", "POBLACION");
             normalized = normalized.Replace("MUN.", "MUNICIPALITY");
-            normalized = normalized.Replace("CITY OF ", "");
-            normalized = normalized.Replace("CITY", "CITY");
-            normalized = normalized.Replace("MUNICIPALITY OF ", "");
+            normalized = normalized.Replace("CITY OF", "CITY");
+            normalized = normalized.Replace("MUNICIPALITY OF", "MUNICIPALITY");
+            normalized = normalized.Replace("ST.", "SAINT");
+            normalized = normalized.Replace("STA.", "SANTA");
+            normalized = normalized.Replace("STO.", "SANTO");
 
-            // collapse repeated spaces
             while (normalized.Contains("  "))
                 normalized = normalized.Replace("  ", " ");
 
             return normalized.Trim();
+        }
+        private static int GetMatchScore(string sourceName, string candidateName)
+        {
+            var sourceNormalized = NormalizeName(sourceName);
+            var candidateNormalized = NormalizeName(candidateName);
+
+            if (string.IsNullOrWhiteSpace(sourceNormalized) || string.IsNullOrWhiteSpace(candidateNormalized))
+                return 0;
+
+            // Best case: exact normalized match
+            if (sourceNormalized == candidateNormalized)
+                return 100;
+
+            // Good case: one fully contains the other
+            if (candidateNormalized.Contains(sourceNormalized) || sourceNormalized.Contains(candidateNormalized))
+                return 80;
+
+            var sourceTokens = GetMeaningfulTokens(sourceNormalized);
+            var candidateTokens = GetMeaningfulTokens(candidateNormalized);
+
+            if (!sourceTokens.Any() || !candidateTokens.Any())
+                return 0;
+
+            var matchedTokens = sourceTokens.Intersect(candidateTokens).Count();
+
+            if (matchedTokens == 0)
+                return 0;
+
+            // Score based on token overlap
+            var score = matchedTokens * 20;
+
+            // Bonus if all source tokens are present in candidate
+            if (sourceTokens.All(t => candidateTokens.Contains(t)))
+                score += 20;
+
+            return score;
+        }
+
+        private static HashSet<string> GetMeaningfulTokens(string? value)
+        {
+            var normalized = NormalizeName(value);
+
+            var ignoredWords = new HashSet<string>
+    {
+        "BARANGAY",
+        "POBLACION",
+        "CITY",
+        "MUNICIPALITY",
+        "THE",
+        "AND",
+        "OF"
+    };
+
+            return normalized
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(token => !ignoredWords.Contains(token))
+                .ToHashSet();
         }
 
         private static int MapSex(string? value)
@@ -441,6 +557,7 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
+
 
         #endregion
 

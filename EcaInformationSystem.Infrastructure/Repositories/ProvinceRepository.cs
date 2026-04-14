@@ -2,6 +2,7 @@
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Client;
 
 namespace EcaInformationSystem.Infrastructure.Repositories
 {
@@ -27,6 +28,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .AsNoTracking()
                 .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Province>> GetAllProvinceAsync()
+        {
+            return await _context.Provinces.AsNoTracking().ToListAsync();
         }
     }
 }

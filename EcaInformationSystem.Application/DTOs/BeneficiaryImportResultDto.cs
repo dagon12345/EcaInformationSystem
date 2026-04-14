@@ -7,7 +7,5 @@
         public int SkippedDuplicateCount { get; set; }
         public int ErrorCount { get; set; }
         public List<string> Errors { get; set; } = new();
-        public string? ErrorFileName { get; set; }
-        public string? ErrorFileUrl { get; set; }
     }
 }

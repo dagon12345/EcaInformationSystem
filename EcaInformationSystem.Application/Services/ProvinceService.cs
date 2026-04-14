@@ -10,6 +10,12 @@ namespace EcaInformationSystem.Application.Services
         {
             _provinceRepository = provinceRepository;
         }
+
+        public async Task<IEnumerable<Province>> GetAllProvinceAsync()
+        {
+            return await _provinceRepository.GetAllProvinceAsync();
+        }
+
         public async Task<IEnumerable<Province>> GetByRegionCodeAsync(int psgcCodeRegion)
         {
             return await _provinceRepository.GetAllAsync(psgcCodeRegion);

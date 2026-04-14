@@ -12,6 +12,11 @@ namespace EcaInformationSystem.Application.Services
             _barangayRepository = barangayRepository;
         }
 
+        public async Task<IEnumerable<Barangay>> GetBarangaysAsync()
+        {
+            return await _barangayRepository.GetBarangaysAsync();
+        }
+
         public async Task<IEnumerable<Barangay>> GetByMunicipalityCodeAsync(int psgcCodeMunicipality)
         {
             return await _barangayRepository.GetByMunicipalityCodeAsync(psgcCodeMunicipality);

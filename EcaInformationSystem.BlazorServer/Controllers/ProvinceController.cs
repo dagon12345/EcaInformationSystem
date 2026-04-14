@@ -18,5 +18,11 @@ namespace EcaInformationSystem.BlazorServer.Controllers
             var provinces = await _provinceService.GetByRegionCodeAsync(psgcCodeRegion);
             return Ok(provinces);
         }
+        [HttpGet]
+        public async Task<IActionResult> GetAll()
+        {
+            var provinces = await _provinceService.GetAllProvinceAsync();
+            return Ok(provinces);
+        }
     }
 }

@@ -814,7 +814,7 @@
             using var fileContent = new StreamContent(stream);
 
             fileContent.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue(selectedFile.ContentType);
+                new System.Net.Http.Headers.MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
             content.Add(fileContent, "file", selectedFile.Name);
 
@@ -832,14 +832,10 @@
                         $"Duplicates Skipped: {result.SkippedDuplicateCount}, " +
                         $"Errors: {result.ErrorCount}";
 
-                    if (result.ErrorCount > 0 && result.Errors.Any())
+                    if (result.Errors.Any())
                     {
                         errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
                     }
-                }
-                else
-                {
-                    successMessage = "Import completed successfully.";
                 }
 
                 await LoadSummaryAsync();
@@ -858,6 +854,7 @@
             isUploading = false;
         }
     }
+
 
     public class RegionLookupDto
     {

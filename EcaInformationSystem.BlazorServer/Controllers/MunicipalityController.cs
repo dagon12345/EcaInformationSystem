@@ -19,5 +19,11 @@ namespace EcaInformationSystem.BlazorServer.Controllers
             var municipalities = await _municipalityService.GetByProvinceCodeAsync(psgcCodeProvince);
             return Ok(municipalities);
         }
+        [HttpGet]
+        public async Task<IActionResult> GetAllMunicipalities()
+        {
+            var municipalities = await _municipalityService.GetMunicipalitiesAsync();
+            return Ok(municipalities);
+        }
     }
 }
