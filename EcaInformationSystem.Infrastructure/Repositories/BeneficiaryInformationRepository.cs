@@ -20,6 +20,33 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             await _context.BeneficiaryInformations.AddAsync(beneficiaryInformation);
         }
 
+        public async Task<bool> ExistsDuplicateAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn, Guid? excludeId = null)
+        {
+            var normalizedLastName = lastName?.Trim().ToLower();
+            var normalizedFirstName = firstName?.Trim().ToLower();
+            var normalizedMiddleName = middleName?.Trim().ToLower();
+            var normalizedOscaIdNumber = oscaIdNumber?.Trim().ToLower();
+            var normalizedBirthDate = birthDate.Date;
+
+            var query = _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(x => !x.isDeleted);
+
+            if (excludeId.HasValue)
+            {
+                query = query.Where(x => x.Id != excludeId.Value);
+            }
+
+            return await query.AnyAsync(x =>
+                (x.LastName ?? "").Trim().ToLower() == (normalizedLastName ?? "") &&
+                (x.FirstName ?? "").Trim().ToLower() == (normalizedFirstName ?? "") &&
+                (x.MiddleName ?? "").Trim().ToLower() == (normalizedMiddleName ?? "") &&
+                x.BirthDate.Date == normalizedBirthDate &&
+                (x.OscaIdNumber ?? "").Trim().ToLower() == (normalizedOscaIdNumber ?? "") &&
+                x.NcscRrn == ncscRrn
+             );
+        }
+
         public async Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter)
         {
             var query =
@@ -47,46 +74,46 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Barangay = barangay != null ? barangay.Name : null
                 };
 
-            if(filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
-                    query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
+            if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
+                query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
 
-            if(filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
-                    query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
-           
-            if(filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
-                    query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
-            
-            if(filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
-                    query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
+            if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
+                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
 
-            if(!string.IsNullOrEmpty(filter.LastName))
-                    query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
+            if (filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
+                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
 
-            if(!string.IsNullOrEmpty(filter.FirstName))
-                    query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
+            if (filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
+                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
 
-            if(filter.Sex.HasValue && filter.Sex.Value > 0)
-                    query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
+            if (!string.IsNullOrEmpty(filter.LastName))
+                query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
 
-            if(filter.SpecificBirthday.HasValue)
+            if (!string.IsNullOrEmpty(filter.FirstName))
+                query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
+
+            if (filter.Sex.HasValue && filter.Sex.Value > 0)
+                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
+
+            if (filter.SpecificBirthday.HasValue)
             {
                 var specificBirthday = filter.SpecificBirthday.Value.Date;
                 query = query.Where(x => x.Beneficiary.BirthDate.Date == filter.SpecificBirthday.Value.Date);
             }
             else
             {
-                if(filter.BirthdayFrom.HasValue)
+                if (filter.BirthdayFrom.HasValue)
                 {
                     var birthdayFrom = filter.BirthdayFrom.Value.Date;
                     query = query.Where(x => x.Beneficiary.BirthDate.Date >= birthdayFrom);
                 }
-                    
-                if(filter.BirthdayTo.HasValue)
+
+                if (filter.BirthdayTo.HasValue)
                 {
                     var birthdayTo = filter.BirthdayTo.Value.Date;
                     query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
                 }
-                    
+
             }
 
             var projected = await
@@ -138,16 +165,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 };
             });
 
-            if(filter.SpecificAge.HasValue)
+            if (filter.SpecificAge.HasValue)
             {
                 result = result.Where(x => x.Age == filter.SpecificAge.Value);
             }
             else
             {
-                if(filter.AgeFrom.HasValue)
+                if (filter.AgeFrom.HasValue)
                     result = result.Where(x => x.Age >= filter.AgeFrom.Value);
-                
-                if(filter.AgeTo.HasValue)
+
+                if (filter.AgeTo.HasValue)
                     result = result.Where(x => x.Age <= filter.AgeTo.Value);
             }
 
