@@ -12,8 +12,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<Province> Provinces => Set<Province>();
         public DbSet<Municipality> Municipalities => Set<Municipality>();
         public DbSet<Barangay> Barangays => Set<Barangay>();
+        public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             modelBuilder.Entity<Product>(entity =>
             {
                 entity.HasKey(x => x.Id);
@@ -22,6 +25,26 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                     .HasMaxLength(200);
                 entity.Property(x => x.Price)
                     .HasColumnType("decimal(18,2)");
+            });
+
+            modelBuilder.Entity<PendingUserRegistration>(entity =>
+            {
+                entity.ToTable("PendingUserRegistrations");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.FullName)
+                    .IsRequired()
+                    .HasMaxLength(200);
+                entity.Property(x => x.Position)
+                    .IsRequired()
+                    .HasMaxLength(150);
+                entity.Property(x => x.UserName)
+                    .IsRequired()
+                    .HasMaxLength(100);
+                entity.Property(x => x.PasswordHash)
+                    .IsRequired();
+                entity.Property(x => x.ApprovalStatus)
+                    .IsRequired();
+                entity.HasIndex(x => x.UserName);
             });
         }
     }
