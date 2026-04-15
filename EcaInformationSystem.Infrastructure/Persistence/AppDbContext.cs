@@ -13,6 +13,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<Municipality> Municipalities => Set<Municipality>();
         public DbSet<Barangay> Barangays => Set<Barangay>();
         public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
+        public DbSet<Log> Logs => Set<Log>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

@@ -1,6 +1,8 @@
 ﻿using ClosedXML.Excel;
 using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using System.Globalization;
@@ -15,18 +17,21 @@ namespace EcaInformationSystem.Application.Services
         private readonly IProvinceRepository _provinceRepository;
         private readonly IMunicipalityRepository _municipalityRepository;
         private readonly IBarangayRepository _barangayRepository;
+        private readonly ILogRepository _logRepository;
         private const int DefaultRegionCode = 1600000000;
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
-            , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository)
+            , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
+            ILogRepository logRepository)
         {
             _repo = repo;
             _regionRepository = regionRepository;
             _provinceRepository = provinceRepository;
             _municipalityRepository = municipalityRepository;
             _barangayRepository = barangayRepository;
+            _logRepository = logRepository;
         }
 
-        public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto)
+        public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
             //Check duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
@@ -76,6 +81,13 @@ namespace EcaInformationSystem.Application.Services
             };
 
             await _repo.AddAsync(beneficiary);
+
+            //Logging
+            await AddLogAsync(
+        beneficiary.Id,
+        $"Created beneficiary record for {beneficiary.LastName}, {beneficiary.FirstName}",
+        userName);
+
             await _repo.SaveChangesAsync();
 
             return new BeneficiaryInformationDto
@@ -131,17 +143,27 @@ namespace EcaInformationSystem.Application.Services
             return await _repo.GetSummaryAsync(filter);
         }
 
-        public async Task SoftDeleteAsync(Guid Id)
+        public async Task SoftDeleteAsync(Guid Id, string userName)
         {
             var selectedBeneficiary = await _repo.GetByIdAsync(Id);
             if (selectedBeneficiary == null)
                 throw new Exception("Grantee not found");
+
             selectedBeneficiary.IsDeleted = true;
+
             await _repo.UpdateAsync(selectedBeneficiary);
+
+            //Logging
+            await AddLogAsync(
+             selectedBeneficiary.Id,
+             "Soft deleted beneficiary record",
+             userName);
+
+
             await _repo.SaveChangesAsync();
         }
 
-        public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto)
+        public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName)
         {
             var beneficiary = await _repo.GetByIdAsync(Id);
             if (beneficiary == null)
@@ -158,19 +180,37 @@ namespace EcaInformationSystem.Application.Services
             if (isDuplicate)
                 throw new Exception("Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.");
 
+            var changes = GetChangedFields(beneficiary, dto);
+
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks);
+            
             await _repo.UpdateAsync(beneficiary);
+
+            if (changes.Any())
+            {
+                await AddLogAsync(
+                    beneficiary.Id,
+                    $"Updated beneficiary. Changes: {string.Join("; ", changes)}",
+                    userName);
+            }
             await _repo.SaveChangesAsync();
 
         }
 
-        public async Task<BeneficiaryImportResultDto> ImportExcelAsync(IFormFile file)
+        public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string userName)
         {
-            if (file == null || file.Length == 0)
+            if (fileStream == null || !fileStream.CanRead)
                 throw new Exception("Please upload a valid Excel file.");
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception("Invalid file name.");
+
+            var extension = Path.GetExtension(fileName);
+            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("Only .xlsx Excel files are allowed.");
 
             var result = new BeneficiaryImportResultDto();
 
@@ -179,8 +219,7 @@ namespace EcaInformationSystem.Application.Services
             var municipalities = await _municipalityRepository.GetAllMunicipalityAsync();
             var barangays = await _barangayRepository.GetBarangaysAsync();
 
-            using var stream = file.OpenReadStream();
-            using var workbook = new XLWorkbook(stream);
+            using var workbook = new XLWorkbook(fileStream);
             var worksheet = workbook.Worksheet("Sheet1");
 
             var usedRange = worksheet.RangeUsed();
@@ -205,7 +244,7 @@ namespace EcaInformationSystem.Application.Services
                     var lastName = row.Cell(5).GetFormattedString().Trim();
                     var firstName = row.Cell(6).GetFormattedString().Trim();
                     var middleName = row.Cell(7).GetFormattedString().Trim();
-                    var extension = row.Cell(8).GetFormattedString().Trim();
+                    var extensionName = row.Cell(8).GetFormattedString().Trim();
 
                     var birthDateRaw = row.Cell(13).GetFormattedString().Trim();
 
@@ -329,10 +368,17 @@ namespace EcaInformationSystem.Application.Services
                         IsEligible = MapEligibility(coAssessmentRaw),
                         RemarkCategory = null,
                         Remarks = NullIfEmpty(remarks),
+                        DateAdded = DateTime.UtcNow,
                         IsDeleted = false
                     };
 
                     await _repo.AddAsync(beneficiary);
+                    //Logging
+                    await AddLogAsync(
+                         beneficiary.Id,
+                         $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
+                         userName);
+
                     result.ImportedCount++;
                 }
                 catch (Exception ex)
@@ -342,8 +388,6 @@ namespace EcaInformationSystem.Application.Services
                 }
             }
 
-            Console.WriteLine(result);
-
             await _repo.SaveChangesAsync();
 
             return result;
@@ -351,6 +395,107 @@ namespace EcaInformationSystem.Application.Services
 
 
         #region Private helpers
+        private List<string> GetChangedFields(BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
+        {
+            var changes = new List<string>();
+
+            if (beneficiary.BatchCode != dto.BatchCode)
+                changes.Add($"BatchCode: '{beneficiary.BatchCode}' -> '{dto.BatchCode}'");
+
+            if (beneficiary.OscaIdNumber != dto.OscaIdNumber)
+                changes.Add($"OscaIdNumber: '{beneficiary.OscaIdNumber}' -> '{dto.OscaIdNumber}'");
+
+            if (beneficiary.NcscRrn != dto.NcscRrn)
+                changes.Add($"NcscRrn: '{beneficiary.NcscRrn}' -> '{dto.NcscRrn}'");
+
+            if (beneficiary.LastName != dto.LastName)
+                changes.Add($"LastName: '{beneficiary.LastName}' -> '{dto.LastName}'");
+
+            if (beneficiary.FirstName != dto.FirstName)
+                changes.Add($"FirstName: '{beneficiary.FirstName}' -> '{dto.FirstName}'");
+
+            if (beneficiary.MiddleName != dto.MiddleName)
+                changes.Add($"MiddleName: '{beneficiary.MiddleName}' -> '{dto.MiddleName}'");
+
+            if (beneficiary.Extension != dto.Extension)
+                changes.Add($"Extension: '{beneficiary.Extension}' -> '{dto.Extension}'");
+
+            if (beneficiary.BirthDate.Date != dto.BirthDate.Date)
+                changes.Add($"BirthDate: '{beneficiary.BirthDate:yyyy-MM-dd}' -> '{dto.BirthDate:yyyy-MM-dd}'");
+
+            if (beneficiary.Sex != dto.Sex)
+                changes.Add($"Sex: '{beneficiary.Sex}' -> '{dto.Sex}'");
+
+            if (beneficiary.IsIndigenousPeople != dto.IsIndigenousPeople)
+                changes.Add($"IsIndigenousPeople: '{beneficiary.IsIndigenousPeople}' -> '{dto.IsIndigenousPeople}'");
+
+            if (beneficiary.IsPersonWithDisability != dto.IsPersonWithDisability)
+                changes.Add($"IsPersonWithDisability: '{beneficiary.IsPersonWithDisability}' -> '{dto.IsPersonWithDisability}'");
+
+            if (beneficiary.CivilStatus != dto.CivilStatus)
+                changes.Add($"CivilStatus: '{beneficiary.CivilStatus}' -> '{dto.CivilStatus}'");
+
+            if (beneficiary.Citizenship != dto.Citizenship)
+                changes.Add($"Citizenship: '{beneficiary.Citizenship}' -> '{dto.Citizenship}'");
+
+            if (beneficiary.Province != dto.PsgcCodeProvince)
+                changes.Add($"Province: '{beneficiary.Province}' -> '{dto.PsgcCodeProvince}'");
+
+            if (beneficiary.Municipality != dto.PsgcCodeMunicipality)
+                changes.Add($"Municipality: '{beneficiary.Municipality}' -> '{dto.PsgcCodeMunicipality}'");
+
+            if (beneficiary.Barangay != dto.PsgcCodeBarangay)
+                changes.Add($"Barangay: '{beneficiary.Barangay}' -> '{dto.PsgcCodeBarangay}'");
+
+            if (beneficiary.IsCompliant != dto.IsCompliant)
+                changes.Add($"IsCompliant: '{beneficiary.IsCompliant}' -> '{dto.IsCompliant}'");
+
+            if (beneficiary.Validator != dto.Validator)
+                changes.Add($"Validator: '{beneficiary.Validator}' -> '{dto.Validator}'");
+
+            if (beneficiary.ValidationDate != dto.ValidationDate)
+                changes.Add($"ValidationDate: '{beneficiary.ValidationDate}' -> '{dto.ValidationDate}'");
+
+            if (beneficiary.PaymentStatus != dto.PaymentStatus)
+                changes.Add($"PaymentStatus: '{beneficiary.PaymentStatus}' -> '{dto.PaymentStatus}'");
+
+            if (beneficiary.ModeOfPayment != dto.ModeOfPayment)
+                changes.Add($"ModeOfPayment: '{beneficiary.ModeOfPayment}' -> '{dto.ModeOfPayment}'");
+
+            if (beneficiary.PaymentDate != dto.PaymentDate)
+                changes.Add($"PaymentDate: '{beneficiary.PaymentDate}' -> '{dto.PaymentDate}'");
+
+            if (beneficiary.IsDeceased != dto.IsDeceased)
+                changes.Add($"IsDeceased: '{beneficiary.IsDeceased}' -> '{dto.IsDeceased}'");
+
+            if (beneficiary.DateOfDeath != dto.DateOfDeath)
+                changes.Add($"DateOfDeath: '{beneficiary.DateOfDeath}' -> '{dto.DateOfDeath}'");
+
+            if (beneficiary.IsEligible != dto.IsEligible)
+                changes.Add($"IsEligible: '{beneficiary.IsEligible}' -> '{dto.IsEligible}'");
+
+            if (beneficiary.RemarkCategory != dto.RemarkCategory)
+                changes.Add($"RemarkCategory: '{beneficiary.RemarkCategory}' -> '{dto.RemarkCategory}'");
+
+            if (beneficiary.Remarks != dto.Remarks)
+                changes.Add($"Remarks: '{beneficiary.Remarks}' -> '{dto.Remarks}'");
+
+            return changes;
+        }
+
+
+        private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)
+        {
+            var log = new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = beneficiaryId,
+                Activity = activity,
+                UserName = userName,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _logRepository.AddAsync(log);
+        }
         private static T? FindBestNameMatch<T>(
      IEnumerable<T> items,
      Func<T, string?> nameSelector,
