@@ -46,6 +46,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                     .IsRequired();
                 entity.HasIndex(x => x.UserName);
             });
+
+            modelBuilder.Entity<PendingUserRegistration>()
+            .HasIndex(x => x.UserName)
+            .IsUnique();
+
         }
     }
 }

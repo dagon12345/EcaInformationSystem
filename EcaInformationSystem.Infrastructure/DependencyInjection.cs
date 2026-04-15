@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IProvinceRepository, ProvinceRepository>();
             services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             services.AddScoped<IBarangayRepository, BarangayRepository>();
+            services.AddScoped<IPendingUserRegistrationRepository, PendingUserRegistrationRepository>();
             return services;
         }
     }

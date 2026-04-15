@@ -1,54 +1,63 @@
 ﻿@inherits LayoutComponentBase
+@inject HttpClient Http
+@inject NavigationManager Navigation
 
 <div class="bb-page">
 
     <Sidebar @ref="sidebar"
              IconName="IconName.BootstrapFill"
-             Title="Blazor Bootstrap"
+             Title="ECA Information System"
              DataProvider="SidebarDataProvider" />
 
     <main>
-        <div class="bb-top-row px-4 d-flex justify-content-end">
-            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
+        <div class="bb-top-row px-4 d-flex justify-content-between align-items-center">
+            <div></div>
+
+            <AuthorizeView>
+                <Authorized>
+                    <form method="post" action="/auth/logout" style="display:inline;">
+                        <button class="btn btn-outline-danger btn-sm" type="submit">
+                            <i class="bi bi-box-arrow-right me-1"></i> Logout
+                        </button>
+                    </form>
+                </Authorized>
+            </AuthorizeView>
+
         </div>
 
         <article class="content px-4">
             <div class="py-2">@Body</div>
         </article>
     </main>
-
 </div>
-
-@code {
-    Sidebar sidebar;
-    IEnumerable<NavItem> navItems;
-
-    private async Task<SidebarDataProviderResult> SidebarDataProvider(SidebarDataProviderRequest request)
-    {
-        if (navItems is null)
-            navItems = GetNavItems();
-
-        return await Task.FromResult(request.ApplyTo(navItems));
-    }
-
-    private IEnumerable<NavItem> GetNavItems()
-    {
-        navItems = new List<NavItem>
-                   {
-                       new NavItem { Id = "1", Href = "/", IconName = IconName.HouseDoorFill, Text = "Home", Match=NavLinkMatch.All},
-                       new NavItem { Id = "2", Href = "/counter", IconName = IconName.PlusSquareFill, Text = "Counter"},
-                       new NavItem { Id = "3", Href = "/weather", IconName = IconName.Table, Text = "Fetch Data"},
-                       new NavItem { Id = "4", Href = "/products", IconName = IconName.Table, Text = "Products"},
-                       new NavItem { Id = "5", Href = "/beneficiary-create", IconName = IconName.Table, Text = "Grantee Information"},
-                   };
-
-        return navItems;
-    }
-}
-
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private Sidebar sidebar = default!;
+    private IEnumerable<NavItem>? navItems;
+
+    private async Task<SidebarDataProviderResult> SidebarDataProvider(SidebarDataProviderRequest request)
+    {
+        navItems ??= GetNavItems();
+        return await Task.FromResult(request.ApplyTo(navItems));
+    }
+
+    private IEnumerable<NavItem> GetNavItems()
+    {
+        return new List<NavItem>
+        {
+            new NavItem { Id = "1", Href = "/beneficiary-create", IconName = IconName.Table, Text = "Grantee Information" }
+        };
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Http.PostAsync("api/auth/logout", null);
+        Navigation.NavigateTo("/login", true);
+    }
+}

@@ -1,6 +1,7 @@
 using EcaInformationSystem.Application;
 using EcaInformationSystem.BlazorServer.Components;
 using EcaInformationSystem.Infrastructure;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.OpenApi.Models;
@@ -39,6 +40,26 @@ builder.Services.AddScoped(sp =>
     };
 });
 
+// Auth
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.AccessDeniedPath = "/login";
+        options.Cookie.Name = "EcaInformationSystemAuth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.Path = "/";
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+    });
+
+
+builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -53,17 +74,17 @@ else
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-app.UseRouting();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
-
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Temporarily disable this while testing Swagger
-app.UseAntiforgery();
 
 app.Run();

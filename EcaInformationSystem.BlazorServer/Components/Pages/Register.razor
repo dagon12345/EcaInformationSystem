@@ -1,0 +1,121 @@
+﻿@page "/register"
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="container py-5">
+    <div class="row justify-content-center align-items-center" style="min-height: 85vh;">
+        <div class="col-lg-7 col-xl-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <h2 class="fw-bold text-primary">Create Internal Account</h2>
+                        <p class="text-muted mb-0">Register to access the ECA Information System</p>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(Message))
+                    {
+                        <div class="alert @(IsSuccess ? "alert-success" : "alert-danger")" role="alert">
+                            @Message
+                        </div>
+                    }
+
+                    <EditForm Model="@model" OnValidSubmit="HandleRegisterAsync" FormName="RegisterForm">
+
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Full Name</label>
+                                <InputText class="form-control form-control-lg" @bind-Value="model.FullName" />
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Position</label>
+                                <InputText class="form-control form-control-lg" @bind-Value="model.Position" />
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Birth Date</label>
+                                <InputDate class="form-control form-control-lg" @bind-Value="model.BirthDate" />
+                            </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Username</label>
+                                <InputText class="form-control form-control-lg" @bind-Value="model.UserName" />
+                            </div>
+
+                            <div class="col-md-12 mb-4">
+                                <label class="form-label">Password</label>
+                                <InputText type="password" class="form-control form-control-lg" @bind-Value="model.Password" />
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button class="btn btn-primary btn-lg rounded-3" type="submit" disabled="@IsLoading">
+                                @(IsLoading ? "Registering..." : "Register")
+                            </button>
+                        </div>
+                    </EditForm>
+
+                    <div class="text-center mt-4">
+                        <span class="text-muted">Already have an account?</span>
+                        <a href="/login" class="fw-semibold text-decoration-none ms-1">Login here</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterViewModel model = new();
+    private string? Message;
+    private bool IsSuccess;
+    private bool IsLoading;
+
+    private async Task HandleRegisterAsync()
+    {
+        IsLoading = true;
+        Message = null;
+
+        var response = await Http.PostAsJsonAsync("api/auth/register", model);
+
+        if (response.IsSuccessStatusCode)
+        {
+            IsSuccess = true;
+            Message = "Registration successful. Redirecting to login...";
+            StateHasChanged();
+
+            await Task.Delay(1200);
+            Navigation.NavigateTo("/login");
+        }
+        else
+        {
+            IsSuccess = false;
+            Message = await response.Content.ReadAsStringAsync();
+        }
+
+        IsLoading = false;
+    }
+
+    public class RegisterViewModel
+    {
+        [Required]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required]
+        public string Position { get; set; } = string.Empty;
+
+        [Required]
+        public DateTime BirthDate { get; set; } = DateTime.Today;
+
+        [Required]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+}

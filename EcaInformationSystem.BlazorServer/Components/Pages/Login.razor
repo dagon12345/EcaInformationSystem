@@ -1,0 +1,87 @@
+﻿@page "/login"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Login</PageTitle>
+
+@if (isCheckingAuth)
+{
+    <div class="container py-5 text-center">
+        <p>Loading...</p>
+    </div>
+}
+else
+{
+    <div class="container py-5">
+        <div class="row justify-content-center align-items-center" style="min-height: 85vh;">
+            <div class="col-md-6 col-lg-5 col-xl-4">
+                <div class="card border-0 shadow-lg rounded-4">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <h2 class="fw-bold text-primary">Welcome Back</h2>
+                            <p class="text-muted mb-0">Login to continue</p>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @ErrorMessage
+                            </div>
+                        }
+
+                        <form method="post" action="/auth/login">
+                            <div class="mb-3">
+                                <label class="form-label">Username</label>
+                                <input name="UserName" class="form-control form-control-lg" />
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Password</label>
+                                <input name="Password" type="password" class="form-control form-control-lg" />
+                            </div>
+
+                            <div class="d-grid">
+                                <button class="btn btn-primary btn-lg rounded-3" type="submit">
+                                    Login
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="text-center mt-4">
+                            <span class="text-muted">No account yet?</span>
+                            <a href="/register" class="fw-semibold text-decoration-none ms-1">Register here</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string? ErrorMessage;
+    private bool isCheckingAuth = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/beneficiary-create", true);
+            return;
+        }
+
+        var uri = new Uri(Navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("error", out var error))
+        {
+            ErrorMessage = error.ToString();
+        }
+
+        isCheckingAuth = false;
+    }
+}

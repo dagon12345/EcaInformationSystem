@@ -1,8 +1,10 @@
 ﻿@page "/beneficiary-create"
+@attribute [Authorize]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 @using System.Net.Http.Json
 @using EcaInformationSystem.Application.DTOs
+@using Microsoft.AspNetCore.Authorization
 @inject HttpClient Http
 
 <PageTitle>Grantee Information</PageTitle>
@@ -34,7 +36,7 @@
                     </div>
                 </div>
                 <div class="card-body">
-                    <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
+                    <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal" FormName="BeneficiaryCreateForm">
                         <DataAnnotationsValidator />
                         <ValidationSummary class="text-danger mb-3" />
                         <!-- Identity Information -->
