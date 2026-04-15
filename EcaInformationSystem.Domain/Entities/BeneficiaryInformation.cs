@@ -37,7 +37,7 @@
         public void Update(string? batchCode, string? oscaIdNumber, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
             DateTime birthDate, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
-            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, int? remarkCategory, string? remarks, DateTime dateAdded)
+            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, int? remarkCategory, string? remarks)
         {
             BatchCode = batchCode;
             OscaIdNumber = oscaIdNumber;
@@ -67,7 +67,6 @@
             IsEligible = iseligible;
             RemarkCategory = remarkCategory;
             Remarks = remarks;
-            DateAdded = dateAdded;
         }
     }
 }
