@@ -64,12 +64,14 @@ namespace EcaInformationSystem.Application.Services
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
                 PaymentStatus = dto.PaymentStatus,
+                ModeOfPayment = dto.ModeOfPayment,
                 PaymentDate = dto.PaymentDate,
                 IsDeceased = dto.IsDeceased,
                 DateOfDeath = dto.DateOfDeath,
                 IsEligible = dto.IsEligible,
                 RemarkCategory = dto.RemarkCategory,
                 Remarks = dto.Remarks,
+                DateAdded = DateTime.UtcNow,
                 IsDeleted = false
             };
 
@@ -100,12 +102,14 @@ namespace EcaInformationSystem.Application.Services
                 Validator = beneficiary.Validator,
                 ValidationDate = beneficiary.ValidationDate,
                 PaymentStatus = beneficiary.PaymentStatus,
+                ModeOfPayment = beneficiary.ModeOfPayment,
                 PaymentDate = beneficiary.PaymentDate,
                 IsDeceased = beneficiary.IsDeceased,
                 DateOfDeath = beneficiary.DateOfDeath,
                 IsEligible = beneficiary.IsEligible,
                 RemarkCategory = beneficiary.RemarkCategory,
                 Remarks = beneficiary.Remarks,
+                DateAdded = beneficiary.DateAdded,
                 IsDeleted = beneficiary.IsDeleted
             };
         }
@@ -157,7 +161,7 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
-                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks, dto.DateAdded);
+                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks);
             await _repo.UpdateAsync(beneficiary);
             await _repo.SaveChangesAsync();
 
@@ -318,6 +322,7 @@ namespace EcaInformationSystem.Application.Services
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
                         PaymentStatus = MapPaymentStatus(paymentStatusRaw),
+                        ModeOfPayment = 0,
                         PaymentDate = ParseNullableDate(paymentDateRaw),
                         IsDeceased = ParseNullableDate(dateOfDeathRaw).HasValue,
                         DateOfDeath = ParseNullableDate(dateOfDeathRaw),
