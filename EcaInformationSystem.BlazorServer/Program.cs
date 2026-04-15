@@ -3,17 +3,15 @@ using EcaInformationSystem.BlazorServer.Components;
 using EcaInformationSystem.Infrastructure;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//Blazor Boostrap
 builder.Services.AddBlazorBootstrap();
 
-// Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-//Controllers + Swagger
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -29,11 +27,9 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(@"C:\Keys\EcaInformationSystem"))
     .SetApplicationName("EcaInformationSystem");
 
-//Application + Infrastructure
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// HttpClient for Blazor page calling your API
 builder.Services.AddScoped(sp =>
 {
     var navigation = sp.GetRequiredService<NavigationManager>();
@@ -45,30 +41,29 @@ builder.Services.AddScoped(sp =>
 
 var app = builder.Build();
 
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
-
     app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
-    // Optional: enable Swagger in production too if you want internal offices to test it
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseAntiforgery();
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapControllers();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Temporarily disable this while testing Swagger
+app.UseAntiforgery();
 
 app.Run();
