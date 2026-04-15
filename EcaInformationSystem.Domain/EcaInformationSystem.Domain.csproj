@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Common\" />
     <Folder Include="Aggregates\" />
     <Folder Include="Events\" />
     <Folder Include="RepositoryInterface\" />

@@ -3,6 +3,7 @@ using EcaInformationSystem.Application.DTOs.Auth;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Domain.Common.Enum;
 using Microsoft.AspNetCore.Identity;
 
 namespace EcaInformationSystem.Application.Services
@@ -54,8 +55,8 @@ namespace EcaInformationSystem.Application.Services
                 Position = request.Position,
                 BirthDate = request.BirthDate,
                 UserName = request.UserName,
-                IsActivated = true,
-                ApprovalStatus = 1,
+                IsActivated = false,
+                ApprovalStatus = (int)ApprovalStatus.Pending,
                 RequestedAt = DateTime.UtcNow,
                 ReviewedAt = DateTime.UtcNow,
                 ReviewedBy = "System",
