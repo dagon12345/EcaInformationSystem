@@ -73,11 +73,17 @@ namespace EcaInformationSystem.BlazorServer.Controllers
             return Ok(result);
         }
         [HttpPost("import")]
-        public async Task<IActionResult> ImportExcel([FromForm] IFormFile file)
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(typeof(BeneficiaryImportResultDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ImportExcel([FromForm] ImportBeneficiaryExcelRequestDto request)
         {
             try
             {
-                var result = await _beneficiaryInformationService.ImportExcelAsync(file);
+                if (request.File == null || request.File.Length == 0)
+                    return BadRequest("Please upload a valid Excel file.");
+
+                var result = await _beneficiaryInformationService.ImportExcelAsync(request.File);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -85,5 +91,6 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
     }
 }
