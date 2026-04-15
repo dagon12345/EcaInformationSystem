@@ -4,7 +4,12 @@
 @inject IJSRuntime JS
 @using System.Net.Http.Json
 @using EcaInformationSystem.Application.DTOs
+@using EcaInformationSystem.Application.Interfaces
+@using EcaInformationSystem.Application.Services
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject IBeneficiaryInformationService BeneficiaryInformationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject HttpClient Http
 
 <PageTitle>Grantee Information</PageTitle>
@@ -789,7 +794,7 @@
         await LoadSummaryAsync();
 
     }
-    
+
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
         selectedFile = e.File;
@@ -811,41 +816,33 @@
         {
             isUploading = true;
 
-            using var content = new MultipartFormDataContent();
-            using var stream = selectedFile.OpenReadStream(10 * 1024 * 1024);
-            using var fileContent = new StreamContent(stream);
+            
+            var userName = await GetCurrentUserNameAsync();
 
-            fileContent.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            await using var uploadStream = selectedFile.OpenReadStream(10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await uploadStream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
 
-            content.Add(fileContent, "file", selectedFile.Name);
+            var result = await BeneficiaryInformationService.ImportExcelAsync(
+                memoryStream,
+                selectedFile.Name,
+                userName);
 
-            var response = await Http.PostAsync("api/BeneficiaryInformation/import", content);
 
-            if (response.IsSuccessStatusCode)
+            successMessage =
+            $"Import completed. Total Rows: {result.TotalRows}, " +
+            $"Imported: {result.ImportedCount}, " +
+            $"Duplicates Skipped: {result.SkippedDuplicateCount}, " +
+            $"Errors: {result.ErrorCount}";
+
+
+
+            if (result.Errors.Any())
             {
-                var result = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
-
-                if (result != null)
-                {
-                    successMessage =
-                        $"Import completed. Total Rows: {result.TotalRows}, " +
-                        $"Imported: {result.ImportedCount}, " +
-                        $"Duplicates Skipped: {result.SkippedDuplicateCount}, " +
-                        $"Errors: {result.ErrorCount}";
-
-                    if (result.Errors.Any())
-                    {
-                        errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
-                    }
-                }
-
-                await LoadSummaryAsync();
+                errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
             }
-            else
-            {
-                errorMessage = await response.Content.ReadAsStringAsync();
-            }
+            await LoadSummaryAsync();
         }
         catch (Exception ex)
         {
@@ -940,7 +937,8 @@
             if (queryParams.Any())
                 url += "?" + string.Join("&", queryParams);
 
-            summaryResult = await Http.GetFromJsonAsync<BeneficiarySummaryResultDto>(url) ?? new BeneficiarySummaryResultDto();
+            summaryResult = await BeneficiaryInformationService.GetSummaryAsync(filterModel)
+                        ?? new BeneficiarySummaryResultDto();
             beneficiaries = summaryResult.Beneficiaries ?? new List<BeneficiaryInformationDto>();
         }
         catch (Exception ex)
@@ -1120,8 +1118,19 @@
     {
         await confirmModal.HideAsync();
     }
+
+    private async Task<string> GetCurrentUserNameAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated != true)
+            return "Anonymous";
+        return user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? user.FindFirst("UserName")?.Value
+            ?? user.Identity?.Name
+            ?? "Anonymous";
+    }
     //Adding new beneficiary record
-    // Adding new beneficiary record
     private async Task AddBeneficiaryAsync()
     {
         errorMessage = null;
@@ -1159,39 +1168,15 @@
             IsDeleted = false
         };
 
-
         try
         {
-            var response = await Http.PostAsJsonAsync("api/BeneficiaryInformation", createDto);
+            var userName = await GetCurrentUserNameAsync();
+            var createdItem = await BeneficiaryInformationService.CreateAsync(createDto, userName);
 
-            if (response.IsSuccessStatusCode)
-            {
-                successMessage = "Grantee record saved successfully.";
+            successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
 
-                try
-                {
-                    var createdItem = await response.Content.ReadFromJsonAsync<BeneficiaryInformationDto>();
-                    if (createdItem is not null)
-                    {
-                        successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Warning: Unable to parse created Grantee from response. {ex.Message}");
-                }
-
-                ResetForm();
-                await LoadSummaryAsync();
-            }
-            else
-            {
-                var serverError = await response.Content.ReadAsStringAsync();
-
-                errorMessage = string.IsNullOrWhiteSpace(serverError)
-                    ? "Unable to save grantee record."
-                    : serverError;
-            }
+            ResetForm();
+            await LoadSummaryAsync();
         }
         catch (Exception ex)
         {
@@ -1199,47 +1184,54 @@
         }
     }
 
+
     //Updating
     private async Task UpdateBeneficiaryAsync()
     {
-        var updateResponse = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/{model.Id}", model);
-        if (updateResponse.IsSuccessStatusCode)
+        try
         {
+            var userName = await GetCurrentUserNameAsync();
+            await BeneficiaryInformationService.UpdateAsync(model.Id, model, userName);
+
             successMessage = $"Grantee '{model.FirstName} {model.LastName}' was updated successfully.";
             ResetForm();
             await LoadSummaryAsync();
         }
-        else
+        catch (Exception ex)
         {
-            var serverMessage = await updateResponse.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to update Grantee record. {serverMessage}";
+            errorMessage = $"Failed to update Grantee record. {ex.Message}";
         }
     }
+
     //Soft delete - set isDeleted to true
     private async Task SoftDeleteBeneficiaryAsync()
     {
-        if(selectedDeleteItem is null)
+        if (selectedDeleteItem is null)
         {
             errorMessage = "No Grantee selected for deletion.";
             return;
         }
-        var response = await Http.PutAsJsonAsync($"api/BeneficiaryInformation/soft-delete/{selectedDeleteItem.Id}", selectedDeleteItem);
 
-        if(response.IsSuccessStatusCode)
+        try
         {
+            var userName = await GetCurrentUserNameAsync();
+            await BeneficiaryInformationService.SoftDeleteAsync(selectedDeleteItem.Id, userName);
+
             successMessage = $"Grantee '{selectedDeleteItem.FirstName} {selectedDeleteItem.LastName}' was deleted successfully.";
-            if(isEditMode && model.Id == selectedDeleteItem.Id)
+
+            if (isEditMode && model.Id == selectedDeleteItem.Id)
             {
                 ResetForm();
             }
+
             await LoadSummaryAsync();
         }
-        else
+        catch (Exception ex)
         {
-            var serverMessage = await response.Content.ReadAsStringAsync();
-            errorMessage = $"Failed to delete Grantee record. {serverMessage}";
+            errorMessage = $"Failed to delete Grantee record. {ex.Message}";
         }
     }
+
     private async Task ConfirmActionAsync()
     {
         try

@@ -1,7 +1,9 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Infrastructure.Repositories;
+using EcaInformationSystem.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,8 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             services.AddScoped<IBarangayRepository, BarangayRepository>();
             services.AddScoped<IPendingUserRegistrationRepository, PendingUserRegistrationRepository>();
+            services.AddScoped<ILogRepository, LogRepository>();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
             return services;
         }
     }

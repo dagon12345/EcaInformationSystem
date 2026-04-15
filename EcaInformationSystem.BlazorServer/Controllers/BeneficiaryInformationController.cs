@@ -1,9 +1,12 @@
 ﻿using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EcaInformationSystem.BlazorServer.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class BeneficiaryInformationController : ControllerBase
@@ -13,6 +16,14 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         {
             _beneficiaryInformationService = beneficiaryInformationService;
         }
+        private string GetCurrentUserName()
+        {
+            return User.FindFirst(ClaimTypes.Name)?.Value
+                ?? User.FindFirst("UserName")?.Value
+                ?? User.Identity?.Name
+                ?? "Anonymous";
+        }
+
         [HttpGet]
         public async Task<ActionResult<List<BeneficiaryInformationDto>>> Get()
         {
@@ -24,7 +35,8 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         {
             try
             {
-                var result = await _beneficiaryInformationService.CreateAsync(dto);
+                var userName = GetCurrentUserName();
+                var result = await _beneficiaryInformationService.CreateAsync(dto, userName);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -39,7 +51,8 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 return BadRequest("ID mismatch.");
             try
             {
-                await _beneficiaryInformationService.UpdateAsync(id, dto);
+                var userName = GetCurrentUserName();
+                await _beneficiaryInformationService.UpdateAsync(id, dto, userName);
                 return NoContent();
             }
             catch (Exception ex)
@@ -52,7 +65,8 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         {
             try
             {
-                await _beneficiaryInformationService.SoftDeleteAsync(id);
+                var userName = GetCurrentUserName();
+                await _beneficiaryInformationService.SoftDeleteAsync(id, userName);
                 return NoContent();
             }
             catch (Exception ex)
@@ -83,13 +97,30 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 if (request.File == null || request.File.Length == 0)
                     return BadRequest("Please upload a valid Excel file.");
 
-                var result = await _beneficiaryInformationService.ImportExcelAsync(request.File);
+                var userName = GetCurrentUserName();
+
+                using var stream = request.File.OpenReadStream();
+
+                var result = await _beneficiaryInformationService.ImportExcelAsync(
+                    stream,
+                    request.File.FileName,
+                    userName);
                 return Ok(result);
             }
             catch (Exception ex)
             {
                 return BadRequest(ex.Message);
             }
+        }
+        [HttpGet("whoami")]
+        public IActionResult WhoAmI()
+        {
+            return Ok(new
+            {
+                IsAuthenticated = User.Identity?.IsAuthenticated,
+                Name = User.Identity?.Name,
+                Claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList()
+            });
         }
 
     }

@@ -1,9 +1,9 @@
-﻿using System.Security.Claims;
-using EcaInformationSystem.Application.DTOs.Auth;
+﻿using EcaInformationSystem.Application.DTOs.Auth;
 using EcaInformationSystem.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace EcaInformationSystem.Blazor.Controllers
 {
@@ -31,6 +31,7 @@ namespace EcaInformationSystem.Blazor.Controllers
             {
                 new Claim(ClaimTypes.NameIdentifier, result.UserId!),
                 new Claim(ClaimTypes.Name, result.UserName!),
+                new Claim("UserName", result.UserName!),
                 new Claim("FullName", result.FullName ?? string.Empty),
                 new Claim("Position", result.Position ?? string.Empty),
                 new Claim(ClaimTypes.Role, "User")
