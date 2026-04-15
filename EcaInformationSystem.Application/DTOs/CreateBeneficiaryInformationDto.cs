@@ -23,7 +23,7 @@ namespace EcaInformationSystem.Application.DTOs
         public int PsgcCodeProvince { get; set; }
         public int PsgcCodeMunicipality { get; set; }
         public int PsgcCodeBarangay { get; set; }
-        public bool isCompliant { get; set; }
+        public bool IsCompliant { get; set; }
         [Required]
         public string Validator { get; set; } = string.Empty;
         [Required]
@@ -31,11 +31,11 @@ namespace EcaInformationSystem.Application.DTOs
         [Required]
         public int PaymentStatus { get; set; }
         public DateTime? PaymentDate { get; set; }
-        public bool isDeceased { get; set; }
+        public bool IsDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
-        public bool isEligible { get; set; }
+        public bool IsEligible { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
-        public bool isDeleted { get; set; }
+        public bool IsDeleted { get; set; }
     }
 }

@@ -25,16 +25,18 @@
         public string? Municipality { get; set; }
         public int PsgcCodeBarangay { get; set; }
         public string? Barangay { get; set; }
-        public bool isCompliant { get; set; }
+        public bool IsCompliant { get; set; }
         public string Validator { get; set; } = string.Empty;
         public DateTime ValidationDate { get; set; }
         public int PaymentStatus { get; set; }
+        public int ModeOfPayment { get; set; }
         public DateTime? PaymentDate { get; set; }
-        public bool isDeceased { get; set; }
+        public bool IsDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
-        public bool isEligible { get; set; }
+        public bool IsEligible { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
-        public bool isDeleted { get; set; }
+        public DateTime DateAdded { get; set; }
+        public bool IsDeleted { get; set; }
     }
 }

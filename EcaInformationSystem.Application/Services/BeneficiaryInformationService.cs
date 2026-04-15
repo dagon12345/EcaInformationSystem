@@ -60,17 +60,17 @@ namespace EcaInformationSystem.Application.Services
                 Province = dto.PsgcCodeProvince,
                 Municipality = dto.PsgcCodeMunicipality,
                 Barangay = dto.PsgcCodeBarangay,
-                isCompliant = dto.isCompliant,
+                IsCompliant = dto.IsCompliant,
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
                 PaymentStatus = dto.PaymentStatus,
                 PaymentDate = dto.PaymentDate,
-                isDeceased = dto.isDeceased,
+                IsDeceased = dto.IsDeceased,
                 DateOfDeath = dto.DateOfDeath,
-                isEligible = dto.isEligible,
+                IsEligible = dto.IsEligible,
                 RemarkCategory = dto.RemarkCategory,
                 Remarks = dto.Remarks,
-                isDeleted = false
+                IsDeleted = false
             };
 
             await _repo.AddAsync(beneficiary);
@@ -96,17 +96,17 @@ namespace EcaInformationSystem.Application.Services
                 PsgcCodeProvince = beneficiary.Province,
                 PsgcCodeMunicipality = beneficiary.Municipality,
                 PsgcCodeBarangay = beneficiary.Barangay,
-                isCompliant = beneficiary.isCompliant,
+                IsCompliant = beneficiary.IsCompliant,
                 Validator = beneficiary.Validator,
                 ValidationDate = beneficiary.ValidationDate,
                 PaymentStatus = beneficiary.PaymentStatus,
                 PaymentDate = beneficiary.PaymentDate,
-                isDeceased = beneficiary.isDeceased,
+                IsDeceased = beneficiary.IsDeceased,
                 DateOfDeath = beneficiary.DateOfDeath,
-                isEligible = beneficiary.isEligible,
+                IsEligible = beneficiary.IsEligible,
                 RemarkCategory = beneficiary.RemarkCategory,
                 Remarks = beneficiary.Remarks,
-                isDeleted = beneficiary.isDeleted
+                IsDeleted = beneficiary.IsDeleted
             };
         }
 
@@ -132,7 +132,7 @@ namespace EcaInformationSystem.Application.Services
             var selectedBeneficiary = await _repo.GetByIdAsync(Id);
             if (selectedBeneficiary == null)
                 throw new Exception("Grantee not found");
-            selectedBeneficiary.isDeleted = true;
+            selectedBeneficiary.IsDeleted = true;
             await _repo.UpdateAsync(selectedBeneficiary);
             await _repo.SaveChangesAsync();
         }
@@ -156,8 +156,8 @@ namespace EcaInformationSystem.Application.Services
 
             beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
-                dto.isCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.PaymentDate,
-                dto.isDeceased, dto.DateOfDeath, dto.isEligible, dto.RemarkCategory, dto.Remarks);
+                dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
+                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks, dto.DateAdded);
             await _repo.UpdateAsync(beneficiary);
             await _repo.SaveChangesAsync();
 
@@ -314,17 +314,17 @@ namespace EcaInformationSystem.Application.Services
                         Province = province.PsgcCodeProvince,
                         Municipality = municipality.PsgcCodeMunicipality,
                         Barangay = barangay.PsgcCodeBarangay,
-                        isCompliant = MapCompliance(complianceRaw),
+                        IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
                         PaymentStatus = MapPaymentStatus(paymentStatusRaw),
                         PaymentDate = ParseNullableDate(paymentDateRaw),
-                        isDeceased = ParseNullableDate(dateOfDeathRaw).HasValue,
+                        IsDeceased = ParseNullableDate(dateOfDeathRaw).HasValue,
                         DateOfDeath = ParseNullableDate(dateOfDeathRaw),
-                        isEligible = MapEligibility(coAssessmentRaw),
+                        IsEligible = MapEligibility(coAssessmentRaw),
                         RemarkCategory = null,
                         Remarks = NullIfEmpty(remarks),
-                        isDeleted = false
+                        IsDeleted = false
                     };
 
                     await _repo.AddAsync(beneficiary);

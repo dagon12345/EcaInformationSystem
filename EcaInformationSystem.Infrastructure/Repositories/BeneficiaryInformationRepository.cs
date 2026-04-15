@@ -30,7 +30,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var query = _context.BeneficiaryInformations
                 .AsNoTracking()
-                .Where(x => !x.isDeleted);
+                .Where(x => !x.IsDeleted);
 
             if (excludeId.HasValue)
                 query = query.Where(x => x.Id != excludeId.Value);
@@ -120,7 +120,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
-                where !b.isDeleted
+                where !b.IsDeleted
                 select new
                 {
                     Beneficiary = b,
@@ -207,17 +207,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Municipality = x.Municipality,
                     PsgcCodeBarangay = x.Beneficiary.Barangay,
                     Barangay = x.Barangay,
-                    isCompliant = x.Beneficiary.isCompliant,
+                    IsCompliant = x.Beneficiary.IsCompliant,
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
                     PaymentStatus = x.Beneficiary.PaymentStatus,
                     PaymentDate = x.Beneficiary.PaymentDate,
-                    isDeceased = x.Beneficiary.isDeceased,
+                    IsDeceased = x.Beneficiary.IsDeceased,
                     DateOfDeath = x.Beneficiary.DateOfDeath,
-                    isEligible = x.Beneficiary.isEligible,
+                    IsEligible = x.Beneficiary.IsEligible,
                     RemarkCategory = x.Beneficiary.RemarkCategory,
                     Remarks = x.Beneficiary.Remarks,
-                    isDeleted = x.Beneficiary.isDeleted
+                    IsDeleted = x.Beneficiary.IsDeleted
                 };
             });
 
@@ -256,7 +256,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
              join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
              from barangay in barangayJoin.DefaultIfEmpty()
 
-             where !b.isDeleted
+             where !b.IsDeleted
              select new BeneficiaryInformationDto
              {
                  Id = b.Id,
@@ -283,17 +283,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  Municipality = municipality != null ? municipality.Name : null,
                  PsgcCodeBarangay = b.Barangay,
                  Barangay = barangay != null ? barangay.Name : null,
-                 isCompliant = b.isCompliant,
+                 IsCompliant = b.IsCompliant,
                  Validator = b.Validator,
                  ValidationDate = b.ValidationDate,
                  PaymentStatus = b.PaymentStatus,
                  PaymentDate = b.PaymentDate,
-                 isDeceased = b.isDeceased,
+                 IsDeceased = b.IsDeceased,
                  DateOfDeath = b.DateOfDeath,
-                 isEligible = b.isEligible,
+                 IsEligible = b.IsEligible,
                  RemarkCategory = b.RemarkCategory != null ? b.RemarkCategory : null,
                  Remarks = b.Remarks,
-                 isDeleted = b.isDeleted
+                 IsDeleted = b.IsDeleted
              })
              .AsNoTracking()
              .ToListAsync();
@@ -318,7 +318,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
-                where !b.isDeleted
+                where !b.IsDeleted
                 select new
                 {
                     Beneficiary = b,
@@ -402,17 +402,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Municipality = x.Municipality,
                     PsgcCodeBarangay = x.Beneficiary.Barangay,
                     Barangay = x.Barangay,
-                    isCompliant = x.Beneficiary.isCompliant,
+                    IsCompliant = x.Beneficiary.IsCompliant,
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
                     PaymentStatus = x.Beneficiary.PaymentStatus,
                     PaymentDate = x.Beneficiary.PaymentDate,
-                    isDeceased = x.Beneficiary.isDeceased,
+                    IsDeceased = x.Beneficiary.IsDeceased,
                     DateOfDeath = x.Beneficiary.DateOfDeath,
-                    isEligible = x.Beneficiary.isEligible,
+                    IsEligible = x.Beneficiary.IsEligible,
                     RemarkCategory = x.Beneficiary.RemarkCategory,
                     Remarks = x.Beneficiary.Remarks,
-                    isDeleted = x.Beneficiary.isDeleted
+                    IsDeleted = x.Beneficiary.IsDeleted
                 };
             }).ToList();
 

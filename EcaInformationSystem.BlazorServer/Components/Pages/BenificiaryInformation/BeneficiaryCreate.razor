@@ -205,7 +205,7 @@
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
                                     <div class="form-check mt-4">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.isCompliant" />
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant" />
                                         <label class="form-check-label">Is Compliant</label>
                                     </div>
                                 </div>
@@ -236,17 +236,17 @@
                             <div class="row g-3">
                                 <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
                                     <div class="form-check">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.isDeceased" />
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsDeceased" />
                                         <label class="form-check-label">Is Deceased</label>
                                     </div>
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Date of Death</label>
-                                    <InputDate class="form-control" @bind-Value="model.DateOfDeath" disabled="@(!model.isDeceased)" />
+                                    <InputDate class="form-control" @bind-Value="model.DateOfDeath" disabled="@(!model.IsDeceased)" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
                                     <div class="form-check">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.isEligible" />
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" />
                                         <label class="form-check-label">Is Eligible</label>
                                     </div>
                                 </div>
@@ -699,13 +699,13 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge @(item.isEligible ? "bg-success" : "bg-secondary")">
-                                                    @(item.isEligible ? "Yes" : "No")
+                                                <span class="badge @(item.IsEligible ? "bg-success" : "bg-secondary")">
+                                                    @(item.IsEligible ? "Yes" : "No")
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge @(item.isCompliant ? "bg-info" : "bg-warning text-dark")">
-                                                    @(item.isCompliant ? "Yes" : "No")
+                                                <span class="badge @(item.IsCompliant ? "bg-info" : "bg-warning text-dark")">
+                                                    @(item.IsCompliant ? "Yes" : "No")
                                                 </span>
                                             </td>
                                             <td>
@@ -1146,17 +1146,17 @@
             PsgcCodeProvince = model.PsgcCodeProvince,
             PsgcCodeMunicipality = model.PsgcCodeMunicipality,
             PsgcCodeBarangay = model.PsgcCodeBarangay,
-            isCompliant = model.isCompliant,
+            IsCompliant = model.IsCompliant,
             Validator = model.Validator,
             ValidationDate = model.ValidationDate,
             PaymentStatus = model.PaymentStatus,
             PaymentDate = model.PaymentDate,
-            isDeceased = model.isDeceased,
+            IsDeceased = model.IsDeceased,
             DateOfDeath = model.DateOfDeath,
-            isEligible = model.isEligible,
+            IsEligible = model.IsEligible,
             RemarkCategory = model.RemarkCategory,
             Remarks = model.Remarks,
-            isDeleted = false
+            IsDeleted = false
         };
 
 
@@ -1341,17 +1341,17 @@
             PsgcCodeMunicipality = item.PsgcCodeMunicipality,
             Barangay = item.Barangay,
             PsgcCodeBarangay = item.PsgcCodeBarangay,
-            isCompliant = item.isCompliant,
+            IsCompliant = item.IsCompliant,
             Validator = item.Validator,
             ValidationDate = item.ValidationDate,
             PaymentStatus = item.PaymentStatus,
             PaymentDate = item.PaymentDate,
-            isDeceased = item.isDeceased,
+            IsDeceased = item.IsDeceased,
             DateOfDeath = item.DateOfDeath,
-            isEligible = item.isEligible,
+            IsEligible = item.IsEligible,
             RemarkCategory = item.RemarkCategory,
             Remarks = item.Remarks,
-            isDeleted = item.isDeleted
+            IsDeleted = item.IsDeleted
         };
         provinces.Clear();
         municipalities.Clear();
