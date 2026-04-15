@@ -50,6 +50,16 @@ namespace EcaInformationSystem.Blazor.Controllers
 
             return LocalRedirect("/beneficiary-create");
         }
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.RegisterAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result.Message);
+            }
+            return Ok(result.Message);
+        }
 
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
