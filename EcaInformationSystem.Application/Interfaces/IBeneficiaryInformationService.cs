@@ -14,5 +14,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName);
         Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string userName);
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
+        Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter);
     }
 }

@@ -16,5 +16,8 @@
         public DateTime? BirthdayFrom { get; set; }
         public DateTime? BirthdayTo { get; set; }
         public int? Sex { get; set; }
+
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
     }
 }

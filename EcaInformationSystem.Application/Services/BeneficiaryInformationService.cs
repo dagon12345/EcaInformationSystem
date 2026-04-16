@@ -2,10 +2,9 @@
 using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
-using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
-using Microsoft.AspNetCore.Http;
 using System.Globalization;
+using Microsoft.Extensions.Caching.Memory;
 
 
 namespace EcaInformationSystem.Application.Services
@@ -18,10 +17,11 @@ namespace EcaInformationSystem.Application.Services
         private readonly IMunicipalityRepository _municipalityRepository;
         private readonly IBarangayRepository _barangayRepository;
         private readonly ILogRepository _logRepository;
+        private readonly IMemoryCache _memoryCache;
         private const int DefaultRegionCode = 1600000000;
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
             , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
-            ILogRepository logRepository)
+            ILogRepository logRepository, IMemoryCache memoryCache)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -29,6 +29,7 @@ namespace EcaInformationSystem.Application.Services
             _municipalityRepository = municipalityRepository;
             _barangayRepository = barangayRepository;
             _logRepository = logRepository;
+            _memoryCache = memoryCache;
         }
 
         public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
@@ -90,6 +91,8 @@ namespace EcaInformationSystem.Application.Services
 
             await _repo.SaveChangesAsync();
 
+            InvalidateSummaryCache();
+
             return new BeneficiaryInformationDto
             {
                 Id = beneficiary.Id,
@@ -140,7 +143,24 @@ namespace EcaInformationSystem.Application.Services
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
             filter.PsgcCodeRegion = DefaultRegionCode;
-            return await _repo.GetSummaryAsync(filter);
+
+            var cacheKey = BuildSummaryCacheKey(filter);
+            if (_memoryCache.TryGetValue(cacheKey, out BeneficiarySummaryResultDto? cachedSummary)
+                && cachedSummary is not null)
+            {
+                return cachedSummary;
+            }
+
+            var summary = await _repo.GetSummaryAsync(filter);
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            };
+            _memoryCache.Set(cacheKey, summary, cacheOptions);
+
+            return summary;
         }
 
         public async Task SoftDeleteAsync(Guid Id, string userName)
@@ -161,6 +181,7 @@ namespace EcaInformationSystem.Application.Services
 
 
             await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
         }
 
         public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName)
@@ -169,16 +190,16 @@ namespace EcaInformationSystem.Application.Services
             if (beneficiary == null)
                 throw new Exception("Grantee not found");
 
-            //Check duplicates
+            //Check Duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
-                dto.LastName,
-                dto.FirstName,
-                dto.MiddleName,
-                dto.BirthDate,
-                dto.OscaIdNumber,
-                dto.NcscRrn);
-            if (isDuplicate)
-                throw new Exception("Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.");
+                  dto.LastName,
+                  dto.FirstName,
+                  dto.MiddleName,
+                  dto.BirthDate,
+                  dto.OscaIdNumber,
+                  dto.NcscRrn,
+                  Id);
+
 
             var changes = GetChangedFields(beneficiary, dto);
 
@@ -197,6 +218,7 @@ namespace EcaInformationSystem.Application.Services
                     userName);
             }
             await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
 
         }
         public async Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId)
@@ -394,12 +416,55 @@ namespace EcaInformationSystem.Application.Services
             }
 
             await _repo.SaveChangesAsync();
-
+            InvalidateSummaryCache();
             return result;
         }
-
-
+        public Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
+        {
+            var pagedResult = _repo.GetPagedAsync(filter);
+            return pagedResult;
+        }
         #region Private helpers
+        private const string SummaryCacheVersionKey = "beneficiary-summary-version";
+
+        private void InvalidateSummaryCache()
+        {
+            var newVersion = Guid.NewGuid().ToString();
+            _memoryCache.Set(SummaryCacheVersionKey, newVersion);
+        }
+
+        private string GetCurrentSummaryCacheVersion()
+        {
+            return _memoryCache.GetOrCreate(SummaryCacheVersionKey, entry =>
+            {
+                entry.Priority = CacheItemPriority.NeverRemove;
+                return "v1";
+            })!;
+        }
+
+        private string BuildSummaryCacheKey(BeneficiaryFilterDto filter)
+        {
+            var version = GetCurrentSummaryCacheVersion();
+
+            return string.Join("|",
+                version,
+                "beneficiary-summary",
+                filter.PsgcCodeRegion?.ToString() ?? "null",
+                filter.PsgcCodeProvince?.ToString() ?? "null",
+                filter.PsgcCodeMunicipality?.ToString() ?? "null",
+                filter.PsgcCodeBarangay?.ToString() ?? "null",
+                filter.LastName ?? string.Empty,
+                filter.FirstName ?? string.Empty,
+                filter.Sex?.ToString() ?? "null",
+                filter.SpecificAge?.ToString() ?? "null",
+                filter.AgeFrom?.ToString() ?? "null",
+                filter.AgeTo?.ToString() ?? "null",
+                filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
+                filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
+                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null"
+            );
+        }
+
         private List<string> GetChangedFields(BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
         {
             var changes = new List<string>();
@@ -712,7 +777,6 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
-
 
         #endregion
 

@@ -105,137 +105,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
         public async Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter)
         {
-            var query =
-                from b in _context.BeneficiaryInformations
-
-                join region in _context.Regions on b.Region equals region.PsgcCodeRegion into regionJoin
-                from region in regionJoin.DefaultIfEmpty()
-
-                join province in _context.Provinces on b.Province equals province.PsgcCodeProvince into provinceJoin
-                from province in provinceJoin.DefaultIfEmpty()
-
-                join municipality in _context.Municipalities on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
-                from municipality in municipalityJoin.DefaultIfEmpty()
-
-                join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
-                from barangay in barangayJoin.DefaultIfEmpty()
-
-                where !b.IsDeleted
-                select new
-                {
-                    Beneficiary = b,
-                    Region = region != null ? region.Name : null,
-                    Province = province != null ? province.Name : null,
-                    Municipality = municipality != null ? municipality.Name : null,
-                    Barangay = barangay != null ? barangay.Name : null
-                };
-
-            if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
-                query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
-
-            if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
-                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
-
-            if (filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
-                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
-
-            if (filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
-                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
-
-            if (!string.IsNullOrEmpty(filter.LastName))
-                query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
-
-            if (!string.IsNullOrEmpty(filter.FirstName))
-                query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
-
-            if (filter.Sex.HasValue && filter.Sex.Value > 0)
-                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
-
-            if (filter.SpecificBirthday.HasValue)
-            {
-                var specificBirthday = filter.SpecificBirthday.Value.Date;
-                query = query.Where(x => x.Beneficiary.BirthDate.Date == filter.SpecificBirthday.Value.Date);
-            }
-            else
-            {
-                if (filter.BirthdayFrom.HasValue)
-                {
-                    var birthdayFrom = filter.BirthdayFrom.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date >= birthdayFrom);
-                }
-
-                if (filter.BirthdayTo.HasValue)
-                {
-                    var birthdayTo = filter.BirthdayTo.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
-                }
-
-            }
-
-            var projected = await
-                query.AsNoTracking()
-                .ToListAsync();
-
-            var result = projected.Select(x =>
-            {
-                var age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year;
-                if (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-age))
-                    age--;
-
-                return new BeneficiaryInformationDto
-                {
-                    Id = x.Beneficiary.Id,
-                    BatchCode = x.Beneficiary.BatchCode,
-                    OscaIdNumber = x.Beneficiary.OscaIdNumber,
-                    NcscRrn = x.Beneficiary.NcscRrn,
-                    LastName = x.Beneficiary.LastName,
-                    FirstName = x.Beneficiary.FirstName,
-                    MiddleName = x.Beneficiary.MiddleName,
-                    Extension = x.Beneficiary.Extension,
-                    BirthDate = x.Beneficiary.BirthDate,
-                    Age = age,
-                    IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
-                    IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
-                    CivilStatus = x.Beneficiary.CivilStatus,
-                    Citizenship = x.Beneficiary.Citizenship,
-                    Sex = x.Beneficiary.Sex,
-                    PsgcCodeRegion = x.Beneficiary.Region,
-                    Region = x.Region,
-                    PsgcCodeProvince = x.Beneficiary.Province,
-                    Province = x.Province,
-                    PsgcCodeMunicipality = x.Beneficiary.Municipality,
-                    Municipality = x.Municipality,
-                    PsgcCodeBarangay = x.Beneficiary.Barangay,
-                    Barangay = x.Barangay,
-                    IsCompliant = x.Beneficiary.IsCompliant,
-                    Validator = x.Beneficiary.Validator,
-                    ValidationDate = x.Beneficiary.ValidationDate,
-                    PaymentStatus = x.Beneficiary.PaymentStatus,
-                    PaymentDate = x.Beneficiary.PaymentDate,
-                    IsDeceased = x.Beneficiary.IsDeceased,
-                    DateOfDeath = x.Beneficiary.DateOfDeath,
-                    IsEligible = x.Beneficiary.IsEligible,
-                    RemarkCategory = x.Beneficiary.RemarkCategory,
-                    Remarks = x.Beneficiary.Remarks,
-                    IsDeleted = x.Beneficiary.IsDeleted
-                };
-            });
-
-            if (filter.SpecificAge.HasValue)
-            {
-                result = result.Where(x => x.Age == filter.SpecificAge.Value);
-            }
-            else
-            {
-                if (filter.AgeFrom.HasValue)
-                    result = result.Where(x => x.Age >= filter.AgeFrom.Value);
-
-                if (filter.AgeTo.HasValue)
-                    result = result.Where(x => x.Age <= filter.AgeTo.Value);
-            }
-
-            return result.ToList();
-
+            return await BuildBeneficiaryDtoQuery(filter)
+                         .OrderBy(x => x.LastName)
+                         .ThenBy(x => x.FirstName)
+                         .ThenBy(x => x.MiddleName)
+                         .ToListAsync();
         }
 
         public async Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync()
@@ -303,137 +177,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
-            var query =
-                from b in _context.BeneficiaryInformations
-
-                join region in _context.Regions on b.Region equals region.PsgcCodeRegion into regionJoin
-                from region in regionJoin.DefaultIfEmpty()
-
-                join province in _context.Provinces on b.Province equals province.PsgcCodeProvince into provinceJoin
-                from province in provinceJoin.DefaultIfEmpty()
-
-                join municipality in _context.Municipalities on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
-                from municipality in municipalityJoin.DefaultIfEmpty()
-
-                join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
-                from barangay in barangayJoin.DefaultIfEmpty()
-
-                where !b.IsDeleted
-                select new
-                {
-                    Beneficiary = b,
-                    Region = region != null ? region.Name : null,
-                    Province = province != null ? province.Name : null,
-                    Municipality = municipality != null ? municipality.Name : null,
-                    Barangay = barangay != null ? barangay.Name : null
-                };
-
-            if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
-                query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
-
-            if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
-                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
-
-            if (filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
-                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
-
-            if (filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
-                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
-
-            if (!string.IsNullOrWhiteSpace(filter.LastName))
-                query = query.Where(x => x.Beneficiary.LastName.Contains(filter.LastName));
-
-            if (!string.IsNullOrWhiteSpace(filter.FirstName))
-                query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
-
-            if (filter.Sex.HasValue && filter.Sex.Value > 0)
-                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
-
-            if (filter.SpecificBirthday.HasValue)
-            {
-                var specificBirthday = filter.SpecificBirthday.Value.Date;
-                query = query.Where(x => x.Beneficiary.BirthDate.Date == specificBirthday);
-            }
-            else
-            {
-                if (filter.BirthdayFrom.HasValue)
-                {
-                    var birthdayFrom = filter.BirthdayFrom.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date >= birthdayFrom);
-                }
-
-                if (filter.BirthdayTo.HasValue)
-                {
-                    var birthdayTo = filter.BirthdayTo.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
-                }
-            }
-
-            var rawList = await query.AsNoTracking().ToListAsync();
-
-            var beneficiaries = rawList.Select(x =>
-            {
-                var age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year;
-                if (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-age))
-                    age--;
-
-                return new BeneficiaryInformationDto
-                {
-                    Id = x.Beneficiary.Id,
-                    BatchCode = x.Beneficiary.BatchCode,
-                    OscaIdNumber = x.Beneficiary.OscaIdNumber,
-                    NcscRrn = x.Beneficiary.NcscRrn,
-                    LastName = x.Beneficiary.LastName,
-                    FirstName = x.Beneficiary.FirstName,
-                    MiddleName = x.Beneficiary.MiddleName,
-                    Extension = x.Beneficiary.Extension,
-                    BirthDate = x.Beneficiary.BirthDate,
-                    Age = age,
-                    IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
-                    IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
-                    CivilStatus = x.Beneficiary.CivilStatus,
-                    Citizenship = x.Beneficiary.Citizenship,
-                    Sex = x.Beneficiary.Sex,
-                    PsgcCodeRegion = x.Beneficiary.Region,
-                    Region = x.Region,
-                    PsgcCodeProvince = x.Beneficiary.Province,
-                    Province = x.Province,
-                    PsgcCodeMunicipality = x.Beneficiary.Municipality,
-                    Municipality = x.Municipality,
-                    PsgcCodeBarangay = x.Beneficiary.Barangay,
-                    Barangay = x.Barangay,
-                    IsCompliant = x.Beneficiary.IsCompliant,
-                    Validator = x.Beneficiary.Validator,
-                    ValidationDate = x.Beneficiary.ValidationDate,
-                    PaymentStatus = x.Beneficiary.PaymentStatus,
-                    PaymentDate = x.Beneficiary.PaymentDate,
-                    IsDeceased = x.Beneficiary.IsDeceased,
-                    DateOfDeath = x.Beneficiary.DateOfDeath,
-                    IsEligible = x.Beneficiary.IsEligible,
-                    RemarkCategory = x.Beneficiary.RemarkCategory,
-                    Remarks = x.Beneficiary.Remarks,
-                    IsDeleted = x.Beneficiary.IsDeleted
-                };
-            }).ToList();
-
-            if (filter.SpecificAge.HasValue)
-            {
-                beneficiaries = beneficiaries
-                    .Where(x => x.Age == filter.SpecificAge.Value)
-                    .ToList();
-            }
-            else
-            {
-                if (filter.AgeFrom.HasValue)
-                    beneficiaries = beneficiaries
-                        .Where(x => x.Age >= filter.AgeFrom.Value)
-                        .ToList();
-
-                if (filter.AgeTo.HasValue)
-                    beneficiaries = beneficiaries
-                        .Where(x => x.Age <= filter.AgeTo.Value)
-                        .ToList();
-            }
+            var beneficiaries = await BuildBeneficiaryDtoQuery(filter).ToListAsync();
 
             var result = new BeneficiarySummaryResultDto
             {
@@ -442,10 +186,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 TotalMale = beneficiaries.Count(x => x.Sex == 1),
                 TotalFemale = beneficiaries.Count(x => x.Sex == 2),
 
-                Age80Count = beneficiaries.Count(x => x.Age >= 80 && x.Age <= 84),
-                Age85Count = beneficiaries.Count(x => x.Age >= 85 && x.Age <= 89),
-                Age90Count = beneficiaries.Count(x => x.Age >= 90 && x.Age <= 94),
-                Age95Count = beneficiaries.Count(x => x.Age >= 95 && x.Age <= 99),
+                Age80Count = beneficiaries.Count(x => x.Age >= 80 && x.Age <= 85),
+                Age85Count = beneficiaries.Count(x => x.Age >= 85 && x.Age <= 90),
+                Age90Count = beneficiaries.Count(x => x.Age >= 90 && x.Age <= 95),
+                Age95Count = beneficiaries.Count(x => x.Age >= 95 && x.Age <= 100),
                 Age100Count = beneficiaries.Count(x => x.Age >= 100),
 
                 ProvinceCounts = beneficiaries
@@ -487,5 +231,164 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context.BeneficiaryInformations.Update(beneficiaryInformation);
             return Task.CompletedTask;
         }
+
+        public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter)
+        {
+            var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
+            var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
+            var query = BuildBeneficiaryDtoQuery(filter);
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .OrderBy(x => x.LastName)
+                .ThenBy(x => x.FirstName)
+                .ThenBy(x => x.MiddleName)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+            return new PagedResultDto<BeneficiaryInformationDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        private IQueryable<BeneficiaryQueryModel> BuildBeneficiaryFilteredQuery(BeneficiaryFilterDto filter)
+        {
+            var query =
+                from b in _context.BeneficiaryInformations
+
+                join region in _context.Regions on b.Region equals region.PsgcCodeRegion into regionJoin
+                from region in regionJoin.DefaultIfEmpty()
+
+                join province in _context.Provinces on b.Province equals province.PsgcCodeProvince into provinceJoin
+                from province in provinceJoin.DefaultIfEmpty()
+
+                join municipality in _context.Municipalities on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
+                from municipality in municipalityJoin.DefaultIfEmpty()
+
+                join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
+                from barangay in barangayJoin.DefaultIfEmpty()
+
+                where !b.IsDeleted
+                select new BeneficiaryQueryModel
+                {
+                    Beneficiary = b,
+                    Region = region != null ? region.Name : null,
+                    Province = province != null ? province.Name : null,
+                    Municipality = municipality != null ? municipality.Name : null,
+                    Barangay = barangay != null ? barangay.Name : null
+                };
+
+            if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
+                query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
+
+            if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
+                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
+
+            if (filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
+                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
+
+            if (filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
+                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
+
+            if (!string.IsNullOrWhiteSpace(filter.LastName))
+                query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
+
+            if (!string.IsNullOrWhiteSpace(filter.FirstName))
+                query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
+
+            if (filter.Sex.HasValue && filter.Sex.Value > 0)
+                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
+
+            if (filter.SpecificBirthday.HasValue)
+            {
+                var specificBirthday = filter.SpecificBirthday.Value.Date;
+                query = query.Where(x => x.Beneficiary.BirthDate.Date == specificBirthday);
+            }
+            else
+            {
+                if (filter.BirthdayFrom.HasValue)
+                {
+                    var birthdayFrom = filter.BirthdayFrom.Value.Date;
+                    query = query.Where(x => x.Beneficiary.BirthDate.Date >= birthdayFrom);
+                }
+
+                if (filter.BirthdayTo.HasValue)
+                {
+                    var birthdayTo = filter.BirthdayTo.Value.Date;
+                    query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
+                }
+            }
+
+            return query.AsNoTracking();
+        }
+        private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
+        {
+            var query = BuildBeneficiaryFilteredQuery(filter)
+                .Select(x => new BeneficiaryInformationDto
+                {
+                    Id = x.Beneficiary.Id,
+                    BatchCode = x.Beneficiary.BatchCode,
+                    OscaIdNumber = x.Beneficiary.OscaIdNumber,
+                    NcscRrn = x.Beneficiary.NcscRrn,
+                    LastName = x.Beneficiary.LastName,
+                    FirstName = x.Beneficiary.FirstName,
+                    MiddleName = x.Beneficiary.MiddleName,
+                    Extension = x.Beneficiary.Extension,
+                    BirthDate = x.Beneficiary.BirthDate,
+                    Age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year -
+                          (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - x.Beneficiary.BirthDate.Year)) ? 1 : 0),
+                    IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
+                    IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
+                    CivilStatus = x.Beneficiary.CivilStatus,
+                    Citizenship = x.Beneficiary.Citizenship,
+                    Sex = x.Beneficiary.Sex,
+                    PsgcCodeRegion = x.Beneficiary.Region,
+                    Region = x.Region,
+                    PsgcCodeProvince = x.Beneficiary.Province,
+                    Province = x.Province,
+                    PsgcCodeMunicipality = x.Beneficiary.Municipality,
+                    Municipality = x.Municipality,
+                    PsgcCodeBarangay = x.Beneficiary.Barangay,
+                    Barangay = x.Barangay,
+                    IsCompliant = x.Beneficiary.IsCompliant,
+                    Validator = x.Beneficiary.Validator,
+                    ValidationDate = x.Beneficiary.ValidationDate,
+                    PaymentStatus = x.Beneficiary.PaymentStatus,
+                    PaymentDate = x.Beneficiary.PaymentDate,
+                    IsDeceased = x.Beneficiary.IsDeceased,
+                    DateOfDeath = x.Beneficiary.DateOfDeath,
+                    IsEligible = x.Beneficiary.IsEligible,
+                    RemarkCategory = x.Beneficiary.RemarkCategory,
+                    Remarks = x.Beneficiary.Remarks,
+                    IsDeleted = x.Beneficiary.IsDeleted
+                });
+
+            if (filter.SpecificAge.HasValue)
+            {
+                query = query.Where(x => x.Age == filter.SpecificAge.Value);
+            }
+            else
+            {
+                if (filter.AgeFrom.HasValue)
+                    query = query.Where(x => x.Age >= filter.AgeFrom.Value);
+
+                if (filter.AgeTo.HasValue)
+                    query = query.Where(x => x.Age <= filter.AgeTo.Value);
+            }
+
+            return query;
+        }
+
+        private sealed class BeneficiaryQueryModel
+        {
+            public BeneficiaryInformation Beneficiary { get; set; } = default!;
+            public string? Region { get; set; }
+            public string? Province { get; set; }
+            public string? Municipality { get; set; }
+            public string? Barangay { get; set; }
+        }
+
     }
 }

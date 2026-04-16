@@ -1,16 +1,22 @@
 ﻿@page "/beneficiary-create"
+
 @attribute [Authorize]
 @rendermode InteractiveServer
-@inject IJSRuntime JS
+
 @using System.Net.Http.Json
 @using EcaInformationSystem.Application.DTOs
 @using EcaInformationSystem.Application.Interfaces
 @using EcaInformationSystem.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @using System.Security.Claims
+
+
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
 @inject IBeneficiaryInformationService BeneficiaryInformationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject HttpClient Http
+
 
 <PageTitle>Grantee Information</PageTitle>
 <div class="container-fluid py-4">
@@ -40,6 +46,7 @@
                         </div>
                     </div>
                 </div>
+                <!-- Fill up fields -->
                 <div class="card-body">
                     <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal" FormName="BeneficiaryCreateForm">
                         <DataAnnotationsValidator />
@@ -50,7 +57,7 @@
                             <div class="row g-3">
                                 <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Batch Code</label>
-                                    <InputText class="form-control" @bind-Value="model.BatchCode" />
+                                    <input class="form-control" @bind="model.BatchCode" @ref="batchCodeInput"/>
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">OSCA ID Number</label>
@@ -304,6 +311,35 @@
         </div>
     </div>
 
+    <div class="row mb-4">
+        <div class="col-12">
+            <Card Class="shadow-sm border-0">
+                <CardHeader Class="bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">Import Excel File</h5>
+                            <small class="text-muted">Bulk adding of grantees</small>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardBody>
+                    <!--Importing-->
+                    <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control mb-2" />
+                    <button class="btn btn-success" @onclick="UploadExcelAsync" disabled="@isUploading">
+                        @if (isUploading)
+                        {
+                            <span>Importing...</span>
+                        }
+                        else
+                        {
+                            <span>Import Excel</span>
+                        }
+                    </button>
+                </CardBody>
+            </Card>
+        </div>
+    </div>
+
     <!-- Search Card Filtering-->
     <div class="row mb-4">
         <div class="col-12">
@@ -444,200 +480,27 @@
             </Card>
         </div>
     </div>
-    <!-- Summary Cards -->
-
-    <div class="row mb-4">
-        <div class="col-12">
-            <Card Class="shadow-sm border-0">
-                <CardHeader Class="bg-light">
-                    <div>
-                        <h4 class="mb-0">Grantee Dashboard Summary</h4>
-                        <small class="text-muted">Overview of Grantee records, age groups, provinces, and municipalities</small>
-                    </div>
-                </CardHeader>
-
-                <CardBody>
-                    <div class="row g-4">
-
-                        <!-- Beneficiary Summary -->
-                        <div class="col-12">
-                            <div class="border rounded shadow-sm p-3 bg-white">
-                                <h5 class="mb-3 text-primary">Grantee Summary</h5>
-                                <div class="row g-3">
-                                    <div class="col-12 col-md-4">
-                                        <div class="border rounded p-3 h-100 bg-primary-subtle">
-                                            <h6 class="text-muted mb-2">Total Grantees</h6>
-                                            <h3 class="mb-0 text-primary">@summaryResult.TotalBeneficiaries</h3>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12 col-md-4">
-                                        <div class="border rounded p-3 h-100 bg-info-subtle">
-                                            <h6 class="text-muted mb-2">Male</h6>
-                                            <h3 class="mb-0 text-info">@summaryResult.TotalMale</h3>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12 col-md-4">
-                                        <div class="border rounded p-3 h-100 bg-danger-subtle">
-                                            <h6 class="text-muted mb-2">Female</h6>
-                                            <h3 class="mb-0 text-danger">@summaryResult.TotalFemale</h3>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Age Group Summary -->
-                        <div class="col-12">
-                            <div class="border rounded shadow-sm p-3 bg-white">
-                                <h5 class="mb-3 text-primary">Age Group Summary</h5>
-                                <div class="row g-3">
-                                    <div class="col-6 col-md-4 col-lg-2">
-                                        <div class="border rounded p-3 text-center bg-success-subtle">
-                                            <h6 class="text-muted mb-1">80</h6>
-                                            <h4 class="mb-0">@summaryResult.Age80Count</h4>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-6 col-md-4 col-lg-2">
-                                        <div class="border rounded p-3 text-center bg-info-subtle">
-                                            <h6 class="text-muted mb-1">85</h6>
-                                            <h4 class="mb-0">@summaryResult.Age85Count</h4>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-6 col-md-4 col-lg-2">
-                                        <div class="border rounded p-3 text-center bg-warning-subtle">
-                                            <h6 class="text-muted mb-1">90</h6>
-                                            <h4 class="mb-0">@summaryResult.Age90Count</h4>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-6 col-md-4 col-lg-2">
-                                        <div class="border rounded p-3 text-center bg-danger-subtle">
-                                            <h6 class="text-muted mb-1">95</h6>
-                                            <h4 class="mb-0">@summaryResult.Age95Count</h4>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-6 col-md-4 col-lg-2">
-                                        <div class="border rounded p-3 text-center bg-dark-subtle">
-                                            <h6 class="text-muted mb-1">100</h6>
-                                            <h4 class="mb-0">@summaryResult.Age100Count</h4>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Province and Municipality Summary -->
-                        <div class="col-12">
-                            <div class="row g-3">
-
-                                <div class="col-12 col-lg-6">
-                                    <div class="border rounded p-3 h-100 bg-white">
-                                        <h5 class="mb-3 text-primary">Province Count Summary</h5>
-
-                                        @if (summaryResult.ProvinceCounts?.Any() == true)
-                                        {
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-hover align-middle mb-0">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th>Province</th>
-                                                            <th class="text-end">Count</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach (var item in summaryResult.ProvinceCounts)
-                                                        {
-                                                            <tr>
-                                                                <td>@item.Province</td>
-                                                                <td class="text-end">
-                                                                    <span class="badge bg-primary">@item.Count</span>
-                                                                </td>
-                                                            </tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <p class="text-muted mb-0">No province data available.</p>
-                                        }
-                                    </div>
-                                </div>
-
-                                <div class="col-12 col-lg-6">
-                                    <div class="border rounded p-3 h-100 bg-white">
-                                        <h5 class="mb-3 text-primary">Municipality Count Summary</h5>
-
-                                        @if (summaryResult.MunicipalityCounts?.Any() == true)
-                                        {
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-hover align-middle mb-0">
-                                                    <thead class="table-light">
-                                                        <tr>
-                                                            <th>Municipality</th>
-                                                            <th class="text-end">Count</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach (var item in summaryResult.MunicipalityCounts)
-                                                        {
-                                                            <tr>
-                                                                <td>@item.Municipality</td>
-                                                                <td class="text-end">
-                                                                    <span class="badge bg-success">@item.Count</span>
-                                                                </td>
-                                                            </tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <p class="text-muted mb-0">No municipality data available.</p>
-                                        }
-                                    </div>
-                                </div>
-
-                            </div>
-                        </div>
-
-                    </div>
-                </CardBody>
-            </Card>
-        </div>
-    </div>
-    <!--Importing-->
-    <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control mb-2" />
-    <button class="btn btn-success" @onclick="UploadExcelAsync" disabled="@isUploading">
-        @if (isUploading)
-        {
-            <span>Importing...</span>
-        }
-        else
-        {
-            <span>Import Excel</span>
-        }
-    </button>
-
     <!-- List/Grid Section -->
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-light">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Grantee List</h5>
-                        <span class="badge bg-primary">@summaryResult.TotalBeneficiaries Record(s)</span>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="LoadSummaryAsync">
-                            Refresh
-                        </button>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="mb-0">Grantee List</h5>
+                            <span class="badge bg-primary">@totalCount Record(s)</span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-info" @onclick="GoToDashboardSummary">
+                                Dashboard Summary
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-primary" @onclick="RefreshDataAsync">
+                                Refresh
+                            </button>
+                        </div>
                     </div>
+
                 </div>
                 <div class="card-body">
                     @if(isLoading)
@@ -733,6 +596,44 @@
                                 </tbody>
                             </table>
                         </div>
+                        <!--Pagination controls-->
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mt-3">
+                            <div class="text-muted">
+                                Showing
+                                <strong>@(((filterModel.PageNumber - 1) * filterModel.PageSize) + 1)</strong>
+                                to
+                                <strong>@Math.Min(filterModel.PageNumber * filterModel.PageSize, totalCount)</strong>
+                                of
+                                <strong>@totalCount</strong>
+                                record(s)
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="GoToPreviousPageAsync"
+                                        disabled="@(filterModel.PageNumber <= 1 || isLoading)">
+                                    Previous
+                                </button>
+
+                                <span class="small text-muted">
+                                    Page @filterModel.PageNumber of @totalPages
+                                </span>
+
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="GoToNextPageAsync"
+                                        disabled="@(filterModel.PageNumber >= totalPages || isLoading)">
+                                    Next
+                                </button>
+                                <select class="form-select form-select-sm w-auto" @onchange="OnPageSizeChanged">
+                                    <option value="10" selected="@(filterModel.PageSize == 10)">10</option>
+                                    <option value="20" selected="@(filterModel.PageSize == 20)">20</option>
+                                    <option value="50" selected="@(filterModel.PageSize == 50)">50</option>
+                                    <option value="100" selected="@(filterModel.PageSize == 100)">100</option>
+                                </select>
+
+                            </div>
+                        </div>
+
                     }
                 </div>
             </div>
@@ -829,6 +730,16 @@
         BirthDate = DateTime.Today,
         ValidationDate = DateTime.Today,
     };
+    private BeneficiaryFilterDto filterModel = new()
+    {
+        PageNumber = 1,
+        PageSize = 10
+    };
+    private List<BeneficiaryInformationDto> beneficiaries = new();
+    private int totalPages;
+    private int totalCount;
+    private ElementReference batchCodeInput;
+    private bool shouldFocusBatchCode;
     private IBrowserFile? selectedFile;
     private bool isUploading;
     private Modal confirmModal = default!;
@@ -837,9 +748,6 @@
     private string confirmationMessage = string.Empty;
     private string pendingAction = string.Empty; //"add", "edit", "delete"
     private BeneficiaryInformationDto? selectedDeleteItem;
-    private List<BeneficiaryInformationDto> beneficiaries = new();
-    private BeneficiaryFilterDto filterModel = new();
-    private BeneficiarySummaryResultDto summaryResult = new();   
     private const int DefaultRegionCode = 1600000000;
     private const string DefaultRegionName = "Region XIII (Caraga)";
     private bool isLoading;
@@ -851,13 +759,71 @@
     protected override async Task OnInitializedAsync()
     {
         model.PsgcCodeRegion = DefaultRegionCode;
+
         filterModel.PsgcCodeRegion = DefaultRegionCode;
+        filterModel.PageNumber = 1;
+        filterModel.PageSize =10;
 
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
-        await LoadSummaryAsync();
-
+        await LoadBeneficiariesAsync();
     }
+    private void GoToDashboardSummary()
+    {
+        Navigation.NavigateTo("/beneficiary-summary");
+    }
+    private async Task ApplyFiltersAsync()
+    {
+        filterModel.PageNumber = 1;
+        await LoadBeneficiariesAsync();
+    }
+
+    private async Task ClearFilterAsync()
+    {
+        filterModel = new BeneficiaryFilterDto
+        {
+            PsgcCodeRegion = DefaultRegionCode,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        filterMunicipalities.Clear();
+        filterBarangays.Clear();
+
+        await LoadFilterProvincesAsync();
+        await LoadBeneficiariesAsync();
+    }
+    private async Task RefreshDataAsync()
+    {
+        await LoadBeneficiariesAsync();
+    }
+    private async Task GoToPreviousPageAsync()
+    {
+        if (filterModel.PageNumber <= 1)
+            return;
+
+        filterModel.PageNumber--;
+        await LoadBeneficiariesAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (filterModel.PageNumber >= totalPages)
+            return;
+
+        filterModel.PageNumber++;
+        await LoadBeneficiariesAsync();
+    }
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var pageSize))
+        {
+            filterModel.PageSize = pageSize;
+            filterModel.PageNumber = 1;
+            await LoadBeneficiariesAsync();
+        }
+    }
+
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
@@ -906,7 +872,9 @@
             {
                 errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
             }
-            await LoadSummaryAsync();
+            filterModel.PageNumber = 1;
+            await LoadBeneficiariesAsync();
+
         }
         catch (Exception ex)
         {
@@ -955,67 +923,25 @@
         filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{DefaultRegionCode}")
                           ?? new List<ProvinceLookupDto>();
     }
-
-    private async Task LoadSummaryAsync()
+    private async Task LoadBeneficiariesAsync()
     {
         try
         {
             isLoading = true;
             errorMessage = null;
 
-            var queryParams = new List<string>();
+            var paginatedResult = await BeneficiaryInformationService.GetPaginatedAsync(filterModel);
 
-            if (filterModel.PsgcCodeRegion.HasValue && filterModel.PsgcCodeRegion > 0)
-                queryParams.Add($"PsgcCodeRegion={filterModel.PsgcCodeRegion}");
-
-            if (filterModel.PsgcCodeProvince.HasValue && filterModel.PsgcCodeProvince > 0)
-                queryParams.Add($"PsgcCodeProvince={filterModel.PsgcCodeProvince}");
-
-            if (filterModel.PsgcCodeMunicipality.HasValue && filterModel.PsgcCodeMunicipality > 0)
-                queryParams.Add($"PsgcCodeMunicipality={filterModel.PsgcCodeMunicipality}");
-
-            if (filterModel.PsgcCodeBarangay.HasValue && filterModel.PsgcCodeBarangay > 0)
-                queryParams.Add($"PsgcCodeBarangay={filterModel.PsgcCodeBarangay}");
-
-            if (!string.IsNullOrWhiteSpace(filterModel.LastName))
-                queryParams.Add($"LastName={Uri.EscapeDataString(filterModel.LastName)}");
-
-            if (!string.IsNullOrWhiteSpace(filterModel.FirstName))
-                queryParams.Add($"FirstName={Uri.EscapeDataString(filterModel.FirstName)}");
-
-            if (filterModel.SpecificAge.HasValue)
-                queryParams.Add($"SpecificAge={filterModel.SpecificAge}");
-
-            if (filterModel.AgeFrom.HasValue)
-                queryParams.Add($"AgeFrom={filterModel.AgeFrom}");
-
-            if (filterModel.AgeTo.HasValue)
-                queryParams.Add($"AgeTo={filterModel.AgeTo}");
-
-            if (filterModel.Sex.HasValue && filterModel.Sex > 0)
-                queryParams.Add($"Sex={filterModel.Sex}");
-
-            if (filterModel.SpecificBirthday.HasValue)
-                queryParams.Add($"SpecificBirthday={filterModel.SpecificBirthday.Value:yyyy-MM-dd}");
-
-            if (filterModel.BirthdayFrom.HasValue)
-                queryParams.Add($"BirthdayFrom={filterModel.BirthdayFrom.Value:yyyy-MM-dd}");
-
-            if (filterModel.BirthdayTo.HasValue)
-                queryParams.Add($"BirthdayTo={filterModel.BirthdayTo.Value:yyyy-MM-dd}");
-
-            var url = "api/BeneficiaryInformation/summary";
-
-            if (queryParams.Any())
-                url += "?" + string.Join("&", queryParams);
-
-            summaryResult = await BeneficiaryInformationService.GetSummaryAsync(filterModel)
-                        ?? new BeneficiarySummaryResultDto();
-            beneficiaries = summaryResult.Beneficiaries ?? new List<BeneficiaryInformationDto>();
+            beneficiaries = paginatedResult?.Items?.ToList() ?? new List<BeneficiaryInformationDto>();
+            totalCount = paginatedResult?.TotalCount ?? 0;
+            totalPages = paginatedResult?.TotalPages ?? 0;
         }
         catch (Exception ex)
         {
-            errorMessage = $"Unable to load summary. {ex.Message}";
+            errorMessage = $"Unable to load grantees. {ex.Message}";
+            beneficiaries = new List<BeneficiaryInformationDto>();
+            totalCount = 0;
+            totalPages = 0;
         }
         finally
         {
@@ -1176,23 +1102,7 @@
             : "Are you sure you want to add this data?";
         await confirmModal.ShowAsync();
     }
-    private async Task ClearFilterAsync()
-    {
-        filterModel = new BeneficiaryFilterDto
-        {
-            PsgcCodeRegion = DefaultRegionCode
-        };
 
-        filterMunicipalities.Clear();
-        filterBarangays.Clear();
-
-        await LoadFilterProvincesAsync();
-        await LoadSummaryAsync();
-    }
-    private async Task ApplyFiltersAsync()
-    {
-        await LoadSummaryAsync();
-    }
 
     //Delete confirmation modal
     private async Task OpenDeleteConfirmationModal(BeneficiaryInformationDto item)
@@ -1294,7 +1204,9 @@
             successMessage = $"Grantee '{createdItem.FirstName} {createdItem.LastName}' was added successfully.";
 
             ResetForm();
-            await LoadSummaryAsync();
+            filterModel.PageNumber = 1;
+            await LoadBeneficiariesAsync();
+
         }
         catch (Exception ex)
         {
@@ -1313,7 +1225,8 @@
 
             successMessage = $"Grantee '{model.FirstName} {model.LastName}' was updated successfully.";
             ResetForm();
-            await LoadSummaryAsync();
+            await LoadBeneficiariesAsync();
+
         }
         catch (Exception ex)
         {
@@ -1342,7 +1255,8 @@
                 ResetForm();
             }
 
-            await LoadSummaryAsync();
+            await LoadBeneficiariesAsync();
+
         }
         catch (Exception ex)
         {
@@ -1415,9 +1329,6 @@
 
         _ = LoadProvincesAsync(DefaultRegionCode);
     }
-
-
-
     private void ClearMessages()
     {
         successMessage = null;
@@ -1430,6 +1341,14 @@
             Id = dto.Id
         };
         await LoadLogsAsync(model.Id);
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(shouldFocusBatchCode)
+        {
+            shouldFocusBatchCode = false;
+            await batchCodeInput.FocusAsync();
+        }
     }
     private async Task EditItem(BeneficiaryInformationDto item)
     {
@@ -1471,6 +1390,8 @@
             Remarks = item.Remarks,
             IsDeleted = item.IsDeleted
         };
+        //Focus first name once edit button was toggled
+        shouldFocusBatchCode = true;
         provinces.Clear();
         municipalities.Clear();
         barangays.Clear();
