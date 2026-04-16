@@ -199,6 +199,11 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
 
         }
+        public async Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId)
+        {
+            var result = await _logRepository.GetLogSummaryAsync(beneficiaryId);
+            return result;
+        }
 
         public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string userName)
         {
@@ -346,7 +351,7 @@ namespace EcaInformationSystem.Application.Services
                         LastName = NullIfEmpty(lastName),
                         FirstName = firstName.Trim(),
                         MiddleName = NullIfEmpty(middleName),
-                        Extension = NullIfEmpty(extension),
+                        Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
                         Sex = MapSex(sexRaw),
                         IsIndigenousPeople = false,

@@ -722,6 +722,10 @@
                                                     <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirmationModal(item)">
                                                         Delete
                                                     </button>
+
+                                                    <button class="btn btn-sm btn-outline-info" @onclick="() => OpenLogModal(item)">
+                                                        Logs
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -760,6 +764,65 @@
     </FooterTemplate>
 </Modal>
 
+<Modal @ref="logModal" Size="ModalSize.ExtraLarge">
+    <HeaderTemplate>
+        <h5 class="modal-title">Logs - @selectedBeneficiaryName</h5>
+    </HeaderTemplate>
+
+    <BodyTemplate>
+        @if (isLogsLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading logs...</p>
+            </div>
+        }
+        else if (logs == null || !logs.Any())
+        {
+            <div class="alert alert-info mb-0">
+                No logs found for this beneficiary.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Activity</th>
+                            <th>User</th>
+                            <th>Date Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < logs.Count; i++)
+                        {
+                            var log = logs[i];
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td>@log.Activity</td>
+                                <td>@log.UserName</td>
+                                <td>@log.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+
+    <FooterTemplate>
+        <Button Type="ButtonType.Button"
+                Color="ButtonColor.Secondary"
+                @onclick="CloseLogModal">
+            Close
+        </Button>
+    </FooterTemplate>
+</Modal>
+
+
+
 @code {
     private BeneficiaryInformationDto model = new()
     {
@@ -769,6 +832,7 @@
     private IBrowserFile? selectedFile;
     private bool isUploading;
     private Modal confirmModal = default!;
+    private Modal logModal = default!;
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
     private string pendingAction = string.Empty; //"add", "edit", "delete"
@@ -816,7 +880,7 @@
         {
             isUploading = true;
 
-            
+
             var userName = await GetCurrentUserNameAsync();
 
             await using var uploadStream = selectedFile.OpenReadStream(10 * 1024 * 1024);
@@ -854,6 +918,14 @@
         }
     }
 
+    public class LogsLookupDto
+    {
+        public Guid Id { get; set; }
+        public Guid BeneficiaryInformationId { get; set; }
+        public string Activity { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
 
     public class RegionLookupDto
     {
@@ -950,6 +1022,22 @@
             isLoading = false;
         }
     }
+    private async Task LoadLogsAsync(Guid beneficiaryId)
+    {
+        var result = await BeneficiaryInformationService.GetLogSummaryAsync(beneficiaryId);
+        logs = result?
+            .Select(x => new LogsLookupDto
+            {
+                Id = x.Id,
+                BeneficiaryInformationId = x.BeneficiaryInformationId,
+                Activity = x.Activity,
+                UserName = x.UserName,
+                CreatedAt = x.CreatedAt
+            })
+            .ToList()
+            ?? new List<LogsLookupDto>();
+    }
+
     private async Task LoadProvincesAsync(int psgcCodeRegion)
     {
         provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{psgcCodeRegion}")
@@ -1006,6 +1094,11 @@
     private List<ProvinceLookupDto> provinces = new();
     private List<MunicipalityLookupDto> municipalities = new();
     private List<BarangayLookupDto> barangays = new();
+
+    private List<LogsLookupDto> logs = new();
+    private string selectedBeneficiaryName = string.Empty;
+    private bool isLogsLoading;
+
 
     #region Filter dropdowns
     private List<ProvinceLookupDto> filterProvinces = new();
@@ -1112,6 +1205,31 @@
         confirmationMessage = $"Are you sure you want to delete Grantee '{item.FirstName} {item.LastName}'?";
 
         await confirmModal.ShowAsync();
+    }
+
+    private async Task OpenLogModal(BeneficiaryInformationDto item)
+    {
+        try
+        {
+            isLogsLoading = true;
+            logs.Clear();
+            selectedBeneficiaryName = GetFullName(item);
+            await logModal.ShowAsync();
+            await LoadLogsAsync(item.Id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load logs. {ex.Message}";
+        }
+        finally
+        {
+            isLogsLoading = false;
+            StateHasChanged();
+        }
+    }
+    private async Task CloseLogModal()
+    {
+        await logModal.HideAsync();
     }
 
     private async Task CloseConfirmationModal()
@@ -1304,6 +1422,14 @@
     {
         successMessage = null;
         errorMessage = null;
+    }
+    private async Task ViewLogs(BeneficiaryInformationDto dto)
+    {
+        model = new BeneficiaryInformationDto
+        {
+            Id = dto.Id
+        };
+        await LoadLogsAsync(model.Id);
     }
     private async Task EditItem(BeneficiaryInformationDto item)
     {
