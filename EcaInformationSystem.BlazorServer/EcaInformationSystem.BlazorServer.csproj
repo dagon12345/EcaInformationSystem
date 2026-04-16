@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+	  <Content Update="appsettings*.json">
+		  <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		  <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+	  </Content>
     <PackageReference Include="Blazor.Bootstrap" Version="3.5.0" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">

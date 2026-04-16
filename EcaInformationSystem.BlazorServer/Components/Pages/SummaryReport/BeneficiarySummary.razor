@@ -1,0 +1,553 @@
+﻿@page "/beneficiary-summary"
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@using EcaInformationSystem.Application.DTOs
+@using EcaInformationSystem.Application.Interfaces
+@using Microsoft.AspNetCore.Authorization
+
+@inject IBeneficiaryInformationService BeneficiaryInformationService
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Grantee Dashboard Summary</PageTitle>
+
+<div class="container-fluid py-4">
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearMessages"></button>
+        </div>
+    }
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h3 class="mb-0">Grantee Dashboard Summary</h3>
+                    <small class="text-muted">Overview of grantee records, age groups, provinces, and municipalities</small>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="GoBackToBeneficiaries" disabled="@isLoading">
+                        Back to Grantee List
+                    </button>
+
+                    <button class="btn btn-primary" @onclick="LoadSummaryAsync" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Loading...</span>
+                        }
+                        else
+                        {
+                            <span>Refresh Summary</span>
+                        }
+                    </button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <Card Class="shadow-sm border-0">
+                <CardHeader Class="bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">Filter Grantees</h5>
+                            <small class="text-muted">Search and narrow down summary records</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <Button Color="ButtonColor.Secondary"
+                                    Size="ButtonSize.Small"
+                                    @onclick="ClearFilterAsync"
+                                    Disabled="@isLoading">
+                                Clear Filters
+                            </Button>
+
+                            <Button Color="ButtonColor.Primary"
+                                    Size="ButtonSize.Small"
+                                    @onclick="ApplyFiltersAsync"
+                                    Disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                    <span>Applying...</span>
+                                }
+                                else
+                                {
+                                    <span>Apply Filters</span>
+                                }
+                            </Button>
+
+                        </div>
+                    </div>
+                </CardHeader>
+
+                <CardBody>
+                    <!-- Location Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Location Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Province</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeProvince"
+                                        @onchange="OnFilterProvinceChanged"
+                                        disabled="@isLoading">
+                                    <option value="0">Select Province</option>
+                                    @foreach (var province in filterProvinces)
+                                    {
+                                        <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Municipality</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeMunicipality"
+                                        @onchange="OnFilterMunicipalityChanged"
+                                        disabled="@(isLoading || filterModel.PsgcCodeProvince is null || filterModel.PsgcCodeProvince == 0)">
+                                    <option value="0">Select Municipality</option>
+                                    @foreach (var municipality in filterMunicipalities)
+                                    {
+                                        <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Barangay</label>
+                                <select class="form-select"
+                                        value="@filterModel.PsgcCodeBarangay"
+                                        @onchange="OnFilterBarangayChanged"
+                                        disabled="@(isLoading || filterModel.PsgcCodeMunicipality is null || filterModel.PsgcCodeMunicipality == 0)">
+                                    <option value="0">Select Barangay</option>
+                                    @foreach (var barangay in filterBarangays)
+                                    {
+                                        <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Personal Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Personal Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Sex</label>
+                                <select class="form-select" @bind="filterModel.Sex" disabled="@isLoading">
+                                    <option value="0">Select Sex</option>
+                                    <option value="1">Male</option>
+                                    <option value="2">Female</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Age Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Age Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Age</label>
+                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Age From</label>
+                                <input type="number" class="form-control" placeholder="Min age" @bind="filterModel.AgeFrom" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Age To</label>
+                                <input type="number" class="form-control" placeholder="Max age" @bind="filterModel.AgeTo" disabled="@isLoading" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Birthday Filters -->
+                    <div>
+                        <h6 class="text-primary mb-3">Birthday Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Birthday</label>
+                                <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday From</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" disabled="@isLoading" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday To</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayTo" disabled="@isLoading" />
+                            </div>
+                        </div>
+                    </div>
+                </CardBody>
+            </Card>
+        </div>
+    </div>
+
+    <!-- Summary Content -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <Card Class="shadow-sm border-0">
+                <CardHeader Class="bg-light">
+                    <div class="d-flex align-items-center gap-2">
+                        <h4 class="mb-0">Dashboard Summary</h4>
+                        @if (isLoading)
+                        {
+                            <span class="badge bg-warning text-dark">Loading...</span>
+                        }
+                    </div>
+                </CardHeader>
+
+                <CardBody>
+                    @if (isLoading)
+                    {
+                        <div class="d-flex flex-column justify-content-center align-items-center py-5">
+                            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <h5 class="mb-1">Loading dashboard summary...</h5>
+                            <p class="text-muted mb-0">Please wait while we retrieve the filtered summary data.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row g-4">
+
+                            <!-- Beneficiary Summary -->
+                            <div class="col-12">
+                                <div class="border rounded shadow-sm p-3 bg-white">
+                                    <h5 class="mb-3 text-primary">Grantee Summary</h5>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-4">
+                                            <div class="border rounded p-3 h-100 bg-primary-subtle">
+                                                <h6 class="text-muted mb-2">Total Grantees</h6>
+                                                <h3 class="mb-0 text-primary">@summaryResult.TotalBeneficiaries</h3>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 col-md-4">
+                                            <div class="border rounded p-3 h-100 bg-info-subtle">
+                                                <h6 class="text-muted mb-2">Male</h6>
+                                                <h3 class="mb-0 text-info">@summaryResult.TotalMale</h3>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 col-md-4">
+                                            <div class="border rounded p-3 h-100 bg-danger-subtle">
+                                                <h6 class="text-muted mb-2">Female</h6>
+                                                <h3 class="mb-0 text-danger">@summaryResult.TotalFemale</h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Age Group Summary -->
+                            <div class="col-12">
+                                <div class="border rounded shadow-sm p-3 bg-white">
+                                    <h5 class="mb-3 text-primary">Age Group Summary</h5>
+                                    <div class="row g-3">
+                                        <div class="col-6 col-md-4 col-lg-2">
+                                            <div class="border rounded p-3 text-center bg-success-subtle">
+                                                <h6 class="text-muted mb-1">80</h6>
+                                                <h4 class="mb-0">@summaryResult.Age80Count</h4>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-6 col-md-4 col-lg-2">
+                                            <div class="border rounded p-3 text-center bg-info-subtle">
+                                                <h6 class="text-muted mb-1">85</h6>
+                                                <h4 class="mb-0">@summaryResult.Age85Count</h4>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-6 col-md-4 col-lg-2">
+                                            <div class="border rounded p-3 text-center bg-warning-subtle">
+                                                <h6 class="text-muted mb-1">90</h6>
+                                                <h4 class="mb-0">@summaryResult.Age90Count</h4>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-6 col-md-4 col-lg-2">
+                                            <div class="border rounded p-3 text-center bg-danger-subtle">
+                                                <h6 class="text-muted mb-1">95</h6>
+                                                <h4 class="mb-0">@summaryResult.Age95Count</h4>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-6 col-md-4 col-lg-2">
+                                            <div class="border rounded p-3 text-center bg-dark-subtle">
+                                                <h6 class="text-muted mb-1">100</h6>
+                                                <h4 class="mb-0">@summaryResult.Age100Count</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Province and Municipality Summary -->
+                            <div class="col-12">
+                                <div class="row g-3">
+
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100 bg-white">
+                                            <h5 class="mb-3 text-primary">Province Count Summary</h5>
+
+                                            @if (summaryResult.ProvinceCounts?.Any() == true)
+                                            {
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover align-middle mb-0">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Province</th>
+                                                                <th class="text-end">Count</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var item in summaryResult.ProvinceCounts)
+                                                            {
+                                                                <tr>
+                                                                    <td>@item.Province</td>
+                                                                    <td class="text-end">
+                                                                        <span class="badge bg-primary">@item.Count</span>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted mb-0">No province data available.</p>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100 bg-white">
+                                            <h5 class="mb-3 text-primary">Municipality Count Summary</h5>
+
+                                            @if (summaryResult.MunicipalityCounts?.Any() == true)
+                                            {
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover align-middle mb-0">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Municipality</th>
+                                                                <th class="text-end">Count</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var item in summaryResult.MunicipalityCounts)
+                                                            {
+                                                                <tr>
+                                                                    <td>@item.Municipality</td>
+                                                                    <td class="text-end">
+                                                                        <span class="badge bg-success">@item.Count</span>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted mb-0">No municipality data available.</p>
+                                            }
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                        </div>
+                    }
+                </CardBody>
+            </Card>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int DefaultRegionCode = 1600000000;
+
+    private BeneficiaryFilterDto filterModel = new()
+    {
+        PsgcCodeRegion = DefaultRegionCode
+    };
+    private bool isLoading;
+    private BeneficiarySummaryResultDto summaryResult = new();
+    private string? errorMessage;
+
+    private List<ProvinceLookupDto> filterProvinces = new();
+    private List<MunicipalityLookupDto> filterMunicipalities = new();
+    private List<BarangayLookupDto> filterBarangays = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFilterProvincesAsync();
+        await LoadSummaryAsync();
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        if (isLoading)
+            return;
+
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            summaryResult = await BeneficiaryInformationService.GetSummaryAsync(filterModel)
+                ?? new BeneficiarySummaryResultDto();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load dashboard summary. {ex.Message}";
+            summaryResult = new BeneficiarySummaryResultDto();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        if (isLoading)
+            return;
+
+        await LoadSummaryAsync();
+    }
+
+    private async Task ClearFilterAsync()
+    {
+        if (isLoading)
+            return;
+
+        filterModel = new BeneficiaryFilterDto
+        {
+            PsgcCodeRegion = DefaultRegionCode
+        };
+
+        filterMunicipalities.Clear();
+        filterBarangays.Clear();
+
+        await LoadFilterProvincesAsync();
+        await LoadSummaryAsync();
+    }
+
+    private void GoBackToBeneficiaries()
+    {
+        if (isLoading)
+            return;
+
+        Navigation.NavigateTo("/beneficiary-create");
+    }
+
+    private void ClearMessages()
+    {
+        errorMessage = null;
+    }
+
+    private async Task LoadFilterProvincesAsync()
+    {
+        filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{DefaultRegionCode}")
+            ?? new List<ProvinceLookupDto>();
+    }
+
+    private async Task OnFilterProvinceChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
+        {
+            filterModel.PsgcCodeProvince = psgcCodeProvince;
+            filterModel.PsgcCodeMunicipality = null;
+            filterModel.PsgcCodeBarangay = null;
+
+            filterMunicipalities.Clear();
+            filterBarangays.Clear();
+
+            if (psgcCodeProvince > 0)
+            {
+                filterMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}")
+                    ?? new List<MunicipalityLookupDto>();
+            }
+        }
+    }
+
+    private async Task OnFilterMunicipalityChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeMunicipality))
+        {
+            filterModel.PsgcCodeMunicipality = psgcCodeMunicipality;
+            filterModel.PsgcCodeBarangay = null;
+
+            filterBarangays.Clear();
+
+            if (psgcCodeMunicipality > 0)
+            {
+                filterBarangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}")
+                    ?? new List<BarangayLookupDto>();
+            }
+        }
+    }
+
+    private void OnFilterBarangayChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
+        {
+            filterModel.PsgcCodeBarangay = psgcCodeBarangay;
+        }
+    }
+
+    public class ProvinceLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public int PsgcCodeProvince { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class MunicipalityLookupDto
+    {
+        public int PsgcCodeProvince { get; set; }
+        public int PsgcCodeMunicipality { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class BarangayLookupDto
+    {
+        public int PsgcCodeMunicipality { get; set; }
+        public int PsgcCodeBarangay { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+}
