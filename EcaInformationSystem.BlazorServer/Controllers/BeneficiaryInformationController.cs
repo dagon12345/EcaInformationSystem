@@ -86,6 +86,12 @@ namespace EcaInformationSystem.BlazorServer.Controllers
             var result = await _beneficiaryInformationService.GetSummaryAsync(filter);
             return Ok(result);
         }
+        [HttpGet("log-summary/{Id}")]
+        public async Task<IActionResult> GetLogSummary(Guid Id)
+        {
+            var result = await _beneficiaryInformationService.GetLogSummaryAsync(Id);
+            return Ok(result);
+        }
         [HttpPost("import")]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(BeneficiaryImportResultDto), StatusCodes.Status200OK)]

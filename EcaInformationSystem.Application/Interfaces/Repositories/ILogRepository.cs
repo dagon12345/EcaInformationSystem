@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Domain.Entities;
+﻿using EcaInformationSystem.Application.DTOs;
+using EcaInformationSystem.Domain.Entities;
 
 namespace EcaInformationSystem.Application.Interfaces.Repositories
 {
@@ -6,5 +7,6 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
     {
         Task AddAsync(Log log);
         Task AddRangeAsync(IEnumerable<Log> logs);
+        Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
     }
 }
