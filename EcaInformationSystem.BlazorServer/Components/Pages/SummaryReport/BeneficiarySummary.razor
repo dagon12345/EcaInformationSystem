@@ -143,16 +143,6 @@
                         <h6 class="text-primary mb-3">Personal Filters</h6>
                         <div class="row g-3">
                             <div class="col-12 col-md-6 col-lg-4">
-                                <label class="form-label">Last Name</label>
-                                <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName" disabled="@isLoading" />
-                            </div>
-
-                            <div class="col-12 col-md-6 col-lg-4">
-                                <label class="form-label">First Name</label>
-                                <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName" disabled="@isLoading" />
-                            </div>
-
-                            <div class="col-12 col-md-6 col-lg-4">
                                 <label class="form-label">Sex</label>
                                 <select class="form-select" @bind="filterModel.Sex" disabled="@isLoading">
                                     <option value="0">Select Sex</option>
@@ -170,16 +160,6 @@
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Specific Age</label>
                                 <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" disabled="@isLoading" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Age From</label>
-                                <input type="number" class="form-control" placeholder="Min age" @bind="filterModel.AgeFrom" disabled="@isLoading" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Age To</label>
-                                <input type="number" class="form-control" placeholder="Max age" @bind="filterModel.AgeTo" disabled="@isLoading" />
                             </div>
                         </div>
                     </div>
@@ -201,6 +181,16 @@
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Birthday To</label>
                                 <input type="date" class="form-control" @bind="filterModel.BirthdayTo" disabled="@isLoading" />
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Milestone Year</label>
+                                <InputSelect @bind-Value="filterModel.MilestoneYear" class="form-select" disabled="@isLoading">
+                                    <option value="">-- Select Year --</option>
+                                    @for (int year = DateTime.Now.Year; year >= 1900; year--)
+                                    {
+                                        <option value="@year">@year</option>
+                                    }
+                                </InputSelect>
                             </div>
                         </div>
                     </div>
@@ -266,50 +256,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Age Group Summary -->
-                            <div class="col-12">
-                                <div class="border rounded shadow-sm p-3 bg-white">
-                                    <h5 class="mb-3 text-primary">Age Group Summary</h5>
-                                    <div class="row g-3">
-                                        <div class="col-6 col-md-4 col-lg-2">
-                                            <div class="border rounded p-3 text-center bg-success-subtle">
-                                                <h6 class="text-muted mb-1">80</h6>
-                                                <h4 class="mb-0">@summaryResult.Age80Count</h4>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-6 col-md-4 col-lg-2">
-                                            <div class="border rounded p-3 text-center bg-info-subtle">
-                                                <h6 class="text-muted mb-1">85</h6>
-                                                <h4 class="mb-0">@summaryResult.Age85Count</h4>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-6 col-md-4 col-lg-2">
-                                            <div class="border rounded p-3 text-center bg-warning-subtle">
-                                                <h6 class="text-muted mb-1">90</h6>
-                                                <h4 class="mb-0">@summaryResult.Age90Count</h4>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-6 col-md-4 col-lg-2">
-                                            <div class="border rounded p-3 text-center bg-danger-subtle">
-                                                <h6 class="text-muted mb-1">95</h6>
-                                                <h4 class="mb-0">@summaryResult.Age95Count</h4>
-                                            </div>
-                                        </div>
-
-                                        <div class="col-6 col-md-4 col-lg-2">
-                                            <div class="border rounded p-3 text-center bg-dark-subtle">
-                                                <h6 class="text-muted mb-1">100</h6>
-                                                <h4 class="mb-0">@summaryResult.Age100Count</h4>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
                             <!-- Province and Municipality Summary -->
                             <div class="col-12">
                                 <div class="row g-3">

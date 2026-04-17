@@ -10,11 +10,12 @@
         public string? LastName { get; set; }
         public string? FirstName { get; set; }
         public int? SpecificAge { get; set; }
-        public int? AgeFrom { get; set; }
-        public int? AgeTo { get; set; }
+        public string? Validator { get; set; }
+        public string? BatchCode { get; set; }
         public DateTime? SpecificBirthday { get; set; }
         public DateTime? BirthdayFrom { get; set; }
         public DateTime? BirthdayTo { get; set; }
+        public int? MilestoneYear { get; set; }
         public int? Sex { get; set; }
 
         public int PageNumber { get; set; } = 1;

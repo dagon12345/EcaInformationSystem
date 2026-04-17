@@ -51,12 +51,14 @@ namespace EcaInformationSystem.Application.Services
                 Id = Guid.NewGuid(),
                 BatchCode = dto.BatchCode,
                 OscaIdNumber = dto.OscaIdNumber,
+                OscaIdDateIssued = dto.OscaIdDateIssued,
                 NcscRrn = dto.NcscRrn,
                 LastName = dto.LastName,
                 FirstName = dto.FirstName,
                 MiddleName = dto.MiddleName,
                 Extension = dto.Extension,
                 BirthDate = dto.BirthDate,
+                PhoneNumber = dto.PhoneNumber,
                 IsIndigenousPeople = dto.IsIndigenousPeople,
                 IsPersonWithDisability = dto.IsPersonWithDisability,
                 CivilStatus = dto.CivilStatus,
@@ -98,12 +100,14 @@ namespace EcaInformationSystem.Application.Services
                 Id = beneficiary.Id,
                 BatchCode = beneficiary.BatchCode,
                 OscaIdNumber = beneficiary.OscaIdNumber,
+                OscaIdDateIssued = beneficiary.OscaIdDateIssued,
                 NcscRrn = beneficiary.NcscRrn,
                 LastName = beneficiary.LastName,
                 FirstName = beneficiary.FirstName,
                 MiddleName = beneficiary.MiddleName,
                 Extension = beneficiary.Extension,
                 BirthDate = beneficiary.BirthDate,
+                PhoneNumber = beneficiary.PhoneNumber,
                 Sex = beneficiary.Sex,
                 IsIndigenousPeople = beneficiary.IsIndigenousPeople,
                 IsPersonWithDisability = beneficiary.IsPersonWithDisability,
@@ -203,7 +207,7 @@ namespace EcaInformationSystem.Application.Services
 
             var changes = GetChangedFields(beneficiary, dto);
 
-            beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate,
+            beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate, dto.PhoneNumber,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks);
@@ -369,12 +373,14 @@ namespace EcaInformationSystem.Application.Services
                         Id = Guid.NewGuid(),
                         BatchCode = NullIfEmpty(batchCode),
                         OscaIdNumber = NullIfEmpty(oscaIdNumber),
+                        OscaIdDateIssued = null,
                         NcscRrn = ncscRrn,
                         LastName = NullIfEmpty(lastName),
                         FirstName = firstName.Trim(),
                         MiddleName = NullIfEmpty(middleName),
                         Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
+                        PhoneNumber = null,
                         Sex = MapSex(sexRaw),
                         IsIndigenousPeople = false,
                         IsPersonWithDisability = false,
@@ -457,14 +463,13 @@ namespace EcaInformationSystem.Application.Services
                 filter.FirstName ?? string.Empty,
                 filter.Sex?.ToString() ?? "null",
                 filter.SpecificAge?.ToString() ?? "null",
-                filter.AgeFrom?.ToString() ?? "null",
-                filter.AgeTo?.ToString() ?? "null",
+                filter.MilestoneYear?.ToString() ?? "null",
                 filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
                 filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
                 filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null"
             );
         }
-
+        //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
         private List<string> GetChangedFields(BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
         {
             var changes = new List<string>();
@@ -474,6 +479,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.OscaIdNumber != dto.OscaIdNumber)
                 changes.Add($"OscaIdNumber: '{beneficiary.OscaIdNumber}' -> '{dto.OscaIdNumber}'");
+
+            if (beneficiary.OscaIdDateIssued != dto.OscaIdDateIssued)
+                changes.Add($"OscaIdDateIssued: '{beneficiary.OscaIdDateIssued}' -> '{dto.OscaIdDateIssued}'");
 
             if (beneficiary.NcscRrn != dto.NcscRrn)
                 changes.Add($"NcscRrn: '{beneficiary.NcscRrn}' -> '{dto.NcscRrn}'");
@@ -492,6 +500,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.BirthDate.Date != dto.BirthDate.Date)
                 changes.Add($"BirthDate: '{beneficiary.BirthDate:yyyy-MM-dd}' -> '{dto.BirthDate:yyyy-MM-dd}'");
+
+            if (beneficiary.PhoneNumber != dto.PhoneNumber)
+                changes.Add($"PhoneNumber: '{beneficiary.PhoneNumber}' -> '{dto.PhoneNumber}'");
 
             if (beneficiary.Sex != dto.Sex)
                 changes.Add($"Sex: '{beneficiary.Sex}' -> '{dto.Sex}'");
