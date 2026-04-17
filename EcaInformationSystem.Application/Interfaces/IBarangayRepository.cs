@@ -6,5 +6,6 @@ namespace EcaInformationSystem.Application.Interfaces
     {
         Task<IEnumerable<Barangay>> GetByMunicipalityCodeAsync(int psgcCodeMunicipality);
         Task<IEnumerable<Barangay>> GetBarangaysAsync();
+        Task<IEnumerable<Barangay>> GetByMunicipalityIdsAsync(IEnumerable<int> municipalityIds);
     }
 }

@@ -3,8 +3,8 @@ using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Domain.Entities;
-using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using System.Globalization;
 
 
 namespace EcaInformationSystem.Application.Services
@@ -211,7 +211,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks);
-            
+
             await _repo.UpdateAsync(beneficiary);
 
             if (changes.Any())
@@ -456,12 +456,12 @@ namespace EcaInformationSystem.Application.Services
                 version,
                 "beneficiary-summary",
                 filter.PsgcCodeRegion?.ToString() ?? "null",
-                filter.PsgcCodeProvince?.ToString() ?? "null",
-                filter.PsgcCodeMunicipality?.ToString() ?? "null",
-                filter.PsgcCodeBarangay?.ToString() ?? "null",
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)): "null"),
+                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : "null"),
+                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any()? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)): "null"),
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
-                filter.Sex?.ToString() ?? "null",
+                (filter.Sexes != null && filter.Sexes.Any()? string.Join(",", filter.Sexes.OrderBy(x => x)) : "null"),
                 filter.SpecificAge?.ToString() ?? "null",
                 filter.MilestoneYear?.ToString() ?? "null",
                 filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
