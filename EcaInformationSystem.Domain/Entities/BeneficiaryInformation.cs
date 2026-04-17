@@ -5,6 +5,7 @@
         public Guid Id { get; set; }
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
+        public DateTime? OscaIdDateIssued { get; set; }
         public int? NcscRrn { get; set; }
         public string? LastName { get; set; }
         public string FirstName { get; set; } = string.Empty;
