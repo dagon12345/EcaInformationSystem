@@ -6,6 +6,7 @@ namespace EcaInformationSystem.Application.DTOs
     {
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
+        public DateTime? OscaIdDateIssued { get; set; }
         public int? NcscRrn { get; set; }
         public string? LastName { get; set; }
         [Required]
@@ -14,6 +15,9 @@ namespace EcaInformationSystem.Application.DTOs
         public string? Extension { get; set; }
         [Required]
         public DateTime BirthDate { get; set; }
+
+        [RegularExpression(@"^(09\d{9}|\+639\d{9})$", ErrorMessage = "Enter a valid Philippine phone number.")]
+        public string? PhoneNumber { get; set; }
         public int Sex { get; set; }
         public bool IsIndigenousPeople { get; set; }
         public bool IsPersonWithDisability { get; set; }

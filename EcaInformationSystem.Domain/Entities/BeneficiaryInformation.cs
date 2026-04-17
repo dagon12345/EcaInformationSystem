@@ -12,6 +12,7 @@
         public string? MiddleName { get; set; }
         public string? Extension { get; set; }
         public DateTime BirthDate { get; set; }
+        public string? PhoneNumber { get; set; }
         public int Sex { get; set; }
         public bool IsIndigenousPeople { get; set; }
         public bool IsPersonWithDisability { get; set; }
@@ -35,19 +36,21 @@
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
 
-        public void Update(string? batchCode, string? oscaIdNumber, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
-            DateTime birthDate, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
+        public void Update(string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
+            DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
             DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, int? remarkCategory, string? remarks)
         {
             BatchCode = batchCode;
             OscaIdNumber = oscaIdNumber;
+            OscaIdDateIssued = oscaIdDateIssued;
             NcscRrn = ncscRn;
             LastName = lastName;
             FirstName = firstName;
             MiddleName = middleName;
             Extension = extensionName;
             BirthDate = birthDate;
+            PhoneNumber = phoneNumber;
             Sex = sex;
             IsIndigenousPeople = isIndigenousPeople;
             IsPersonWithDisability = isPersonWithDisability;

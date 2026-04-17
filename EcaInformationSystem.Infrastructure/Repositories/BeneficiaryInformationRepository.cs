@@ -136,14 +136,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  Id = b.Id,
                  BatchCode = b.BatchCode,
                  OscaIdNumber = b.OscaIdNumber,
+                 OscaIdDateIssued = b.OscaIdDateIssued,
                  NcscRrn = b.NcscRrn,
                  LastName = b.LastName,
                  FirstName = b.FirstName,
                  MiddleName = b.MiddleName,
                  Extension = b.Extension,
                  BirthDate = b.BirthDate,
+                 PhoneNumber = b.PhoneNumber,
                  Age = DateTime.Today.Year - b.BirthDate.Year -
                  (b.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - b.BirthDate.Year)) ? 1 : 0),
+                 //Calculate milestone year based on birthdate + 80 years
+                 MilestoneYear = b.BirthDate.Year + 80,
                  IsIndigenousPeople = b.IsIndigenousPeople,
                  IsPersonWithDisability = b.IsPersonWithDisability,
                  CivilStatus = b.CivilStatus != null ? b.CivilStatus : null,
@@ -161,6 +165,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  Validator = b.Validator,
                  ValidationDate = b.ValidationDate,
                  PaymentStatus = b.PaymentStatus,
+                 ModeOfPayment = b.ModeOfPayment,
                  PaymentDate = b.PaymentDate,
                  IsDeceased = b.IsDeceased,
                  DateOfDeath = b.DateOfDeath,
@@ -185,12 +190,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 TotalBeneficiaries = beneficiaries.Count,
                 TotalMale = beneficiaries.Count(x => x.Sex == 1),
                 TotalFemale = beneficiaries.Count(x => x.Sex == 2),
-
-                Age80Count = beneficiaries.Count(x => x.Age >= 80 && x.Age <= 85),
-                Age85Count = beneficiaries.Count(x => x.Age >= 85 && x.Age <= 90),
-                Age90Count = beneficiaries.Count(x => x.Age >= 90 && x.Age <= 95),
-                Age95Count = beneficiaries.Count(x => x.Age >= 95 && x.Age <= 100),
-                Age100Count = beneficiaries.Count(x => x.Age >= 100),
 
                 ProvinceCounts = beneficiaries
                     .Where(x => !string.IsNullOrWhiteSpace(x.Province))
@@ -301,6 +300,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
 
+            if (!string.IsNullOrWhiteSpace(filter.Validator))
+                query = query.Where(x => x.Beneficiary.Validator!.Contains(filter.Validator));
+
+            if (!string.IsNullOrWhiteSpace(filter.BatchCode))
+                query = query.Where(x => x.Beneficiary.BatchCode!.Contains(filter.BatchCode));
+
             if (filter.SpecificBirthday.HasValue)
             {
                 var specificBirthday = filter.SpecificBirthday.Value.Date;
@@ -323,7 +328,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return query.AsNoTracking();
         }
-        private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
+private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
         {
             var query = BuildBeneficiaryFilteredQuery(filter)
                 .Select(x => new BeneficiaryInformationDto
@@ -331,14 +336,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Id = x.Beneficiary.Id,
                     BatchCode = x.Beneficiary.BatchCode,
                     OscaIdNumber = x.Beneficiary.OscaIdNumber,
+                    OscaIdDateIssued = x.Beneficiary.OscaIdDateIssued,
                     NcscRrn = x.Beneficiary.NcscRrn,
                     LastName = x.Beneficiary.LastName,
                     FirstName = x.Beneficiary.FirstName,
                     MiddleName = x.Beneficiary.MiddleName,
                     Extension = x.Beneficiary.Extension,
                     BirthDate = x.Beneficiary.BirthDate,
+                    PhoneNumber = x.Beneficiary.PhoneNumber,
+                    //Calculate age based on birthdate and current date, accounting for whether the birthday has occurred this year
                     Age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year -
                           (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - x.Beneficiary.BirthDate.Year)) ? 1 : 0),
+                    //Calculate milestone year based on birthdate + 80 years
+                    MilestoneYear = x.Beneficiary.BirthDate.Year + 80,
                     IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
                     IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
                     CivilStatus = x.Beneficiary.CivilStatus,
@@ -356,6 +366,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
                     PaymentStatus = x.Beneficiary.PaymentStatus,
+                    ModeOfPayment = x.Beneficiary.ModeOfPayment,
                     PaymentDate = x.Beneficiary.PaymentDate,
                     IsDeceased = x.Beneficiary.IsDeceased,
                     DateOfDeath = x.Beneficiary.DateOfDeath,
@@ -369,13 +380,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             {
                 query = query.Where(x => x.Age == filter.SpecificAge.Value);
             }
-            else
-            {
-                if (filter.AgeFrom.HasValue)
-                    query = query.Where(x => x.Age >= filter.AgeFrom.Value);
 
-                if (filter.AgeTo.HasValue)
-                    query = query.Where(x => x.Age <= filter.AgeTo.Value);
+            if (filter.MilestoneYear.HasValue)
+            {
+                query = query.Where(x => x.MilestoneYear == filter.MilestoneYear.Value);
             }
 
             return query;
