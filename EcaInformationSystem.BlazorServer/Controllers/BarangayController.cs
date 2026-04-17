@@ -1,4 +1,6 @@
-﻿using EcaInformationSystem.Application.Interfaces;
+﻿using EcaInformationSystem.Application.DTOs;
+using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EcaInformationSystem.BlazorServer.Controllers
@@ -23,6 +25,14 @@ namespace EcaInformationSystem.BlazorServer.Controllers
         {
             var barangays = await _barangayService.GetBarangaysAsync();
             return Ok(barangays);
+        }
+        [HttpPost("by-municipalities")]
+        public async Task<IActionResult> GetByMunicipalities([FromBody] LookupMultiRequestDto request)
+        {
+            if (request == null || request.Ids == null || !request.Ids.Any())
+                return Ok(new List<Barangay>());
+            var result = await _barangayService.GetByMunicipalityIdsAsync(request.Ids);
+            return Ok(result);
         }
     }
 }

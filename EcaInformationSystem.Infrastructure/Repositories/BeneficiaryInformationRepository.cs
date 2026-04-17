@@ -282,14 +282,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
                 query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
 
-            if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
-                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince.Value);
+            if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+                query = query.Where(x => filter.PsgcCodeProvinces.Contains(x.Beneficiary.Province));
 
-            if (filter.PsgcCodeMunicipality.HasValue && filter.PsgcCodeMunicipality.Value > 0)
-                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality.Value);
+            if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+                query = query.Where(x => filter.PsgcCodeMunicipalities.Contains(x.Beneficiary.Municipality));
 
-            if (filter.PsgcCodeBarangay.HasValue && filter.PsgcCodeBarangay.Value > 0)
-                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay.Value);
+            if (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any())
+                query = query.Where(x => filter.PsgcCodeBarangays.Contains(x.Beneficiary.Barangay));
 
             if (!string.IsNullOrWhiteSpace(filter.LastName))
                 query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
@@ -297,8 +297,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
 
-            if (filter.Sex.HasValue && filter.Sex.Value > 0)
-                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
+            if (filter.Sexes != null && filter.Sexes.Any())
+                query = query.Where(x => filter.Sexes.Contains(x.Beneficiary.Sex));
 
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x => x.Beneficiary.Validator!.Contains(filter.Validator));
@@ -328,7 +328,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return query.AsNoTracking();
         }
-private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
+
+        private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
         {
             var query = BuildBeneficiaryFilteredQuery(filter)
                 .Select(x => new BeneficiaryInformationDto

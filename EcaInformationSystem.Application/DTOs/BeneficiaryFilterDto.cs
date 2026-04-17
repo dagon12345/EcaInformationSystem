@@ -20,5 +20,11 @@
 
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
+
+        public List<int> PsgcCodeProvinces { get; set; } = new();
+        public List<int> PsgcCodeMunicipalities { get; set; } = new();
+        public List<int> PsgcCodeBarangays { get; set; } = new();
+        public List<int> Sexes { get; set; } = new();
+
     }
 }

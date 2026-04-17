@@ -32,5 +32,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .AsNoTracking()
                 .ToListAsync();
         }
+
+        public async Task<IEnumerable<Barangay>> GetByMunicipalityIdsAsync(IEnumerable<int> municipalityIds)
+        {
+            var ids = municipalityIds?
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList() ?? new List<int>();
+
+            if (!ids.Any())
+                return Enumerable.Empty<Barangay>();
+
+            return await _context.Barangays
+                .AsNoTracking()
+                .Where(x => ids.Contains(x.PsgcCodeMunicipality))
+                .OrderBy(x => x.Name)
+                .ToListAsync();
+        }
     }
 }

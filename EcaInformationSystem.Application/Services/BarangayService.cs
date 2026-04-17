@@ -21,5 +21,16 @@ namespace EcaInformationSystem.Application.Services
         {
             return await _barangayRepository.GetByMunicipalityCodeAsync(psgcCodeMunicipality);
         }
+
+        public async Task<IEnumerable<Barangay>> GetByMunicipalityIdsAsync(IEnumerable<int> municipalityIds)
+        {
+            var result = await _barangayRepository.GetByMunicipalityIdsAsync(municipalityIds);
+            return result.Select(x => new Barangay
+            {
+                PsgcCodeMunicipality = x.PsgcCodeMunicipality,
+                PsgcCodeBarangay = x.PsgcCodeBarangay,
+                Name = x.Name ?? string.Empty
+            });
+        }
     }
 }
