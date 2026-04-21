@@ -68,7 +68,16 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 //Caching
 builder.Services.AddMemoryCache();
+
+//Blazor
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
 var app = builder.Build();
+
+app.UseResponseCompression();
 
 // Apply migrations automatically and create DB if it doesn't exist
 using (var scope = app.Services.CreateScope())
