@@ -39,11 +39,13 @@
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
 
-        public void Update(string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
+        public void Update(DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
             DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
-            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, int? remarkCategory, string? remarks)
+            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool iseligible, string? assessmentRemarks, int? remarkCategory, string? remarks)
         {
+            DateApplied = dateApplied;
+            DateEndorsed = dateEndorsed;
             BatchCode = batchCode;
             OscaIdNumber = oscaIdNumber;
             OscaIdDateIssued = oscaIdDateIssued;
@@ -72,6 +74,7 @@
             IsDeceased = isdeceased;
             DateOfDeath = dateOfDeath;
             IsEligible = iseligible;
+            AssessmentRemarks = assessmentRemarks;
             RemarkCategory = remarkCategory;
             Remarks = remarks;
         }

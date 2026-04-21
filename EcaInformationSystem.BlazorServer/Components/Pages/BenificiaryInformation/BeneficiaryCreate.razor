@@ -47,6 +47,14 @@
                             <h5 class="text-primary mb-3">Identity Information</h5>
                             <div class="row g-3">
                                 <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Date Applied (Day/Month/Year)</label>
+                                    <InputDate class="form-control" @bind-Value="model.DateApplied" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Date Endorsed (Day/Month/Year)</label>
+                                    <InputDate class="form-control" @bind-Value="model.DateEndorsed" />
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Batch Code</label>
                                     <input class="form-control" @bind="model.BatchCode" @ref="batchCodeInput"/>
                                 </div>
@@ -118,23 +126,30 @@
                                     </InputSelect>
                                 </div>
 
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <div class="form-check">
-                                        <input type="checkbox"
-                                               class="form-check-input"
-                                               checked="@model.IsDeceased"
-                                               @onchange="OnIsDeceasedChanged" />
-                                        <label class="form-check-label">Is Deceased</label>
+                                <div class="col-12">
+                                    <div class="border rounded p-3 mt-2 bg-light">
+                                        <h6 class="text-primary mb-3">Other Information</h6>
+                                        <div class="row g-3">
+                                             <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                                 <div class="form-check">
+                                                     <input type="checkbox"
+                                                            class="form-check-input"    
+                                                            checked="@model.IsDeceased"
+                                                            @onchange="OnIsDeceasedChanged" />
+                                                     <label class="form-check-label">Is Deceased</label>
+                                                 </div>
+                                             </div>
+                                             <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                                 <label class="form-label">Date of Death (Day/Month/Year)</label>
+                                                 <input type="date"
+                                                        class="form-control"
+                                                        value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
+                                                        max="@TodayDateString"
+                                                        @onchange="OnDateOfDeathChanged"
+                                                        disabled="@(!model.IsDeceased)" />
+                                             </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">Date of Death (Day/Month/Year)</label>
-                                    <input type="date"
-                                           class="form-control"
-                                           value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
-                                           max="@TodayDateString"
-                                           @onchange="OnDateOfDeathChanged"
-                                           disabled="@(!model.IsDeceased)" />
                                 </div>
                             </div>
                         </div>
@@ -196,14 +211,24 @@
                                     <label class="form-label">Province</label>
                                     <select class="form-select"
                                             value="@model.PsgcCodeProvince"
-                                            @onchange="OnProvinceChanged">
+                                            @onchange="OnProvinceChanged"
+                                            disabled="@isProvinceLoading">
                                         <option value="0">Select Province</option>
                                         @foreach (var province in provinces)
                                         {
                                             <option value="@province.PsgcCodeProvince">@province.Name</option>
                                         }
                                     </select>
+
+                                    @if (isProvinceLoading)
+                                    {
+                                        <div class="small text-primary mt-1">
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            Loading provinces...
+                                        </div>
+                                    }
                                 </div>
+
                             </div>
 
                             <div class="row g-3">
@@ -212,13 +237,21 @@
                                     <select class="form-select"
                                             value="@model.PsgcCodeMunicipality"
                                             @onchange="OnMunicipalityChanged"
-                                            disabled="@(model.PsgcCodeProvince == 0)">
+                                            disabled="@(model.PsgcCodeProvince == 0 || isMunicipalityLoading)">
                                         <option value="0">Select Municipality</option>
                                         @foreach (var municipality in municipalities)
                                         {
                                             <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
                                         }
                                     </select>
+
+                                    @if (isMunicipalityLoading)
+                                    {
+                                        <div class="small text-primary mt-1">
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            Loading municipalities...
+                                        </div>
+                                    }
                                 </div>
 
                                 <div class="col-12 col-md-6">
@@ -226,14 +259,23 @@
                                     <select class="form-select"
                                             value="@model.PsgcCodeBarangay"
                                             @onchange="OnBarangayChanged"
-                                            disabled="@(model.PsgcCodeMunicipality == 0)">
+                                            disabled="@(model.PsgcCodeMunicipality == 0 || isBarangayLoading)">
                                         <option value="0">Select Barangay</option>
                                         @foreach (var barangay in barangays)
                                         {
                                             <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
                                         }
                                     </select>
+
+                                    @if (isBarangayLoading)
+                                    {
+                                        <div class="small text-primary mt-1">
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            Loading barangays...
+                                        </div>
+                                    }
                                 </div>
+
                             </div>
                         </div>
 
@@ -251,18 +293,39 @@
                                     <InputDate class="form-control" @bind-Value="model.ValidationDate" />
                                     <ValidationMessage For="@(() => model.ValidationDate)" class="text-danger small" />
                                 </div>
-                                <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
-                                    <div class="form-check mt-4">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant"/>
-                                        <label class="form-check-label">Is Compliant</label>
+                                <div class="col-12">
+                                    <div class="border rounded p-3 mt-2 bg-light">
+                                        <h6 class="text-primary mb-3">Assessment</h6>
+
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" disabled />
+                                                    <label class="form-check-label">Is Eligible</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant" />
+                                                    <label class="form-check-label">Is Compliant</label>
+                                                </div>
+                                            </div>
+
+                                            @if (!model.IsEligible)
+                                            {
+                                                <div class="col-12">
+                                                    <label class="form-label">Assessment Remarks</label>
+                                                    <InputTextArea class="form-control"
+                                                                   @bind-Value="model.AssessmentRemarks"
+                                                                   rows="3"
+                                                                   placeholder="Enter assessment remarks if beneficiary is not eligible..." />
+                                                </div>
+                                            }
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
-                                    <div class="form-check">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" disabled />
-                                        <label class="form-check-label">Is Eligible</label>
-                                    </div>
-                                </div>
+
                             </div>
                         </div>
                         <!-- Payment Information & Remarks -->
@@ -324,7 +387,7 @@
                             <button type="submit" class="btn btn-primary" disabled="@isSaving">
                                 @if(isSaving)
                                 {
-                                    <span class="spinner-border spinner-boder-sm me-2"></span>
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
                                     <span>@(isEditMode ? "Updating...": "Saving...")</span>
                                 }
                                 else
@@ -394,35 +457,46 @@
                                     <button type="button"
                                             class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
                                             @onclick="() => ToggleDropdown(nameof(showProvinceDropdown))"
-                                            disabled="@isLoading">
+                                            disabled="@(isLoading || isFilterProvinceLoading)">
                                         @GetProvinceButtonText()
                                     </button>
 
                                     @if (showProvinceDropdown)
                                     {
                                         <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
-                                            <div class="form-check border-bottom pb-2 mb-2">
-                                                <input class="form-check-input"
-                                                       type="checkbox"
-                                                       checked="@AreAllProvincesSelected()"
-                                                       @onclick="async () => await ToggleSelectAllProvinces()"
-                                                       @onclick:stopPropagation="true" />
-                                                <label class="form-check-label fw-semibold">Select All</label>
-                                            </div>
-
-                                            @foreach (var province in filterProvinces)
+                                            @if (isFilterProvinceLoading)
                                             {
-                                                <div class="form-check">
+                                                <div class="small text-primary mt-1">
+                                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                                    Loading provinces...
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="form-check border-bottom pb-2 mb-2">
                                                     <input class="form-check-input"
                                                            type="checkbox"
-                                                           checked="@selectedProvinceIds.Contains(province.PsgcCodeProvince)"
-                                                           @onclick="async () => await OnProvinceCheckboxClicked(province.PsgcCodeProvince)"
+                                                           checked="@AreAllProvincesSelected()"
+                                                           @onclick="async () => await ToggleSelectAllProvinces()"
                                                            @onclick:stopPropagation="true" />
-                                                    <label class="form-check-label">@province.Name</label>
+                                                    <label class="form-check-label fw-semibold">Select All</label>
                                                 </div>
+
+                                                @foreach (var province in filterProvinces)
+                                                {
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedProvinceIds.Contains(province.PsgcCodeProvince)"
+                                                               @onclick="async () => await OnProvinceCheckboxClicked(province.PsgcCodeProvince)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@province.Name</label>
+                                                    </div>
+                                                }
                                             }
                                         </div>
                                     }
+
                                 </div>
                                 <div class="small text-muted mt-1">
                                     Selected: @selectedProvinceIds.Count | Loaded municipalities: @filterMunicipalities.Count
@@ -452,28 +526,41 @@
 
                                     @if (showMunicipalityDropdown && filterMunicipalities.Any())
                                     {
-                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
-                                            <div class="form-check border-bottom pb-2 mb-2">
-                                                <input class="form-check-input"
-                                                       type="checkbox"
-                                                       checked="@AreAllMunicipalitiesSelected()"
-                                                       @onclick="async () => await ToggleSelectAllMunicipalities()"
-                                                       @onclick:stopPropagation="true" />
-                                                <label class="form-check-label fw-semibold">Select All</label>
+                                        @if (isFilterMunicipalityLoading)
+                                        {
+                                            <div class="small text-primary mt-1">
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                Loading municipalities...
                                             </div>
-
-                                            @foreach (var municipality in filterMunicipalities)
-                                            {
-                                                <div class="form-check">
+                                        }
+                                        else
+                                        {
+                                            <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                                <div class="form-check border-bottom pb-2 mb-2">
                                                     <input class="form-check-input"
                                                            type="checkbox"
-                                                           checked="@selectedMunicipalityIds.Contains(municipality.PsgcCodeMunicipality)"
-                                                           @onclick="async () => await OnMunicipalityCheckboxClicked(municipality.PsgcCodeMunicipality)"
+                                                           checked="@AreAllMunicipalitiesSelected()"
+                                                           @onclick="async () => await ToggleSelectAllMunicipalities()"
                                                            @onclick:stopPropagation="true" />
-                                                    <label class="form-check-label">@municipality.Name</label>
+                                                    <label class="form-check-label fw-semibold">Select All</label>
                                                 </div>
-                                            }
-                                        </div>
+
+                                                @foreach (var municipality in filterMunicipalities)
+                                                {
+
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedMunicipalityIds.Contains(municipality.PsgcCodeMunicipality)"
+                                                               @onclick="async () => await OnMunicipalityCheckboxClicked(municipality.PsgcCodeMunicipality)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@municipality.Name</label>
+                                                    </div>
+
+                                                }
+                                            </div>
+                                        }
+
                                     }
                                 </div>
 
@@ -505,28 +592,39 @@
 
                                     @if (showBarangayDropdown && filterBarangays.Any())
                                     {
-                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
-                                            <div class="form-check border-bottom pb-2 mb-2">
-                                                <input class="form-check-input"
-                                                       type="checkbox"
-                                                       checked="@AreAllBarangaysSelected()"
-                                                       @onclick="ToggleSelectAllBarangays"
-                                                       @onclick:stopPropagation="true" />
-                                                <label class="form-check-label fw-semibold">Select All</label>
+                                        @if (isFilterBarangayLoading)
+                                        {
+                                            <div class="small text-primary mt-1">
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                Loading barangays...
                                             </div>
-
-                                            @foreach (var barangay in filterBarangays)
-                                            {
-                                                <div class="form-check">
+                                        }
+                                        else
+                                        {
+                                            <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                                <div class="form-check border-bottom pb-2 mb-2">
                                                     <input class="form-check-input"
                                                            type="checkbox"
-                                                           checked="@selectedBarangayIds.Contains(barangay.PsgcCodeBarangay)"
-                                                           @onclick="() => ToggleBarangay(barangay.PsgcCodeBarangay)"
+                                                           checked="@AreAllBarangaysSelected()"
+                                                           @onclick="ToggleSelectAllBarangays"
                                                            @onclick:stopPropagation="true" />
-                                                    <label class="form-check-label">@barangay.Name</label>
+                                                    <label class="form-check-label fw-semibold">Select All</label>
                                                 </div>
-                                            }
-                                        </div>
+
+                                                @foreach (var barangay in filterBarangays)
+                                                {
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedBarangayIds.Contains(barangay.PsgcCodeBarangay)"
+                                                               @onclick="() => ToggleBarangay(barangay.PsgcCodeBarangay)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@barangay.Name</label>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+
                                     }
                                 </div>
 
@@ -655,9 +753,18 @@
                         <Button Color="ButtonColor.Secondary" Size="ButtonSize.Small" @onclick="ClearFilterAsync">
                             Clear Filters
                         </Button>
-                        <Button Color="ButtonColor.Primary" Size="ButtonSize.Small" @onclick="ApplyFiltersAsync">
-                            Apply Filters
+                        <Button Color="ButtonColor.Primary" Size="ButtonSize.Small" @onclick="ApplyFiltersAsync" Disabled="@(isApplyingFilters || isLoading)">
+                            @if (isApplyingFilters)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Applying...</span>
+                            }
+                            else
+                            {
+                                <span>Apply Filters</span>
+                            }
                         </Button>
+
                     </div>
                 </CardBody>
 
@@ -946,10 +1053,31 @@
     private bool showMunicipalityDropdown;
     private bool showBarangayDropdown;
     private bool showSexDropdown;
-    private bool IsMunicipalityDisabled => isLoading || filterMunicipalities.Count == 0;
-    private bool IsBarangayDisabled => isLoading || filterBarangays.Count == 0;
+    private bool IsMunicipalityDisabled => isLoading || isFilterMunicipalityLoading || filterMunicipalities.Count == 0;
+    private bool IsBarangayDisabled => isLoading || isFilterBarangayLoading || filterBarangays.Count == 0;
+
 
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
+
+    //For caching properties
+    // Address lookup cache for form section
+    private Dictionary<int, List<MunicipalityLookupDto>> municipalityCache = new();
+    private Dictionary<int, List<BarangayLookupDto>> barangayCache = new();
+
+    // Address lookup cache for filter section
+    private Dictionary<string, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
+    private Dictionary<string, List<BarangayLookupDto>> filterBarangayCache = new();
+
+    // Loading flags
+    private bool isApplyingFilters;
+    private bool isProvinceLoading;
+    private bool isMunicipalityLoading;
+    private bool isBarangayLoading;
+
+    private bool isFilterProvinceLoading;
+    private bool isFilterMunicipalityLoading;
+    private bool isFilterBarangayLoading;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -987,6 +1115,11 @@
         var age = GetEffectiveAge() ?? 0;
 
         model.IsEligible = age >= 80 && model.Citizenship == 1;
+
+        if(model.IsEligible)
+        {
+            model.AssessmentRemarks = null;
+        }
         StateHasChanged();
     }
 
@@ -1015,17 +1148,27 @@
     }
     private async Task ApplyFiltersAsync()
     {
-        if (isLoading)
+        if (isLoading || isApplyingFilters)
             return;
 
-        filterModel.PsgcCodeProvinces = selectedProvinceIds.ToList();
-        filterModel.PsgcCodeMunicipalities = selectedMunicipalityIds.ToList();
-        filterModel.PsgcCodeBarangays = selectedBarangayIds.ToList();
-        filterModel.Sexes = selectedSexes.ToList();
+        try
+        {
+            isApplyingFilters = true;
 
-        filterModel.PageNumber = 1;
-        await LoadBeneficiariesAsync();
+            filterModel.PsgcCodeProvinces = selectedProvinceIds.ToList();
+            filterModel.PsgcCodeMunicipalities = selectedMunicipalityIds.ToList();
+            filterModel.PsgcCodeBarangays = selectedBarangayIds.ToList();
+            filterModel.Sexes = selectedSexes.ToList();
+
+            filterModel.PageNumber = 1;
+            await LoadBeneficiariesAsync();
+        }
+        finally
+        {
+            isApplyingFilters = false;
+        }
     }
+
 
     private async Task ClearFilterAsync()
     {
@@ -1168,8 +1311,13 @@
     }
     private async Task LoadFilterProvincesAsync()
     {
+        if (filterProvinces.Any())
+            return;
+
         try
         {
+            isFilterProvinceLoading = true;
+
             filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 $"api/Province/by-region/{DefaultRegionCode}") ?? new List<ProvinceLookupDto>();
         }
@@ -1177,7 +1325,12 @@
         {
             filterProvinces = new List<ProvinceLookupDto>();
         }
+        finally
+        {
+            isFilterProvinceLoading = false;
+        }
     }
+
     private async Task LoadBeneficiariesAsync()
     {
         try
@@ -1221,8 +1374,13 @@
 
     private async Task LoadProvincesAsync(int psgcCodeRegion)
     {
+        if (provinces.Any())
+            return;
+
         try
         {
+            isProvinceLoading = true;
+
             var result = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 $"api/Province/by-region/{psgcCodeRegion}");
 
@@ -1232,20 +1390,73 @@
         {
             provinces = new List<ProvinceLookupDto>();
         }
+        finally
+        {
+            isProvinceLoading = false;
+        }
     }
+
 
 
     private async Task LoadMunicipalitiesAsync(int psgcCodeProvince)
     {
-        municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{psgcCodeProvince}")
-                         ?? new List<MunicipalityLookupDto>();
+        if (municipalityCache.TryGetValue(psgcCodeProvince, out var cachedMunicipalities))
+        {
+            municipalities = cachedMunicipalities;
+            return;
+        }
+
+        try
+        {
+            isMunicipalityLoading = true;
+
+            var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{psgcCodeProvince}")
+                ?? new List<MunicipalityLookupDto>();
+
+            municipalityCache[psgcCodeProvince] = result;
+            municipalities = result;
+        }
+        catch
+        {
+            municipalities = new List<MunicipalityLookupDto>();
+        }
+        finally
+        {
+            isMunicipalityLoading = false;
+        }
     }
+
 
     private async Task LoadBarangaysAsync(int psgcCodeMunicipality)
     {
-        barangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>($"api/Barangay/by-municipality/{psgcCodeMunicipality}")
-                   ?? new List<BarangayLookupDto>();
+        if (barangayCache.TryGetValue(psgcCodeMunicipality, out var cachedBarangays))
+        {
+            barangays = cachedBarangays;
+            return;
+        }
+
+        try
+        {
+            isBarangayLoading = true;
+
+            var result = await Http.GetFromJsonAsync<List<BarangayLookupDto>>(
+                $"api/Barangay/by-municipality/{psgcCodeMunicipality}")
+                ?? new List<BarangayLookupDto>();
+
+            barangayCache[psgcCodeMunicipality] = result;
+            barangays = result;
+        }
+        catch
+        {
+            barangays = new List<BarangayLookupDto>();
+        }
+        finally
+        {
+            isBarangayLoading = false;
+        }
     }
+
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var psgcCodeProvince))
@@ -1255,12 +1466,14 @@
             model.PsgcCodeMunicipality = 0;
             model.PsgcCodeBarangay = 0;
 
-            municipalities.Clear();
-            barangays.Clear();
+            municipalities = new List<MunicipalityLookupDto>();
+            barangays = new List<BarangayLookupDto>();
 
             await LoadMunicipalitiesAsync(psgcCodeProvince);
+            StateHasChanged();
         }
     }
+
 
     private async Task OnMunicipalityChanged(ChangeEventArgs e)
     {
@@ -1269,11 +1482,13 @@
             model.PsgcCodeMunicipality = psgcCodeMunicipality;
 
             model.PsgcCodeBarangay = 0;
-            barangays.Clear();
+            barangays = new List<BarangayLookupDto>();
 
             await LoadBarangaysAsync(psgcCodeMunicipality);
+            StateHasChanged();
         }
     }
+
     private void OnBarangayChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
@@ -1443,6 +1658,8 @@
 
         var createDto = new CreateBeneficiaryInformationDto
         {
+            DateApplied = model.DateApplied,
+            DateEndorsed = model.DateEndorsed,
             BatchCode = model.BatchCode,
             OscaIdNumber = model.OscaIdNumber,
             OscaIdDateIssued = model.OscaIdDateIssued,
@@ -1469,6 +1686,7 @@
             ModeOfPayment = model.ModeOfPayment,
             PaymentDate = model.PaymentDate,
             IsDeceased = model.IsDeceased,
+            AssessmentRemarks = model.AssessmentRemarks,
             DateOfDeath = model.DateOfDeath,
             IsEligible = model.IsEligible,
             RemarkCategory = model.RemarkCategory,
@@ -1608,7 +1826,11 @@
         municipalities.Clear();
         barangays.Clear();
 
-        _ = LoadProvincesAsync(DefaultRegionCode);
+        if (!provinces.Any())
+        {
+            _ = LoadProvincesAsync(DefaultRegionCode);
+        }
+
     }
     private void ClearMessages()
     {
@@ -1638,6 +1860,8 @@
         model = new BeneficiaryInformationDto
         {
             Id = item.Id,
+            DateApplied = item.DateApplied,
+            DateEndorsed = item.DateEndorsed,
             BatchCode = item.BatchCode,
             OscaIdNumber = item.OscaIdNumber,
             OscaIdDateIssued = item.OscaIdDateIssued,
@@ -1670,8 +1894,10 @@
             IsDeceased = item.IsDeceased,
             DateOfDeath = item.DateOfDeath,
             IsEligible = item.IsEligible,
+            AssessmentRemarks = item.AssessmentRemarks,
             RemarkCategory = item.RemarkCategory,
             Remarks = item.Remarks,
+
             IsDeleted = item.IsDeleted
         };
 
@@ -1750,6 +1976,17 @@
                 return;
             }
 
+            var cacheKey = string.Join(",", selectedProvinceIds.OrderBy(x => x));
+
+            if (filterMunicipalityCache.TryGetValue(cacheKey, out var cachedMunicipalities))
+            {
+                filterMunicipalities = cachedMunicipalities;
+                StateHasChanged();
+                return;
+            }
+
+            isFilterMunicipalityLoading = true;
+
             var request = new LookupMultiRequestDto
             {
                 Ids = selectedProvinceIds.ToList()
@@ -1768,6 +2005,7 @@
                 await response.Content.ReadFromJsonAsync<List<MunicipalityLookupDto>>()
                 ?? new List<MunicipalityLookupDto>();
 
+            filterMunicipalityCache[cacheKey] = filterMunicipalities;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1775,7 +2013,12 @@
             errorMessage = $"Municipality load error: {ex.Message}";
             StateHasChanged();
         }
+        finally
+        {
+            isFilterMunicipalityLoading = false;
+        }
     }
+
     private async Task OnProvinceCheckboxClicked(int provinceId)
     {
         if (selectedProvinceIds.Contains(provinceId))
@@ -1783,15 +2026,21 @@
         else
             selectedProvinceIds.Add(provinceId);
 
+        showMunicipalityDropdown = false;
+        showBarangayDropdown = false;
+
         await LoadMunicipalitiesForSelectedProvincesAsync();
         StateHasChanged();
     }
+
     private string GetMunicipalityButtonText()
     {
+        if (isFilterMunicipalityLoading) return "Loading municipalities...";
         return selectedMunicipalityIds.Count == 0
             ? "Select Municipality(s)"
             : $"{selectedMunicipalityIds.Count} municipality(s) selected";
     }
+
     private bool AreAllMunicipalitiesSelected() =>
     filterMunicipalities.Any() &&
     filterMunicipalities.All(x => selectedMunicipalityIds.Contains(x.PsgcCodeMunicipality));
@@ -1820,9 +2069,12 @@
         else
             selectedMunicipalityIds.Add(municipalityId);
 
+        showBarangayDropdown = false;
+
         await LoadBarangaysForSelectedMunicipalitiesAsync();
         StateHasChanged();
     }
+
     private async Task LoadBarangaysForSelectedMunicipalitiesAsync()
     {
         try
@@ -1837,6 +2089,17 @@
                 StateHasChanged();
                 return;
             }
+
+            var cacheKey = string.Join(",", selectedMunicipalityIds.OrderBy(x => x));
+
+            if (filterBarangayCache.TryGetValue(cacheKey, out var cachedBarangays))
+            {
+                filterBarangays = cachedBarangays;
+                StateHasChanged();
+                return;
+            }
+
+            isFilterBarangayLoading = true;
 
             var request = new LookupMultiRequestDto
             {
@@ -1856,6 +2119,7 @@
                 await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>()
                 ?? new List<BarangayLookupDto>();
 
+            filterBarangayCache[cacheKey] = filterBarangays;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1863,13 +2127,20 @@
             errorMessage = $"Barangay load error: {ex.Message}";
             StateHasChanged();
         }
+        finally
+        {
+            isFilterBarangayLoading = false;
+        }
     }
+
     private string GetBarangayButtonText()
     {
+        if (isFilterBarangayLoading) return "Loading barangays...";
         return selectedBarangayIds.Count == 0
             ? "Select Barangay(s)"
             : $"{selectedBarangayIds.Count} barangay(s) selected";
     }
+
     private bool AreAllBarangaysSelected()
     {
         return filterBarangays.Any() &&

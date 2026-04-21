@@ -49,6 +49,8 @@ namespace EcaInformationSystem.Application.Services
             var beneficiary = new BeneficiaryInformation
             {
                 Id = Guid.NewGuid(),
+                DateApplied = dto.DateApplied,
+                DateEndorsed = dto.DateEndorsed,
                 BatchCode = dto.BatchCode,
                 OscaIdNumber = dto.OscaIdNumber,
                 OscaIdDateIssued = dto.OscaIdDateIssued,
@@ -77,6 +79,7 @@ namespace EcaInformationSystem.Application.Services
                 IsDeceased = dto.IsDeceased,
                 DateOfDeath = dto.DateOfDeath,
                 IsEligible = dto.IsEligible,
+                AssessmentRemarks = dto.AssessmentRemarks,
                 RemarkCategory = dto.RemarkCategory,
                 Remarks = dto.Remarks,
                 DateAdded = DateTime.UtcNow,
@@ -98,6 +101,8 @@ namespace EcaInformationSystem.Application.Services
             return new BeneficiaryInformationDto
             {
                 Id = beneficiary.Id,
+                DateApplied = beneficiary.DateApplied,
+                DateEndorsed = beneficiary.DateEndorsed,
                 BatchCode = beneficiary.BatchCode,
                 OscaIdNumber = beneficiary.OscaIdNumber,
                 OscaIdDateIssued = beneficiary.OscaIdDateIssued,
@@ -126,6 +131,7 @@ namespace EcaInformationSystem.Application.Services
                 IsDeceased = beneficiary.IsDeceased,
                 DateOfDeath = beneficiary.DateOfDeath,
                 IsEligible = beneficiary.IsEligible,
+                AssessmentRemarks = beneficiary.AssessmentRemarks,
                 RemarkCategory = beneficiary.RemarkCategory,
                 Remarks = beneficiary.Remarks,
                 DateAdded = beneficiary.DateAdded,
@@ -207,10 +213,10 @@ namespace EcaInformationSystem.Application.Services
 
             var changes = GetChangedFields(beneficiary, dto);
 
-            beneficiary.Update(dto.BatchCode, dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate, dto.PhoneNumber,
+            beneficiary.Update(dto.DateApplied, dto.DateEndorsed, dto.BatchCode, dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate, dto.PhoneNumber,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
-                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.RemarkCategory, dto.Remarks);
+                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.AssessmentRemarks, dto.RemarkCategory, dto.Remarks);
 
             await _repo.UpdateAsync(beneficiary);
 
@@ -483,6 +489,12 @@ namespace EcaInformationSystem.Application.Services
         {
             var changes = new List<string>();
 
+            if (beneficiary.DateApplied != dto.DateApplied)
+                changes.Add($"DateApplied: '{beneficiary.DateApplied}' -> '{dto.DateApplied}'");
+
+            if (beneficiary.DateEndorsed != dto.DateEndorsed)
+                changes.Add($"DateEndorsed: '{beneficiary.DateEndorsed}' -> '{dto.DateEndorsed}'");
+
             if (beneficiary.BatchCode != dto.BatchCode)
                 changes.Add($"BatchCode: '{beneficiary.BatchCode}' -> '{dto.BatchCode}'");
 
@@ -563,6 +575,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.IsEligible != dto.IsEligible)
                 changes.Add($"IsEligible: '{beneficiary.IsEligible}' -> '{dto.IsEligible}'");
+
+            if (beneficiary.AssessmentRemarks != dto.AssessmentRemarks)
+                changes.Add($"AssessmentRemarks: '{beneficiary.AssessmentRemarks}' -> '{dto.AssessmentRemarks}'");
 
             if (beneficiary.RemarkCategory != dto.RemarkCategory)
                 changes.Add($"RemarkCategory: '{beneficiary.RemarkCategory}' -> '{dto.RemarkCategory}'");
