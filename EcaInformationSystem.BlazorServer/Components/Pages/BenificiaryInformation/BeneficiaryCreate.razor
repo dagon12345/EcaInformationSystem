@@ -55,7 +55,7 @@
                                     <InputText class="form-control" @bind-Value="model.OscaIdNumber" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">OSCA ID Date Issued (Date/Month/Year)</label>
+                                    <label class="form-label">OSCA ID Date Issued (Day/Month/Year)</label>
                                     <InputDate class="form-control" @bind-Value="model.OscaIdDateIssued" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
@@ -77,21 +77,35 @@
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Extension</label>
-                                    <InputText class="form-control" @bind-Value="model.Extension" />
+                                    <InputSelect class="form-select" @bind-Value="model.Extension">
+                                        <option value="">Select Extension</option>
+                                        <option value="">N/A</option>
+                                        <option value="Sr.">Sr.</option>
+                                        <option value="Jr.">Jr.</option>
+                                        <option value="II.">II</option>
+                                        <option value="III">III</option>
+                                        <option value="IV">IV</option>
+                                        <option value="V">V</option>
+                                    </InputSelect>
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">Birth Date (Date/Month/Year) <span class="text-danger">*</span></label>
-                                    <InputDate class="form-control" @bind-Value="model.BirthDate" />
+                                    <label class="form-label">Birth Date (Day/Month/Year) <span class="text-danger">*</span></label>
+                                    <input type="date"
+                                           class="form-control"
+                                           value="@model.BirthDate.ToString("yyyy-MM-dd")"
+                                           min="@MinAllowedBirthDate"
+                                           @onchange="OnBirthDateChanged" />
                                     <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
                                 </div>
+
                                 <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Age</label>
                                    <input class="form-control" value="@(GetAge(model.BirthDate)?.ToString() ?? "")" readonly />
                                 </div>
-                                
+
                                 <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label">Phone Number</label>
-                                    <InputText class="form-control" @bind-Value="model.PhoneNumber" placeholder="09171234567" />
+                                    <InputText class="form-control" @bind-Value="model.PhoneNumber" placeholder="09171234567, 0917...." />
                                     <ValidationMessage For="@(() => model.PhoneNumber)" />
                                 </div>
 
@@ -104,6 +118,24 @@
                                     </InputSelect>
                                 </div>
 
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="form-check">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               checked="@model.IsDeceased"
+                                               @onchange="OnIsDeceasedChanged" />
+                                        <label class="form-check-label">Is Deceased</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label">Date of Death (Day/Month/Year)</label>
+                                    <input type="date"
+                                           class="form-control"
+                                           value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
+                                           max="@TodayDateString"
+                                           @onchange="OnDateOfDeathChanged"
+                                           disabled="@(!model.IsDeceased)" />
+                                </div>
                             </div>
                         </div>
                         <!-- Demographic Information -->
@@ -138,11 +170,13 @@
                         
                                 <div class="col-12 col-md-6 col-lg-3">
                                     <label class="form-label">Citizenship</label>
-                                    <InputSelect class="form-select" @bind-Value="model.Citizenship">
+                                    <select class="form-select"
+                                            value="@model.Citizenship"
+                                            @onchange="OnCitizenshipChanged">
                                         <option value="0">Select Citizenship</option>
                                         <option value="1">Filipino</option>
                                         <option value="2">Dual Citizenship</option>
-                                    </InputSelect>
+                                    </select>
                                 </div>
                         
                             </div>
@@ -213,21 +247,27 @@
                                     <ValidationMessage For="@(() => model.Validator)" class="text-danger small" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <label class="form-label">Validation Date (Date/Month/Year)<span class="text-danger">*</span></label>
+                                    <label class="form-label">Validation Date (Day/Month/Year)<span class="text-danger">*</span></label>
                                     <InputDate class="form-control" @bind-Value="model.ValidationDate" />
                                     <ValidationMessage For="@(() => model.ValidationDate)" class="text-danger small" />
                                 </div>
                                 <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
                                     <div class="form-check mt-4">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant" />
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant"/>
                                         <label class="form-check-label">Is Compliant</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-6 col-lg-4 d-flex align-items-end">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" disabled />
+                                        <label class="form-check-label">Is Eligible</label>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <!-- Payment Information -->
+                        <!-- Payment Information & Remarks -->
                         <div class="border rounded p-3 mb-4">
-                            <h5 class="text-primary mb-3">Payment Information</h5>
+                            <h5 class="text-primary mb-3">Payment Information & Remarks</h5>
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Payment Status <span class="text-danger">*</span></label>
@@ -249,28 +289,6 @@
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Payment Date</label>
                                     <InputDate class="form-control" @bind-Value="model.PaymentDate" disabled="@(model.PaymentStatus != 2)" />
-                                </div>
-                            </div>
-                        </div>
-                       <!-- Status & Remarks -->
-                        <div class="border rounded p-3 mb-4">
-                            <h5 class="text-primary mb-3">Status & Remarks</h5>
-                            <div class="row g-3">
-                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
-                                    <div class="form-check">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsDeceased" />
-                                        <label class="form-check-label">Is Deceased</label>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-md-6 col-lg-3">
-                                    <label class="form-label">Date of Death</label>
-                                    <InputDate class="form-control" @bind-Value="model.DateOfDeath" disabled="@(!model.IsDeceased)" />
-                                </div>
-                                <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
-                                    <div class="form-check">
-                                        <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" />
-                                        <label class="form-check-label">Is Eligible</label>
-                                    </div>
                                 </div>
                                 <div class="col-12 col-md-6">
                                     <label class="form-label">Remark Category</label>
@@ -931,6 +949,8 @@
     private bool IsMunicipalityDisabled => isLoading || filterMunicipalities.Count == 0;
     private bool IsBarangayDisabled => isLoading || filterBarangays.Count == 0;
 
+    private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
+
     protected override async Task OnInitializedAsync()
     {
         model.PsgcCodeRegion = DefaultRegionCode;
@@ -942,6 +962,35 @@
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
     }
+
+    private string MinAllowedBirthDate = "1944-03-17";
+
+    private void OnBirthDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var birthDate))
+        {
+            model.BirthDate = birthDate;
+            ApplyEligibilityRules();
+        }
+    }
+
+    private void OnCitizenshipChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            model.Citizenship = value;
+            ApplyEligibilityRules();
+        }
+    }
+    private void ApplyEligibilityRules()
+    {
+        var age = GetEffectiveAge() ?? 0;
+
+        model.IsEligible = age >= 80 && model.Citizenship == 1;
+        StateHasChanged();
+    }
+
+
     private void ShowSuccessToast(string message)
     {
         ToastService.Notify(new ToastMessage
@@ -1262,6 +1311,56 @@
 
         return age;
     }
+    private int? GetAgeAtDate(DateTime? birthDate, DateTime? referenceDate)
+    {
+        if (birthDate == null || referenceDate == null)
+            return null;
+
+        var age = referenceDate.Value.Year - birthDate.Value.Year;
+
+        if (birthDate.Value.Date > referenceDate.Value.AddYears(-age))
+            age--;
+
+        return age < 0 ? 0 : age;
+    }
+
+
+    private int? GetEffectiveAge()
+    {
+        if (model.IsDeceased)
+        {
+            return GetAgeAtDate(model.BirthDate, model.DateOfDeath);
+        }
+
+        return GetAge(model.BirthDate);
+    }
+    private void OnDateOfDeathChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dateOfDeath))
+        {
+            model.DateOfDeath = dateOfDeath;
+        }
+        else
+        {
+            model.DateOfDeath = null;
+        }
+
+        ApplyEligibilityRules();
+    }
+    private void OnIsDeceasedChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var isDeceased))
+        {
+            model.IsDeceased = isDeceased;
+        }
+
+        if (!model.IsDeceased)
+        {
+            model.DateOfDeath = null;
+        }
+
+        ApplyEligibilityRules();
+    }
 
     private string GetAgeBadgeClass(DateTime birthDate)
     {
@@ -1337,6 +1436,8 @@
     //Adding new beneficiary record
     private async Task AddBeneficiaryAsync()
     {
+         ApplyEligibilityRules();
+
         errorMessage = null;
         successMessage = null;
 
@@ -1398,6 +1499,8 @@
     {
         try
         {
+             ApplyEligibilityRules();
+
             var userName = await GetCurrentUserNameAsync();
             await BeneficiaryInformationService.UpdateAsync(model.Id, model, userName);
 
@@ -1571,6 +1674,9 @@
             Remarks = item.Remarks,
             IsDeleted = item.IsDeleted
         };
+
+        ApplyEligibilityRules();
+
         //Focus first name once edit button was toggled
         shouldFocusBatchCode = true;
         provinces.Clear();
