@@ -4,6 +4,8 @@ namespace EcaInformationSystem.Application.DTOs
 {
     public class CreateBeneficiaryInformationDto
     {
+        public DateTime? DateApplied { get; set; }
+        public DateTime? DateEndorsed { get; set; }
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
         public DateTime? OscaIdDateIssued { get; set; }
@@ -15,8 +17,6 @@ namespace EcaInformationSystem.Application.DTOs
         public string? Extension { get; set; }
         [Required]
         public DateTime BirthDate { get; set; }
-
-        [RegularExpression(@"^(09\d{9}|\+639\d{9})$", ErrorMessage = "Enter a valid Philippine phone number.")]
         public string? PhoneNumber { get; set; }
         public int Sex { get; set; }
         public bool IsIndigenousPeople { get; set; }
@@ -39,6 +39,7 @@ namespace EcaInformationSystem.Application.DTOs
         public bool IsDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
         public bool IsEligible { get; set; }
+        public string? AssessmentRemarks { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public bool IsDeleted { get; set; }

@@ -134,6 +134,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
              select new BeneficiaryInformationDto
              {
                  Id = b.Id,
+                 DateApplied = b.DateApplied,
+                 DateEndorsed = b.DateEndorsed,
                  BatchCode = b.BatchCode,
                  OscaIdNumber = b.OscaIdNumber,
                  OscaIdDateIssued = b.OscaIdDateIssued,
@@ -170,7 +172,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  IsDeceased = b.IsDeceased,
                  DateOfDeath = b.DateOfDeath,
                  IsEligible = b.IsEligible,
+                 AssessmentRemarks = b.AssessmentRemarks,
                  RemarkCategory = b.RemarkCategory != null ? b.RemarkCategory : null,
+                 DateAdded = b.DateAdded,
                  Remarks = b.Remarks,
                  IsDeleted = b.IsDeleted
              })
@@ -335,6 +339,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Select(x => new BeneficiaryInformationDto
                 {
                     Id = x.Beneficiary.Id,
+                    DateApplied = x.Beneficiary.DateApplied,
+                    DateEndorsed = x.Beneficiary.DateEndorsed,
                     BatchCode = x.Beneficiary.BatchCode,
                     OscaIdNumber = x.Beneficiary.OscaIdNumber,
                     OscaIdDateIssued = x.Beneficiary.OscaIdDateIssued,
@@ -372,7 +378,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsDeceased = x.Beneficiary.IsDeceased,
                     DateOfDeath = x.Beneficiary.DateOfDeath,
                     IsEligible = x.Beneficiary.IsEligible,
+                    AssessmentRemarks = x.Beneficiary.AssessmentRemarks,
                     RemarkCategory = x.Beneficiary.RemarkCategory,
+                    DateAdded = x.Beneficiary.DateAdded,
                     Remarks = x.Beneficiary.Remarks,
                     IsDeleted = x.Beneficiary.IsDeleted
                 });
