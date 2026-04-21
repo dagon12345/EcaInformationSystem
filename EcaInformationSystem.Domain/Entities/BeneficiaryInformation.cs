@@ -3,6 +3,8 @@
     public class BeneficiaryInformation
     {
         public Guid Id { get; set; }
+        public DateTime? DateApplied { get; set; }
+        public DateTime? DateEndorsed { get; set; }
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
         public DateTime? OscaIdDateIssued { get; set; }
@@ -31,6 +33,7 @@
         public bool IsDeceased { get; set; }
         public DateTime? DateOfDeath { get; set; }
         public bool IsEligible { get; set; }
+        public string? AssessmentRemarks { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }
