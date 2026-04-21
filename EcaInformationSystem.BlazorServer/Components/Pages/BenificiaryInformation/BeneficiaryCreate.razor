@@ -101,7 +101,6 @@
                                     <input type="date"
                                            class="form-control"
                                            value="@model.BirthDate.ToString("yyyy-MM-dd")"
-                                           min="@MinAllowedBirthDate"
                                            @onchange="OnBirthDateChanged" />
                                     <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
                                 </div>
@@ -1090,8 +1089,6 @@
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
     }
-
-    private string MinAllowedBirthDate = "1944-03-17";
 
     private void OnBirthDateChanged(ChangeEventArgs e)
     {
