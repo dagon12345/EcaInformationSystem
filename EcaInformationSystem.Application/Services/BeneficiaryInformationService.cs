@@ -253,23 +253,30 @@ namespace EcaInformationSystem.Application.Services
             using var workbook = new XLWorkbook(fileStream);
             var worksheet = workbook.Worksheet("Sheet1");
 
-            var usedRange = worksheet.RangeUsed();
-            if (usedRange == null)
-                throw new Exception("Sheet1 is empty.");
+            if (worksheet == null)
+                throw new Exception("Sheet1 not found.");
 
-            var allRows = usedRange.RowsUsed().ToList();
-            if (allRows.Count <= 1)
+            const int headerRowNumber = 10;
+            const int firstDataRowNumber = 11;
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+            if (lastRow < firstDataRowNumber)
                 throw new Exception("Sheet1 does not contain data rows.");
 
-            var dataRows = allRows.Skip(1).ToList();
-
-            foreach (var row in dataRows)
+            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
+                var row = worksheet.Row(rowNumber);
+
+                // Skip blank rows
+                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    continue;
+
                 result.TotalRows++;
 
                 try
                 {
                     var batchCode = row.Cell(1).GetFormattedString().Trim();
+                    // row.Cell(2) = No. (ignored)
                     var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
                     var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
                     var lastName = row.Cell(5).GetFormattedString().Trim();
@@ -277,34 +284,32 @@ namespace EcaInformationSystem.Application.Services
                     var middleName = row.Cell(7).GetFormattedString().Trim();
                     var extensionName = row.Cell(8).GetFormattedString().Trim();
 
-                    var birthDateRaw = row.Cell(13).GetFormattedString().Trim();
+                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
+                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
+                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
 
-                    var sexRaw = row.Cell(15).GetFormattedString().Trim();
-                    var regionName = row.Cell(16).GetFormattedString().Trim();
-                    var provinceName = row.Cell(17).GetFormattedString().Trim();
-                    var municipalityName = row.Cell(18).GetFormattedString().Trim();
-                    var barangayName = row.Cell(19).GetFormattedString().Trim();
-
-                    var complianceRaw = row.Cell(20).GetFormattedString().Trim();
-                    var validator = row.Cell(21).GetFormattedString().Trim();
-                    var validationDateRaw = row.Cell(22).GetFormattedString().Trim();
-                    var paymentStatusRaw = row.Cell(23).GetFormattedString().Trim();
-                    var paymentDateRaw = row.Cell(24).GetFormattedString().Trim();
-                    var dateOfDeathRaw = row.Cell(25).GetFormattedString().Trim();
-                    var coAssessmentRaw = row.Cell(26).GetFormattedString().Trim();
-                    var remarks = row.Cell(27).GetFormattedString().Trim();
-
+                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
+                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
+                    var regionName = row.Cell(14).GetFormattedString().Trim();
+                    var provinceName = row.Cell(15).GetFormattedString().Trim();
+                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
+                    var barangayName = row.Cell(17).GetFormattedString().Trim();
+                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
+                    var validator = row.Cell(19).GetFormattedString().Trim();
+                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
+                    var remarks = row.Cell(21).GetFormattedString().Trim();
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: First Name is required.");
+                        result.Errors.Add($"Row {rowNumber}: First Name is required.");
                         continue;
                     }
 
+                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Invalid Birth Date '{birthDateRaw}'.");
+                        result.Errors.Add($"Row {rowNumber}: Invalid Birth Date from Month/Day/Year values '{birthDateRaw}'.");
                         continue;
                     }
 
@@ -316,16 +321,19 @@ namespace EcaInformationSystem.Application.Services
                         else
                         {
                             result.ErrorCount++;
-                            result.Errors.Add($"Row {result.TotalRows}: Invalid NCSC RRN '{ncscRrnRaw}'.");
+                            result.Errors.Add($"Row {rowNumber}: Invalid NCSC RRN '{ncscRrnRaw}'.");
                             continue;
                         }
                     }
 
-                    var region = FindBestNameMatch(regions, x => x.Name, regionName);
+                    var region = string.IsNullOrWhiteSpace(regionName)
+                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == DefaultRegionCode)
+                        : FindBestNameMatch(regions, x => x.Name, regionName);
+
                     if (region == null)
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Region '{regionName}' not found.");
+                        result.Errors.Add($"Row {rowNumber}: Region '{regionName}' not found.");
                         continue;
                     }
 
@@ -333,7 +341,7 @@ namespace EcaInformationSystem.Application.Services
                     if (province == null)
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Province '{provinceName}' not found.");
+                        result.Errors.Add($"Row {rowNumber}: Province '{provinceName}' not found.");
                         continue;
                     }
 
@@ -341,7 +349,7 @@ namespace EcaInformationSystem.Application.Services
                     if (municipality == null)
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Municipality '{municipalityName}' not found.");
+                        result.Errors.Add($"Row {rowNumber}: Municipality/City '{municipalityName}' not found.");
                         continue;
                     }
 
@@ -349,7 +357,7 @@ namespace EcaInformationSystem.Application.Services
                     if (barangay == null)
                     {
                         result.ErrorCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Barangay '{barangayName}' not found.");
+                        result.Errors.Add($"Row {rowNumber}: Barangay '{barangayName}' not found.");
                         continue;
                     }
 
@@ -364,7 +372,7 @@ namespace EcaInformationSystem.Application.Services
                     if (isDuplicate)
                     {
                         result.SkippedDuplicateCount++;
-                        result.Errors.Add($"Row {result.TotalRows}: Duplicate record found.");
+                        result.Errors.Add($"Row {rowNumber}: Duplicate record found.");
                         continue;
                     }
 
@@ -393,31 +401,31 @@ namespace EcaInformationSystem.Application.Services
                         IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = MapPaymentStatus(paymentStatusRaw),
+                        PaymentStatus = 0,
                         ModeOfPayment = 0,
-                        PaymentDate = ParseNullableDate(paymentDateRaw),
-                        IsDeceased = ParseNullableDate(dateOfDeathRaw).HasValue,
-                        DateOfDeath = ParseNullableDate(dateOfDeathRaw),
-                        IsEligible = MapEligibility(coAssessmentRaw),
+                        PaymentDate = null,
+                        IsDeceased = false,
+                        DateOfDeath = null,
+                        IsEligible = false,
                         RemarkCategory = null,
-                        Remarks = NullIfEmpty(remarks),
+                        Remarks = remarks,
                         DateAdded = DateTime.UtcNow,
                         IsDeleted = false
                     };
 
                     await _repo.AddAsync(beneficiary);
-                    //Logging
+
                     await AddLogAsync(
-                         beneficiary.Id,
-                         $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
-                         userName);
+                        beneficiary.Id,
+                        $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
+                        userName);
 
                     result.ImportedCount++;
                 }
                 catch (Exception ex)
                 {
                     result.ErrorCount++;
-                    result.Errors.Add($"Row {result.TotalRows}: {ex.Message}");
+                    result.Errors.Add($"Row {rowNumber}: {ex.Message}");
                 }
             }
 
@@ -425,6 +433,7 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
             return result;
         }
+
         public Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
             var pagedResult = _repo.GetPagedAsync(filter);
@@ -456,12 +465,12 @@ namespace EcaInformationSystem.Application.Services
                 version,
                 "beneficiary-summary",
                 filter.PsgcCodeRegion?.ToString() ?? "null",
-                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)): "null"),
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : "null"),
                 (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : "null"),
-                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any()? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)): "null"),
+                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any() ? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)) : "null"),
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
-                (filter.Sexes != null && filter.Sexes.Any()? string.Join(",", filter.Sexes.OrderBy(x => x)) : "null"),
+                (filter.Sexes != null && filter.Sexes.Any() ? string.Join(",", filter.Sexes.OrderBy(x => x)) : "null"),
                 filter.SpecificAge?.ToString() ?? "null",
                 filter.MilestoneYear?.ToString() ?? "null",
                 filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
@@ -748,7 +757,11 @@ namespace EcaInformationSystem.Application.Services
         "MM/dd/yy",
         "yyyy-MM-dd",
         "M-d-yyyy",
-        "MM-d-yyyy"
+        "MM-d-yyyy",
+        "MMMM d yyyy",
+        "MMMM dd yyyy",
+        "MMM d yyyy",
+        "MMM dd yyyy"
     };
 
             return DateTime.TryParseExact(
@@ -758,6 +771,9 @@ namespace EcaInformationSystem.Application.Services
                 DateTimeStyles.None,
                 out date);
         }
+
+
+
 
         private static DateTime? ParseNullableDate(string? value)
         {

@@ -16,8 +16,6 @@ namespace EcaInformationSystem.Application.DTOs
         public string? Extension { get; set; }
         [Required(ErrorMessage = "Birth Date is required.")]
         public DateTime BirthDate { get; set; }
-
-        [RegularExpression(@"^(09\d{9}|\+639\d{9})$", ErrorMessage = "Enter a valid Philippine phone number.")]
         public string? PhoneNumber { get; set; }
         public int Age { get; set; }
         public int MilestoneYear { get; set; }
