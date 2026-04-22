@@ -237,7 +237,7 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
 
-        public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string userName)
+        public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception("Please upload a valid Excel file.");
@@ -250,6 +250,7 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Only .xlsx Excel files are allowed.");
 
             var result = new BeneficiaryImportResultDto();
+            var beneficiariesToImport = new List<BeneficiaryInformation>();
 
             var regions = await _regionRepository.GetAllAsync();
             var provinces = await _provinceRepository.GetAllProvinceAsync();
@@ -257,17 +258,24 @@ namespace EcaInformationSystem.Application.Services
             var barangays = await _barangayRepository.GetBarangaysAsync();
 
             using var workbook = new XLWorkbook(fileStream);
-            var worksheet = workbook.Worksheet("Sheet1");
+
+
+            if (string.IsNullOrWhiteSpace(sheetName))
+                throw new Exception("Please select a worksheet.");
+
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
 
             if (worksheet == null)
-                throw new Exception("Sheet1 not found.");
+                throw new Exception($"Worksheet '{sheetName}' not found.");
 
-            const int headerRowNumber = 10;
             const int firstDataRowNumber = 11;
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             if (lastRow < firstDataRowNumber)
                 throw new Exception("Sheet1 does not contain data rows.");
+
+            //Track duplicated inside the upload file itself
+            var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
@@ -304,31 +312,56 @@ namespace EcaInformationSystem.Application.Services
                     var validator = row.Cell(19).GetFormattedString().Trim();
                     var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
                     var remarks = row.Cell(21).GetFormattedString().Trim();
+
+                    bool rowHasError = false;
+
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: First Name is required.");
-                        continue;
+                        result.Errors.Add(new BeneficiaryImportErrorDto 
+                        { 
+                            RowNumber = rowNumber, 
+                            Field = "First Name", 
+                            Message = "First Name is required.", 
+                            RawValue = firstName
+
+                        });
+                        rowHasError = true;
                     }
 
                     var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: Invalid Birth Date from Month/Day/Year values '{birthDateRaw}'.");
-                        continue;
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Birth Date",
+                            Message = "Invalid Birth Date from Month/Day/Year values.",
+                            RawValue = birthDateRaw
+
+                        });
+                        rowHasError = true;
+                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
                     }
 
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
                     {
                         if (int.TryParse(ncscRrnRaw, out var parsedRrn))
+                        {
                             ncscRrn = parsedRrn;
+                        }
                         else
                         {
-                            result.ErrorCount++;
-                            result.Errors.Add($"Row {rowNumber}: Invalid NCSC RRN '{ncscRrnRaw}'.");
-                            continue;
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = "NCSC RRN",
+                                Message = "Invalid NCSC RRN.",
+                                RawValue = ncscRrnRaw,
+                                Suggestion = "Remove special character."
+                            });
+
+                            rowHasError = true;
                         }
                     }
 
@@ -338,53 +371,127 @@ namespace EcaInformationSystem.Application.Services
 
                     if (region == null)
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: Region '{regionName}' not found.");
-                        continue;
-                    }
+                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
 
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Region",
+                            Message = "Region not found.",
+                            RawValue = regionName,
+                            Suggestion = suggestion != null
+                            ? $"Possible match: '{suggestion}'"
+                            : "Check spelling and spacing."
+                        });
+                        rowHasError = true;
+                    }
                     var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
                     if (province == null)
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: Province '{provinceName}' not found.");
-                        continue;
+                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Province",
+                            Message = "Province not found.",
+                            RawValue = provinceName,
+                            Suggestion = suggestion != null
+                                ? $"Possible match: '{suggestion}'"
+                                : "Check spelling and spacing."
+                        });
+                        rowHasError = true;
                     }
+
 
                     var municipality = FindBestNameMatch(municipalities, x => x.Name, municipalityName);
                     if (municipality == null)
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: Municipality/City '{municipalityName}' not found.");
-                        continue;
+                        var suggestion = GetSuggestedName(municipalities, x => x.Name, municipalityName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Municipality/City",
+                            Message = "Municipality/City not found.",
+                            RawValue = municipalityName,
+                            Suggestion = suggestion != null
+                                ? $"Possible match: '{suggestion}'"
+                                : "Check spelling and spacing."
+                        });
+                        rowHasError = true;
                     }
 
                     var barangay = FindBestNameMatch(barangays, x => x.Name, barangayName);
                     if (barangay == null)
                     {
-                        result.ErrorCount++;
-                        result.Errors.Add($"Row {rowNumber}: Barangay '{barangayName}' not found.");
-                        continue;
+                        var suggestion = GetSuggestedName(barangays, x => x.Name, barangayName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Barangay",
+                            Message = "Barangay not found.",
+                            RawValue = barangayName,
+                            Suggestion = suggestion != null
+                                ? $"Possible match: '{suggestion}'"
+                                : "Check spelling and spacing."
+                        });
+                        rowHasError = true;
                     }
 
-                    var isDuplicate = await _repo.ExistsDuplicateAsync(
-                        lastName,
-                        firstName,
-                        middleName,
-                        birthDate,
-                        oscaIdNumber,
-                        ncscRrn);
 
-                    if (isDuplicate)
+                    var duplicateKey = string.Join("|",
+                 (lastName ?? string.Empty).Trim().ToLower(),
+                 (firstName ?? string.Empty).Trim().ToLower(),
+                 (middleName ?? string.Empty).Trim().ToLower(),
+                 birthDate == DateTime.MinValue ? "" : birthDate.ToString("yyyy-MM-dd"),
+                 (oscaIdNumber ?? string.Empty).Trim().ToLower(),
+                 ncscRrn?.ToString() ?? "");
+
+                    if (!string.IsNullOrWhiteSpace(firstName) && birthDate != DateTime.MinValue)
                     {
-                        result.SkippedDuplicateCount++;
-                        result.Errors.Add($"Row {rowNumber}: Duplicate record found.");
-                        continue;
+                        if (!uploadedRowKeys.Add(duplicateKey))
+                        {
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = "Duplicate",
+                                Message = "Duplicate record found within the uploaded file.",
+                                RawValue = $"{lastName}, {firstName}"
+                            });
+                            rowHasError = true;
+                        }
                     }
+                    if (!rowHasError)
+                    {
+                        var isDuplicateInDatabase = await _repo.ExistsDuplicateAsync(
+                            lastName,
+                            firstName,
+                            middleName,
+                            birthDate,
+                            oscaIdNumber,
+                            ncscRrn);
+                        if (isDuplicateInDatabase)
+                        {
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = "Duplicate",
+                                Message = "Duplicate record already exists in the database.",
+                                RawValue = $"{lastName}, {firstName}"
+                            });
+                            rowHasError = true;
+                        }
+                    }
+                    if (rowHasError)
+                        continue;
 
-                    var beneficiary = new BeneficiaryInformation
+                    beneficiariesToImport.Add(new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
+                        DateApplied = null,
+                        DateEndorsed = null,
                         BatchCode = NullIfEmpty(batchCode),
                         OscaIdNumber = NullIfEmpty(oscaIdNumber),
                         OscaIdDateIssued = null,
@@ -400,10 +507,10 @@ namespace EcaInformationSystem.Application.Services
                         IsPersonWithDisability = false,
                         CivilStatus = null,
                         Citizenship = null,
-                        Region = region.PsgcCodeRegion,
-                        Province = province.PsgcCodeProvince,
-                        Municipality = municipality.PsgcCodeMunicipality,
-                        Barangay = barangay.PsgcCodeBarangay,
+                        Region = region!.PsgcCodeRegion,
+                        Province = province!.PsgcCodeProvince,
+                        Municipality = municipality!.PsgcCodeMunicipality,
+                        Barangay = barangay!.PsgcCodeBarangay,
                         IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
@@ -413,30 +520,50 @@ namespace EcaInformationSystem.Application.Services
                         IsDeceased = false,
                         DateOfDeath = null,
                         IsEligible = false,
+                        AssessmentRemarks = null,
                         RemarkCategory = null,
                         Remarks = remarks,
                         DateAdded = DateTime.UtcNow,
                         IsDeleted = false
-                    };
-
-                    await _repo.AddAsync(beneficiary);
-
-                    await AddLogAsync(
-                        beneficiary.Id,
-                        $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
-                        userName);
-
-                    result.ImportedCount++;
+                    });
                 }
                 catch (Exception ex)
                 {
-                    result.ErrorCount++;
-                    result.Errors.Add($"Row {rowNumber}: {ex.Message}");
+                    result.Errors.Add(new BeneficiaryImportErrorDto
+                    {
+                        RowNumber = rowNumber,
+                        Field = "General",
+                        Message = ex.Message,
+                        RawValue = null
+                    });
                 }
             }
+            result.ErrorCount = result.Errors.Count;
+            result.ValidRows = beneficiariesToImport.Count;
+
+            //If there are any errors, do not save anything
+            if (result.ErrorCount > 0)
+            {
+                result.ImportedCount = 0;
+                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == "Duplicate");
+                return result;
+            }
+            foreach (var beneficiary in beneficiariesToImport)
+            {
+                await _repo.AddAsync(beneficiary);
+                await AddLogAsync(
+                    beneficiary.Id,
+                    $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
+                    userName);
+            }
+
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
+
+            result.ImportedCount = beneficiariesToImport.Count;
+            result.SkippedDuplicateCount = 0;
+
             return result;
         }
 
@@ -445,7 +572,55 @@ namespace EcaInformationSystem.Application.Services
             var pagedResult = _repo.GetPagedAsync(filter);
             return pagedResult;
         }
+
+        public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
+        {
+            if (fileStream == null || !fileStream.CanRead)
+                throw new Exception("Please upload a valid Excel file.");
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception("Invalid file name.");
+
+            var extension = Path.GetExtension(fileName);
+
+            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("Only .xlsx Excel files are allowed.");
+
+            fileStream.Position = 0;
+
+            using var workbook = new XLWorkbook(fileStream);
+            var sheetNames = workbook.Worksheets
+                .Select(ws => ws.Name)
+                .ToList();
+
+            return await Task.FromResult(sheetNames);
+        }
+
         #region Private helpers
+        private static string? GetSuggestedName<T>(
+    IEnumerable<T> items,
+    Func<T, string?> nameSelector,
+    string rawName,
+    int minimumScore = 40)
+    where T : class
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+                return null;
+
+            var bestMatch = items
+                .Select(item => new
+                {
+                    Name = nameSelector(item) ?? string.Empty,
+                    Score = GetMatchScore(rawName, nameSelector(item) ?? string.Empty)
+                })
+                .Where(x => x.Score >= minimumScore)
+                .OrderByDescending(x => x.Score)
+                .ThenBy(x => x.Name)
+                .FirstOrDefault();
+
+            return bestMatch?.Name;
+        }
+
+
         private const string SummaryCacheVersionKey = "beneficiary-summary-version";
 
         private void InvalidateSummaryCache()
@@ -819,6 +994,7 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
+
 
         #endregion
 

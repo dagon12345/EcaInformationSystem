@@ -18,6 +18,42 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         {
             base.OnModelCreating(modelBuilder);
 
+            //Indexing
+            modelBuilder.Entity<BeneficiaryInformation>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                // Composite indexes for common filtering patterns
+                entity.HasIndex(x => new { x.IsDeleted, x.Region });
+                entity.HasIndex(x => new { x.IsDeleted, x.Province });
+                entity.HasIndex(x => new { x.IsDeleted, x.Municipality });
+                entity.HasIndex(x => new { x.IsDeleted, x.Barangay });
+                entity.HasIndex(x => new { x.IsDeleted, x.BirthDate });
+                entity.HasIndex(x => new { x.IsDeleted, x.Sex });
+                // Optional: sorting support for paged queries
+                entity.HasIndex(x => new { x.IsDeleted, x.LastName, x.FirstName, x.MiddleName });
+                // Duplicate detection support
+                entity.HasIndex(x => new
+                {
+                    x.LastName,
+                    x.FirstName,
+                    x.MiddleName,
+                    x.BirthDate,
+                    x.OscaIdNumber,
+                    x.NcscRrn
+                });
+
+
+            });
+
+            modelBuilder.Entity<Log>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasIndex(x => x.BeneficiaryInformationId);
+                entity.HasIndex(x => new { x.BeneficiaryInformationId, x.CreatedAt });
+            });
+
             modelBuilder.Entity<Product>(entity =>
             {
                 entity.HasKey(x => x.Id);

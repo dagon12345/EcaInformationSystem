@@ -103,6 +103,9 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 if (request.File == null || request.File.Length == 0)
                     return BadRequest("Please upload a valid Excel file.");
 
+                if (string.IsNullOrWhiteSpace(request.SheetName))
+                    return BadRequest("Please select a worksheet.");
+
                 var userName = GetCurrentUserName();
 
                 using var stream = request.File.OpenReadStream();
@@ -110,6 +113,7 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 var result = await _beneficiaryInformationService.ImportExcelAsync(
                     stream,
                     request.File.FileName,
+                    request.SheetName,
                     userName);
                 return Ok(result);
             }
@@ -118,6 +122,31 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        [HttpPost("import/sheets")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetImportExcelSheets([FromForm] ImportBeneficiaryExcelSheetRequestDto request)
+        {
+            try
+            {
+                if (request.File == null || request.File.Length == 0)
+                    return BadRequest("Please upload a valid Excel file.");
+
+                using var stream = request.File.OpenReadStream();
+
+                var sheets = await _beneficiaryInformationService.GetExcelSheetNamesAsync(
+                    stream,
+                    request.File.FileName);
+
+                return Ok(sheets);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
         [HttpGet("whoami")]
         public IActionResult WhoAmI()
         {

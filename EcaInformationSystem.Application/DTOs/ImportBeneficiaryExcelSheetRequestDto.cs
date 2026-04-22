@@ -3,11 +3,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EcaInformationSystem.Application.DTOs
 {
-    public class ImportBeneficiaryExcelRequestDto
+    public class ImportBeneficiaryExcelSheetRequestDto
     {
         [Required]
         public IFormFile File { get; set; } = default!;
-        [Required(ErrorMessage = "SheetName is required.")]
-        public string SheetName { get; set; } = string.Empty;
     }
 }

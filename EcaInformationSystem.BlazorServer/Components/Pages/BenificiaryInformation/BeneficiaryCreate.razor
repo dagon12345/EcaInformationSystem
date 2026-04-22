@@ -360,6 +360,15 @@
                                         <option value="2">Out of town/Country</option>
                                         <option value="3">Incomplete required documents</option>
                                         <option value="4">Inconsistent documents</option>
+                                        <option value="5">Cannot be reached/Located</option>
+                                        <option value="6">Did not reach the milestone age</option>
+                                        <option value="7">Lacking of documents/Requirements</option>
+                                        <option value="8">For Correction</option>
+                                        <option value="9">Waived</option>
+                                        <option value="10">Lacking Proof of Relationship</option>
+                                        <option value="11">Now show</option>
+                                        <option value="12">Double Application with Different Surename used</option>
+                                        <option value="13">For CGD Island Municipality</option>
                                     </InputSelect>
                                 </div>
                                 <div class="col-12">
@@ -414,17 +423,112 @@
                 </CardHeader>
                 <CardBody>
                     <!--Importing-->
-                    <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control mb-2" />
-                    <button class="btn btn-success" @onclick="UploadExcelAsync" disabled="@isUploading">
+                    <div class="mb-3">
+                        <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control" />
+                    </div>
+                    @if (isLoadingSheets)
+                    {
+                        <div class="mb-3 text-primary">
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            Reading workbook sheets...
+                        </div>
+                    }
+                    @if (excelSheetNames.Any())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Select Worksheet</label>
+                            <InputSelect class="form-select" @bind-Value="selectedSheetName">
+                                @foreach (var sheet in excelSheetNames)
+                                {
+                                    <option value="@sheet">@sheet</option>
+                                }
+                            </InputSelect>
+                            @if (!string.IsNullOrWhiteSpace(uploadedExcelFileName) && excelSheetNames.Any())
+                            {
+                                <div class="alert alert-light border mb-3">
+                                    <div><strong>File:</strong> @uploadedExcelFileName</div>
+                                    <div><strong>Worksheets found:</strong> @excelSheetNames.Count</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="small text-muted mb-3">
+                        The system will validate all rows first. If any error is found, no records will be saved.
+                    </div>
+
+                    <button class="btn btn-success"
+                            @onclick="UploadExcelAsync"
+                            disabled="@(isUploading || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
                         @if (isUploading)
                         {
-                            <span>Importing...</span>
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Validating...</span>
                         }
                         else
                         {
-                            <span>Import Excel</span>
+                            <span>Validate and Import Excel</span>
                         }
                     </button>
+                    @if (importResult != null)
+                    {
+                        <div class="mt-3">
+                            @if (importResult.HasErrors)
+                            {
+                                <div class="alert alert-danger">
+                                    <h6 class="mb-2">Import Validation Failed</h6>
+                                    <div>Total Rows Checked: <strong>@importResult.TotalRows</strong></div>
+                                    <div>Valid Rows: <strong>@importResult.ValidRows</strong></div>
+                                    <div>Error Count: <strong>@importResult.ErrorCount</strong></div>
+                                    <div class="mt-2">
+                                        <strong>No records were saved.</strong> Please correct the Excel file and upload again.
+                                    </div>
+                                </div>
+
+                                <div class="card border-danger shadow-sm">
+                                    <div class="card-header bg-danger text-white">
+                                        <strong>Import Errors</strong>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-sm table-striped table-hover mb-0">
+                                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                                    <tr>
+                                                        <th>Row</th>
+                                                        <th>Field</th>
+                                                        <th>Message</th>
+                                                        <th>Value</th>
+                                                        <th>Suggestion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var err in importResult.Errors)
+                                                    {
+                                                        <tr>
+                                                            <td>@err.RowNumber</td>
+                                                            <td>@err.Field</td>
+                                                            <td>@err.Message</td>
+                                                            <td>@err.RawValue</td>
+                                                            <td>@err.Suggestion</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-success">
+                                    <h6 class="mb-2">Import Successful</h6>
+                                    <div>Total Rows Checked: <strong>@importResult.TotalRows</strong></div>
+                                    <div>Imported Rows: <strong>@importResult.ImportedCount</strong></div>
+                                </div>
+                            }
+                        </div>
+                    }
+
                 </CardBody>
             </Card>
         </div>
@@ -927,6 +1031,7 @@
         </div>
     </div>
 </div>
+<!--Confirmation Modal-->
 <Modal @ref="confirmModal">
     <HeaderTemplate>
         <h5 class="modal-title">@confirmationTitle</h5>
@@ -951,7 +1056,7 @@
         </Button>
     </FooterTemplate>
 </Modal>
-
+<!--Log Modal-->
 <Modal @ref="logModal" Size="ModalSize.ExtraLarge">
     <HeaderTemplate>
         <h5 class="modal-title">Logs - @selectedBeneficiaryName</h5>
@@ -973,29 +1078,31 @@
         }
         else
         {
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>#</th>
-                            <th>Activity</th>
-                            <th>User</th>
-                            <th>Date Created</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @for (int i = 0; i < logs.Count; i++)
-                        {
-                            var log = logs[i];
+            <div style="max-height: 500px; overflow-y: auto;">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
                             <tr>
-                                <td>@(i + 1)</td>
-                                <td>@log.Activity</td>
-                                <td>@log.UserName</td>
-                                <td>@log.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</td>
+                                <th style="width: 70px;">#</th>
+                                <th>Activity</th>
+                                <th style="width: 180px;">User</th>
+                                <th style="width: 200px;">Date Created</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < logs.Count; i++)
+                            {
+                                var log = logs[i];
+                                <tr>
+                                    <td>@(i + 1)</td>
+                                    <td>@log.Activity</td>
+                                    <td>@log.UserName</td>
+                                    <td>@log.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </div>
         }
     </BodyTemplate>
@@ -1011,6 +1118,7 @@
 
 
 
+
 @code {
     private BeneficiaryInformationDto model = new()
     {
@@ -1022,6 +1130,7 @@
         PageNumber = 1,
         PageSize = 10
     };
+    private BeneficiaryImportResultDto? importResult;
     private List<BeneficiaryInformationDto> beneficiaries = new();
     private int totalPages;
     private int totalCount;
@@ -1076,6 +1185,12 @@
     private bool isFilterProvinceLoading;
     private bool isFilterMunicipalityLoading;
     private bool isFilterBarangayLoading;
+
+    private List<string> excelSheetNames = new();
+    private string? selectedSheetName;
+    private bool isLoadingSheets;
+    private byte[]? uploadedExcelBytes;
+    private string? uploadedExcelFileName;
 
 
     protected override async Task OnInitializedAsync()
@@ -1218,20 +1333,71 @@
     }
 
 
-    private void HandleFileSelected(InputFileChangeEventArgs e)
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
         selectedFile = e.File;
         errorMessage = null;
         successMessage = null;
+        importResult = null;
+
+        excelSheetNames.Clear();
+        selectedSheetName = null;
+        uploadedExcelBytes = null;
+        uploadedExcelFileName = null;
+
+        if (selectedFile == null)
+            return;
+
+        try
+        {
+            isLoadingSheets = true;
+
+            await using var uploadStream = selectedFile.OpenReadStream(10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await uploadStream.CopyToAsync(memoryStream);
+
+            uploadedExcelBytes = memoryStream.ToArray();
+            uploadedExcelFileName = selectedFile.Name;
+
+            using var readSheetStream = new MemoryStream(uploadedExcelBytes);
+            excelSheetNames = await BeneficiaryInformationService.GetExcelSheetNamesAsync(
+                readSheetStream,
+                uploadedExcelFileName);
+
+            if (excelSheetNames.Any())
+            {
+                selectedSheetName = excelSheetNames.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to read Excel sheets: {ex.Message}";
+            ShowErrorToast(errorMessage);
+        }
+        finally
+        {
+            isLoadingSheets = false;
+            StateHasChanged();
+        }
     }
+
     private async Task UploadExcelAsync()
     {
         errorMessage = null;
         successMessage = null;
+        importResult = null;
 
-        if (selectedFile == null)
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
         {
             errorMessage = "Please select an Excel file first.";
+            ShowErrorToast(errorMessage);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedSheetName))
+        {
+            errorMessage = "Please select a worksheet first.";
+            ShowErrorToast(errorMessage);
             return;
         }
 
@@ -1239,40 +1405,37 @@
         {
             isUploading = true;
 
-
             var userName = await GetCurrentUserNameAsync();
 
-            await using var uploadStream = selectedFile.OpenReadStream(10 * 1024 * 1024);
-            using var memoryStream = new MemoryStream();
-            await uploadStream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
+            using var memoryStream = new MemoryStream(uploadedExcelBytes);
 
-            var result = await BeneficiaryInformationService.ImportExcelAsync(
+            importResult = await BeneficiaryInformationService.ImportExcelAsync(
                 memoryStream,
-                selectedFile.Name,
+                uploadedExcelFileName,
+                selectedSheetName,
                 userName);
 
-
-
-            ShowSuccessToast($"Import completed. Total Rows: {result.TotalRows}, Imported: {result.ImportedCount}, Duplicates Skipped: {result.SkippedDuplicateCount}, Errors: {result.ErrorCount}");
-
-            if (result.Errors.Any())
+            if (importResult.HasErrors)
             {
-                errorMessage = string.Join(Environment.NewLine, result.Errors.Take(10));
+                ShowErrorToast($"Import validation failed. Found {importResult.ErrorCount} error(s). No records were saved.");
+                errorMessage = $"Import validation failed. Found {importResult.ErrorCount} error(s). Please fix the Excel file and upload again.";
+                return;
             }
-            filterModel.PageNumber = 1;
-            await LoadBeneficiariesAsync();
 
+            ShowSuccessToast($"Import completed successfully from worksheet '{selectedSheetName}'. {importResult.ImportedCount} record(s) saved.");
+            successMessage = $"Import completed successfully from worksheet '{selectedSheetName}'. {importResult.ImportedCount} record(s) saved.";
         }
         catch (Exception ex)
         {
             ShowErrorToast($"Import failed: {ex.Message}");
+            errorMessage = $"Import failed: {ex.Message}";
         }
         finally
         {
             isUploading = false;
         }
     }
+
 
     public class LogsLookupDto
     {
