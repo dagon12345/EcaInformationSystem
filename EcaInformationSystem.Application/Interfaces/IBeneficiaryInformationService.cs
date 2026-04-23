@@ -17,5 +17,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter);
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
         Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
+        Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
     }
 }

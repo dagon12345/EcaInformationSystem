@@ -25,5 +25,12 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<int?> GetProvinceCodeByNameAsync(string provinceName);
         Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName);
         Task<int?> GetBarangayCodeByNameAsync(string barangayName);
+        Task<BeneficiaryInformation?> FindExistingAsync(
+    string? lastName,
+    string? firstName,
+    string? middleName,
+    DateTime birthDate,
+    string? oscaIdNumber,
+    int? ncscRrn);
     }
 }

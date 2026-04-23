@@ -398,6 +398,26 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return query;
         }
 
+        public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn)
+        {
+            var normalizedLastName = (lastName ?? string.Empty).Trim().ToLower();
+            var normalizedFirstName = (firstName ?? string.Empty).Trim().ToLower();
+            var normalizedMiddleName = (middleName ?? string.Empty).Trim().ToLower();
+            var normalizedOscaIdNumber = (oscaIdNumber ?? string.Empty).Trim().ToLower();
+            var normalizedBirthDate = birthDate.Date;
+
+            return await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(x =>
+                    !x.IsDeleted &&
+                    (x.LastName ?? string.Empty).Trim().ToLower() == normalizedLastName &&
+                    (x.FirstName ?? string.Empty).Trim().ToLower() == normalizedFirstName &&
+                    (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
+                    x.BirthDate.Date == normalizedBirthDate &&
+                    (x.OscaIdNumber ?? string.Empty).Trim().ToLower() == normalizedOscaIdNumber &&
+                    x.NcscRrn == ncscRrn
+                );
+        }
+
         private sealed class BeneficiaryQueryModel
         {
             public BeneficiaryInformation Beneficiary { get; set; } = default!;
