@@ -367,6 +367,104 @@ namespace EcaInformationSystem.Application.Services
             var result = await _logRepository.GetLogSummaryAsync(beneficiaryId);
             return result;
         }
+        public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream,string fileName, string sheetName, string userName)
+        {
+            var result = new BeneficiaryImportResultDto();
+
+            using var workbook = new XLWorkbook(fileStream);
+
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName)
+                ?? throw new Exception($"Worksheet '{sheetName}' not found.");
+
+            const int firstDataRowNumber = 11;
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+
+            var regions = await _regionRepository.GetAllAsync();
+            var provinces = await _provinceRepository.GetAllProvinceAsync();
+            var municipalities = await _municipalityRepository.GetAllMunicipalityAsync();
+            var barangays = await _barangayRepository.GetBarangaysAsync();
+
+            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
+            {
+                var row = worksheet.Row(rowNumber);
+
+                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    continue;
+
+                result.TotalRows++;
+
+                try
+                {
+                    var lastName = row.Cell(5).GetFormattedString().Trim();
+                    var firstName = row.Cell(6).GetFormattedString().Trim();
+                    var middleName = row.Cell(7).GetFormattedString().Trim();
+                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
+                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
+
+                    var birthDate = ParseFlexibleDate(
+                        $"{row.Cell(9).GetFormattedString()} {row.Cell(10).GetFormattedString()} {row.Cell(11).GetFormattedString()}"
+                    ) ?? DateTime.MinValue;
+
+                    var ncscRrn = int.TryParse(ncscRrnRaw, out var r) ? r : (int?)null;
+
+                    // 🔥 FIND EXISTING RECORD
+                    var existing = await FindExistingAsync(
+                        lastName,
+                        firstName,
+                        middleName,
+                        birthDate,
+                        oscaIdNumber,
+                        ncscRrn);
+
+                    // ❌ NOT FOUND → ERROR (NO INSERT)
+                    if (existing == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Record",
+                            Message = "Record not found in database. Update not allowed.",
+                            RawValue = $"{lastName}, {firstName}"
+                        });
+
+                        continue;
+                    }
+
+                    // 🔥 MAP FIELDS
+                    var paymentStatus = MapPaymentStatus(row.Cell(22).GetFormattedString());
+                    var isEligible = MapEligibility(row.Cell(25).GetFormattedString());
+                    var paymentDate = ParseFlexibleDate(row.Cell(23).GetFormattedString());
+                    var dateOfDeath = ParseFlexibleDate(row.Cell(24).GetFormattedString());
+
+                    // 🔥 UPDATE ONLY
+                    existing.PaymentStatus = paymentStatus.HasValue? paymentStatus.Value : 0;
+                    existing.IsEligible = isEligible.HasValue ? isEligible.Value : false;
+                    existing.PaymentDate = paymentDate;
+                    existing.Remarks = row.Cell(21).GetFormattedString();
+                    existing.ValidationDate = DateTime.UtcNow;
+
+                    await AddLogAsync(
+                        existing.Id,
+                        $"Excel Update: {existing.LastName}, {existing.FirstName}",
+                        userName);
+
+                    result.ImportedCount++;
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add(new BeneficiaryImportErrorDto
+                    {
+                        RowNumber = rowNumber,
+                        Field = "General",
+                        Message = ex.Message
+                    });
+                }
+            }
+
+            await _repo.SaveChangesAsync();
+
+            return result;
+        }
 
         public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
@@ -767,6 +865,22 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #region Private helpers
+        private async Task<BeneficiaryInformation?> FindExistingAsync(
+    string lastName,
+    string firstName,
+    string middleName,
+    DateTime birthDate,
+    string oscaIdNumber,
+    int? ncscRrn)
+        {
+            return await _repo.FindExistingAsync(
+                lastName,
+                firstName,
+                middleName,
+                birthDate,
+                oscaIdNumber,
+                ncscRrn);
+        }
         private int? MapPaymentStatus(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1217,6 +1331,7 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
+
 
 
         #endregion

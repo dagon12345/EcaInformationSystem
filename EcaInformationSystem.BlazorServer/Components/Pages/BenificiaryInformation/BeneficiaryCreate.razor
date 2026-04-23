@@ -465,6 +465,20 @@
                             <span>Validate and Import Excel</span>
                         }
                     </button>
+                    <button class="btn btn-primary"
+                            @onclick="UpdateExcelAsync"
+                            disabled="@(isUpdating || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
+                        @if (isUpdating)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Updating...</span>
+                        }
+                        else
+                        {
+                            <span>Update Existing Records</span>
+                        }
+                    </button>
+
                     @if (importResult != null)
                     {
                         <div class="mt-3">
@@ -1149,6 +1163,7 @@
     private bool shouldFocusBatchCode;
     private IBrowserFile? selectedFile;
     private bool isUploading;
+    private bool isUpdating;
     private Modal confirmModal = default!;
     private Modal logModal = default!;
     private string confirmationTitle = "Confirm Action";
@@ -1450,6 +1465,51 @@
         finally
         {
             isLoadingSheets = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UpdateExcelAsync()
+    {
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(selectedSheetName))
+            return;
+
+        isUpdating = true;
+        importResult = null;
+
+        try
+        {
+            using var stream = new MemoryStream(uploadedExcelBytes);
+            var userName = await GetCurrentUserNameAsync();
+            importResult = await BeneficiaryInformationService.UpdateExcelAsync(
+                stream,
+                uploadedExcelFileName,
+                selectedSheetName,
+                userName
+            );
+        }
+        catch (Exception ex)
+        {
+            importResult = new BeneficiaryImportResultDto
+            {
+                TotalRows = 0,
+                ImportedCount = 0,
+                ErrorCount = 1,
+                Errors = new List<BeneficiaryImportErrorDto>
+            {
+                new BeneficiaryImportErrorDto
+                {
+                    RowNumber = 0,
+                    Field = "System",
+                    Message = ex.Message,
+                    RawValue = null
+                }
+            }
+            };
+        }
+        finally
+        {
+            isUpdating = false;
             StateHasChanged();
         }
     }
