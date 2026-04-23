@@ -146,7 +146,17 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        [HttpPost("export")]
+        public async Task<IActionResult> Export([FromBody] BeneficiaryFilterDto filter)
+        {
+            var fileBytes = await _beneficiaryInformationService.ExportFilteredAsTemplateAsync(filter);
 
+            var fileName = $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx";
+
+            return File(fileBytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
         [HttpGet("whoami")]
         public IActionResult WhoAmI()
         {
