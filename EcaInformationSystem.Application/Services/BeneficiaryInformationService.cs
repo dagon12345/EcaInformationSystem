@@ -440,6 +440,7 @@ namespace EcaInformationSystem.Application.Services
                     existing.PaymentStatus = paymentStatus.HasValue? paymentStatus.Value : 0;
                     existing.IsEligible = isEligible.HasValue ? isEligible.Value : false;
                     existing.PaymentDate = paymentDate;
+                    existing.DateOfDeath = dateOfDeath;
                     existing.Remarks = row.Cell(21).GetFormattedString();
                     existing.ValidationDate = DateTime.UtcNow;
 

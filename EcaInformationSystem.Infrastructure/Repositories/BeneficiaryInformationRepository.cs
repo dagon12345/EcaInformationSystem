@@ -330,6 +330,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 }
             }
 
+            if (filter.OnlyEightyYearsOld == true)
+            {
+                var cutoffDate = DateTime.Today.AddYears(-80).Date;
+
+                query = query.Where(x => x.Beneficiary.BirthDate <= cutoffDate);
+            }
+
             return query.AsNoTracking();
         }
 
@@ -387,7 +394,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.SpecificAge.HasValue)
             {
-                query = query.Where(x => x.Age == filter.SpecificAge.Value);
+                var cutoffStart = DateTime.Today.AddYears(-filter.SpecificAge.Value - 1).Date;
+                var cutoffEnd = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
+
+                query = query.Where(x =>
+                    x.BirthDate > cutoffStart &&
+                    x.BirthDate <= cutoffEnd
+                );
             }
 
             if (filter.MilestoneYear.HasValue)
