@@ -16,5 +16,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter);
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
+        Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
     }
 }

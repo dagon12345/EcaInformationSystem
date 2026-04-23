@@ -884,6 +884,21 @@
                             <button class="btn btn-sm btn-outline-info" @onclick="GoToDashboardSummary">
                                 Dashboard Summary
                             </button>
+
+                            <button class="btn btn-success"
+                                    @onclick="ExportExcel"
+                                    disabled="@IsExporting">
+
+                                @if (IsExporting)
+                                {
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                    <span>Exporting...</span>
+    }
+                                else
+                                {
+                                    <span class="bi bi-file-earmark-excel">Export Excel</span>
+                                }
+                            </button>
                         </div>
                     </div>
 
@@ -1183,6 +1198,7 @@
     private byte[]? uploadedExcelBytes;
     private string? uploadedExcelFileName;
 
+    private bool IsExporting = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1202,6 +1218,45 @@
         {
             model.BirthDate = birthDate;
             ApplyEligibilityRules();
+        }
+    }
+
+    private async Task ExportExcel()
+    {
+        if (beneficiaries == null || !beneficiaries.Any())
+        {
+            ShowErrorToast($"Exporting information failed. Please filter data first before exporting.");
+            errorMessage = $"Exporting information failed. Please filter data first before exporting. Please apply filters first then try again.";
+            return;
+        }
+        try
+        {
+            IsExporting = true;
+
+            var export = await BeneficiaryInformationService
+                .ExportFilteredAsTemplateAsync(filterModel);
+
+            if (export == null || export.Length == 0)
+            {
+                await JS.InvokeVoidAsync("alert", "No data available to export.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(export);
+
+            await JS.InvokeVoidAsync(
+                "downloadFile",
+                $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx",
+                base64
+            );
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", ex.Message);
+        }
+        finally
+        {
+            IsExporting = false;
         }
     }
 
@@ -1259,6 +1314,14 @@
             filterModel.PsgcCodeBarangays = selectedBarangayIds.ToList();
             filterModel.Sexes = selectedSexes.ToList();
 
+            // 🚨 VALIDATION HERE
+            if (IsFilterEmpty(filterModel))
+            {
+                ShowErrorToast("Please select or input at least one filter.");
+                errorMessage = "Please select or input at least one filter. Fixed the filtering then try again.";
+                return;
+                }
+
             filterModel.PageNumber = 1;
             await LoadBeneficiariesAsync();
         }
@@ -1267,7 +1330,30 @@
             isApplyingFilters = false;
         }
     }
+    private bool IsFilterEmpty(BeneficiaryFilterDto f)
+    {
+        return
+            f.PsgcCodeProvince == null &&
+            f.PsgcCodeMunicipality == null &&
+            f.PsgcCodeBarangay == null &&
 
+            string.IsNullOrWhiteSpace(f.LastName) &&
+            string.IsNullOrWhiteSpace(f.FirstName) &&
+            string.IsNullOrWhiteSpace(f.Validator) &&
+            string.IsNullOrWhiteSpace(f.BatchCode) &&
+
+            f.SpecificAge == null &&
+            f.SpecificBirthday == null &&
+            f.BirthdayFrom == null &&
+            f.BirthdayTo == null &&
+            f.MilestoneYear == null &&
+            f.Sex == null &&
+
+            (f.PsgcCodeProvinces == null || !f.PsgcCodeProvinces.Any()) &&
+            (f.PsgcCodeMunicipalities == null || !f.PsgcCodeMunicipalities.Any()) &&
+            (f.PsgcCodeBarangays == null || !f.PsgcCodeBarangays.Any()) &&
+            (f.Sexes == null || !f.Sexes.Any());
+    }
 
     private async Task ClearFilterAsync()
     {

@@ -6,7 +6,6 @@ using EcaInformationSystem.Domain.Entities;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 
-
 namespace EcaInformationSystem.Application.Services
 {
     public class BeneficiaryInformationService : IBeneficiaryInformationService
@@ -31,7 +30,139 @@ namespace EcaInformationSystem.Application.Services
             _logRepository = logRepository;
             _memoryCache = memoryCache;
         }
+        public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
+        {
+            var data = await _repo.FilterAsync(filter);
 
+            if (data == null || !data.Any())
+                throw new InvalidOperationException("No data available to export.");
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Grantees");
+
+            // =========================
+            // ✅ TITLE HEADER (ROW 1–9)
+            // =========================
+
+            int colCount = 21; // total columns in your sheet
+
+            void AddCenteredTitle(int row, string text)
+            {
+                var range = worksheet.Range(row, 1, row, colCount);
+                range.Merge();
+                range.Value = text;
+                range.Style.Font.Bold = true;
+                range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            }
+
+            // Row 1
+            AddCenteredTitle(1, "NATIONAL COMMISSION OF SENIOR CITIZENS");
+
+            // Row 2
+            AddCenteredTitle(2, "Expanded Centenarian Act");
+
+            // Row 3
+            AddCenteredTitle(3, "Regional Office Caraga");
+
+            // Row 4
+            AddCenteredTitle(4, $"(List of Validated/Paid Beneficiaries for FY {DateTime.UtcNow.ToString("yyyy")})");
+
+            // Row 5–9 intentionally blank (no content)
+
+            // =========================
+            // ✅ HEADER (ROW 10)
+            // =========================
+            int headerRow = 10;
+
+            string[] headers = new[]
+             {           
+                "BATCH CODE","NO.","OSCA ID NUMBER","NCSC RRN",
+                "LAST NAME","FIRST NAME","MIDDLE NAME","EXTENSION",
+                "BIRTH MONTH","BIRTH DAY","BIRTH YEAR","AGE",
+                "SEX","REGION","PROVINCE","MUNICIPALITY","BARANGAY",
+                "COMPLIANCE TO DOCUMENTARY REQUIREMENTS",
+                "VALIDATOR","VALIDATION DATE","REMARKS"
+            };
+
+            for (int col = 1; col <= headers.Length; col++)
+            {
+                worksheet.Cell(headerRow, col).Value = headers[col - 1];
+            }
+
+            // STYLE HEADER
+            var headerRange = worksheet.Range(headerRow, 1, headerRow, 21);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // =========================
+            // ✅ DATA (ROW 11+)
+            // =========================
+            int row = 11;
+            int counter = 1;
+
+            foreach (var item in data)
+            {
+                worksheet.Cell(row, 1).Value = item.BatchCode?.ToUpperInvariant();
+                worksheet.Cell(row, 2).Value = counter++;
+
+                worksheet.Cell(row, 3).Value = item.OscaIdNumber?.ToUpperInvariant();
+                worksheet.Cell(row, 4).Value = item.NcscRrn;
+
+                worksheet.Cell(row, 5).Value = item.LastName?.ToUpperInvariant();
+                worksheet.Cell(row, 6).Value = item.FirstName?.ToUpperInvariant();
+                worksheet.Cell(row, 7).Value = item.MiddleName?.ToUpperInvariant();
+                worksheet.Cell(row, 8).Value = item.Extension?.ToUpperInvariant();
+
+                // MONTH AS TEXT
+                worksheet.Cell(row, 9).Value = GetMonthName(item.BirthDate.Month);
+                worksheet.Cell(row, 10).Value = item.BirthDate.Day;
+                worksheet.Cell(row, 11).Value = item.BirthDate.Year;
+
+                // AGE (NEW COLUMN)
+                worksheet.Cell(row, 12).Value = GetAge(item.BirthDate);
+
+                worksheet.Cell(row, 13).Value = item.Sex == 1 ? "MALE" : "FEMALE";
+
+                worksheet.Cell(row, 14).Value = item.Region?.ToUpperInvariant();
+                worksheet.Cell(row, 15).Value = item.Province?.ToUpperInvariant();
+                worksheet.Cell(row, 16).Value = item.Municipality?.ToUpperInvariant();
+                worksheet.Cell(row, 17).Value = item.Barangay?.ToUpperInvariant();
+
+                // COMPLIANCE MAPPING
+                worksheet.Cell(row, 18).Value = item.IsCompliant
+                    ? "COMPLIANT"
+                    : "NON-COMPLIANT";
+
+                worksheet.Cell(row, 19).Value = item.Validator?.ToUpperInvariant();
+                worksheet.Cell(row, 20).Value = item.ValidationDate.ToString("dd/MM/yyyy");
+                worksheet.Cell(row, 21).Value = item.Remarks?.ToUpperInvariant();
+
+                worksheet.Range(row, 1, row, 21)
+                    .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+                row++;
+            }
+
+            // =========================
+            // ✅ AUTO FORMAT
+            // =========================
+            worksheet.Columns().AdjustToContents();
+
+            // Freeze header
+            worksheet.SheetView.FreezeRows(10);
+
+            // Auto filter
+            worksheet.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
+
+            // =========================
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
         public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
             //Check duplicates
@@ -596,6 +727,21 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #region Private helpers
+        private string GetMonthName(int month)
+        {
+            return new DateTime(2000, month, 1)
+                .ToString("MMMM")
+                .ToUpperInvariant();
+        }
+
+        private int GetAge(DateTime birthDate)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - birthDate.Year;
+            if (birthDate.Date > today.AddYears(-age)) age--;
+            return age;
+        }
+
         private static string? GetSuggestedName<T>(
     IEnumerable<T> items,
     Func<T, string?> nameSelector,
