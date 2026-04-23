@@ -608,30 +608,8 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     var mappedPaymentStatus = MapPaymentStatus(paymentStatus);
-                    if (mappedPaymentStatus == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = "Payment Status",
-                            Message = "Invalid value. Only 'PAID' or 'UNPAID' are allowed.",
-                            RawValue = paymentStatus
-                        });
-                        rowHasError = true;
-                    }
 
                     var mappedEligibility = MapEligibility(isEligible);
-                    if (mappedEligibility == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = "CO Assessment",
-                            Message = "Invalid value. Only 'Eligible' or 'InEligible' are allowed.",
-                            RawValue = isEligible
-                        });
-                        rowHasError = true;
-                    }
 
 
                     var duplicateKey = string.Join("|",
@@ -707,12 +685,12 @@ namespace EcaInformationSystem.Application.Services
                         IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = mappedPaymentStatus!.Value,
+                        PaymentStatus = mappedPaymentStatus.HasValue ? mappedPaymentStatus.Value : 0,
                         ModeOfPayment = 0,
                         PaymentDate = parsedPaymentDate,
                         IsDeceased = false,
                         DateOfDeath = parsedDateofDeath,
-                        IsEligible = mappedEligibility!.Value,
+                        IsEligible = mappedEligibility.HasValue,
                         AssessmentRemarks = null,
                         RemarkCategory = null,
                         Remarks = remarks,
@@ -792,7 +770,7 @@ namespace EcaInformationSystem.Application.Services
         private int? MapPaymentStatus(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
-                return null;
+                return null; // ✅ allow empty = N/A
 
             var normalized = value.Trim().ToUpper();
 
@@ -807,7 +785,7 @@ namespace EcaInformationSystem.Application.Services
         private bool? MapEligibility(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
-                return null;
+                return null; // ✅ allow empty = N/A
 
             var normalized = value.Trim().ToUpper();
 
@@ -816,7 +794,7 @@ namespace EcaInformationSystem.Application.Services
                 "ELIGIBLE" => true,
                 "INELIGIBLE" => false,
                 _ => null
-            };
+            };;
         }
         private string GetMonthName(int month)
         {
