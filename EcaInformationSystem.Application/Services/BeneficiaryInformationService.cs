@@ -444,6 +444,11 @@ namespace EcaInformationSystem.Application.Services
                     var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
                     var remarks = row.Cell(21).GetFormattedString().Trim();
 
+                    var paymentStatus = row.Cell(22).GetFormattedString().Trim();
+                    var paymentDate = row.Cell(23).GetFormattedString().Trim();
+                    var dateOfDeath = row.Cell(24).GetFormattedString().Trim();
+                    var isEligible = row.Cell(25).GetFormattedString().Trim();
+
                     bool rowHasError = false;
 
                     if (string.IsNullOrWhiteSpace(firstName))
@@ -473,6 +478,37 @@ namespace EcaInformationSystem.Application.Services
                         rowHasError = true;
                         birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
                     }
+
+                    var parsedPaymentDate = ParseFlexibleDate(paymentDate);
+
+                    if (!string.IsNullOrWhiteSpace(paymentDate) && parsedPaymentDate == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Payment Date",
+                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            RawValue = paymentDate
+                        });
+
+                        rowHasError = true;
+                    }
+
+                    var parsedDateofDeath = ParseFlexibleDate(dateOfDeath);
+                    if (!string.IsNullOrWhiteSpace(dateOfDeath) && parsedDateofDeath == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Date of Death",
+                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            RawValue = dateOfDeath
+                        });
+
+                        rowHasError = true;
+                    }
+
+
 
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
@@ -571,6 +607,32 @@ namespace EcaInformationSystem.Application.Services
                         rowHasError = true;
                     }
 
+                    var mappedPaymentStatus = MapPaymentStatus(paymentStatus);
+                    if (mappedPaymentStatus == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Payment Status",
+                            Message = "Invalid value. Only 'PAID' or 'UNPAID' are allowed.",
+                            RawValue = paymentStatus
+                        });
+                        rowHasError = true;
+                    }
+
+                    var mappedEligibility = MapEligibility(isEligible);
+                    if (mappedEligibility == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "CO Assessment",
+                            Message = "Invalid value. Only 'Eligible' or 'InEligible' are allowed.",
+                            RawValue = isEligible
+                        });
+                        rowHasError = true;
+                    }
+
 
                     var duplicateKey = string.Join("|",
                  (lastName ?? string.Empty).Trim().ToLower(),
@@ -645,12 +707,12 @@ namespace EcaInformationSystem.Application.Services
                         IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = 0,
+                        PaymentStatus = mappedPaymentStatus!.Value,
                         ModeOfPayment = 0,
-                        PaymentDate = null,
+                        PaymentDate = parsedPaymentDate,
                         IsDeceased = false,
-                        DateOfDeath = null,
-                        IsEligible = false,
+                        DateOfDeath = parsedDateofDeath,
+                        IsEligible = mappedEligibility!.Value,
                         AssessmentRemarks = null,
                         RemarkCategory = null,
                         Remarks = remarks,
@@ -727,6 +789,35 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #region Private helpers
+        private int? MapPaymentStatus(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            var normalized = value.Trim().ToUpper();
+
+            return normalized switch
+            {
+                "PAID" => 2,
+                "UNPAID" => 1,
+                _ => null
+            };
+        }
+
+        private bool? MapEligibility(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            var normalized = value.Trim().ToUpper();
+
+            return normalized switch
+            {
+                "ELIGIBLE" => true,
+                "INELIGIBLE" => false,
+                _ => null
+            };
+        }
         private string GetMonthName(int month)
         {
             return new DateTime(2000, month, 1)
@@ -1059,27 +1150,35 @@ namespace EcaInformationSystem.Application.Services
                 _ => false
             };
         }
-
-        private static int MapPaymentStatus(string? value)
+        private DateTime? ParseFlexibleDate(string value)
         {
-            return value?.Trim().ToUpper() switch
-            {
-                "UNPAID" => 1,
-                "PAID" => 2,
-                _ => 0
-            };
-        }
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
 
-        private static bool MapEligibility(string? value)
-        {
-            return value?.Trim().ToUpper() switch
+            // Try exact formats first (faster & safer)
+            var formats = new[]
             {
-                "ELIGIBLE" => true,
-                "YES" => true,
-                _ => false
-            };
-        }
+        "MMMM d, yyyy",   // March 17, 2026
+        "MMM d, yyyy",    // Mar 17, 2026
+        "MM/dd/yyyy",
+        "M/d/yyyy",
+        "yyyy-MM-dd"
+    };
 
+            if (DateTime.TryParseExact(value.Trim(), formats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+            {
+                return parsed;
+            }
+
+            // Fallback (handles Excel weird formats)
+            if (DateTime.TryParse(value, out parsed))
+                return parsed;
+
+            return null;
+        }
         private static bool TryParseExcelDate(string? value, out DateTime date)
         {
             if (DateTime.TryParse(value, out date))
