@@ -15,6 +15,7 @@
         public DateTime? SpecificBirthday { get; set; }
         public DateTime? BirthdayFrom { get; set; }
         public DateTime? BirthdayTo { get; set; }
+        public bool? OnlyEightyYearsOld { get; set; }
         public int? MilestoneYear { get; set; }
         public int? Sex { get; set; }
 

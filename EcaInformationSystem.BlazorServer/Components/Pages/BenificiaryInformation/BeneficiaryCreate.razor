@@ -1287,7 +1287,7 @@
     {
         var age = GetEffectiveAge() ?? 0;
 
-        model.IsEligible = age >= 80 && model.Citizenship == 1;
+        model.IsEligible = age >= 80 && model.Citizenship == 1 || age >= 80;
 
         StateHasChanged();
     }
