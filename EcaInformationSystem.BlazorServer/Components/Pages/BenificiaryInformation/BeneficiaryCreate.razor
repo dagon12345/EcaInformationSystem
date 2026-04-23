@@ -299,7 +299,7 @@
                                         <div class="row g-3">
                                             <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
                                                 <div class="form-check">
-                                                    <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" disabled />
+                                                    <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" />
                                                     <label class="form-check-label">Is Eligible</label>
                                                 </div>
                                             </div>
@@ -310,9 +310,6 @@
                                                     <label class="form-check-label">Is Compliant</label>
                                                 </div>
                                             </div>
-
-                                            @if (!model.IsEligible)
-                                            {
                                                 <div class="col-12">
                                                     <label class="form-label">Assessment Remarks</label>
                                                     <InputTextArea class="form-control"
@@ -320,7 +317,6 @@
                                                                    rows="3"
                                                                    placeholder="Enter assessment remarks if beneficiary is not eligible..." />
                                                 </div>
-                                            }
                                         </div>
                                     </div>
                                 </div>
@@ -1167,11 +1163,6 @@
 
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
 
-    //For caching properties
-    // Address lookup cache for form section
-    private Dictionary<int, List<MunicipalityLookupDto>> municipalityCache = new();
-    private Dictionary<int, List<BarangayLookupDto>> barangayCache = new();
-
     // Address lookup cache for filter section
     private Dictionary<string, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<string, List<BarangayLookupDto>> filterBarangayCache = new();
@@ -1228,10 +1219,6 @@
 
         model.IsEligible = age >= 80 && model.Citizenship == 1;
 
-        if(model.IsEligible)
-        {
-            model.AssessmentRemarks = null;
-        }
         StateHasChanged();
     }
 
@@ -1557,25 +1544,13 @@
     }
 
 
-
     private async Task LoadMunicipalitiesAsync(int psgcCodeProvince)
     {
-        if (municipalityCache.TryGetValue(psgcCodeProvince, out var cachedMunicipalities))
-        {
-            municipalities = cachedMunicipalities;
-            return;
-        }
-
         try
         {
             isMunicipalityLoading = true;
-
-            var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
-                $"api/Municipality/by-province/{psgcCodeProvince}")
-                ?? new List<MunicipalityLookupDto>();
-
-            municipalityCache[psgcCodeProvince] = result;
-            municipalities = result;
+            municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{psgcCodeProvince}") ?? new List<MunicipalityLookupDto>();
         }
         catch
         {
@@ -1584,28 +1559,19 @@
         finally
         {
             isMunicipalityLoading = false;
+            StateHasChanged();
         }
     }
 
 
+
     private async Task LoadBarangaysAsync(int psgcCodeMunicipality)
     {
-        if (barangayCache.TryGetValue(psgcCodeMunicipality, out var cachedBarangays))
-        {
-            barangays = cachedBarangays;
-            return;
-        }
-
         try
         {
             isBarangayLoading = true;
-
-            var result = await Http.GetFromJsonAsync<List<BarangayLookupDto>>(
-                $"api/Barangay/by-municipality/{psgcCodeMunicipality}")
-                ?? new List<BarangayLookupDto>();
-
-            barangayCache[psgcCodeMunicipality] = result;
-            barangays = result;
+            barangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>(
+                $"api/Barangay/by-municipality/{psgcCodeMunicipality}") ?? new List<BarangayLookupDto>();
         }
         catch
         {
@@ -1614,8 +1580,10 @@
         finally
         {
             isBarangayLoading = false;
+            StateHasChanged();
         }
     }
+
 
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
