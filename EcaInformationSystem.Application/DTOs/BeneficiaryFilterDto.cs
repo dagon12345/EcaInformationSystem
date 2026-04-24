@@ -9,6 +9,7 @@
 
         public string? LastName { get; set; }
         public string? FirstName { get; set; }
+        public string? FullName { get; set; }
         public int? SpecificAge { get; set; }
         public string? Validator { get; set; }
         public string? BatchCode { get; set; }
@@ -18,6 +19,7 @@
         public bool? OnlyEightyYearsOld { get; set; }
         public int? MilestoneYear { get; set; }
         public int? Sex { get; set; }
+        public List<int>? PaymentStatuses { get; set; }
 
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;

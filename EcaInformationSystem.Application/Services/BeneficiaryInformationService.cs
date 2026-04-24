@@ -80,9 +80,9 @@ namespace EcaInformationSystem.Application.Services
                 "BATCH CODE","NO.","OSCA ID NUMBER","NCSC RRN",
                 "LAST NAME","FIRST NAME","MIDDLE NAME","EXTENSION",
                 "BIRTH MONTH","BIRTH DAY","BIRTH YEAR","AGE",
-                "SEX","REGION","PROVINCE","MUNICIPALITY","BARANGAY",
+                "SEX","REGION","PROVINCE","MUNICIPALITY/CITY","BARANGAY",
                 "COMPLIANCE TO DOCUMENTARY REQUIREMENTS",
-                "VALIDATOR","VALIDATION DATE","REMARKS"
+                "NAME OF VALIDATOR","VALIDATION DATE","REMARKS"
             };
 
             for (int col = 1; col <= headers.Length; col++)
@@ -119,7 +119,7 @@ namespace EcaInformationSystem.Application.Services
 
                 // MONTH AS TEXT
                 worksheet.Cell(row, 9).Value = GetMonthName(item.BirthDate.Month);
-                worksheet.Cell(row, 10).Value = item.BirthDate.Day;
+                worksheet.Cell(row, 10).Value = item.BirthDate.Day.ToString("D2");
                 worksheet.Cell(row, 11).Value = item.BirthDate.Year;
 
                 // AGE (NEW COLUMN)
@@ -159,6 +159,29 @@ namespace EcaInformationSystem.Application.Services
             worksheet.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
 
             // =========================
+            // ✅ PAGE SETUP
+            // =========================
+
+            // Legal paper size (5 = Legal in ClosedXML)
+            worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
+
+            // Landscape orientation
+            worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+
+            // Fit all columns on one page (scale to width), unlimited rows
+            worksheet.PageSetup.FitToPages(1, 0);
+
+            // Page numbering — "Page 1 of 12" format
+            // Center footer
+            worksheet.PageSetup.Footer.Center.AddText("Page ");
+            worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
+            worksheet.PageSetup.Footer.Center.AddText(" of ");
+            worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
+            // Push footer below content area
+            worksheet.PageSetup.Margins.Bottom = 0.7; // inches — gives footer room
+            worksheet.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
+            // =========================
+
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             return stream.ToArray();
@@ -324,7 +347,25 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, string userName)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception("No records selected");
 
+            if (paymentStatus != 1 && paymentStatus != 2)
+                throw new Exception("Invalid payment status. Must be 1 (Unpaid) or 2 (Paid).");
+
+            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus);
+
+            var statusLabel = paymentStatus == 1 ? "Unpaid" : "Paid";
+            foreach(var id in ids)
+            {
+                await AddLogAsync(id, $"Bulk payment status updated to: {statusLabel}", userName);
+            }
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
         public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName)
         {
             var beneficiary = await _repo.GetByIdAsync(Id);
@@ -767,7 +808,7 @@ namespace EcaInformationSystem.Application.Services
                         OscaIdDateIssued = null,
                         NcscRrn = ncscRrn,
                         LastName = NullIfEmpty(lastName),
-                        FirstName = firstName.Trim(),
+                        FirstName = firstName!.Trim(),
                         MiddleName = NullIfEmpty(middleName),
                         Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
@@ -866,13 +907,7 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #region Private helpers
-        private async Task<BeneficiaryInformation?> FindExistingAsync(
-    string lastName,
-    string firstName,
-    string middleName,
-    DateTime birthDate,
-    string oscaIdNumber,
-    int? ncscRrn)
+        private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName,string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
         {
             return await _repo.FindExistingAsync(
                 lastName,
@@ -926,12 +961,7 @@ namespace EcaInformationSystem.Application.Services
             return age;
         }
 
-        private static string? GetSuggestedName<T>(
-    IEnumerable<T> items,
-    Func<T, string?> nameSelector,
-    string rawName,
-    int minimumScore = 40)
-    where T : class
+        private static string? GetSuggestedName<T>(IEnumerable<T> items, Func<T, string?> nameSelector, string rawName, int minimumScore = 40) where T : class
         {
             if (string.IsNullOrWhiteSpace(rawName))
                 return null;
