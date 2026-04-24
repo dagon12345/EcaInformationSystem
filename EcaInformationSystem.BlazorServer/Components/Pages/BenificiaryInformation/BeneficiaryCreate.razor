@@ -1106,16 +1106,16 @@
                                             </td>
                                             <td>
                                                 <div class="d-flex gap-2">
-                                                    <button class="btn btn-sm btn-outline-primary" @onclick="async () => await EditItem(item)">
-                                                        Edit
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="async () => await EditItem(item)" title="Edit">
+                                                        <i class="bi bi-pencil-square"></i>
                                                     </button>
 
-                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirmationModal(item)">
-                                                        Delete
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirmationModal(item)" title="Delete">
+                                                        <i class="bi bi-trash"></i>
                                                     </button>
 
-                                                    <button class="btn btn-sm btn-outline-info" @onclick="() => OpenLogModal(item)">
-                                                        Logs
+                                                    <button class="btn btn-sm btn-outline-info" @onclick="() => OpenLogModal(item)" title="Logs">
+                                                        <i class="bi bi-clock-history"></i>
                                                     </button>
                                                 </div>
                                             </td>
@@ -1593,6 +1593,7 @@
             isApplyingFilters = false;
         }
     }
+    // ✅ FIXED
     private bool IsFilterEmpty(BeneficiaryFilterDto f)
     {
         return
@@ -1616,7 +1617,8 @@
             (f.PsgcCodeProvinces == null || !f.PsgcCodeProvinces.Any()) &&
             (f.PsgcCodeMunicipalities == null || !f.PsgcCodeMunicipalities.Any()) &&
             (f.PsgcCodeBarangays == null || !f.PsgcCodeBarangays.Any()) &&
-            (f.Sexes == null || !f.Sexes.Any() && (f.PaymentStatuses == null || !f.PaymentStatuses.Any()));
+            (f.Sexes == null || !f.Sexes.Any()) &&           // ✅ separate condition
+            (f.PaymentStatuses == null || !f.PaymentStatuses.Any()); // ✅ separate condition
     }
 
     private async Task ClearFilterAsync()
