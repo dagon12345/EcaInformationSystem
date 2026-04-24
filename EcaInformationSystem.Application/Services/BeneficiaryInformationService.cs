@@ -157,7 +157,71 @@ namespace EcaInformationSystem.Application.Services
 
             // Auto filter
             worksheet.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
+            // =========================
+            // ✅ SIGNATURE BLOCK
+            // =========================
+            int signatureStartRow = row + 2;
+            string today = DateTime.Today.ToString("MMMM dd, yyyy");
 
+            // Helper to build one signature block
+            void AddSignatureBlock(int labelCol, int blockStartCol, int blockEndCol, int nameStartCol, int nameEndCol, string role)
+            {
+                // Role label — flush left
+                worksheet.Cell(signatureStartRow, labelCol).Value = role;
+                worksheet.Cell(signatureStartRow, labelCol).Style.Font.Bold = true;
+
+                int nameRow = signatureStartRow + 3;
+
+                // Name — italic placeholder, flush left, with underline
+                var nameRange = worksheet.Range(nameRow, nameStartCol, nameRow, nameEndCol);
+                nameRange.Merge();
+                nameRange.Value = "(Enter name)";
+                nameRange.Style.Font.Italic = true;
+                nameRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                // Position — italic placeholder, flush left, with underline
+                var posRange = worksheet.Range(nameRow + 1, nameStartCol, nameRow + 1, nameEndCol);
+                posRange.Merge();
+                posRange.Value = "(Enter position)";
+                posRange.Style.Font.Italic = true;
+                posRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                // "Signature over printed name" — flush left, no center
+                var sigRange = worksheet.Range(nameRow + 2, blockStartCol, nameRow + 2, blockEndCol);
+                sigRange.Merge();
+                sigRange.Value = "Signature over printed name";
+                sigRange.Style.Font.Italic = true;
+                sigRange.Style.Font.FontSize = 8;
+                sigRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                // Date — flush left, no center
+                var dateRange = worksheet.Range(nameRow + 3, blockStartCol, nameRow + 3, blockEndCol);
+                dateRange.Merge();
+                dateRange.Value = today;
+                dateRange.Style.Font.FontSize = 9;
+                dateRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            }
+
+            // PREPARED BY — left, label at col 1, underlines cols 1–5
+            AddSignatureBlock(
+                labelCol: 1,
+                blockStartCol: 1, blockEndCol: 6,
+                nameStartCol: 1, nameEndCol: 5,
+                role: "Prepared by:");
+
+            // NOTED BY — middle, label at col 8, underlines cols 8–13
+            AddSignatureBlock(
+                labelCol: 8,
+                blockStartCol: 8, blockEndCol: 14,
+                nameStartCol: 8, nameEndCol: 13,
+                role: "Noted by:");
+
+            // APPROVED BY — right, label at col 16, underlines cols 16–20
+            AddSignatureBlock(
+                labelCol: 16,
+                blockStartCol: 16, blockEndCol: 21,
+                nameStartCol: 16, nameEndCol: 20,
+                role: "Approved by:");
             // =========================
             // ✅ PAGE SETUP
             // =========================
@@ -170,6 +234,10 @@ namespace EcaInformationSystem.Application.Services
 
             // Fit all columns on one page (scale to width), unlimited rows
             worksheet.PageSetup.FitToPages(1, 0);
+
+            // Repeat ONLY the column header row (row 10) on every printed page
+            // This excludes rows 1-9 (the main title header)
+            worksheet.PageSetup.SetRowsToRepeatAtTop(10, 10);
 
             // Page numbering — "Page 1 of 12" format
             // Center footer
