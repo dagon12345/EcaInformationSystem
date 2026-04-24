@@ -32,7 +32,14 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
-            var data = await _repo.FilterAsync(filter);
+            // AFTER:
+            var rawData = await _repo.FilterAsync(filter);
+            var data = rawData
+                .DistinctBy(x => x.Id)
+                .OrderBy(x => x.LastName)
+                .ThenBy(x => x.FirstName)
+                .ThenBy(x => x.MiddleName)
+                .ToList();
 
             if (data == null || !data.Any())
                 throw new InvalidOperationException("No data available to export.");
@@ -93,8 +100,9 @@ namespace EcaInformationSystem.Application.Services
             // STYLE HEADER
             var headerRange = worksheet.Range(headerRow, 1, headerRow, 21);
             headerRange.Style.Font.Bold = true;
+            headerRange.Style.Font.FontColor = XLColor.White;
             headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+            headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
             headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
