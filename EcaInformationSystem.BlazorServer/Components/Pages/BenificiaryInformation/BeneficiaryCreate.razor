@@ -2109,7 +2109,32 @@
     private string GetAgeBadgeClass(DateTime birthDate)
     {
         var age = GetAge(birthDate);
-        return age >= 80 ? "bg-success" : "bg-danger";
+
+        if (age == null || age < 80) return "bg-danger"; // not eligible
+
+        int currentYear = DateTime.Today.Year;
+        int windowStart = Math.Max(2024, currentYear - 2);
+        int windowEnd = currentYear;
+
+        // Find the highest milestone already reached since program start 2024
+        int[] milestones = new[] { 100, 95, 90, 85, 80 }; // highest first
+        int milestoneYear = 0;
+        foreach (var m in milestones)
+        {
+            int my = birthDate.Year + m;
+            if (my <= currentYear && my >= 2024)
+            {
+                milestoneYear = my;
+                break;
+            }
+        }
+
+        if (milestoneYear == 0) return "bg-warning text-dark"; // eligible age but no milestone since 2024 yet
+
+        if (milestoneYear >= windowStart && milestoneYear <= windowEnd)
+            return "bg-success";           // 🟢 within active window
+    
+        return "bg-secondary";             // ⚫ milestone hit before the rolling window
     }
     private async Task OpenSaveConfirmationModal()
     {

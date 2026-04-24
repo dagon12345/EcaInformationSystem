@@ -148,8 +148,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  PhoneNumber = b.PhoneNumber,
                  Age = DateTime.Today.Year - b.BirthDate.Year -
                  (b.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - b.BirthDate.Year)) ? 1 : 0),
-                 //Calculate milestone year based on birthdate + 80 years
-                 MilestoneYear = b.BirthDate.Year + 80,
+
+                 MilestoneYear =
+                   (b.BirthDate.Year + 100) < DateTime.Today.Year && (b.BirthDate.Year + 100) >= 2024 ? b.BirthDate.Year + 100 :
+                   (b.BirthDate.Year + 100) == DateTime.Today.Year && b.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (b.BirthDate.Year + 100) >= 2024 ? b.BirthDate.Year + 100 :
+                   (b.BirthDate.Year + 95) < DateTime.Today.Year && (b.BirthDate.Year + 95) >= 2024 ? b.BirthDate.Year + 95 :
+                   (b.BirthDate.Year + 95) == DateTime.Today.Year && b.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (b.BirthDate.Year + 95) >= 2024 ? b.BirthDate.Year + 95 :
+                   (b.BirthDate.Year + 90) < DateTime.Today.Year && (b.BirthDate.Year + 90) >= 2024 ? b.BirthDate.Year + 90 :
+                   (b.BirthDate.Year + 90) == DateTime.Today.Year && b.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (b.BirthDate.Year + 90) >= 2024 ? b.BirthDate.Year + 90 :
+                   (b.BirthDate.Year + 85) < DateTime.Today.Year && (b.BirthDate.Year + 85) >= 2024 ? b.BirthDate.Year + 85 :
+                   (b.BirthDate.Year + 85) == DateTime.Today.Year && b.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (b.BirthDate.Year + 85) >= 2024 ? b.BirthDate.Year + 85 :
+                   (b.BirthDate.Year + 80) < DateTime.Today.Year && (b.BirthDate.Year + 80) >= 2024 ? b.BirthDate.Year + 80 :
+                   (b.BirthDate.Year + 80) == DateTime.Today.Year && b.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (b.BirthDate.Year + 80) >= 2024 ? b.BirthDate.Year + 80 :
+                   0,
+
                  IsIndigenousPeople = b.IsIndigenousPeople,
                  IsPersonWithDisability = b.IsPersonWithDisability,
                  CivilStatus = b.CivilStatus != null ? b.CivilStatus : null,
@@ -323,25 +335,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
 
-            //Filter FullName
-
-            if(!string.IsNullOrWhiteSpace(filter.FullName))
+            if (!string.IsNullOrWhiteSpace(filter.FullName))
             {
                 var name = filter.FullName.Trim().ToLower();
-
                 query = query.Where(x =>
-                (x.Beneficiary.LastName + " " + x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName).ToLower().Contains(name) ||
-                (x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName + " " + x.Beneficiary.LastName)
-                .ToLower().Contains(name));
+                    (x.Beneficiary.LastName + " " + x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName).ToLower().Contains(name) ||
+                    (x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName + " " + x.Beneficiary.LastName).ToLower().Contains(name));
             }
 
             if (filter.Sexes != null && filter.Sexes.Any())
                 query = query.Where(x => filter.Sexes.Contains(x.Beneficiary.Sex));
 
-            //For paid and unpaid filtering
             if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
                 query = query.Where(x => filter.PaymentStatuses.Contains(x.Beneficiary.PaymentStatus));
-
 
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x => x.Beneficiary.Validator!.Contains(filter.Validator));
@@ -368,14 +374,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
                 }
             }
-
-            if (filter.OnlyEightyYearsOld == true)
-            {
-                var cutoffDate = DateTime.Today.AddYears(-80).Date;
-
-                query = query.Where(x => x.Beneficiary.BirthDate <= cutoffDate);
-            }
-
             return query.AsNoTracking();
         }
 
@@ -397,11 +395,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Extension = x.Beneficiary.Extension,
                     BirthDate = x.Beneficiary.BirthDate,
                     PhoneNumber = x.Beneficiary.PhoneNumber,
-                    //Calculate age based on birthdate and current date, accounting for whether the birthday has occurred this year
                     Age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year -
                           (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - x.Beneficiary.BirthDate.Year)) ? 1 : 0),
-                    //Calculate milestone year based on birthdate + 80 years
-                    MilestoneYear = x.Beneficiary.BirthDate.Year + 80,
+                    // Milestone year = BirthYear + the highest milestone age already reached
+                    // that is on or after the program start year 2024
+                    MilestoneYear =
+                   (x.Beneficiary.BirthDate.Year + 100) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 100) >= 2024 ? x.Beneficiary.BirthDate.Year + 100 :
+                   (x.Beneficiary.BirthDate.Year + 100) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 100) >= 2024 ? x.Beneficiary.BirthDate.Year + 100 :
+                   (x.Beneficiary.BirthDate.Year + 95) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 95) >= 2024 ? x.Beneficiary.BirthDate.Year + 95 :
+                   (x.Beneficiary.BirthDate.Year + 95) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 95) >= 2024 ? x.Beneficiary.BirthDate.Year + 95 :
+                   (x.Beneficiary.BirthDate.Year + 90) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 90) >= 2024 ? x.Beneficiary.BirthDate.Year + 90 :
+                   (x.Beneficiary.BirthDate.Year + 90) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 90) >= 2024 ? x.Beneficiary.BirthDate.Year + 90 :
+                   (x.Beneficiary.BirthDate.Year + 85) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 85) >= 2024 ? x.Beneficiary.BirthDate.Year + 85 :
+                   (x.Beneficiary.BirthDate.Year + 85) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 85) >= 2024 ? x.Beneficiary.BirthDate.Year + 85 :
+                   (x.Beneficiary.BirthDate.Year + 80) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 80) >= 2024 ? x.Beneficiary.BirthDate.Year + 80 :
+                   (x.Beneficiary.BirthDate.Year + 80) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 80) >= 2024 ? x.Beneficiary.BirthDate.Year + 80 :
+                   0,
                     IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
                     IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
                     CivilStatus = x.Beneficiary.CivilStatus,
@@ -431,7 +440,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsDeleted = x.Beneficiary.IsDeleted
                 });
 
-            if (filter.SpecificAge.HasValue)
+        if (filter.SpecificAge.HasValue)
             {
                 var cutoffStart = DateTime.Today.AddYears(-filter.SpecificAge.Value - 1).Date;
                 var cutoffEnd = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
