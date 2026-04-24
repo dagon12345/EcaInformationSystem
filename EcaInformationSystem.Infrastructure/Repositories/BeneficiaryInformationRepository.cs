@@ -251,15 +251,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
             var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
-            var query = BuildBeneficiaryDtoQuery(filter);
-            var totalCount = await query.CountAsync();
-            var items = await query
+
+            // Materialize first, then deduplicate in memory
+            var allItems = await BuildBeneficiaryDtoQuery(filter)
                 .OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ThenBy(x => x.MiddleName)
+                .ToListAsync();
+
+            // Deduplicate in memory — safe here since it's already a List
+            var deduplicated = allItems
+                .DistinctBy(x => x.Id)
+                .ToList();
+
+            var totalCount = deduplicated.Count;
+            var items = deduplicated
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .ToListAsync();
+                .ToList();
+
             return new PagedResultDto<BeneficiaryInformationDto>
             {
                 Items = items,
