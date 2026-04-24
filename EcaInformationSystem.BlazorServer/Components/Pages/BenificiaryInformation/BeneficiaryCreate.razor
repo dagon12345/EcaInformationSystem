@@ -464,19 +464,22 @@
                             <span>Validate and Import Excel</span>
                         }
                     </button>
-                    <button class="btn btn-primary"
-                            @onclick="UpdateExcelAsync"
-                            disabled="@(isUpdating || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
-                        @if (isUpdating)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2"></span>
-                            <span>Updating...</span>
-                        }
-                        else
-                        {
-                            <span>Update Existing Records</span>
-                        }
-                    </button>
+                    <Tooltip Title="Matches existing records by Name, Birth Date, OSCA ID, and NCSC RRN. Only updates: Payment Status, Eligibility, Payment Date, Date of Death, and Validation Date."
+                             Placement="TooltipPlacement.Top">
+                        <button class="btn btn-warning"
+                                @onclick="UpdateExcelAsync"
+                                disabled="@(isUpdating || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
+                            @if (isUpdating)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Updating...</span>
+                            }
+                            else
+                            {
+                                <span>Update Existing Records</span>
+                            }
+                        </button>
+                    </Tooltip>
 
                     @if (importResult != null)
                     {
@@ -548,12 +551,14 @@
         <div class="col-12">
             <Card Class="shadow-sm border-0">
                 <CardHeader Class="bg-light">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="mb-0">Filter Grantees to show Records</h5>
-                            <small class="text-muted">Search and narrow down Grantee records</small>
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 class="mb-0">Filter Grantees to show Records</h4>
+                                    <small class="opacity-75">Search and narrow down Grantee records</small>
+                                </div>
+                            </div>
                         </div>
-                    </div>
                 </CardHeader>
 
                 <CardBody>
@@ -1728,7 +1733,7 @@
             var userName = await GetCurrentUserNameAsync();
             importResult = await BeneficiaryInformationService.UpdateExcelAsync(
                 stream,
-                uploadedExcelFileName,
+                uploadedExcelFileName!,
                 selectedSheetName,
                 userName
             );

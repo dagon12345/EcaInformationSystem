@@ -476,14 +476,16 @@ namespace EcaInformationSystem.Application.Services
                     var isEligible = MapEligibility(row.Cell(25).GetFormattedString());
                     var paymentDate = ParseFlexibleDate(row.Cell(23).GetFormattedString());
                     var dateOfDeath = ParseFlexibleDate(row.Cell(24).GetFormattedString());
+                    var validationDate = row.Cell(20).Value;
 
                     // 🔥 UPDATE ONLY
                     existing.PaymentStatus = paymentStatus.HasValue? paymentStatus.Value : 0;
                     existing.IsEligible = isEligible.HasValue ? isEligible.Value : false;
                     existing.PaymentDate = paymentDate;
                     existing.DateOfDeath = dateOfDeath;
+                    existing.ValidationDate = validationDate;
+
                     existing.Remarks = row.Cell(21).GetFormattedString();
-                    existing.ValidationDate = DateTime.UtcNow;
 
                     await AddLogAsync(
                         existing.Id,
