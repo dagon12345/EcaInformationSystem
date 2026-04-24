@@ -585,7 +585,7 @@ namespace EcaInformationSystem.Application.Services
             }
 
             await _repo.SaveChangesAsync();
-
+            InvalidateSummaryCache();
             return result;
         }
 
@@ -959,9 +959,28 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
 
-        public Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
+        public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
-            var pagedResult = _repo.GetPagedAsync(filter);
+            filter.PsgcCodeRegion = DefaultRegionCode;
+
+            var cacheKey = BuildPaginatedCacheKey(filter);
+
+            if (_memoryCache.TryGetValue(cacheKey, out PagedResultDto<BeneficiaryInformationDto>? cached)
+                && cached is not null)
+            {
+                return cached;
+            }
+
+            var pagedResult = await _repo.GetPagedAsync(filter);
+
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            };
+
+            _memoryCache.Set(cacheKey, pagedResult, cacheOptions);
+
             return pagedResult;
         }
 
@@ -988,6 +1007,33 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #region Private helpers
+        private string BuildPaginatedCacheKey(BeneficiaryFilterDto filter)
+        {
+            var version = GetCurrentSummaryCacheVersion();
+
+            return string.Join("|",
+                version,
+                "beneficiary-paginated",
+                filter.PsgcCodeRegion?.ToString() ?? "null",
+                filter.PageNumber.ToString(),
+                filter.PageSize.ToString(),
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : "null"),
+                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : "null"),
+                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any() ? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)) : "null"),
+                filter.LastName ?? string.Empty,
+                filter.FirstName ?? string.Empty,
+                filter.FullName ?? string.Empty,
+                filter.Validator ?? string.Empty,
+                filter.BatchCode ?? string.Empty,
+                (filter.Sexes != null && filter.Sexes.Any() ? string.Join(",", filter.Sexes.OrderBy(x => x)) : "null"),
+                (filter.PaymentStatuses != null && filter.PaymentStatuses.Any() ? string.Join(",", filter.PaymentStatuses.OrderBy(x => x)) : "null"),
+                filter.SpecificAge?.ToString() ?? "null",
+                filter.MilestoneYear?.ToString() ?? "null",
+                filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
+                filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
+                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null"
+            );
+        }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName,string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
         {
             return await _repo.FindExistingAsync(
