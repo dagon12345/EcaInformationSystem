@@ -154,6 +154,9 @@ namespace EcaInformationSystem.Application.Services
 
                 row++;
             }
+            // ✅ ADD HERE — border entire used range
+            worksheet.Range(11, 1, row - 1, 21).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            worksheet.Range(11, 1, row - 1, 21).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             // =========================
             // ✅ AUTO FORMAT
