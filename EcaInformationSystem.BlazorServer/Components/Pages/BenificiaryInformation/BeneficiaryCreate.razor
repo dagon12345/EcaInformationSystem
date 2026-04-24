@@ -124,7 +124,6 @@
                                         <option value="2">Female</option>
                                     </InputSelect>
                                 </div>
-
                                 <div class="col-12">
                                     <div class="border rounded p-3 mt-2 bg-light">
                                         <h6 class="text-primary mb-3">Other Information</h6>
@@ -538,7 +537,7 @@
                             }
                         </div>
                     }
-
+                    
                 </CardBody>
             </Card>
         </div>
@@ -753,6 +752,15 @@
                     <div class="mb-4">
                         <h6 class="text-primary mb-3">Personal Filters</h6>
                         <div class="row g-3">
+                            <!--Full name-->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Full Name</label>
+                                <input type="text"
+                                       class="form-control"
+                                       placeholder="Search by name..."
+                                       @bind="filterModel.FullName"
+                                       @bind:event="oninput" />
+                            </div>
                             <div class="col-12 col-md-6 col-lg-4">
                                 <label class="form-label">Last Name</label>
                                 <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName" />
@@ -762,6 +770,7 @@
                                 <label class="form-label">First Name</label>
                                 <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName" />
                             </div>
+     
                             <!-- Sex -->
                             <div class="col-12 col-md-6 col-lg-4">
                                 <label class="form-label">Sex</label>
@@ -806,6 +815,58 @@
                                     }
                                 </div>
                             </div>
+                            
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Payment Status</label>
+                                <div class="dropdown">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                            @onclick="() => ToggleDropdown(nameof(showPaymentStatusDropdown))"
+                                            disabled="@isLoading">
+                                        @GetPaymentStatusButtonText()
+                                    </button>
+
+                                    @if (showPaymentStatusDropdown)
+                                    {
+                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                            <div class="form-check border-bottom pb-2 mb-2">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@AreAllPaymentStatusesSelected()"
+                                                       @onclick="ToggleSelectAllPaymentStatuses"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label fw-semibold">Select All</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(0)"
+                                                       @onclick="() => TogglePaymentStatus(0)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">N/A</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(1)"
+                                                       @onclick="() => TogglePaymentStatus(1)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Unpaid</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(2)"
+                                                       @onclick="() => TogglePaymentStatus(2)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Paid</label>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+
                         </div>
                     </div>
 
@@ -939,13 +1000,53 @@
                     }
                     else
                     {
-                        <div class="table-responsive">
+                        @if (checkedIds.Any())
+                        {
+                            <div class="d-flex align-items-center gap-2 mb-3 p-2 bg-light border rounded">
+                                <span class="text-muted small">@checkedIds.Count selected</span>
+                                <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
+                                    <option value="0">-- Set Payment Status --</option>
+                                    <option value="1">Unpaid</option>
+                                    <option value="2">Paid</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="OpenBulkUpdateModal"
+                                        disabled="@(bulkPaymentStatus == 0 || isBulkUpdating)">
+                                    @if (isBulkUpdating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Updating...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Apply to Selected</span>
+                                    }
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection">
+                                    Clear Selection
+                                </button>
+                            </div>
+                        }
+                        <div class="table-responsive" style="height: 500px; overflow-y: auto;">
                             <table class="table table-hover table-striped align-middle">
-                                <thead class="table-light">
+                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
                                     <tr>
+                                        <th style="width: 40px">
+                                            <!-- Select all checkbox-->
+                                            <input type="checkbox"
+                                                class="form-check-input"
+                                                checked="@AreAllChecked()"
+                                                @onchange="ToggleSelectAll"/>
+                                        </th>
                                         <th>Batch Code</th>
                                         <th>Phone Number</th>
-                                        <th>Full Name</th>
+                                        <th>
+                                            <div>Full Name</div>
+                                                <input type="text"
+                                                    class="form-control form-control-sm mt-1"
+                                                    placeholder="Search name..."
+                                                    @oninput="OnFullNameFilterInput"/>
+                                         </th>
                                         <th>Birth Date</th>
                                         <th>Age</th>
                                         <th>Milestone Year</th>
@@ -960,9 +1061,15 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var item in beneficiaries)
+                                    @foreach (var item in FilteredBeneficiaries)
                                     {
                                         <tr>
+                                            <td>
+                                                <input type="checkbox"
+                                                    class="form-check-input"
+                                                    checked="@checkedIds.Contains(item.Id)"
+                                                    @onchange="() => ToggleCheck(item.Id)"/>
+                                            </td>
                                             <td>@item.BatchCode</td>
                                             <td>@item.PhoneNumber</td>
                                             <td>@GetFullName(item)</td>
@@ -1045,6 +1152,8 @@
                                     <option value="20" selected="@(filterModel.PageSize == 20)">20</option>
                                     <option value="50" selected="@(filterModel.PageSize == 50)">50</option>
                                     <option value="100" selected="@(filterModel.PageSize == 100)">100</option>
+                                    <option value="500" selected="@(filterModel.PageSize == 500)">500</option>
+                                    <option value="1000" selected="@(filterModel.PageSize == 1000)">1000</option>
                                 </select>
 
                             </div>
@@ -1056,6 +1165,34 @@
         </div>
     </div>
 </div>
+<!--Bulk update Modal-->
+<Modal @ref="bulkUpdateModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm Bulk Update</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            You are about to set <strong>@checkedIds.Count</strong> record(s) to
+            <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong>.
+            This action cannot be undone easily. Proceed?
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <Button Color="ButtonColor.Secondary" @onclick="() => bulkUpdateModal.HideAsync()">Cancel</Button>
+        <Button Color="ButtonColor.Primary" @onclick="ExecuteBulkUpdateAsync" Disabled="@isBulkUpdating">
+            @if (isBulkUpdating)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+                <span>Updating...</span>
+            }
+            else
+            {
+
+                <span>Yes, Update</span>
+            }
+        </Button>
+    </FooterTemplate>
+</Modal>
 <!--Confirmation Modal-->
 <Modal @ref="confirmModal">
     <HeaderTemplate>
@@ -1153,7 +1290,8 @@
     private BeneficiaryFilterDto filterModel = new()
     {
         PageNumber = 1,
-        PageSize = 10
+        PageSize = 1000
+
     };
     private BeneficiaryImportResultDto? importResult;
     private List<BeneficiaryInformationDto> beneficiaries = new();
@@ -1214,6 +1352,16 @@
     private string? uploadedExcelFileName;
 
     private bool IsExporting = false;
+    private HashSet<Guid> checkedIds = new();
+    private int bulkPaymentStatus = 0;
+    private bool isBulkUpdating;
+    private Modal bulkUpdateModal = default!;
+    private string? fullNameFilter;
+    private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? beneficiaries
+    : beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
+
+    private HashSet<int> selectedPaymentStatuses = new();
+    private bool showPaymentStatusDropdown;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1221,12 +1369,106 @@
 
         filterModel.PsgcCodeRegion = DefaultRegionCode;
         filterModel.PageNumber = 1;
-        filterModel.PageSize =10;
+        filterModel.PageSize =1000;
 
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
     }
+    private string GetPaymentStatusButtonText()
+    {
+        if (selectedPaymentStatuses.Count == 0) return "Select Payment Status";
+        if (selectedPaymentStatuses.Count == 3) return "All Statuses";
+        return string.Join(", ", selectedPaymentStatuses.Select(GetPaymentStatusText));
+    }
 
+    private bool AreAllPaymentStatusesSelected() =>
+        selectedPaymentStatuses.Contains(0) &&
+        selectedPaymentStatuses.Contains(1) &&
+        selectedPaymentStatuses.Contains(2);
+
+    private void ToggleSelectAllPaymentStatuses()
+    {
+        if (AreAllPaymentStatusesSelected())
+        {
+            selectedPaymentStatuses.Clear();
+        }
+        else
+        {
+            selectedPaymentStatuses.Clear();
+            selectedPaymentStatuses.Add(0);
+            selectedPaymentStatuses.Add(1);
+            selectedPaymentStatuses.Add(2);
+        }
+    }
+
+    private void TogglePaymentStatus(int status)
+    {
+        if (selectedPaymentStatuses.Contains(status))
+            selectedPaymentStatuses.Remove(status);
+        else
+            selectedPaymentStatuses.Add(status);
+    }
+    private void OnFullNameFilterInput(ChangeEventArgs e)
+    {
+        fullNameFilter = e.Value?.ToString();
+    }
+    private bool AreAllChecked()
+    => beneficiaries.Any() && beneficiaries.All(x => checkedIds.Contains(x.Id));
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+            foreach (var item in beneficiaries) checkedIds.Add(item.Id);
+        else
+            checkedIds.Clear();
+    }
+
+    private void ToggleCheck(Guid id)
+    {
+        if (checkedIds.Contains(id)) checkedIds.Remove(id);
+        else checkedIds.Add(id);
+    }
+
+    private void ClearSelection()
+    {
+        checkedIds.Clear();
+        bulkPaymentStatus = 0;
+    }
+
+    private async Task OpenBulkUpdateModal()
+    {
+        if (bulkPaymentStatus == 0 || !checkedIds.Any()) return;
+        await bulkUpdateModal.ShowAsync();
+    }
+
+    private async Task ExecuteBulkUpdateAsync()
+    {
+        try
+        {
+            isBulkUpdating = true;
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userName = authState.User.Identity?.Name ?? "System";
+
+            await BeneficiaryInformationService.BulkUpdatePaymentStatusAsync(
+                checkedIds.ToList(), bulkPaymentStatus, userName);
+
+            ShowSuccessToast(
+                $"Successfully updated {checkedIds.Count} record(s) to {GetPaymentStatusText(bulkPaymentStatus)}.");
+
+            ClearSelection();
+            await bulkUpdateModal.HideAsync();
+            await LoadBeneficiariesAsync(); // your existing reload method
+        }
+        catch (Exception ex)
+        {
+            ShowErrorToast($"Bulk update failed: {ex.Message}");
+        }
+        finally
+        {
+            isBulkUpdating = false;
+        }
+    }
     private void OnBirthDateChanged(ChangeEventArgs e)
     {
         if (DateTime.TryParse(e.Value?.ToString(), out var birthDate))
@@ -1328,6 +1570,7 @@
             filterModel.PsgcCodeMunicipalities = selectedMunicipalityIds.ToList();
             filterModel.PsgcCodeBarangays = selectedBarangayIds.ToList();
             filterModel.Sexes = selectedSexes.ToList();
+            filterModel.PaymentStatuses = selectedPaymentStatuses.Any() ? selectedPaymentStatuses.ToList() : null;
 
             // 🚨 VALIDATION HERE
             if (IsFilterEmpty(filterModel))
@@ -1335,7 +1578,7 @@
                 ShowErrorToast("Please select or input at least one filter.");
                 errorMessage = "Please select or input at least one filter. Fixed the filtering then try again.";
                 return;
-                }
+            }
 
             filterModel.PageNumber = 1;
             await LoadBeneficiariesAsync();
@@ -1363,11 +1606,12 @@
             f.BirthdayTo == null &&
             f.MilestoneYear == null &&
             f.Sex == null &&
+            f.PaymentStatuses == null &&
 
             (f.PsgcCodeProvinces == null || !f.PsgcCodeProvinces.Any()) &&
             (f.PsgcCodeMunicipalities == null || !f.PsgcCodeMunicipalities.Any()) &&
             (f.PsgcCodeBarangays == null || !f.PsgcCodeBarangays.Any()) &&
-            (f.Sexes == null || !f.Sexes.Any());
+            (f.Sexes == null || !f.Sexes.Any() && (f.PaymentStatuses == null || !f.PaymentStatuses.Any()));
     }
 
     private async Task ClearFilterAsync()
@@ -1376,12 +1620,13 @@
         selectedMunicipalityIds.Clear();
         selectedBarangayIds.Clear();
         selectedSexes.Clear();
+        selectedPaymentStatuses.Clear();
 
         filterModel = new BeneficiaryFilterDto
         {
             PsgcCodeRegion = DefaultRegionCode,
             PageNumber = 1,
-            PageSize = 10
+            PageSize = 1000
         };
 
         filterMunicipalities.Clear();
@@ -1630,6 +1875,9 @@
         {
             isLoading = true;
             errorMessage = null;
+            checkedIds.Clear();
+            bulkPaymentStatus = 0;
+            fullNameFilter = null;
 
             var paginatedResult = await BeneficiaryInformationService.GetPaginatedAsync(filterModel);
 
@@ -1925,7 +2173,7 @@
     //Adding new beneficiary record
     private async Task AddBeneficiaryAsync()
     {
-         ApplyEligibilityRules();
+        ApplyEligibilityRules();
 
         errorMessage = null;
         successMessage = null;
@@ -1991,7 +2239,7 @@
     {
         try
         {
-             ApplyEligibilityRules();
+            ApplyEligibilityRules();
 
             var userName = await GetCurrentUserNameAsync();
             await BeneficiaryInformationService.UpdateAsync(model.Id, model, userName);
@@ -2183,7 +2431,7 @@
         municipalities.Clear();
         barangays.Clear();
 
-            await LoadProvincesAsync(DefaultRegionCode);
+        await LoadProvincesAsync(DefaultRegionCode);
         if (model.PsgcCodeProvince > 0)
             await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
         if (model.PsgcCodeMunicipality > 0)
@@ -2210,6 +2458,7 @@
         showMunicipalityDropdown = dropdownName == nameof(showMunicipalityDropdown) && !showMunicipalityDropdown;
         showBarangayDropdown = dropdownName == nameof(showBarangayDropdown) && !showBarangayDropdown;
         showSexDropdown = dropdownName == nameof(showSexDropdown) && !showSexDropdown;
+        showPaymentStatusDropdown = dropdownName == nameof(showPaymentStatusDropdown) && !showPaymentStatusDropdown;
     }
     private string GetProvinceButtonText()
   => selectedProvinceIds.Count == 0 ? "Select Province(s)" : $"{selectedProvinceIds.Count} province(s) selected";

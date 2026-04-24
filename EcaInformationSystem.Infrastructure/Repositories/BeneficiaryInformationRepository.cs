@@ -234,7 +234,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context.BeneficiaryInformations.Update(beneficiaryInformation);
             return Task.CompletedTask;
         }
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+                .ToListAsync();
 
+            foreach(var b in beneficiaries)
+            {
+                b.PaymentStatus = paymentStatus;
+            }
+
+            await _context.SaveChangesAsync();
+        }
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter)
         {
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
@@ -301,8 +313,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
 
+            //Filter FullName
+
+            if(!string.IsNullOrWhiteSpace(filter.FullName))
+            {
+                var name = filter.FullName.Trim().ToLower();
+
+                query = query.Where(x =>
+                (x.Beneficiary.LastName + " " + x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName).ToLower().Contains(name) ||
+                (x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName + " " + x.Beneficiary.LastName)
+                .ToLower().Contains(name));
+            }
+
             if (filter.Sexes != null && filter.Sexes.Any())
                 query = query.Where(x => filter.Sexes.Contains(x.Beneficiary.Sex));
+
+            //For paid and unpaid filtering
+            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+                query = query.Where(x => filter.PaymentStatuses.Contains(x.Beneficiary.PaymentStatus));
+
 
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x => x.Beneficiary.Validator!.Contains(filter.Validator));
