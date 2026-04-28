@@ -198,16 +198,28 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
-            var beneficiaries = await BuildBeneficiaryDtoQuery(filter).ToListAsync();
+            //var beneficiaries = await BuildBeneficiaryDtoQuery(filter).ToListAsync();
+
+            // Materialize first, then deduplicate in memory
+            var allItems = await BuildBeneficiaryDtoQuery(filter)
+                .OrderBy(x => x.LastName)
+                .ThenBy(x => x.FirstName)
+                .ThenBy(x => x.MiddleName)
+                .ToListAsync();
+
+            // Deduplicate in memory — safe here since it's already a List
+            var deduplicated = allItems
+                .DistinctBy(x => x.Id)
+                .ToList();
 
             var result = new BeneficiarySummaryResultDto
             {
-                Beneficiaries = beneficiaries,
-                TotalBeneficiaries = beneficiaries.Count,
-                TotalMale = beneficiaries.Count(x => x.Sex == 1),
-                TotalFemale = beneficiaries.Count(x => x.Sex == 2),
+                Beneficiaries = deduplicated,
+                TotalBeneficiaries = deduplicated.Count,
+                TotalMale = deduplicated.Count(x => x.Sex == 1),
+                TotalFemale = deduplicated.Count(x => x.Sex == 2),
 
-                ProvinceCounts = beneficiaries
+                ProvinceCounts = deduplicated
                     .Where(x => !string.IsNullOrWhiteSpace(x.Province))
                     .GroupBy(x => x.Province!)
                     .Select(g => new ProvinceCountDto
@@ -219,7 +231,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ThenBy(x => x.Province)
                     .ToList(),
 
-                MunicipalityCounts = beneficiaries
+                MunicipalityCounts = deduplicated
                     .Where(x => !string.IsNullOrWhiteSpace(x.Municipality))
                     .GroupBy(x => x.Municipality!)
                     .Select(g => new MunicipalityCountDto
