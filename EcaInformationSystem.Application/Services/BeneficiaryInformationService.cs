@@ -663,12 +663,16 @@ namespace EcaInformationSystem.Application.Services
                     var complianceRaw = row.Cell(18).GetFormattedString().Trim();
                     var validator = row.Cell(19).GetFormattedString().Trim();
                     var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
-                    var remarks = row.Cell(21).GetFormattedString().Trim();
-
-                    var paymentStatus = row.Cell(22).GetFormattedString().Trim();
-                    var paymentDate = row.Cell(23).GetFormattedString().Trim();
-                    var dateOfDeath = row.Cell(24).GetFormattedString().Trim();
-                    var isEligible = row.Cell(25).GetFormattedString().Trim();
+                    
+                    //Newly added column for importing.
+                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
+                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
+                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
+                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
+                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
+                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
+                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
+                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
 
                     bool rowHasError = false;
 
@@ -700,21 +704,58 @@ namespace EcaInformationSystem.Application.Services
                         birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
                     }
 
-                    var parsedPaymentDate = ParseFlexibleDate(paymentDate);
 
-                    if (!string.IsNullOrWhiteSpace(paymentDate) && parsedPaymentDate == null)
+                    #region Parsed Dates
+                    //Osca Id Date Issued
+                    var parsedOscaIdDateIssued = ParseFlexibleDate(oscaIdDateIssued);
+
+                    if (!string.IsNullOrWhiteSpace(oscaIdDateIssued) && parsedOscaIdDateIssued == null)
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Payment Date",
+                            Field = "Osca Id Date Issued",
                             Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
-                            RawValue = paymentDate
+                            RawValue = oscaIdDateIssued
                         });
 
                         rowHasError = true;
                     }
 
+                    //Date Endorsed
+                    var parsedDateEndorsed = ParseFlexibleDate(dateEndorsed);
+
+                    if (!string.IsNullOrWhiteSpace(dateEndorsed) && parsedDateEndorsed == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Date Endrosed",
+                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            RawValue = dateEndorsed
+                        });
+
+                        rowHasError = true;
+                    }
+
+                    // Date of Application
+                    var parsedDateApplied = ParseFlexibleDate(dateApplied);
+
+                    if (!string.IsNullOrWhiteSpace(dateApplied) && parsedDateApplied == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Date of Application",
+                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            RawValue = dateApplied
+                        });
+
+                        rowHasError = true;
+                    }
+
+
+                    //Date of Death
                     var parsedDateofDeath = ParseFlexibleDate(dateOfDeath);
                     if (!string.IsNullOrWhiteSpace(dateOfDeath) && parsedDateofDeath == null)
                     {
@@ -729,7 +770,7 @@ namespace EcaInformationSystem.Application.Services
                         rowHasError = true;
                     }
 
-
+                    #endregion Parsed Dates end
 
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
@@ -827,10 +868,26 @@ namespace EcaInformationSystem.Application.Services
                         });
                         rowHasError = true;
                     }
+                    #region Mappers
+                    //Mapped NCSC Assessment Eligible/InEligible
+                    var mappedEligibility = MapEligibility(isEligibleRaw);
+                    if (mappedEligibility == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "NCSC Assessment",
+                            Message = "Please enter Eligible or InEligible only.",
+                            RawValue = isEligibleRaw
 
-                    var mappedPaymentStatus = MapPaymentStatus(paymentStatus);
-
-                    var mappedEligibility = MapEligibility(isEligible);
+                        });
+                        rowHasError = true;
+                    }
+                    //Mapped IP
+                    var mappedIsIndigenousPeople = MapIndigenousPeople(isIndigenousPeopleRaw);
+                    //Mapped PWD
+                    var mappedIsPersonWithDisability = MapIsPersonWithDisability(isPersonWithDisabilityRaw);
+                    #endregion Mappers end
 
 
                     var duplicateKey = string.Join("|",
@@ -882,21 +939,21 @@ namespace EcaInformationSystem.Application.Services
                     beneficiariesToImport.Add(new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
-                        DateApplied = null,
-                        DateEndorsed = null,
+                        DateApplied = parsedDateApplied,
+                        DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),
                         OscaIdNumber = NullIfEmpty(oscaIdNumber),
-                        OscaIdDateIssued = null,
+                        OscaIdDateIssued = parsedOscaIdDateIssued,
                         NcscRrn = ncscRrn,
                         LastName = NullIfEmpty(lastName),
                         FirstName = firstName!.Trim(),
                         MiddleName = NullIfEmpty(middleName),
                         Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
-                        PhoneNumber = null,
+                        PhoneNumber = contactNumber,
                         Sex = MapSex(sexRaw),
-                        IsIndigenousPeople = false,
-                        IsPersonWithDisability = false,
+                        IsIndigenousPeople = mappedIsIndigenousPeople,
+                        IsPersonWithDisability = mappedIsPersonWithDisability,
                         CivilStatus = null,
                         Citizenship = null,
                         Region = region!.PsgcCodeRegion,
@@ -906,15 +963,15 @@ namespace EcaInformationSystem.Application.Services
                         IsCompliant = MapCompliance(complianceRaw),
                         Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = mappedPaymentStatus.HasValue ? mappedPaymentStatus.Value : 0,
+                        PaymentStatus = 0,
                         ModeOfPayment = 0,
-                        PaymentDate = parsedPaymentDate,
+                        PaymentDate = null,
                         IsDeceased = false,
                         DateOfDeath = parsedDateofDeath,
-                        IsEligible = mappedEligibility.HasValue,
+                        IsEligible = mappedEligibility!.Value,
                         AssessmentRemarks = null,
                         RemarkCategory = null,
-                        Remarks = remarks,
+                        Remarks = null,
                         DateAdded = DateTime.UtcNow,
                         IsDeleted = false
                     });
@@ -1044,6 +1101,30 @@ namespace EcaInformationSystem.Application.Services
                 oscaIdNumber,
                 ncscRrn);
         }
+        #region Mapping method
+        //Compliance of documentary requirements
+        private static bool MapCompliance(string? value)
+        {
+            return value?.Trim().ToUpper() switch
+            {
+                "COMPLIANT" => true,
+                "YES" => true,
+                _ => false
+            };
+        }
+        //Person with disability Map
+        private static bool MapIsPersonWithDisability(string value)
+        {
+            var normalized = value.Trim().ToUpper();
+
+            return normalized switch
+            {
+                "YES" => true,
+                "NO" => false,
+                _ => false
+            };
+        }
+        //Payment Status Map
         private int? MapPaymentStatus(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1058,11 +1139,21 @@ namespace EcaInformationSystem.Application.Services
                 _ => null
             };
         }
-
-        private bool? MapEligibility(string value)
+        //Map Indigenous People
+        private static bool MapIndigenousPeople(string value)
         {
-            if (string.IsNullOrWhiteSpace(value))
-                return null; // ✅ allow empty = N/A
+            var normalized = value.Trim().ToUpper();
+
+            return normalized switch
+            {
+                "YES" => true,
+                "NO" => false,
+                _ => false
+            };
+        }
+        //Map NCSC Assessment
+        private static bool? MapEligibility(string value)
+        {
 
             var normalized = value.Trim().ToUpper();
 
@@ -1071,8 +1162,10 @@ namespace EcaInformationSystem.Application.Services
                 "ELIGIBLE" => true,
                 "INELIGIBLE" => false,
                 _ => null
-            };;
+            }; ;
         }
+        #endregion Mapping method end
+
         private string GetMonthName(int month)
         {
             return new DateTime(2000, month, 1)
@@ -1391,15 +1484,6 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
-        private static bool MapCompliance(string? value)
-        {
-            return value?.Trim().ToUpper() switch
-            {
-                "COMPLIANT" => true,
-                "YES" => true,
-                _ => false
-            };
-        }
         private DateTime? ParseFlexibleDate(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
