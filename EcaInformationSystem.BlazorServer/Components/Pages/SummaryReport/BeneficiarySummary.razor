@@ -293,7 +293,7 @@
                                 <label class="form-label">Milestone Year</label>
                                 <InputSelect @bind-Value="filterModel.MilestoneYear" class="form-select" disabled="@isLoading">
                                     <option value="">-- Select Year --</option>
-                                    @for (int year = DateTime.Now.Year; year >= 1900; year--)
+                                    @for (int year = DateTime.Now.Year; year >= 2024; year--)
                                     {
                                         <option value="@year">@year</option>
                                     }

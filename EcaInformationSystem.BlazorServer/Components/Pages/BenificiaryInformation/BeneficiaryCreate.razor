@@ -1578,7 +1578,7 @@
     private BeneficiaryFilterDto filterModel = new()
     {
         PageNumber = 1,
-        PageSize = 1000
+        PageSize = 10
 
     };
     private BeneficiaryImportResultDto? importResult;
@@ -1667,7 +1667,7 @@
 
         filterModel.PsgcCodeRegion = DefaultRegionCode;
         filterModel.PageNumber = 1;
-        filterModel.PageSize =1000;
+        filterModel.PageSize = 10;
 
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
@@ -1926,7 +1926,7 @@
         {
             PsgcCodeRegion = DefaultRegionCode,
             PageNumber = 1,
-            PageSize = 1000
+            PageSize = 10
         };
 
         filterMunicipalities.Clear();
