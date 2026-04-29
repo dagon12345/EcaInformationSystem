@@ -418,6 +418,28 @@
                     </div>
                 </CardHeader>
                 <CardBody>
+                    <!-- Inside your existing Import Excel File CardBody, add at the top -->
+                    <div class="mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="text-muted small mb-0">
+                                Download the official template, fill it out, then upload it below.
+                            </p>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm"
+                                @onclick="DownloadTemplateAsync"
+                                disabled="@isDownloadingTemplate">
+                            @if (isDownloadingTemplate)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Downloading...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                                <span>Download Import Template</span>
+                            }
+                        </button>
+                    </div>
                     <!--Importing-->
                     <div class="mb-3">
                         <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control" />
@@ -488,6 +510,9 @@
                                 }
                             </button>
                         </Tooltip>
+
+
+                        <hr class="my-2" />
                     </div>
 
                     <!-- ✅ IMPORT RESULT NOTIFICATION -->
@@ -1653,6 +1678,7 @@
     private Offcanvas detailsOffcanvas = default!;
     private BeneficiaryInformationDto? selectedDetails;
     private BeneficiaryImportResultDto? updateResult;
+    private bool isDownloadingTemplate;
 
     private async Task OpenDetailsPanel(BeneficiaryInformationDto item)
     {
@@ -1671,6 +1697,39 @@
 
         await LoadProvincesAsync(DefaultRegionCode);
         await LoadFilterProvincesAsync();
+    }
+    //Downloading of template for importing
+    private async Task DownloadTemplateAsync()
+    {
+        try
+        {
+            isDownloadingTemplate = true;
+
+            var bytes = BeneficiaryInformationService.GenerateImportTemplate();
+
+            if (bytes == null || bytes.Length == 0)
+            {
+                ShowErrorToast("Failed to generate template.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync(
+                "downloadFile",
+                $"ECAReS_ImportTemplate_{DateTime.Now:yyyy-MM-dd}.xlsx",
+                base64
+            );
+
+            ShowSuccessToast("Import template downloaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            ShowErrorToast($"Template download failed: {ex.Message}");
+        }
+        finally
+        {
+            isDownloadingTemplate = false;
+        }
     }
     private string GetPaymentStatusButtonText()
     {

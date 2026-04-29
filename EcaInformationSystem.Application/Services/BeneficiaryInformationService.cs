@@ -487,6 +487,236 @@ namespace EcaInformationSystem.Application.Services
             var result = await _logRepository.GetLogSummaryAsync(beneficiaryId);
             return result;
         }
+        #region Excel Updating and Importing - START
+        //Template Generation method
+        public byte[] GenerateImportTemplate()
+        {
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Grantees");
+
+            int colCount = 28;
+
+            // =========================
+            // TITLE HEADER (ROW 1–4)
+            // =========================
+            void AddCenteredTitle(int row, string text)
+            {
+                var range = worksheet.Range(row, 1, row, colCount);
+                range.Merge();
+                range.Value = text;
+                range.Style.Font.Bold = true;
+                range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                range.Style.Font.FontSize = 11;
+            }
+
+            AddCenteredTitle(1, "NATIONAL COMMISSION OF SENIOR CITIZENS");
+            AddCenteredTitle(2, "Expanded Centenarian Act");
+            AddCenteredTitle(3, "Regional Office Caraga");
+            AddCenteredTitle(4, $"(Import Template for FY {DateTime.UtcNow.Year})");
+
+            // Rows 5–9: blank (data starts at row 11, header at row 10)
+            for (int r = 5; r <= 9; r++)
+            {
+                var blankRange = worksheet.Range(r, 1, r, colCount);
+                blankRange.Merge();
+                blankRange.Value = string.Empty;
+            }
+
+            // =========================
+            // HEADER ROW (ROW 10)
+            // =========================
+            int headerRow = 10;
+
+            string[] headers = new[]
+            {
+        // Col 1–8: Identity
+        "BATCH CODE",
+        "NO.",
+        "OSCA ID NUMBER",
+        "NCSC RRN",
+        "LAST NAME",
+        "FIRST NAME",        // required
+        "MIDDLE NAME",
+        "EXTENSION",
+        // Col 9–12: Birth date (split)
+        "BIRTH MONTH",       // e.g. JANUARY
+        "BIRTH DAY",         // e.g. 01
+        "BIRTH YEAR",        // e.g. 1926
+        "AGE",               // auto-computed, leave blank
+        // Col 13–18: Demographics & location
+        "SEX",               // MALE or FEMALE
+        "REGION",            // e.g. REGION XIII (CARAGA) — leave blank to default
+        "PROVINCE",
+        "MUNICIPALITY/CITY",
+        "BARANGAY",
+        "COMPLIANCE TO DOCUMENTARY REQUIREMENTS", // COMPLIANT or NON-COMPLIANT
+        // Col 19–20: Validation
+        "NAME OF VALIDATOR",
+        "VALIDATION DATE",   // e.g. March 17, 2026
+        // Col 21–28: Newly added columns
+        "CONTACT NUMBER",
+        "DATE OF DEATH",     // e.g. March 17, 2026
+        "DATE APPLIED",      // e.g. March 17, 2026
+        "DATE ENDORSED",     // e.g. March 17, 2026
+        "OSCA ID DATE ISSUED",
+        "INDIGENOUS PEOPLE", // YES or NO
+        "PERSON WITH DISABILITY", // YES or NO
+        "NCSC ASSESSMENT"    // ELIGIBLE or INELIGIBLE
+    };
+
+            for (int col = 1; col <= headers.Length; col++)
+            {
+                worksheet.Cell(headerRow, col).Value = headers[col - 1];
+            }
+
+            // Style header
+            var headerRange = worksheet.Range(headerRow, 1, headerRow, colCount);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Font.FontColor = XLColor.White;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            headerRange.Style.Alignment.WrapText = true;
+            headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // =========================
+            // SAMPLE ROW (ROW 11) — so users know the format
+            // =========================
+            var sampleRow = new object[]
+            {
+        "BC-2026",       // 1  BATCH CODE
+        1,               // 2  NO.
+        "OSCA-00001",    // 3  OSCA ID
+        12345,           // 4  NCSC RRN
+        "DELA CRUZ",     // 5  LAST NAME
+        "JUAN",          // 6  FIRST NAME
+        "SANTOS",        // 7  MIDDLE NAME
+        "",              // 8  EXTENSION (Jr., Sr., II, III...)
+        "JANUARY",       // 9  BIRTH MONTH
+        "01",            // 10 BIRTH DAY
+        "1926",          // 11 BIRTH YEAR
+        "",              // 12 AGE (leave blank)
+        "MALE",          // 13 SEX
+        "REGION XIII (CARAGA)", // 14 REGION (or leave blank)
+        "AGUSAN DEL NORTE",     // 15 PROVINCE
+        "BUTUAN CITY",          // 16 MUNICIPALITY
+        "AMBAGO",               // 17 BARANGAY
+        "COMPLIANT",            // 18 COMPLIANCE
+        "JANE DOE",             // 19 VALIDATOR
+        "March 17, 2026",       // 20 VALIDATION DATE
+        "09171234567",          // 21 CONTACT NUMBER
+        "",                     // 22 DATE OF DEATH (leave blank if alive)
+        "January 5, 2026",      // 23 DATE APPLIED
+        "February 1, 2026",     // 24 DATE ENDORSED
+        "March 1, 2020",        // 25 OSCA ID DATE ISSUED
+        "NO",                   // 26 INDIGENOUS PEOPLE
+        "NO",                   // 27 PWD
+        "ELIGIBLE"              // 28 NCSC ASSESSMENT
+            };
+
+            for (int col = 1; col <= sampleRow.Length; col++)
+            {
+                var cell = worksheet.Cell(11, col);
+                cell.Value = sampleRow[col - 1] is string s
+                    ? XLCellValue.FromObject(s)
+                    : XLCellValue.FromObject(sampleRow[col - 1]);
+            }
+
+            // Style the sample row so users can see it's just an example
+            var sampleRange = worksheet.Range(11, 1, 11, colCount);
+            sampleRange.Style.Fill.BackgroundColor = XLColor.LightYellow;
+            sampleRange.Style.Font.Italic = true;
+            sampleRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            sampleRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // =========================
+            // INSTRUCTIONS SHEET
+            // =========================
+            var instructions = workbook.Worksheets.Add("Instructions");
+
+            var instrHeaders = new[] { "COLUMN", "REQUIRED", "ACCEPTED VALUES / FORMAT", "EXAMPLE" };
+            for (int col = 1; col <= instrHeaders.Length; col++)
+            {
+                instructions.Cell(1, col).Value = instrHeaders[col - 1];
+            }
+            var instrHeaderRange = instructions.Range(1, 1, 1, 4);
+            instrHeaderRange.Style.Font.Bold = true;
+            instrHeaderRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
+            instrHeaderRange.Style.Font.FontColor = XLColor.White;
+            instrHeaderRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            instrHeaderRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            var instrData = new[]
+            {
+        new[] { "BATCH CODE",                      "No",  "Any text",                             "BC-2026" },
+        new[] { "NO.",                             "No",  "Number (auto if left blank)",           "1" },
+        new[] { "OSCA ID NUMBER",                  "No",  "Any text",                             "OSCA-00001" },
+        new[] { "NCSC RRN",                        "No",  "Numbers only, no special characters",  "12345" },
+        new[] { "LAST NAME",                       "No",  "Any text",                             "DELA CRUZ" },
+        new[] { "FIRST NAME",                      "YES", "Any text",                             "JUAN" },
+        new[] { "MIDDLE NAME",                     "No",  "Any text",                             "SANTOS" },
+        new[] { "EXTENSION",                       "No",  "Jr. / Sr. / II / III / IV / V",        "Jr." },
+        new[] { "BIRTH MONTH",                     "YES", "Full month name in CAPS",              "JANUARY" },
+        new[] { "BIRTH DAY",                       "YES", "Two-digit day",                        "01" },
+        new[] { "BIRTH YEAR",                      "YES", "Four-digit year",                      "1926" },
+        new[] { "AGE",                             "No",  "Leave blank — auto-computed",          "" },
+        new[] { "SEX",                             "No",  "MALE or FEMALE",                       "MALE" },
+        new[] { "REGION",                          "No",  "Leave blank to default to Caraga",     "REGION XIII (CARAGA)" },
+        new[] { "PROVINCE",                        "YES", "Full province name",                   "AGUSAN DEL NORTE" },
+        new[] { "MUNICIPALITY/CITY",               "YES", "Full municipality or city name",       "BUTUAN CITY" },
+        new[] { "BARANGAY",                        "YES", "Full barangay name",                   "AMBAGO" },
+        new[] { "COMPLIANCE",                      "No",  "COMPLIANT or NON-COMPLIANT",           "COMPLIANT" },
+        new[] { "NAME OF VALIDATOR",               "No",  "Any text",                             "JANE DOE" },
+        new[] { "VALIDATION DATE",                 "No",  "Month DD, YYYY",                       "March 17, 2026" },
+        new[] { "CONTACT NUMBER",                  "No",  "Any text",                             "09171234567" },
+        new[] { "DATE OF DEATH",                   "No",  "Month DD, YYYY — leave blank if alive","" },
+        new[] { "DATE APPLIED",                    "No",  "Month DD, YYYY",                       "January 5, 2026" },
+        new[] { "DATE ENDORSED",                   "No",  "Month DD, YYYY",                       "February 1, 2026" },
+        new[] { "OSCA ID DATE ISSUED",             "No",  "Month DD, YYYY",                       "March 1, 2020" },
+        new[] { "INDIGENOUS PEOPLE",               "No",  "YES or NO",                            "NO" },
+        new[] { "PERSON WITH DISABILITY",          "No",  "YES or NO",                            "NO" },
+        new[] { "NCSC ASSESSMENT",                 "YES", "ELIGIBLE or INELIGIBLE",               "ELIGIBLE" },
+    };
+
+            for (int i = 0; i < instrData.Length; i++)
+            {
+                var rowData = instrData[i];
+                for (int col = 1; col <= rowData.Length; col++)
+                {
+                    instructions.Cell(i + 2, col).Value = rowData[col - 1];
+                }
+                // Highlight required rows
+                if (rowData[1] == "YES")
+                {
+                    instructions.Range(i + 2, 1, i + 2, 4)
+                        .Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF3CD");
+                }
+                instructions.Range(i + 2, 1, i + 2, 4)
+                    .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                instructions.Range(i + 2, 1, i + 2, 4)
+                    .Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            }
+
+            instructions.Columns().AdjustToContents();
+
+            // =========================
+            // FORMAT THE MAIN SHEET
+            // =========================
+            worksheet.Row(headerRow).Height = 40;
+            worksheet.Columns().AdjustToContents();
+            worksheet.SheetView.FreezeRows(10);
+            worksheet.Range(headerRow, 1, headerRow, colCount).SetAutoFilter();
+
+            worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
+            worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            worksheet.PageSetup.FitToPages(1, 0);
+            worksheet.PageSetup.SetRowsToRepeatAtTop(10, 10);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
         public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream,string fileName, string sheetName, string userName)
         {
             var result = new BeneficiaryImportResultDto();
@@ -588,7 +818,7 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
             return result;
         }
-
+        
         public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
             if (fileStream == null || !fileStream.CanRead)
@@ -1016,6 +1246,29 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
 
+        public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
+        {
+            if (fileStream == null || !fileStream.CanRead)
+                throw new Exception("Please upload a valid Excel file.");
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception("Invalid file name.");
+
+            var extension = Path.GetExtension(fileName);
+
+            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
+                throw new Exception("Only .xlsx Excel files are allowed.");
+
+            fileStream.Position = 0;
+
+            using var workbook = new XLWorkbook(fileStream);
+            var sheetNames = workbook.Worksheets
+                .Select(ws => ws.Name)
+                .ToList();
+
+            return await Task.FromResult(sheetNames);
+        }
+
+        #endregion Excel update and Importing - END
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
             filter.PsgcCodeRegion = DefaultRegionCode;
@@ -1041,27 +1294,6 @@ namespace EcaInformationSystem.Application.Services
             return pagedResult;
         }
 
-        public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
-        {
-            if (fileStream == null || !fileStream.CanRead)
-                throw new Exception("Please upload a valid Excel file.");
-            if (string.IsNullOrWhiteSpace(fileName))
-                throw new Exception("Invalid file name.");
-
-            var extension = Path.GetExtension(fileName);
-
-            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
-                throw new Exception("Only .xlsx Excel files are allowed.");
-
-            fileStream.Position = 0;
-
-            using var workbook = new XLWorkbook(fileStream);
-            var sheetNames = workbook.Worksheets
-                .Select(ws => ws.Name)
-                .ToList();
-
-            return await Task.FromResult(sheetNames);
-        }
 
         #region Private helpers
         private string BuildPaginatedCacheKey(BeneficiaryFilterDto filter)
