@@ -1,39 +1,79 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">EcaInformationSystem.Client</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+
+<div class="sidebar-brand">
+       <NavLink href="" Match="NavLinkMatch.All">
+             <div class="brand-icon">
+                 <img src="/images/ncsc-seal.png" alt="NCSC"
+                      style="width:32px;height:32px;border-radius:50%;object-fit:cover;  background: white"
+                      onerror="this.style.display='none'"  />
+             </div>
+    </NavLink>
+    <span class="brand-text">ECAReS</span>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+<nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+
+    <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+        <span class="nav-icon"><i class="bi bi-grid"></i></span>
+        <span class="nav-label">Dashboard</span>
+    </NavLink>
+
+    <NavLink class="nav-item" href="students">
+        <span class="nav-icon"><i class="bi bi-people"></i></span>
+        <span class="nav-label">Students</span>
+        <span class="nav-badge">24</span>
+    </NavLink>
+
+    <NavLink class="nav-item" href="records">
+        <span class="nav-icon"><i class="bi bi-file-text"></i></span>
+        <span class="nav-label">Records</span>
+    </NavLink>
+
+    <NavLink class="nav-item" href="schedule">
+        <span class="nav-icon"><i class="bi bi-calendar3"></i></span>
+        <span class="nav-label">Schedule</span>
+    </NavLink>
+
+    <div class="nav-section-label mt-2">System</div>
+
+    <NavLink class="nav-item" href="settings">
+        <span class="nav-icon"><i class="bi bi-gear"></i></span>
+        <span class="nav-label">Settings</span>
+    </NavLink>
+</nav>
+
+<div class="sidebar-footer">
+    <div class="user-card">
+        <div class="avatar">@GetInitials(UserName)</div>
+        <div class="user-info">
+            <div class="user-name">@UserName</div>
+            <div class="user-role">Welcome</div>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
+    </div>
+    <button class="toggle-btn" @onclick="OnToggle">
+        <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+        <span>@(Collapsed ? "Expand" : "Collapse")</span>
+    </button>
 </div>
 
 @code {
-    private bool collapseNavMenu = true;
+    [Parameter] public EventCallback OnToggle { get; set; }
+    [Parameter] public bool Collapsed { get; set; }
+    [Parameter] public string UserName { get; set; } = "User";
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
+    private string GetInitials(string name)
     {
-        collapseNavMenu = !collapseNavMenu;
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+
+        var parts = name.Trim().Split(' ',
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 1)
+            return parts[0][0].ToString().ToUpper();
+
+        // First letter of first and last word
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
     }
 }

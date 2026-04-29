@@ -1,0 +1,160 @@
+﻿@page "/login"
+@attribute [AllowAnonymous]
+@layout AuthLayout
+@using EcaInformationSystem.Client.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Login</PageTitle>
+
+@if (isCheckingAuth)
+{
+    <div class="container py-5 text-center"><p>Loading...</p></div>
+}
+else
+{
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#042C53;">
+        <div style="display:flex;border-radius:16px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.35);width:720px;max-width:98vw;">
+
+            <!-- LEFT PANEL — unchanged, keep your existing markup -->
+            <div style="flex: 1; background: #0C447C; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 36px; position: relative;">
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 160px; background: #185FA5; border-radius: 0 80px 0 0;"></div>
+                <div style="position: relative; z-index: 1; text-align: center;">
+                    <img src="/images/ncsc-seal.png" alt="NCSC Seal"
+                         style="width: 88px; height: 88px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 20px; background: white;"
+                         onerror="this.style.display='none'" />
+                    <div style="font-size: 32px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECAReS</div>
+                    <div style="font-size: 12px; color: #85B7EB; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px;">Caraga Region</div>
+                    <div style="width: 40px; height: 2px; background: #378ADD; margin: 0 auto 16px; border-radius: 2px;"></div>
+                    <p style="font-size: 12px; color: #B5D4F4; line-height: 1.7; max-width: 210px;">
+                        Expanded Centenarian Act Records and Evaluation System
+                    </p>
+                    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 24px;">
+                        <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">NCSC</span>
+                        <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">Region XIII</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL -->
+            <div style="width:340px;background:#fff;display:flex;flex-direction:column;justify-content:center;padding:48px 36px;">
+                <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Secure access</p>
+                <h2 style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Welcome back</h2>
+                <p style="font-size:13px;color:#6b7280;margin-bottom:28px;">Sign in to your ECAReS account</p>
+
+                @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                {
+                    <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
+                        @ErrorMessage
+                    </div>
+                }
+         
+                    
+                    <!-- KEY CHANGE: EditForm instead of <form method="post"> -->
+                <EditForm Model="model" OnValidSubmit="HandleLoginAsync">
+                    <DataAnnotationsValidator />
+
+                    @* Shows all validation errors at once - optional but useful *@
+                    <ValidationSummary style="background:#fef2f2;border:0.5px solid #fca5a5;
+                    color:#991b1b;padding:10px 14px;border-radius:8px;
+                    font-size:12px;margin-bottom:16px;list-style:none;" />
+
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:12px;font-weight:600;
+                        color:#374151;margin-bottom:6px;">Username</label>
+                        <InputText @bind-Value="model.UserName"
+                                   placeholder="Enter your username"
+                                   style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
+                        border-radius:8px;font-size:14px;outline:none;" />
+                        <ValidationMessage For="@(() => model.UserName)"
+                                           style="font-size:11px;color:#991b1b;
+                        margin-top:4px;display:block;" />
+                    </div>
+
+                    <div style="margin-bottom:24px;">
+                        <label style="display:block;font-size:12px;font-weight:600;
+                        color:#374151;margin-bottom:6px;">Password</label>
+                        <InputText type="password" @bind-Value="model.Password"
+                                   placeholder="Enter your password"
+                                   style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
+                        border-radius:8px;font-size:14px;outline:none;" />
+                        <ValidationMessage For="@(() => model.Password)"
+                                           style="font-size:11px;color:#991b1b;
+                        margin-top:4px;display:block;" />
+                    </div>
+
+                    <button type="submit" disabled="@IsLoading"
+                            style="width:100%;padding:11px;background:#0C447C;color:#fff;
+                        border:none;border-radius:8px;font-size:14px;font-weight:600;
+                        cursor:pointer;opacity:@(IsLoading ? "0.7" : "1");">
+                        @(IsLoading ? "Signing in..." : "Sign in")
+                    </button>
+                </EditForm>
+                    <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
+                        No account yet? <a href="/register" style="color:#185FA5;font-weight:600;text-decoration:none;">Register here</a>
+                    </p>
+                    <div style="margin-top: 28px; padding-top: 16px; border-top: 0.5px solid #e5e7eb; text-align: center;">
+                        <span style="font-size: 10px; color: #9ca3af;">National Commission of Senior Citizens · Philippine Government</span>
+                    </div>
+             
+
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private LoginModel model = new();
+    private string? ErrorMessage;
+    private bool isCheckingAuth = true;
+    private bool IsLoading = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/", true);
+            return;
+        }
+
+        isCheckingAuth = false;
+        StateHasChanged(); // re-render to show the form
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+
+        var (success, message) = await AuthService.LoginAsync(model.UserName, model.Password);
+
+        if (success)
+        {
+            ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+            Navigation.NavigateTo("/", true);
+        }
+        else
+        {
+            ErrorMessage = message;
+        }
+
+        IsLoading = false;
+    }
+
+    public class LoginModel
+    {
+        [Required(ErrorMessage = "Username is required.")]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

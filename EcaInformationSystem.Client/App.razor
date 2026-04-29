@@ -1,6 +1,37 @@
-﻿<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+﻿@using EcaInformationSystem.Client.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    <div style="display:flex;align-items:center;justify-content:center;
+                                height:100vh;background:#042C53;flex-direction:column;gap:16px;">
+                        <div style="width:36px;height:36px;border:3px solid #378ADD;
+                                    border-top-color:transparent;border-radius:50%;
+                                    animation:spin 0.8s linear infinite;"></div>
+                        <p style="color:#B5D4F4;font-size:13px;font-family:sans-serif;">
+                            Verifying access...
+                        </p>
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <div style="display:flex;align-items:center;justify-content:center;
+                            height:60vh;flex-direction:column;gap:8px;">
+                    <p style="font-size:18px;font-weight:600;color:#111;">Page not found</p>
+                    <a href="/" style="color:#185FA5;font-size:13px;">Go to dashboard</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+<style>
+    @@keyframes spin { to { transform: rotate(360deg); } }
+</style>
