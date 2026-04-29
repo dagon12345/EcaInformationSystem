@@ -8,6 +8,7 @@
         public string? UserName { get; set; }
         public string? FullName { get; set; }
         public string? Position { get; set; }
+        public string Token { get; set; } = string.Empty; // This generates our token
         public static AuthResult Failed(string message)
         {
             return new AuthResult

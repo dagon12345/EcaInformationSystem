@@ -6,9 +6,10 @@ using System.Security.Claims;
 
 namespace EcaInformationSystem.BlazorServer.Controllers
 {
-    [Authorize]
+
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Policy = AuthPolicies.CookieOrJwt)]  // ← accepts cookie OR JWT
     public class BeneficiaryInformationController : ControllerBase
     {
         private readonly IBeneficiaryInformationService _beneficiaryInformationService;
