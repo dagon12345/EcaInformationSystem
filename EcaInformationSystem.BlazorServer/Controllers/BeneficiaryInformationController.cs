@@ -24,6 +24,17 @@ namespace EcaInformationSystem.BlazorServer.Controllers
                 ?? "Anonymous";
         }
 
+        [HttpGet("import-template")]
+        public IActionResult DownloadImportTemplate()
+        {
+            var bytes = _beneficiaryInformationService.GenerateImportTemplate();
+            return File(
+                bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"ECAReS_ImportTemplate_{DateTime.Now:yyyy-MM-dd}.xlsx"
+            );
+        }
+
         [HttpGet]
         public async Task<ActionResult<List<BeneficiaryInformationDto>>> Get()
         {
