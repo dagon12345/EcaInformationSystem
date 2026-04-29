@@ -11,11 +11,14 @@ namespace EcaInformationSystem.Application.Services
     public class AuthService : IAuthService
     {
         private readonly IPendingUserRegistrationRepository _pendingUserRegistrationRepository;
+        private readonly TokenService _tokenService;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
-        public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository)
+        public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository,
+            TokenService tokenService)
         {
             _pendingUserRegistrationRepository = pendingUserRegistrationRepository;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
+            _tokenService = tokenService;
         }
         public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
         {
@@ -33,12 +36,20 @@ namespace EcaInformationSystem.Application.Services
             {
                 return AuthResult.Failed("Invalid username or password.");
             }
-            return AuthResult.Passed(
+
+            //Generate the token using the Token Service
+            var token = _tokenService.GenerateToken(user.UserName, user.FullName, user.Position ?? "User");
+
+
+
+            var result =  AuthResult.Passed(
                 "Login successful.",
                 user.Id.ToString(),
                 user.UserName,
                 user.FullName,
-                user.Position);
+                user.Position!);
+            result.Token = token; // Passed the generated token
+            return result;
         }
 
         public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
