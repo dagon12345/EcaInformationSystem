@@ -2,6 +2,8 @@
 // Blazor WebAssembly — talks to the API via HttpClient + JWT
 
 using EcaInformationSystem.Client;
+using EcaInformationSystem.Client.Services;
+using Havit.Blazor.Components.Web;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -18,11 +20,12 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 
+builder.Services.AddScoped<AuthService>();
 // Auth — WASM uses a custom provider that reads JWT from memory
 builder.Services.AddScoped<AuthenticationStateProvider,
-                           JwtAuthenticationStateProvider>();
+                           JwtAuthStateProvider>();
 
 builder.Services.AddAuthorizationCore();
-builder.Services.AddBlazorBootstrap();
+builder.Services.AddHxServices();
 
 await builder.Build().RunAsync();
