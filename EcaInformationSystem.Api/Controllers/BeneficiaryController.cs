@@ -29,7 +29,7 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> GetSummary([FromQuery] BeneficiaryFilterDto filter)
             => Ok(await _service.GetSummaryAsync(filter));
 
-        [HttpPost]
+        [HttpPost("create")]
         public async Task<IActionResult> Create(
             [FromBody] CreateBeneficiaryInformationDto dto)
         {

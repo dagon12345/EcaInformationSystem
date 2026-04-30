@@ -11,6 +11,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? OscaIdNumber { get; set; }
         public DateTime? OscaIdDateIssued { get; set; }
         public int? NcscRrn { get; set; }
+        [Required(ErrorMessage = "Last Name is required.")]
         public string? LastName { get; set; }
         [Required(ErrorMessage = "First Name is required.")]
         public string FirstName { get; set; } = string.Empty;
