@@ -1,0 +1,68 @@
+﻿@using EcaInformationSystem.Client.Services
+@inject ToastService ToastService
+@implements IDisposable
+
+<div style="position:fixed;top:24px;right:24px;z-index:9999;
+            display:flex;flex-direction:column;gap:8px;min-width:300px;
+            pointer-events:none;">
+    @foreach (var toast in toasts)
+    {
+        <div style="background:white;border-radius:10px;padding:14px 16px;
+                    pointer-events:all;
+                    border-left:4px solid @(toast.IsSuccess ? "#22c55e" : "#ef4444");
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);
+                    display:flex;align-items:flex-start;gap:10px;
+                    animation:slideIn 0.3s ease;">
+            <i class="bi @(toast.IsSuccess ? "bi-check-circle-fill" : "bi-x-circle-fill")"
+               style="color:@(toast.IsSuccess ? "#22c55e" : "#ef4444");
+                      font-size:16px;margin-top:1px;flex-shrink:0;"></i>
+            <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:2px;">
+                    @toast.Title
+                </div>
+                <div style="font-size:12px;color:#6b7280;">
+                    @toast.Message
+                </div>
+            </div>
+            <button @onclick="() => Remove(toast)"
+                    style="background:none;border:none;cursor:pointer;
+                           color:#9ca3af;font-size:14px;padding:0;
+                           line-height:1;">✕</button>
+        </div>
+    }
+</div>
+
+<style>
+    @@keyframes slideIn {
+        from { opacity:0; transform:translateX(40px); }
+        to   { opacity:1; transform:translateX(0); }
+    }
+</style>
+
+@code {
+    private List<ToastItem> toasts = new();
+
+    protected override void OnInitialized()
+        => ToastService.OnShow += Show;
+
+    private async void Show(string title, string message, bool isSuccess)
+    {
+        var toast = new ToastItem(title, message, isSuccess);
+        toasts.Add(toast);
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(4000);
+        Remove(toast);
+    }
+
+    private async void Remove(ToastItem toast)
+    {
+        toasts.Remove(toast);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+        => ToastService.OnShow -= Show;
+
+    private record ToastItem(string Title, string Message, bool IsSuccess);
+}

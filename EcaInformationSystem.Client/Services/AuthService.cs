@@ -1,5 +1,6 @@
 ﻿using EcaInformationSystem.Shared.DTOs.Auth;
 using Microsoft.JSInterop;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 namespace EcaInformationSystem.Client.Services
@@ -50,6 +51,21 @@ namespace EcaInformationSystem.Client.Services
 
         public async Task<string?> GetTokenAsync()
             => await _js.InvokeAsync<string?>("localStorage.getItem", "authToken");
+
+        // Attaches JWT token to every request  
+        public async Task<HttpClient> GetAuthorizedClientAsync()
+        {
+            var token = await _js.InvokeAsync<string?>(
+                "localStorage.getItem", "authToken");
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                _http.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", token);
+            }
+
+            return _http;
+        }
     }
 
     public class LoginResponse
