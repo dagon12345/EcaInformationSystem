@@ -1,5 +1,6 @@
 ﻿@page "/beneficiary-create"
 @attribute [Authorize] 
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.BeneficiaryInformationChildComponents
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using Microsoft.AspNetCore.Authorization
@@ -22,8 +23,15 @@
                     </div>
                 </div>
            </div>
+
+           <div class="card shadow-sm">
+                <div class="card-harder">
+                        <BeneficiaryImporting />
+                </div>
+           </div>
+
             <!-- Fill up fields -->
-            <div class="card-body">
+            <div class="card card-body shadow-sm">
                 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
                     <DataAnnotationsValidator />
                     <ValidationSummary class="text-danger mb-3" />

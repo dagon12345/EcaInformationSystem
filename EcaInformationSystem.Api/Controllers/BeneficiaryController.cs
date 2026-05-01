@@ -102,6 +102,39 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        [HttpPost("update-excel")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateFromExcel([FromForm] UpdateBeneficiaryExcelRequestDto request)
+        {
+            // 1. Validation
+            if (request.File == null || request.File.Length == 0)
+                return BadRequest("No file uploaded.");
+
+            if (string.IsNullOrWhiteSpace(request.SheetName))
+                return BadRequest("Sheet name is required.");
+
+            try
+            {
+                // 2. Open the stream from the uploaded file
+                using var stream = request.File.OpenReadStream();
+
+                // 3. Get the username (from Auth or System)
+                var userName = User.Identity?.Name ?? "System";
+
+                // 4. Call your service method
+                var result = await _service.UpdateExcelAsync(
+                    stream,
+                    request.File.FileName,
+                    request.SheetName,
+                    userName);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
 
         [HttpGet("download-import-template")]
         public IActionResult DownloadImportTemplate()
