@@ -1,0 +1,501 @@
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject AuthService AuthService
+@inject ToastService toast
+
+<!--Importing and Upload Update-->
+    <div class="row mb-4">
+        <div class="col-12">
+            <HxCard Class="shadow-sm border-0">
+                <BodyTemplate>
+                <HxCardTitle>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">Import Excel File</h5>
+                            <small class="text-muted">Bulk adding of grantees</small>
+                        </div>
+                    </div>
+                </HxCardTitle>
+                    <!-- Inside your existing Import Excel File CardBody, add at the top -->
+                    <div class="mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="text-muted small mb-0">
+                                Download the official template, fill it out, then upload it below.
+                            </p>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm"
+                                @onclick="DownloadTemplateAsync"
+                                disabled="@isDownloadingTemplate">
+                            @if (isDownloadingTemplate)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Downloading...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                                <span>Download Import Template</span>
+                            }
+                        </button>
+                    </div>
+                    <!--Importing-->
+                    <div class="mb-3">
+                        <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="form-control" />
+                    </div>
+
+                    @if (isLoadingSheets)
+                    {
+                        <div class="mb-3 text-primary">
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            Reading workbook sheets...
+                        </div>
+                    }
+
+                    @if (excelSheetNames.Any())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Select Worksheet</label>
+                            <InputSelect class="form-select" @bind-Value="selectedSheetName">
+                                @foreach (var sheet in excelSheetNames)
+                                {
+                                    <option value="@sheet">@sheet</option>
+                                }
+                            </InputSelect>
+                            @if (!string.IsNullOrWhiteSpace(uploadedExcelFileName) && excelSheetNames.Any())
+                            {
+                                <div class="alert alert-light border mb-3">
+                                    <div><strong>File:</strong> @uploadedExcelFileName</div>
+                                    <div><strong>Worksheets found:</strong> @excelSheetNames.Count</div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="small text-muted mb-3">
+                        The system will validate all rows first. If any error is found, no records will be saved.
+                    </div>
+
+                    <div class="d-flex gap-2 mb-3">
+                        <!-- Import Button -->
+                        <button class="btn btn-success"
+                                @onclick="UploadExcelAsync"
+                                disabled="@(isUploading || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
+                            @if (isUploading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Validating...</span>
+                            }
+                            else
+                            {
+                                <span>Validate and Import Excel</span>
+                            }
+                        </button>
+
+                        <!-- Update Button -->
+                        <HxTooltip Text="Matches existing records by Name, Birth Date, OSCA ID, and NCSC RRN. Only updates: Eligibility, Date of Death, and Validation Date."
+                                 Placement="TooltipPlacement.Top">
+                            <HxButton class="btn btn-warning"
+                                    @onclick="UpdateExcelAsync"
+                                    disabled="@(isUpdating || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
+                                @if (isUpdating)
+                                {
+                                    <span>Updating...</span>
+                                }
+                                else
+                                {
+                                    <span>Update Existing Records</span>
+                                }
+                            </HxButton>
+                        </HxTooltip>
+
+
+                        <hr class="my-2" />
+                    </div>
+
+                    <!-- ✅ IMPORT RESULT NOTIFICATION -->
+                    @if (importResult != null)
+                    {
+                        <div class="mt-3">
+                            @if (importResult.HasErrors)
+                            {
+                                <div class="alert alert-danger">
+                                    <h6 class="mb-2">Import Validation Failed</h6>
+                                    <div>Total Rows Checked: <strong>@importResult.TotalRows</strong></div>
+                                    <div>Valid Rows: <strong>@importResult.ValidRows</strong></div>
+                                    <div>Error Count: <strong>@importResult.ErrorCount</strong></div>
+                                    <div class="mt-2">
+                                        <strong>No records were saved.</strong> Please correct the Excel file and upload again.
+                                    </div>
+                                </div>
+
+                                <div class="card border-danger shadow-sm">
+                                    <div class="card-header bg-danger text-white">
+                                        <strong>Import Errors</strong>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-sm table-striped table-hover mb-0">
+                                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                                    <tr>
+                                                        <th>Row</th>
+                                                        <th>Field</th>
+                                                        <th>Message</th>
+                                                        <th>Value</th>
+                                                        <th>Suggestion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var err in importResult.Errors)
+                                                    {
+                                                        <tr>
+                                                            <td>@err.RowNumber</td>
+                                                            <td>@err.Field</td>
+                                                            <td>@err.Message</td>
+                                                            <td>@err.RawValue</td>
+                                                            <td>@err.Suggestion</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-success">
+                                    <h6 class="mb-2">Import Successful</h6>
+                                    <div>Total Rows Checked: <strong>@importResult.TotalRows</strong></div>
+                                    <div>Imported Rows: <strong>@importResult.ImportedCount</strong></div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- ✅ UPDATE RESULT NOTIFICATION -->
+                    @if (updateResult != null)
+                    {
+                        <div class="mt-3">
+                            @if (updateResult.HasErrors)
+                            {
+                                <div class="alert alert-danger">
+                                    <h6 class="mb-2">Update Validation Failed</h6>
+                                    <div>Total Rows Checked: <strong>@updateResult.TotalRows</strong></div>
+                                    <div>Valid Rows: <strong>@updateResult.ValidRows</strong></div>
+                                    <div>Error Count: <strong>@updateResult.ErrorCount</strong></div>
+                                    <div class="mt-2">
+                                        <strong>No records were updated.</strong> Please correct the Excel file and try again.
+                                    </div>
+                                </div>
+
+                                <div class="card border-danger shadow-sm">
+                                    <div class="card-header bg-danger text-white">
+                                        <strong>Update Errors</strong>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-sm table-striped table-hover mb-0">
+                                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                                    <tr>
+                                                        <th>Row</th>
+                                                        <th>Field</th>
+                                                        <th>Message</th>
+                                                        <th>Value</th>
+                                                        <th>Suggestion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var err in updateResult.Errors)
+                                                    {
+                                                        <tr>
+                                                            <td>@err.RowNumber</td>
+                                                            <td>@err.Field</td>
+                                                            <td>@err.Message</td>
+                                                            <td>@err.RawValue</td>
+                                                            <td>@err.Suggestion</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-success">
+                                    <h6 class="mb-2">Update Successful</h6>
+                                    <div>Total Rows Checked: <strong>@updateResult.TotalRows</strong></div>
+                                    <div>Updated Rows: <strong>@updateResult.ImportedCount</strong></div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                </BodyTemplate>
+            </HxCard>
+        </div>
+    </div>
+
+
+
+
+@code {
+    private bool isDownloadingTemplate;
+    private IBrowserFile? selectedFile;
+    private string? errorMessage;
+    private string? successMessage;
+    private BeneficiaryImportResultDto? importResult;
+    private List<string> excelSheetNames = new();
+    private string? selectedSheetName;
+    private byte[]? uploadedExcelBytes;
+    private string? uploadedExcelFileName;
+    private bool isLoadingSheets;
+    private bool isUploading;
+    private bool isUpdating;
+    private BeneficiaryImportResultDto? updateResult;
+
+    //Downloading of template for importing
+    private async Task DownloadTemplateAsync()
+    {
+        try
+        {
+            //Get the file from your API
+            isDownloadingTemplate = true;
+            var client = await AuthService.GetAuthorizedClientAsync();
+            var response = await Http.GetAsync("api/beneficiary/download-import-template");
+
+
+            if(response.IsSuccessStatusCode)
+            {
+                // 2. Read the response as a stream
+                var fileStream = await response.Content.ReadAsStreamAsync();
+                var fileName = $"ImportTemplate_{DateTime.Now:yyyy-MM-dd}.xlsx";
+
+                // 3. Hand the stream to JS to trigger the browser download
+                using var streamRef = new DotNetStreamReference(stream: fileStream);
+                await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            }
+            toast.ShowSuccess("Success", "Import template downloaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError("Error",$"Template download failed: {ex.Message}");
+        }
+        finally
+        {
+            isDownloadingTemplate = false;
+        }
+    }
+    private async Task UpdateExcelAsync()
+    {
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(selectedSheetName))
+        {
+            toast.ShowError("Error","Please select a file and a worksheet first.");
+            return;
+        }
+
+        isUpdating = true;
+        updateResult = null;
+
+        try
+        {
+            // 1. Prepare the Multipart form data
+            using var content = new MultipartFormDataContent();
+        
+            // Add the file (must match 'File' in your DTO)
+            var fileContent = new ByteArrayContent(uploadedExcelBytes);
+            content.Add(fileContent, "File", uploadedExcelFileName ?? "update.xlsx");
+
+            // Add the sheet name (must match 'SheetName' in your DTO)
+            content.Add(new StringContent(selectedSheetName), "SheetName");
+
+            // 2. Call the Controller endpoint
+            var response = await Http.PostAsync("api/beneficiary/update-excel", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // 3. Deserialize the result from the API
+                updateResult = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
+
+                if (updateResult != null)
+                {
+                
+                    if (updateResult.HasErrors)
+                    {
+                        toast.ShowError($"Update finished with {updateResult.ErrorCount} error(s).");
+                    }
+                    else
+                    {
+                        toast.ShowSuccess($"Update completed successfully. {updateResult.ImportedCount} record(s) updated.");
+                        successMessage = $"Update completed successfully from worksheet '{selectedSheetName}'. {updateResult.ImportedCount} record(s) updated.";
+                    }
+                }
+            }
+            else
+            {
+                // Handle server-side logic errors (e.g., 400 Bad Request)
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                throw new Exception(errorMsg);
+            }
+        }
+        catch (Exception ex)
+        {
+            updateResult = new BeneficiaryImportResultDto
+            {
+                Errors = new List<BeneficiaryImportErrorDto>
+            {
+                new BeneficiaryImportErrorDto
+                {
+                    RowNumber = 0,
+                    Field = "System",
+                    Message = ex.Message
+                }
+            }
+            };
+            toast.ShowError($"Update failed: {ex.Message}");
+        }
+        finally
+        {
+            isUpdating = false;
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task UploadExcelAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        importResult = null;
+
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
+        {
+            errorMessage = "Please select an Excel file first.";
+            toast.ShowError(errorMessage);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedSheetName))
+        {
+            errorMessage = "Please select a worksheet first.";
+            toast.ShowError(errorMessage);
+            return;
+        }
+
+        try
+        {
+            isUploading = true;
+
+            // 1. Create the Multipart form data
+            using var content = new MultipartFormDataContent();
+        
+            // 2. Add the file (must match the property name 'File' in your DTO)
+            var fileContent = new ByteArrayContent(uploadedExcelBytes);
+            content.Add(fileContent, "File", uploadedExcelFileName);
+
+            // 3. Add the sheet name (must match the property name 'SheetName' in your DTO)
+            content.Add(new StringContent(selectedSheetName), "SheetName");
+
+            // 4. Call the Controller endpoint
+            var response = await Http.PostAsync("api/beneficiary/import", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // 5. Deserialize the result from the controller
+                importResult = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
+
+                if (importResult != null && importResult.HasErrors)
+                {
+                    errorMessage = $"Import validation failed. Found {importResult.ErrorCount} error(s). Please fix the Excel file and upload again.";
+                    toast.ShowError(errorMessage);
+                    return;
+                }
+
+                toast.ShowSuccess($"Import completed successfully from worksheet '{selectedSheetName}'. {importResult?.ImportedCount ?? 0} record(s) saved.");
+                successMessage = $"Import completed successfully from worksheet '{selectedSheetName}'. {importResult?.ImportedCount ?? 0} record(s) saved.";
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                throw new Exception(errorResponse);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Import failed: {ex.Message}";
+            toast.ShowError(errorMessage);
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        errorMessage = null;
+        successMessage = null;
+        importResult = null;
+
+        excelSheetNames.Clear();
+        selectedSheetName = null;
+        uploadedExcelBytes = null;
+        uploadedExcelFileName = null;
+
+        if (selectedFile == null)
+            return;
+
+        try
+        {
+            isLoadingSheets = true;
+
+            // 1. Convert the browser file to a byte array (for local state)
+            await using var uploadStream = selectedFile.OpenReadStream(10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await uploadStream.CopyToAsync(memoryStream);
+        
+            uploadedExcelBytes = memoryStream.ToArray();
+            uploadedExcelFileName = selectedFile.Name;
+
+            // 2. Prepare the content for the API Controller
+            using var content = new MultipartFormDataContent();
+            var fileContent = new ByteArrayContent(uploadedExcelBytes);
+            // "file" must match the parameter name in your Controller action: GetSheetNames(IFormFile file)
+            content.Add(fileContent, "file", uploadedExcelFileName);
+
+            // 3. Call the API instead of the local service
+            var response = await Http.PostAsync("api/beneficiary/import/sheets", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                excelSheetNames = await response.Content.ReadFromJsonAsync<List<string>>() ?? new();
+
+                if (excelSheetNames.Any())
+                {
+                    selectedSheetName = excelSheetNames.First();
+                }
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                throw new Exception(errorText);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to read Excel sheets: {ex.Message}";
+            toast.ShowError(errorMessage);
+        }
+        finally
+        {
+            isLoadingSheets = false;
+            StateHasChanged();
+        }
+    }
+
+}
