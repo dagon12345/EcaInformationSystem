@@ -1,0 +1,1022 @@
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject ToastService toast
+@inject HttpClient Http
+@inject BeneficiaryStateService State
+
+<div class="row mb-4">
+        <div class="col-12">
+            <HxCard Class="shadow-sm border-0">
+                <BodyTemplate>
+                <HxCardTitle>
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 class="mb-0">Filter Grantees to show Records</h4>
+                                    <small class="opacity-75">Search and narrow down Grantee records</small>
+                                </div>
+                            </div>
+                        </div>
+                </HxCardTitle>
+                    <!--Location-->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Location</h6>
+                        <div class="row g-3">
+
+                            <!-- Province -->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Province</label>
+                                <div class="dropdown">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                            @onclick="() => ToggleDropdown(nameof(showProvinceDropdown))"
+                                            disabled="@(IsLoading || IsFilterProvinceLoading)">
+                                        @GetProvinceButtonText()
+                                    </button>
+
+                                    @if (showProvinceDropdown)
+                                    {
+                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                            @if (IsFilterProvinceLoading)
+                                            {
+                                                <div class="small text-primary mt-1">
+                                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                                    Loading provinces...
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="form-check border-bottom pb-2 mb-2">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           checked="@AreAllProvincesSelected()"
+                                                           @onclick="async () => await ToggleSelectAllProvinces()"
+                                                           @onclick:stopPropagation="true" />
+                                                    <label class="form-check-label fw-semibold">Select All</label>
+                                                </div>
+
+                                                @foreach (var province in filterProvinces)
+                                                {
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedProvinceIds.Contains(province.PsgcCodeProvince)"
+                                                               @onclick="async () => await OnProvinceCheckboxClicked(province.PsgcCodeProvince)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@province.Name</label>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Selected: @selectedProvinceIds.Count | Loaded municipalities: @filterMunicipalities.Count
+                                </div>
+                            </div>
+
+                            <!-- Municipality -->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Municipality</label>
+                                <div class="dropdown">
+                                    @if (IsMunicipalityDisabled)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                                disabled>
+                                            @GetMunicipalityButtonText()
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                                @onclick="() => ToggleDropdown(nameof(showMunicipalityDropdown))">
+                                            @GetMunicipalityButtonText()
+                                        </button>
+                                    }
+
+                                    @if (showMunicipalityDropdown && filterMunicipalities.Any())
+                                    {
+                                        @if (IsFilterMunicipalityLoading)
+                                        {
+                                            <div class="small text-primary mt-1">
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                Loading municipalities...
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                                <div class="form-check border-bottom pb-2 mb-2">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           checked="@AreAllMunicipalitiesSelected()"
+                                                           @onclick="async () => await ToggleSelectAllMunicipalities()"
+                                                           @onclick:stopPropagation="true" />
+                                                    <label class="form-check-label fw-semibold">Select All</label>
+                                                </div>
+
+                                                @foreach (var municipality in filterMunicipalities)
+                                                {
+
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedMunicipalityIds.Contains(municipality.PsgcCodeMunicipality)"
+                                                               @onclick="async () => await OnMunicipalityCheckboxClicked(municipality.PsgcCodeMunicipality)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@municipality.Name</label>
+                                                    </div>
+
+                                                }
+                                            </div>
+                                        }
+
+                                    }
+                                </div>
+
+                                <div class="small text-muted mt-1">
+                                    Selected: @selectedMunicipalityIds.Count | Loaded barangays: @filterBarangays.Count
+                                </div>
+                            </div>
+
+                            <!-- Barangay -->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Barangay</label>
+                                <div class="dropdown">
+                                    @if (IsBarangayDisabled)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                                disabled>
+                                            @GetBarangayButtonText()
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                                @onclick="() => ToggleDropdown(nameof(showBarangayDropdown))">
+                                            @GetBarangayButtonText()
+                                        </button>
+                                    }
+
+                                    @if (showBarangayDropdown && filterBarangays.Any())
+                                    {
+                                        @if (IsFilterBarangayLoading)
+                                        {
+                                            <div class="small text-primary mt-1">
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                Loading barangays...
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                                <div class="form-check border-bottom pb-2 mb-2">
+                                                    <input class="form-check-input"
+                                                           type="checkbox"
+                                                           checked="@AreAllBarangaysSelected()"
+                                                           @onclick="ToggleSelectAllBarangays"
+                                                           @onclick:stopPropagation="true" />
+                                                    <label class="form-check-label fw-semibold">Select All</label>
+                                                </div>
+
+                                                @foreach (var barangay in filterBarangays)
+                                                {
+                                                    <div class="form-check">
+                                                        <input class="form-check-input"
+                                                               type="checkbox"
+                                                               checked="@selectedBarangayIds.Contains(barangay.PsgcCodeBarangay)"
+                                                               @onclick="() => ToggleBarangay(barangay.PsgcCodeBarangay)"
+                                                               @onclick:stopPropagation="true" />
+                                                        <label class="form-check-label">@barangay.Name</label>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+
+                                    }
+                                </div>
+
+                                <div class="small text-muted mt-1">
+                                    Selected: @selectedBarangayIds.Count | Loaded barangays: @filterBarangays.Count
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Personal Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Personal Filters</h6>
+                        <div class="row g-3">
+                            <!--Full name-->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Full Name</label>
+                                <input type="text"
+                                       class="form-control"
+                                       placeholder="Search by name..."
+                                       @bind="filterModel.FullName"
+                                       @bind:event="oninput" />
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control" placeholder="Enter last name" @bind="filterModel.LastName" />
+                            </div>
+
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control" placeholder="Enter first name" @bind="filterModel.FirstName" />
+                            </div>
+     
+                            <!-- Sex -->
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Sex</label>
+                                <div class="dropdown">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                            @onclick="() => ToggleDropdown(nameof(showSexDropdown))"
+                                            disabled="@IsLoading">
+                                        @GetSexButtonText()
+                                    </button>
+
+                                    @if (showSexDropdown)
+                                    {
+                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                            <div class="form-check border-bottom pb-2 mb-2">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@AreAllSexesSelected()"
+                                                       @onclick="ToggleSelectAllSexes"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label fw-semibold">Select All</label>
+                                            </div>
+
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedSexes.Contains(1)"
+                                                       @onclick="() => ToggleSex(1)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Male</label>
+                                            </div>
+
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedSexes.Contains(2)"
+                                                       @onclick="() => ToggleSex(2)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Female</label>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 col-md-6 col-lg-4">
+                                <label class="form-label">Payment Status</label>
+                                <div class="dropdown">
+                                    <button type="button"
+                                            class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                            @onclick="() => ToggleDropdown(nameof(showPaymentStatusDropdown))"
+                                            disabled="@IsLoading">
+                                        @GetPaymentStatusButtonText()
+                                    </button>
+
+                                    @if (showPaymentStatusDropdown)
+                                    {
+                                        <div class="dropdown-menu show w-100 p-2 multi-select-dropdown">
+                                            <div class="form-check border-bottom pb-2 mb-2">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@AreAllPaymentStatusesSelected()"
+                                                       @onclick="ToggleSelectAllPaymentStatuses"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label fw-semibold">Select All</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(0)"
+                                                       @onclick="() => TogglePaymentStatus(0)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">N/A</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(1)"
+                                                       @onclick="() => TogglePaymentStatus(1)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Unpaid</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                       type="checkbox"
+                                                       checked="@selectedPaymentStatuses.Contains(2)"
+                                                       @onclick="() => TogglePaymentStatus(2)"
+                                                       @onclick:stopPropagation="true" />
+                                                <label class="form-check-label">Paid</label>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+
+                    <!-- Age & Other Filters -->
+                    <div class="mb-4">
+                        <h6 class="text-primary mb-3">Age Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Age</label>
+                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Validator</label>
+                                <input type="text" class="form-control" placeholder="Validator" @bind="filterModel.Validator" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">BatchCode</label>
+                                <input type="text" class="form-control" placeholder="Batch Code" @bind="filterModel.BatchCode" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Birthday Filters -->
+                    <div>
+                        <h6 class="text-primary mb-3">Birthday Filters</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Specific Birthday</label>
+                                <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday From</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Birthday To</label>
+                                <input type="date" class="form-control" @bind="filterModel.BirthdayTo" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Milestone Year</label>
+                            <InputSelect @bind-Value="filterModel.MilestoneYear" class="form-select">
+                                <option value="">-- Select Year --</option>
+                                @for (int year = DateTime.Now.Year; year >= 2024; year--)
+                                {
+                                    <option value="@year">@year</option>
+                                }
+                            </InputSelect>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <HxButton Color="ThemeColor.Secondary" Size="ButtonSize.Small" @onclick="ClearFilterAsync">
+                            Clear Filters
+                        </HxButton>
+                        <HxButton Color="ThemeColor.Primary" Size="ButtonSize.Small" @onclick="ApplyFiltersAsync" Disabled="@(IsApplyingFilters || IsLoading)">
+                            @if (IsApplyingFilters)
+                            {
+                                <span>Applying...</span>
+                            }
+                            else
+                            {
+                                <span>Apply Filters</span>
+                            }
+                        </HxButton>
+
+                    </div>
+            </BodyTemplate>
+            </HxCard>
+        </div>
+    </div>
+@code {
+    private bool showProvinceDropdown;
+    private bool showMunicipalityDropdown;
+    private bool showBarangayDropdown;
+    private bool showSexDropdown;
+    private bool showPaymentStatusDropdown;
+    private bool IsLoading;
+    private bool IsFilterProvinceLoading;
+    private bool IsMunicipalityDisabled;
+    private bool IsFilterMunicipalityLoading;
+    private bool IsBarangayDisabled;
+    private bool IsFilterBarangayLoading;
+    private bool IsApplyingFilters;
+    private bool IsProvinceLoading;
+    private string? errorMessage;
+    private int bulkPaymentStatus = 0;
+    private string? fullNameFilter;
+    private const int DefaultRegionCode = 1600000000;
+    private int totalCount;
+    private int totalPages;
+
+    private HashSet<int> selectedProvinceIds = new();
+    private HashSet<int> selectedMunicipalityIds = new();
+    private HashSet<int> selectedBarangayIds = new();
+    private HashSet<int> selectedSexes = new();
+    private HashSet<int> selectedPaymentStatuses = new();
+    private HashSet<Guid> checkedIds = new();
+
+    #region Filter dropdowns
+    private List<ProvinceLookupDto> filterProvinces = new();
+    private List<MunicipalityLookupDto> filterMunicipalities = new();
+    private List<BarangayLookupDto> filterBarangays = new();
+
+    private List<ProvinceLookupDto> provinces = new();
+    private List<MunicipalityLookupDto> municipalities = new();
+    private List<BarangayLookupDto> barangays = new();
+    #endregion
+    private List<BeneficiaryInformationDto> beneficiaries = new();
+    private BeneficiaryInformationDto model = new();
+
+    private BeneficiaryFilterDto filterModel = new()
+    {
+        PageNumber = 1,
+        PageSize = 10
+
+    };
+    // Address lookup cache for filter section
+    private Dictionary<string, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
+    private Dictionary<string, List<BarangayLookupDto>> filterBarangayCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFilterProvincesAsync(); // fills `filterProvinces` which the dropdown uses
+    }
+    private async Task LoadProvincesAsync(int psgcCodeRegion)
+    {
+        if (provinces.Any())
+            return;
+
+        try
+        {
+            IsProvinceLoading = true;
+            var result = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{psgcCodeRegion}");
+
+            provinces = result ?? new List<ProvinceLookupDto>();
+        }
+        catch
+        {
+            provinces = new List<ProvinceLookupDto>();
+        }
+        finally
+        {
+            IsProvinceLoading = false;
+        }
+    }
+    private string GetQueryString(BeneficiaryFilterDto filter)
+    {
+        var properties = from p in filter.GetType().GetProperties()
+                         let value = p.GetValue(filter, null)
+                         where value != null
+                         select new { p.Name, Value = value };
+
+        var queryString = new List<string>();
+
+        foreach (var prop in properties)
+        {
+            // Check if the property is a List/Enumerable (but not a string)
+            if (prop.Value is System.Collections.IEnumerable list && !(prop.Value is string))
+            {
+                foreach (var item in list)
+                {
+                    queryString.Add($"{prop.Name}={Uri.EscapeDataString(item.ToString() ?? "")}");
+                }
+            }
+            else
+            {
+                queryString.Add($"{prop.Name}={Uri.EscapeDataString(prop.Value.ToString() ?? "")}");
+            }
+        }
+
+        return string.Join("&", queryString);
+    }
+    private async Task LoadBeneficiariesAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            errorMessage = null;
+            checkedIds.Clear();
+
+            // 2. Automatically generate the full query string
+            var query = GetQueryString(filterModel);
+
+            // 3. Call the API
+            var paginatedResult = await Http.GetFromJsonAsync<PagedResultDto<BeneficiaryInformationDto>>(
+                $"api/beneficiary/paged?{query}");
+
+            beneficiaries = paginatedResult?.Items?.ToList() ?? new List<BeneficiaryInformationDto>();
+            totalCount = paginatedResult?.TotalCount ?? 0;
+            totalPages = paginatedResult?.TotalPages ?? 0;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load grantees. {ex.Message}";
+            beneficiaries = new List<BeneficiaryInformationDto>();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task LoadFilterProvincesAsync()
+    {
+        if (filterProvinces.Any())
+            return;
+
+        try
+        {
+            IsFilterProvinceLoading = true;
+
+            filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{DefaultRegionCode}") ?? new List<ProvinceLookupDto>();
+        }
+        catch
+        {
+            filterProvinces = new List<ProvinceLookupDto>();
+        }
+        finally
+        {
+            IsFilterProvinceLoading = false;
+        }
+    }
+    private async Task LoadMunicipalitiesForSelectedProvincesAsync()
+    {
+        try
+        {
+            errorMessage = null;
+
+            filterMunicipalities = new List<MunicipalityLookupDto>();
+            filterBarangays = new List<BarangayLookupDto>();
+            selectedMunicipalityIds.Clear();
+            selectedBarangayIds.Clear();
+
+            if (!selectedProvinceIds.Any())
+            {
+                StateHasChanged();
+                return;
+            }
+
+            var cacheKey = string.Join(",", selectedProvinceIds.OrderBy(x => x));
+
+            if (filterMunicipalityCache.TryGetValue(cacheKey, out var cachedMunicipalities))
+            {
+                filterMunicipalities = cachedMunicipalities;
+                StateHasChanged();
+                return;
+            }
+
+            IsFilterMunicipalityLoading = true;
+
+            var request = new LookupMultiRequestDto
+            {
+                Ids = selectedProvinceIds.ToList()
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Municipality/by-provinces", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = $"Failed to load municipalities. Status: {response.StatusCode}";
+                StateHasChanged();
+                return;
+            }
+
+            filterMunicipalities =
+                await response.Content.ReadFromJsonAsync<List<MunicipalityLookupDto>>()
+                ?? new List<MunicipalityLookupDto>();
+
+            filterMunicipalityCache[cacheKey] = filterMunicipalities;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Municipality load error: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            IsFilterMunicipalityLoading = false;
+        }
+    }
+    private async Task LoadBarangaysForSelectedMunicipalitiesAsync()
+    {
+        try
+        {
+            errorMessage = null;
+
+            filterBarangays = new List<BarangayLookupDto>();
+            selectedBarangayIds.Clear();
+
+            if (!selectedMunicipalityIds.Any())
+            {
+                StateHasChanged();
+                return;
+            }
+
+            var cacheKey = string.Join(",", selectedMunicipalityIds.OrderBy(x => x));
+
+            if (filterBarangayCache.TryGetValue(cacheKey, out var cachedBarangays))
+            {
+                filterBarangays = cachedBarangays;
+                StateHasChanged();
+                return;
+            }
+
+            IsFilterBarangayLoading = true;
+
+            var request = new LookupMultiRequestDto
+            {
+                Ids = selectedMunicipalityIds.ToList()
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Barangay/by-municipalities", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = $"Failed to load barangays. Status: {response.StatusCode}";
+                StateHasChanged();
+                return;
+            }
+
+            filterBarangays =
+                await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>()
+                ?? new List<BarangayLookupDto>();
+
+            filterBarangayCache[cacheKey] = filterBarangays;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Barangay load error: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            IsFilterBarangayLoading = false;
+        }
+    }
+    private async Task ApplyFiltersAsync()
+    {
+        if (IsLoading || IsApplyingFilters) return;
+
+        try
+        {
+            IsApplyingFilters = true;
+
+            // ✅ In ApplyFiltersAsync — use empty list instead of null
+            if (selectedBarangayIds.Any())
+            {
+                State.Filter.PsgcCodeBarangays = selectedBarangayIds.ToList();
+                State.Filter.PsgcCodeMunicipalities = new List<int>(); // ← empty, not null
+                State.Filter.PsgcCodeProvinces = new List<int>(); // ← empty, not null
+            }
+            else if (selectedMunicipalityIds.Any())
+            {
+                State.Filter.PsgcCodeBarangays = new List<int>(); // ← empty, not null
+                State.Filter.PsgcCodeMunicipalities = selectedMunicipalityIds.ToList();
+                State.Filter.PsgcCodeProvinces = new List<int>(); // ← empty, not null
+            }
+            else
+            {
+                State.Filter.PsgcCodeBarangays = new List<int>(); // ← empty, not null
+                State.Filter.PsgcCodeMunicipalities = new List<int>(); // ← empty, not null
+                State.Filter.PsgcCodeProvinces = selectedProvinceIds.Any()
+                                                        ? selectedProvinceIds.ToList()
+                                                        : new List<int>(); // ← empty, not null
+            }
+
+            State.Filter.Sexes = selectedSexes.ToList();           // already a list ✅
+            State.Filter.PaymentStatuses = selectedPaymentStatuses.ToList(); // already a list ✅
+
+            // Text / date fields
+            State.Filter.FullName = filterModel.FullName;
+            State.Filter.LastName = filterModel.LastName;
+            State.Filter.FirstName = filterModel.FirstName;
+            State.Filter.Validator = filterModel.Validator;
+            State.Filter.BatchCode = filterModel.BatchCode;
+            State.Filter.SpecificAge = filterModel.SpecificAge;
+            State.Filter.SpecificBirthday = filterModel.SpecificBirthday;
+            State.Filter.BirthdayFrom = filterModel.BirthdayFrom;
+            State.Filter.BirthdayTo = filterModel.BirthdayTo;
+            State.Filter.MilestoneYear = filterModel.MilestoneYear;
+
+            State.Filter.PageNumber = 1;
+
+            if (IsFilterEmpty(State.Filter))
+            {
+                toast.ShowError("Please select or input at least one filter.");
+                return;
+            }
+
+            await State.LoadAsync();
+        }
+        finally
+        {
+            IsApplyingFilters = false;
+        }
+    }
+    private bool IsFilterEmpty(BeneficiaryFilterDto f)
+    {
+        return
+            string.IsNullOrWhiteSpace(f.FullName) &&
+            string.IsNullOrWhiteSpace(f.LastName) &&
+            string.IsNullOrWhiteSpace(f.FirstName) &&
+            string.IsNullOrWhiteSpace(f.Validator) &&
+            string.IsNullOrWhiteSpace(f.BatchCode) &&
+            f.SpecificAge == null &&
+            f.SpecificBirthday == null &&
+            f.BirthdayFrom == null &&
+            f.BirthdayTo == null &&
+            f.MilestoneYear == null &&
+            (f.PsgcCodeProvinces == null || !f.PsgcCodeProvinces.Any()) &&
+            (f.PsgcCodeMunicipalities == null || !f.PsgcCodeMunicipalities.Any()) &&
+            (f.PsgcCodeBarangays == null || !f.PsgcCodeBarangays.Any()) &&
+            (f.Sexes == null || !f.Sexes.Any()) &&
+            (f.PaymentStatuses == null || !f.PaymentStatuses.Any());
+    }
+    // ✅ FIX
+    private async Task ClearFilterAsync()
+    {
+        // Reset local UI selections
+        selectedProvinceIds.Clear();
+        selectedMunicipalityIds.Clear();
+        selectedBarangayIds.Clear();
+        selectedSexes.Clear();
+        selectedPaymentStatuses.Clear();
+        filterMunicipalities.Clear();
+        filterBarangays.Clear();
+        errorMessage = null;
+
+        // Reset local filterModel
+        filterModel = new BeneficiaryFilterDto
+        {
+            PsgcCodeRegion = DefaultRegionCode,
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        // ✅ Also reset the SHARED State so the grid clears
+        State.Filter = new BeneficiaryFilterDto
+        {
+            PsgcCodeRegion = DefaultRegionCode,
+            PageNumber = 1,
+            PageSize = 10
+        };
+        State.ClearData(); // ← add this method to BeneficiaryStateService (see below)
+
+        // Reload province dropdown (clearing the guard so it refetches)
+        filterProvinces.Clear(); // ← clear so LoadFilterProvincesAsync() doesn't early-return
+        await LoadFilterProvincesAsync();
+
+        StateHasChanged();
+    }
+    private void TogglePaymentStatus(int status)
+    {
+        if (selectedPaymentStatuses.Contains(status))
+            selectedPaymentStatuses.Remove(status);
+        else
+            selectedPaymentStatuses.Add(status);
+    }
+    private void ToggleSelectAllPaymentStatuses()
+    {
+        if (AreAllPaymentStatusesSelected())
+        {
+            selectedPaymentStatuses.Clear();
+        }
+        else
+        {
+            selectedPaymentStatuses.Clear();
+            selectedPaymentStatuses.Add(0);
+            selectedPaymentStatuses.Add(1);
+            selectedPaymentStatuses.Add(2);
+        }
+    }
+    private bool AreAllPaymentStatusesSelected() =>
+        selectedPaymentStatuses.Contains(0) &&
+        selectedPaymentStatuses.Contains(1) &&
+        selectedPaymentStatuses.Contains(2);
+    private string GetPaymentStatusButtonText()
+    {
+        if (selectedPaymentStatuses.Count == 0) return "Select Payment Status";
+        if (selectedPaymentStatuses.Count == 3) return "All Statuses";
+        return string.Join(", ", selectedPaymentStatuses.Select(GetPaymentStatusText));
+    }
+    private void ToggleDropdown(string dropdownName)
+    {
+        showProvinceDropdown = dropdownName == nameof(showProvinceDropdown) && !showProvinceDropdown;
+        showMunicipalityDropdown = dropdownName == nameof(showMunicipalityDropdown) && !showMunicipalityDropdown;
+        showBarangayDropdown = dropdownName == nameof(showBarangayDropdown) && !showBarangayDropdown;
+        showSexDropdown = dropdownName == nameof(showSexDropdown) && !showSexDropdown;
+        showPaymentStatusDropdown = dropdownName == nameof(showPaymentStatusDropdown) && !showPaymentStatusDropdown;
+    }
+    private string GetProvinceButtonText()
+ => selectedProvinceIds.Count == 0 ? "Select Province(s)" : $"{selectedProvinceIds.Count} province(s) selected";
+
+ 
+    private string GetBarangayButtonText()
+    {
+        if (IsFilterBarangayLoading) return "Loading barangays...";
+        return selectedBarangayIds.Count == 0
+            ? "Select Barangay(s)"
+            : $"{selectedBarangayIds.Count} barangay(s) selected";
+    }
+
+    private bool AreAllProvincesSelected() =>
+     filterProvinces.Any() &&
+     filterProvinces.All(x => selectedProvinceIds.Contains(x.PsgcCodeProvince));
+
+    private bool AreAllMunicipalitiesSelected() =>
+    filterMunicipalities.Any() &&
+    filterMunicipalities.All(x => selectedMunicipalityIds.Contains(x.PsgcCodeMunicipality));
+
+    private bool AreAllBarangaysSelected()
+    {
+        return filterBarangays.Any() &&
+               filterBarangays.All(x => selectedBarangayIds.Contains(x.PsgcCodeBarangay));
+    }
+    private void ToggleBarangay(int barangayId)
+    {
+        if (selectedBarangayIds.Contains(barangayId))
+            selectedBarangayIds.Remove(barangayId);
+        else
+            selectedBarangayIds.Add(barangayId);
+    }
+    private async Task ToggleSelectAllProvinces()
+    {
+        if (AreAllProvincesSelected())
+        {
+            selectedProvinceIds.Clear();
+        }
+        else
+        {
+            selectedProvinceIds = filterProvinces
+                .Select(x => x.PsgcCodeProvince)
+                .ToHashSet();
+        }
+
+        // ✅ Don't auto-load municipalities when selecting ALL provinces
+        // — too many items, and the hierarchy optimization makes it unnecessary
+        filterMunicipalities.Clear();
+        filterBarangays.Clear();
+        selectedMunicipalityIds.Clear();
+        selectedBarangayIds.Clear();
+        StateHasChanged();
+    
+        // Only load municipalities if a manageable number of provinces are selected
+        if (selectedProvinceIds.Count <= 2)
+            await LoadMunicipalitiesForSelectedProvincesAsync();
+    }
+    private void ToggleSelectAllBarangays()
+    {
+        if (AreAllBarangaysSelected())
+        {
+            selectedBarangayIds.Clear();
+        }
+        else
+        {
+            selectedBarangayIds = filterBarangays
+                .Select(x => x.PsgcCodeBarangay)
+                .ToHashSet();
+        }
+    }
+    private async Task OnProvinceCheckboxClicked(int provinceId)
+    {
+        if (selectedProvinceIds.Contains(provinceId))
+            selectedProvinceIds.Remove(provinceId);
+        else
+            selectedProvinceIds.Add(provinceId);
+
+        showMunicipalityDropdown = false;
+        showBarangayDropdown = false;
+
+        await LoadMunicipalitiesForSelectedProvincesAsync();
+        StateHasChanged();
+    }
+       
+    private async Task OnMunicipalityCheckboxClicked(int municipalityId)
+    {
+        if (selectedMunicipalityIds.Contains(municipalityId))
+            selectedMunicipalityIds.Remove(municipalityId);
+        else
+            selectedMunicipalityIds.Add(municipalityId);
+
+        showBarangayDropdown = false;
+
+        await LoadBarangaysForSelectedMunicipalitiesAsync();
+        StateHasChanged();
+    }
+    private string GetMunicipalityButtonText()
+    {
+        if (IsFilterMunicipalityLoading) return "Loading municipalities...";
+        return selectedMunicipalityIds.Count == 0
+            ? "Select Municipality(s)"
+            : $"{selectedMunicipalityIds.Count} municipality(s) selected";
+    }
+    private async Task ToggleSelectAllMunicipalities()
+    {
+        if (AreAllMunicipalitiesSelected())
+        {
+            selectedMunicipalityIds.Clear();
+        }
+        else
+        {
+            selectedMunicipalityIds = filterMunicipalities
+                .Select(x => x.PsgcCodeMunicipality)
+                .ToHashSet();
+        }
+
+        await LoadBarangaysForSelectedMunicipalitiesAsync();
+        StateHasChanged();
+    }
+    private string GetSexButtonText()
+    {
+        if (selectedSexes.Count == 0) return "Select Sex";
+        if (selectedSexes.Count == 2) return "All Sexes";
+        if (selectedSexes.Contains(1)) return "Male";
+        if (selectedSexes.Contains(2)) return "Female";
+        return "Select Sex";
+    }
+    private bool AreAllSexesSelected() =>
+selectedSexes.Contains(1) && selectedSexes.Contains(2);
+    private void ToggleSelectAllSexes()
+    {
+        if (AreAllSexesSelected())
+        {
+            selectedSexes.Clear();
+        }
+        else
+        {
+            selectedSexes.Clear();
+            selectedSexes.Add(1);
+            selectedSexes.Add(2);
+        }
+    }
+    private void ToggleSex(int sexValue)
+    {
+        if (selectedSexes.Contains(sexValue))
+            selectedSexes.Remove(sexValue);
+        else
+            selectedSexes.Add(sexValue);
+    }
+    #region Mapping
+    private string GetPaymentStatusText(int status) => status switch
+    {
+        0 => "N/A",
+        1 => "Unpaid",
+        2 => "Paid"
+    };
+    #endregion Mapping - END
+   #region Lookup DTOS
+    public class LogsLookupDto
+    {
+        public Guid Id { get; set; }
+        public Guid BeneficiaryInformationId { get; set; }
+        public string Activity { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    public class RegionLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class ProvinceLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public int PsgcCodeProvince { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class MunicipalityLookupDto
+    {
+        public int PsgcCodeProvince { get; set; }
+        public int PsgcCodeMunicipality { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class BarangayLookupDto
+    {
+        public int PsgcCodeMunicipality { get; set; }
+        public int PsgcCodeBarangay { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+   #endregion Lookup DTOS - End
+}

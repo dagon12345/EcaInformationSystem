@@ -1743,11 +1743,21 @@ namespace EcaInformationSystem.Application.Services
         }
         private static bool TryParseExcelDate(string? value, out DateTime date)
         {
-            if (DateTime.TryParse(value, out date))
+            date = default;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            // ✅ Normalize to title case so "JANUARY 31 1936" becomes "January 31 1936"
+            var normalized = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value.Trim().ToLower());
+
+            if (DateTime.TryParse(normalized, out date))
                 return true;
 
             var formats = new[]
             {
+        "MMMM d yyyy",
+        "MMMM dd yyyy",
+        "MMM d yyyy",
+        "MMM dd yyyy",
         "M/d/yyyy",
         "MM/dd/yyyy",
         "M/d/yy",
@@ -1755,20 +1765,15 @@ namespace EcaInformationSystem.Application.Services
         "yyyy-MM-dd",
         "M-d-yyyy",
         "MM-d-yyyy",
-        "MMMM d yyyy",
-        "MMMM dd yyyy",
-        "MMM d yyyy",
-        "MMM dd yyyy"
     };
 
             return DateTime.TryParseExact(
-                value,
+                normalized,            // ✅ Use normalized (title case) value
                 formats,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out date);
         }
-
 
 
 
