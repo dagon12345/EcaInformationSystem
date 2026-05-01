@@ -44,9 +44,89 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 x.NcscRrn == ncscRrn
             );
         }
-        public async Task<BeneficiaryInformation?> GetByIdAsync(Guid id)
+
+        public async Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id)
         {
-            return await _context.BeneficiaryInformations.FirstOrDefaultAsync(x => x.Id == id);
+            return await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(x => x.Id == id);
+        }
+        public async Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id)
+        {
+            var result = await (
+                from b in _context.BeneficiaryInformations
+
+                join region in _context.Regions
+                    on b.Region equals region.PsgcCodeRegion into regionJoin
+                from region in regionJoin.DefaultIfEmpty()
+
+                join province in _context.Provinces
+                    on b.Province equals province.PsgcCodeProvince into provinceJoin
+                from province in provinceJoin.DefaultIfEmpty()
+
+                join municipality in _context.Municipalities
+                    on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
+                from municipality in municipalityJoin.DefaultIfEmpty()
+
+                join barangay in _context.Barangays
+                    on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
+                from barangay in barangayJoin.DefaultIfEmpty()
+
+                where b.Id == id && !b.IsDeleted
+
+                select new BeneficiaryInformationDto
+                {
+                    Id = b.Id,
+                    DateApplied = b.DateApplied,
+                    DateEndorsed = b.DateEndorsed,
+                    BatchCode = b.BatchCode,
+                    OscaIdNumber = b.OscaIdNumber,
+                    OscaIdDateIssued = b.OscaIdDateIssued,
+                    NcscRrn = b.NcscRrn,
+                    LastName = b.LastName,
+                    FirstName = b.FirstName,
+                    MiddleName = b.MiddleName,
+                    Extension = b.Extension,
+                    BirthDate = b.BirthDate,
+                    PhoneNumber = b.PhoneNumber,
+                    Age = DateTime.Today.Year - b.BirthDate.Year -
+                                           (b.BirthDate.Date > DateTime.Today.AddYears(
+                                               -(DateTime.Today.Year - b.BirthDate.Year)) ? 1 : 0),
+                    Sex = b.Sex,
+                    IsIndigenousPeople = b.IsIndigenousPeople,
+                    IsPersonWithDisability = b.IsPersonWithDisability,
+                    CivilStatus = b.CivilStatus,
+                    Citizenship = b.Citizenship,
+
+                    // ✅ Integer PSGC codes — needed for dropdown pre-selection in the edit form
+                    PsgcCodeRegion = b.Region,
+                    PsgcCodeProvince = b.Province,
+                    PsgcCodeMunicipality = b.Municipality,
+                    PsgcCodeBarangay = b.Barangay,
+
+                    // ✅ Name joins — needed for display labels in the form
+                    Region = region.Name,
+                    Province = province.Name,
+                    Municipality = municipality.Name,
+                    Barangay = barangay.Name,
+
+                    IsCompliant = b.IsCompliant,
+                    Validator = b.Validator,
+                    ValidationDate = b.ValidationDate,
+                    PaymentStatus = b.PaymentStatus,
+                    ModeOfPayment = b.ModeOfPayment,
+                    PaymentDate = b.PaymentDate,
+                    IsDeceased = b.IsDeceased,       // ✅ fixes the checkbox bug
+                    DateOfDeath = b.DateOfDeath,       // ✅ fixes date of death bug
+                    IsEligible = b.IsEligible,
+                    AssessmentRemarks = b.AssessmentRemarks,
+                    RemarkCategory = b.RemarkCategory,
+                    Remarks = b.Remarks,
+                    DateAdded = b.DateAdded,
+                    IsDeleted = b.IsDeleted
+                }
+            ).AsNoTracking().FirstOrDefaultAsync();
+
+            return result;
         }
         public async Task<int?> GetRegionCodeByNameAsync(string regionName)
         {
@@ -490,6 +570,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.NcscRrn == ncscRrn
                 );
         }
+
 
         private sealed class BeneficiaryQueryModel
         {

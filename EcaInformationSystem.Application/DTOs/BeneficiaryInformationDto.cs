@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using EcaInformationSystem.Application.Features;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EcaInformationSystem.Application.DTOs
 {
@@ -28,15 +31,19 @@ namespace EcaInformationSystem.Application.DTOs
         public int? CivilStatus { get; set; }
         public int? Citizenship { get; set; }
         public int PsgcCodeRegion { get; set; }
+        [JsonConverter(typeof(FlexibleStringConverter))]
         public string? Region { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Province.")]
         public int PsgcCodeProvince { get; set; }
+        [JsonConverter(typeof(FlexibleStringConverter))]
         public string? Province { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Municipality.")]
         public int PsgcCodeMunicipality { get; set; }
+        [JsonConverter(typeof(FlexibleStringConverter))]
         public string? Municipality { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Barangay.")]
         public int PsgcCodeBarangay { get; set; }
+        [JsonConverter(typeof(FlexibleStringConverter))]
         public string? Barangay { get; set; }
         public bool IsCompliant { get; set; }
         [Required(ErrorMessage = "Validator is required.")]

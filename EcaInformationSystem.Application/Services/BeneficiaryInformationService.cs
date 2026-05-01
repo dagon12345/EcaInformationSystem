@@ -1,4 +1,5 @@
 ﻿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Vml.Office;
 using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
@@ -383,6 +384,14 @@ namespace EcaInformationSystem.Application.Services
             return list;
         }
 
+        public async Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id)
+        {
+            var getById = await _repo.GetByIdAsync(id);
+
+            return getById;
+        }
+
+
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
             filter.PsgcCodeRegion = DefaultRegionCode;
@@ -408,7 +417,7 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task SoftDeleteAsync(Guid Id, string userName)
         {
-            var selectedBeneficiary = await _repo.GetByIdAsync(Id);
+            var selectedBeneficiary = await _repo.GetEntityByIdAsync(Id);
             if (selectedBeneficiary == null)
                 throw new Exception("Grantee not found");
 
@@ -447,7 +456,7 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName)
         {
-            var beneficiary = await _repo.GetByIdAsync(Id);
+            var beneficiary = await _repo.GetEntityByIdAsync(Id);
             if (beneficiary == null)
                 throw new Exception("Grantee not found");
 
@@ -1192,8 +1201,8 @@ namespace EcaInformationSystem.Application.Services
                         PaymentStatus = 0,
                         ModeOfPayment = 0,
                         PaymentDate = null,
-                        IsDeceased = false,
                         DateOfDeath = parsedDateofDeath,
+                        IsDeceased = parsedDateofDeath.HasValue, // true if date exists, false if null
                         IsEligible = mappedEligibility!.Value,
                         AssessmentRemarks = null,
                         RemarkCategory = null,
@@ -1806,8 +1815,6 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
-
-
 
         #endregion
 

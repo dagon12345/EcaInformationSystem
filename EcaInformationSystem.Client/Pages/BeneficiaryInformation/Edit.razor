@@ -1,0 +1,21 @@
+﻿@page "/beneficiary-edit/{Id:guid}"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.BeneficiaryInformationChildComponents
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Edit Record</PageTitle>
+<div class="container-fluid py-4">
+    <div class="card shadow-sm bg-warning text-dark mb-3">
+        <div class="card-body">
+            <h4 class="mb-0">Edit Record</h4>
+            <small class="opacity-75">Update existing grantee information</small>
+        </div>
+    </div>
+    <div class="card card-body shadow-sm">
+        <BeneficiaryForm IsEditMode="true" EditId="@Id" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+}

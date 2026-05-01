@@ -1,0 +1,864 @@
+﻿@* BeneficiaryForm.razor *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject ToastService toast
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+
+<EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger mb-3" />
+
+    <!-- Identity Information -->
+    <div class="border rounded p-3 mb-4">
+        <h5 class="text-primary mb-3">Identity Information</h5>
+        <div class="row g-3">
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Date Applied (Day/Month/Year)</label>
+                <InputDate class="form-control" @bind-Value="model.DateApplied" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Date Endorsed (Day/Month/Year)</label>
+                <InputDate class="form-control" @bind-Value="model.DateEndorsed" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Batch Code</label>
+                <input class="form-control" @bind="model.BatchCode" @ref="batchCodeInput" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">OSCA ID Number</label>
+                <InputText class="form-control" @bind-Value="model.OscaIdNumber" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">OSCA ID Date Issued (Day/Month/Year)</label>
+                <InputDate class="form-control" @bind-Value="model.OscaIdDateIssued" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">NCSC RRN</label>
+                <InputNumber class="form-control" @bind-Value="model.NcscRrn" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                <InputText class="form-control" @bind-Value="model.LastName" />
+                <ValidationMessage For="@(() => model.LastName)" class="text-danger small" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">First Name <span class="text-danger">*</span></label>
+                <InputText class="form-control" @bind-Value="model.FirstName" />
+                <ValidationMessage For="@(() => model.FirstName)" class="text-danger small" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Middle Name</label>
+                <InputText class="form-control" @bind-Value="model.MiddleName" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Extension</label>
+                <InputSelect class="form-select" @bind-Value="model.Extension">
+                    <option value="">Select Extension</option>
+                    <option value="">N/A</option>
+                    <option value="Sr.">Sr.</option>
+                    <option value="Jr.">Jr.</option>
+                    <option value="II.">II</option>
+                    <option value="III">III</option>
+                    <option value="IV">IV</option>
+                    <option value="V">V</option>
+                </InputSelect>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Birth Date (Day/Month/Year) <span class="text-danger">*</span></label>
+                <input type="date"
+                       class="form-control"
+                       value="@model.BirthDate.ToString("yyyy-MM-dd")"
+                       @onchange="OnBirthDateChanged" />
+                <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
+            </div>
+
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Age</label>
+                <input class="form-control" value="@(GetAge(model.BirthDate)?.ToString() ?? "")" readonly />
+            </div>
+
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Phone Number</label>
+                <InputText class="form-control" @bind-Value="model.PhoneNumber" placeholder="09171234567, 0917...." />
+                <ValidationMessage For="@(() => model.PhoneNumber)" />
+            </div>
+
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Sex<span class="text-danger">*</span></label>
+                <InputSelect class="form-select" @bind-Value="model.Sex">
+                    <option value="0">Select Sex</option>
+                    <option value="1">Male</option>
+                    <option value="2">Female</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.Sex)" class="text-danger small" />
+            </div>
+            <div class="col-12">
+                <div class="border rounded p-3 mt-2 bg-light">
+                    <h6 class="text-primary mb-3">Other Information</h6>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       checked="@model.IsDeceased"
+                                       @onchange="OnIsDeceasedChanged" />
+                                <label class="form-check-label">Is Deceased</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                            <label class="form-label">Date of Death (Day/Month/Year)</label>
+                            <input type="date"
+                                   class="form-control"
+                                   value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
+                                   max="@TodayDateString"
+                                   @onchange="OnDateOfDeathChanged"
+                                   disabled="@(!model.IsDeceased)" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Demographic Information -->
+    <div class="border rounded p-3 mb-4">
+        <h5 class="text-primary mb-3">Demographic Information</h5>
+        <div class="row g-3">
+                        
+            <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="model.IsIndigenousPeople" />
+                    <label class="form-check-label">Indigenous People</label>
+                </div>
+            </div>
+                        
+            <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="model.IsPersonWithDisability" />
+                    <label class="form-check-label">Person with Disability</label>
+                </div>
+            </div>
+                        
+            <div class="col-12 col-md-6 col-lg-3">
+                <label class="form-label">Civil Status</label>
+                <InputSelect class="form-select" @bind-Value="model.CivilStatus">
+                    <option value="0">Select Civil Status</option>
+                    <option value="1">Single</option>
+                    <option value="2">Widowed</option>
+                    <option value="3">Married</option>
+                    <option value="4">Live in</option>
+                </InputSelect>
+            </div>
+                        
+            <div class="col-12 col-md-6 col-lg-3">
+                <label class="form-label">Citizenship</label>
+                <select class="form-select"
+                        value="@model.Citizenship"
+                        @onchange="OnCitizenshipChanged">
+                    <option value="0">Select Citizenship</option>
+                    <option value="1">Filipino</option>
+                    <option value="2">Dual Citizenship</option>
+                </select>
+            </div>
+                        
+        </div>
+    </div>
+
+    <!-- Address Information -->
+    <div class="border rounded p-3 mb-4">
+        <h5 class="text-primary mb-3">Address Information</h5>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Region</label>
+                <input type="text" class="form-control" value="@DefaultRegionName" readonly />
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">Province<span class="text-danger">*</span></label>
+                <select class="form-select"
+                        @bind="model.PsgcCodeProvince"
+                        @bind:after="OnProvinceChangedHandled"
+                        disabled="@IsProvinceLoading">
+                    <option value="0">Select Province</option>
+                    @foreach (var province in provinces)
+                    {
+                        <option value="@province.PsgcCodeProvince">@province.Name</option>
+                    }
+                </select>
+                <ValidationMessage For="@(() => model.PsgcCodeProvince)" class="text-danger small" />
+                @if (IsProvinceLoading)
+                {
+                    <div class="small text-primary mt-1">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        Loading provinces...
+                    </div>
+                }
+            </div>
+
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Municipality<span class="text-danger">*</span></label>
+              
+                <!-- Municipality Select -->
+                <select class="form-select" @bind="model.PsgcCodeMunicipality" @bind:after="OnMunicipalityChangedHandled" disabled="@(model.PsgcCodeProvince == 0 || IsMunicipalityLoading)">
+                    <option value="0">Select Municipality</option>
+                    @foreach (var municipality in municipalities)
+                    {
+                        <option value="@municipality.PsgcCodeMunicipality">@municipality.Name</option>
+                    }
+                </select>
+                <ValidationMessage For="@(() => model.PsgcCodeMunicipality)" class="text-danger small" />
+                @if (IsMunicipalityLoading)
+                {
+                    <div class="small text-primary mt-1">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        Loading municipalities...
+                    </div>
+                }
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">Barangay<span class="text-danger">*</span></label>
+                <!-- Barangay Select -->
+                <select class="form-select" @bind="model.PsgcCodeBarangay" disabled="@(model.PsgcCodeMunicipality == 0 || IsBarangayLoading)">
+                    <option value="0">Select Barangay</option>
+                    @foreach (var barangay in barangays)
+                    {
+                        <option value="@barangay.PsgcCodeBarangay">@barangay.Name</option>
+                    }
+                </select>
+                <ValidationMessage For="@(() => model.PsgcCodeBarangay)" class="text-danger small" />
+                @if (IsBarangayLoading)
+                {
+                    <div class="small text-primary mt-1">
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        Loading barangays...
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Validation Information -->
+    <div class="border rounded p-3 mb-4">
+        <h5 class="text-primary mb-3">Validation Information</h5>
+        <div class="row g-3">
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Validator <span class="text-danger">*</span></label>
+                <InputText class="form-control" @bind-Value="model.Validator" />
+                <ValidationMessage For="@(() => model.Validator)" class="text-danger small" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <label class="form-label">Validation Date (Day/Month/Year)<span class="text-danger">*</span></label>
+                <InputDate class="form-control" @bind-Value="model.ValidationDate" />
+                <ValidationMessage For="@(() => model.ValidationDate)" class="text-danger small" />
+            </div>
+            <div class="col-12">
+                <div class="border rounded p-3 mt-2 bg-light">
+                    <h6 class="text-primary mb-3">Assessment</h6>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="model.IsEligible" />
+                                <label class="form-check-label">Is Eligible</label>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6 col-lg-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="model.IsCompliant" />
+                                <label class="form-check-label">Is Compliant</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Assessment Remarks</label>
+                            <InputTextArea class="form-control"
+                                           @bind-Value="model.AssessmentRemarks"
+                                           rows="3"
+                                           placeholder="Enter assessment remarks if beneficiary is not eligible..." />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- Payment Information & Remarks -->
+    <div class="border rounded p-3 mb-4">
+        <h5 class="text-primary mb-3">Payment Information & Remarks</h5>
+        <div class="row g-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label">Payment Status <span class="text-danger">*</span></label>
+                <InputSelect class="form-select" @bind-Value="model.PaymentStatus">
+                    <option value="0">Select Payment Status</option>
+                    <option value="1">Unpaid</option>
+                    <option value="2">Paid</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.PaymentStatus)" class="text-danger small" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Mode of Payment </label>
+                <InputSelect class="form-select" @bind-Value="model.ModeOfPayment">
+                    <option value="0">Select Mode of Payment</option>
+                    <option value="1">Cash Advance by SDO</option>
+                    <option value="2">Bank Transfer</option>
+                </InputSelect>
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Payment Date</label>
+                <InputDate class="form-control" @bind-Value="model.PaymentDate" disabled="@(model.PaymentStatus != 2)" />
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Remark Category</label>
+                <InputSelect class="form-select" @bind-Value="model.RemarkCategory">
+                    <option value="0">Select Remark</option>
+                    <option value="1">Deceased prior reaching milestone age</option>
+                    <option value="2">Out of town/Country</option>
+                    <option value="3">Incomplete required documents</option>
+                    <option value="4">Inconsistent documents</option>
+                    <option value="5">Cannot be reached/Located</option>
+                    <option value="6">Did not reach the milestone age</option>
+                    <option value="7">Lacking of documents/Requirements</option>
+                    <option value="8">For Correction</option>
+                    <option value="9">Waived</option>
+                    <option value="10">Lacking Proof of Relationship</option>
+                    <option value="11">Now show</option>
+                    <option value="12">Double Application with Different Surename used</option>
+                    <option value="13">For CGD Island Municipality</option>
+                </InputSelect>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Remarks</label>
+                <InputTextArea class="form-control" @bind-Value="model.Remarks" rows="3" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+        <button type="button" class="btn btn-secondary"
+                @onclick='() => Navigation.NavigateTo("/beneficiary-records")'>
+            Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" disabled="@IsLoading">
+            @if (IsLoading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            @(IsEditMode ? "Update Record" : "Save Record")
+        </button>
+    </div>
+</EditForm>
+
+@* Confirmation modal *@
+<HxModal @ref="confirmModal">
+    <HeaderTemplate><h5>@confirmationTitle</h5></HeaderTemplate>
+    <BodyTemplate><p>@confirmationMessage</p></BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CloseConfirmationModal">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ConfirmActionAsync" Disabled="@IsLoading">
+            Confirm
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    // ✅ Two parameters — this is what makes it work for both Create and Edit
+    [Parameter] public bool IsEditMode { get; set; } = false;
+    [Parameter] public Guid? EditId { get; set; } = null;
+
+    // The key difference: Create uses CreateBeneficiaryInformationDto,
+    // Edit uses BeneficiaryInformationDto. Use BeneficiaryInformationDto
+    // for both since it has all the same fields + Id
+    private BeneficiaryInformationDto model = new()
+    {
+        BirthDate = DateTime.UtcNow.AddYears(-80),
+        ValidationDate = DateTime.UtcNow,
+        PsgcCodeRegion = DefaultRegionCode,
+    };
+
+    private bool IsLoading;
+    private bool IsProvinceLoading;
+    private bool IsBarangayLoading;
+    private bool IsFilterProvinceLoading;
+    private bool IsMunicipalityLoading;
+    private string pendingAction = string.Empty; //"add", "edit", "delete"
+    private string confirmationTitle = "Confirm Action";
+    private string confirmationMessage = string.Empty;
+    private string? successMessage;
+    private string? errorMessage;
+    private HxModal confirmModal = default!;
+    private bool isSaving;
+    private ElementReference batchCodeInput;
+    private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
+    private const int DefaultRegionCode = 1600000000;
+    private const string DefaultRegionName = "Region XIII (Caraga)";
+    private List<ProvinceLookupDto> provinces = new();
+    private List<MunicipalityLookupDto> municipalities = new();
+    private List<BarangayLookupDto> barangays = new();
+    private bool _isLoadingRecord = false;
+
+    #region Address
+    private async Task OnProvinceChangedHandled()
+    {
+        // ✅ Skip cascade reset when we're programmatically loading a record
+        if (_isLoadingRecord) return;
+
+        model.PsgcCodeMunicipality = 0;
+        model.PsgcCodeBarangay = 0;
+        municipalities = new();
+        barangays = new();
+
+        if (model.PsgcCodeProvince > 0)
+            await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
+    }
+
+    private async Task OnMunicipalityChangedHandled()
+    {
+        // ✅ Same fix here
+        if (_isLoadingRecord) return;
+
+        model.PsgcCodeBarangay = 0;
+        barangays = new();
+
+        if (model.PsgcCodeMunicipality > 0)
+            await LoadBarangaysAsync(model.PsgcCodeMunicipality);
+    }
+    private void OnBarangayChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
+        {
+            model.PsgcCodeBarangay = psgcCodeBarangay;
+        }
+    }
+    private async Task LoadFilterProvincesAsync()
+    {
+        if (provinces.Any())
+            return;
+
+        try
+        {
+            IsFilterProvinceLoading = true;
+            //get authorized client first
+            var client = await AuthService.GetAuthorizedClientAsync();
+            provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{DefaultRegionCode}") ?? new List<ProvinceLookupDto>();
+        }
+        catch
+        {
+            provinces = new List<ProvinceLookupDto>();
+        }
+        finally
+        {
+            IsFilterProvinceLoading = false;
+        }
+    }
+    private async Task LoadProvincesAsync(int psgcCodeRegion)
+    {
+        if (provinces.Any())
+            return;
+
+        try
+        {
+            IsProvinceLoading = true;
+            //get authorized client first
+            var client = await AuthService.GetAuthorizedClientAsync();
+            var result = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{psgcCodeRegion}");
+
+            provinces = result ?? new List<ProvinceLookupDto>();
+        }
+        catch
+        {
+            provinces = new List<ProvinceLookupDto>();
+        }
+        finally
+        {
+            IsProvinceLoading = false;
+        }
+    }
+    private async Task LoadMunicipalitiesAsync(int psgcCodeProvince)
+    {
+        try
+        {
+            IsMunicipalityLoading = true;
+            //get authorized client first
+            var client = await AuthService.GetAuthorizedClientAsync();
+            municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{psgcCodeProvince}") ?? new List<MunicipalityLookupDto>();
+        }
+        catch
+        {
+            municipalities = new List<MunicipalityLookupDto>();
+        }
+        finally
+        {
+            IsMunicipalityLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadBarangaysAsync(int psgcCodeMunicipality)
+    {
+        try
+        {
+            IsBarangayLoading = true;
+            //get authorized client first
+            var client = await AuthService.GetAuthorizedClientAsync();
+            barangays = await Http.GetFromJsonAsync<List<BarangayLookupDto>>(
+                $"api/Barangay/by-municipality/{psgcCodeMunicipality}") ?? new List<BarangayLookupDto>();
+        }
+        catch
+        {
+            barangays = new List<BarangayLookupDto>();
+        }
+        finally
+        {
+            IsBarangayLoading = false;
+            StateHasChanged();
+        }
+    }
+    #endregion Address - End
+    #region Lookups Properties
+    public class RegionLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class ProvinceLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public int PsgcCodeProvince { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class MunicipalityLookupDto
+    {
+        public int PsgcCodeProvince { get; set; }
+        public int PsgcCodeMunicipality { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    public class BarangayLookupDto
+    {
+        public int PsgcCodeMunicipality { get; set; }
+        public int PsgcCodeBarangay { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+    #endregion Lookups Properties - End
+    #region Other Functions
+    protected override async Task OnInitializedAsync()
+    {
+        model.PsgcCodeRegion = DefaultRegionCode;
+        await LoadProvincesAsync(DefaultRegionCode);
+
+        // ✅ If edit mode, load the existing record and pre-fill the form
+        if (IsEditMode && EditId.HasValue)
+        {
+            await LoadExistingRecordAsync(EditId.Value);
+        }
+    }
+
+    private async Task LoadExistingRecordAsync(Guid id)
+    {
+        try
+        {
+            IsLoading = true;
+            _isLoadingRecord = true; // ✅ Tell event handlers to stand down
+
+            model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>(
+                $"api/beneficiary/edit/{id}") ?? model;
+
+            if (model.PsgcCodeProvince > 0)
+                await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
+
+            if (model.PsgcCodeMunicipality > 0)
+                await LoadBarangaysAsync(model.PsgcCodeMunicipality);
+
+            // ✅ Now that lists are fully loaded, re-apply the model's codes
+            // so Blazor renders them as selected
+            StateHasChanged();
+        }
+        finally
+        {
+            _isLoadingRecord = false; // ✅ Re-enable cascade for user interaction
+            IsLoading = false;
+        }
+    }
+
+
+    private async Task CloseConfirmationModal()
+    {
+        await confirmModal.HideAsync();
+    }
+    private void ResetForm()
+    {
+        model = new BeneficiaryInformationDto
+        {
+            BirthDate = DateTime.UtcNow.AddYears(-80),
+            ValidationDate = DateTime.UtcNow,
+            PsgcCodeRegion = DefaultRegionCode,
+            PsgcCodeProvince = 0,
+            PsgcCodeMunicipality = 0,
+            PsgcCodeBarangay = 0
+        };
+        municipalities.Clear();
+        barangays.Clear();
+
+        if (!provinces.Any())
+        {
+            _ = LoadProvincesAsync(DefaultRegionCode);
+        }
+    }
+    private void ApplyEligibilityRules()
+    {
+        var age = GetEffectiveAge() ?? 0;
+
+        model.IsEligible = age >= 80 && model.Citizenship == 1 || age >= 80;
+
+        StateHasChanged();
+    }
+    #region Age Methods
+    private int? GetAgeAtDate(DateTime? birthDate, DateTime? referenceDate)
+    {
+        if (birthDate == null || referenceDate == null)
+            return null;
+
+        var age = referenceDate.Value.Year - birthDate.Value.Year;
+
+        if (birthDate.Value.Date > referenceDate.Value.AddYears(-age))
+            age--;
+
+        return age < 0 ? 0 : age;
+    }
+    private int? GetEffectiveAge()
+    {
+        if (model.IsDeceased)
+        {
+            return GetAgeAtDate(model.BirthDate, model.DateOfDeath);
+        }
+
+        return GetAge(model.BirthDate);
+    }
+    private void OnBirthDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var birthDate))
+        {
+            model.BirthDate = birthDate;
+            ApplyEligibilityRules();
+        }
+    }
+    private int? GetAge(DateTime? birthDate)
+    {
+        if (birthDate == null)
+            return null;
+
+        var today = DateTime.Today;
+        var age = today.Year - birthDate.Value.Year;
+
+        if (birthDate.Value.Date > today.AddYears(-age))
+            age--;
+
+        return age;
+    }
+    #endregion Age Methods - End
+    private async Task OpenSaveConfirmationModal()
+    {
+        ClearMessages();
+        if (IsEditMode)
+        {
+            pendingAction = "edit";
+            confirmationTitle = "Confirm Update";
+            confirmationMessage = "Are you sure you want to update this record?";
+        }
+        else
+        {
+            pendingAction = "add";
+            confirmationTitle = "Confirm Add";
+            confirmationMessage = "Are you sure you want to add this record?";
+        }
+        await confirmModal.ShowAsync();
+    }
+    private void ClearMessages()
+    {
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private async Task ConfirmActionAsync()
+    {
+        try
+        {
+            await confirmModal.HideAsync();
+            switch (pendingAction)
+            {
+                case "add":
+                    await AddBeneficiaryAsync();
+                    break;
+                case "edit":
+                    await UpdateBeneficiaryAsync();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Error: {ex.Message}");
+        }
+    }
+    private void OnCitizenshipChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            model.Citizenship = value;
+            ApplyEligibilityRules();
+        }
+    }
+    private void OnDateOfDeathChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dateOfDeath))
+        {
+            model.DateOfDeath = dateOfDeath;
+            model.IsDeceased = true;  // ✅ auto-check when date is filled
+        }
+        else
+        {
+            model.DateOfDeath = null;
+            model.IsDeceased = false; // ✅ auto-uncheck when date is cleared
+        }
+
+        ApplyEligibilityRules();
+    }
+    private void OnIsDeceasedChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var isDeceased))
+        {
+            model.IsDeceased = isDeceased;
+        }
+
+        if (!model.IsDeceased)
+        {
+            model.DateOfDeath = null;
+        }
+
+        ApplyEligibilityRules();
+    }
+    #endregion Other Functions - END
+    #region CRUD Methods
+    //Adding new beneficiary record
+    private async Task UpdateBeneficiaryAsync()
+    {
+        ApplyEligibilityRules();
+        IsLoading = true;
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync(
+                $"api/Beneficiary/{model.Id}", model);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess("Record updated successfully.");
+                Navigation.NavigateTo("/beneficiary-records");
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"Update failed: {error}");
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+    private async Task AddBeneficiaryAsync()
+    {
+        ApplyEligibilityRules();
+
+        IsLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        var dto = new CreateBeneficiaryInformationDto
+        {
+            DateApplied = model.DateApplied,
+            DateEndorsed = model.DateEndorsed,
+            BatchCode = model.BatchCode,
+            OscaIdNumber = model.OscaIdNumber,
+            OscaIdDateIssued = model.OscaIdDateIssued,
+            NcscRrn = model.NcscRrn,
+            LastName = model.LastName,
+            FirstName = model.FirstName,
+            MiddleName = model.MiddleName,
+            Extension = model.Extension,
+            BirthDate = model.BirthDate,
+            PhoneNumber = model.PhoneNumber,
+            Sex = model.Sex,
+            IsIndigenousPeople = model.IsIndigenousPeople,
+            IsPersonWithDisability = model.IsPersonWithDisability,
+            CivilStatus = model.CivilStatus,
+            Citizenship = model.Citizenship,
+            PsgcCodeRegion = DefaultRegionCode,
+            PsgcCodeProvince = model.PsgcCodeProvince,
+            PsgcCodeMunicipality = model.PsgcCodeMunicipality,
+            PsgcCodeBarangay = model.PsgcCodeBarangay,
+            IsCompliant = model.IsCompliant,
+            Validator = model.Validator,
+            ValidationDate = model.ValidationDate,
+            PaymentStatus = model.PaymentStatus,
+            ModeOfPayment = model.ModeOfPayment,
+            PaymentDate = model.PaymentDate,
+            IsDeceased = model.IsDeceased,
+            AssessmentRemarks = model.AssessmentRemarks,
+            DateOfDeath = model.DateOfDeath,
+            IsEligible = model.IsEligible,
+            RemarkCategory = model.RemarkCategory,
+            Remarks = model.Remarks,
+            IsDeleted = false
+        };
+
+        try
+        {
+            //get authorized client first
+            var client = await AuthService.GetAuthorizedClientAsync();
+            //response
+            var response = await Http.PostAsJsonAsync($"api/Beneficiary/create", dto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                //Havit Toast
+                toast.ShowSuccess("Success", "Grantee has been registered successfully."
+                );
+
+                ResetForm();// Reset/Clear instead of navigating
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                errorMessage = string.IsNullOrWhiteSpace(error)
+                ? "Something went wrong. Please try again."
+                : error;
+
+                //Error Toast
+                toast.ShowError("Failed", errorMessage);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unexpected error: {ex.Message}";
+            toast.ShowError("Error", errorMessage);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+    #endregion CRUD Methods - End
+
+}

@@ -21,6 +21,13 @@ namespace EcaInformationSystem.Api.Controllers
             var list = await _service.GetAllAsync();
             return Ok(list);
         }
+        [HttpGet("edit/{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var result = await _service.GetByIdAsync(id); // returns BeneficiaryInformationDto
+            if (result is null) return NotFound();
+            return Ok(result);
+        }
         [HttpGet("paged")]
         public async Task<IActionResult> GetPaged([FromQuery] BeneficiaryFilterDto filter)
             => Ok(await _service.GetPaginatedAsync(filter));
