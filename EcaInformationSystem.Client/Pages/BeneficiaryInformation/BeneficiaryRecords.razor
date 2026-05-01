@@ -362,19 +362,19 @@
             <div class="row g-2 mb-4">
                 <div class="col-6">
                     <small class="text-muted d-block">Region</small>
-                    <span>@(selectedDetails.Region ?? "—")</span>
+                    <span>@(selectedDetails.Region)</span>
                 </div>
                 <div class="col-6">
                     <small class="text-muted d-block">Province</small>
-                    <span>@(selectedDetails.Province ?? "—")</span>
+                    <span>@(selectedDetails.Province)</span>
                 </div>
                 <div class="col-6">
                     <small class="text-muted d-block">Municipality</small>
-                    <span>@(selectedDetails.Municipality ?? "—")</span>
+                    <span>@(selectedDetails.Municipality)</span>
                 </div>
                 <div class="col-6">
                     <small class="text-muted d-block">Barangay</small>
-                    <span>@(selectedDetails.Barangay ?? "—")</span>
+                    <span>@(selectedDetails.Barangay)</span>
                 </div>
             </div>
 
@@ -457,10 +457,10 @@
                         @onclick="() => detailsOffcanvas.HideAsync()">
                     Close
                 </button>
-                @* <button class="btn btn-outline-primary px-4"
-                        @onclick="async () => { await detailsOffcanvas.HideAsync(); await EditItem(selectedDetails!); }">
-                    <i class="bi bi-pencil-square me-1"></i> Edit
-                </button> *@
+              <button class="btn btn-outline-primary px-4"
+                   @onclick='() => Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}")'>
+                  <i class="bi bi-pencil-square me-1"></i> Edit
+               </button>
                 <button class="btn btn-outline-info px-4"
                         @onclick="() => OpenLogModal(selectedDetails!)"
                         title="Logs">

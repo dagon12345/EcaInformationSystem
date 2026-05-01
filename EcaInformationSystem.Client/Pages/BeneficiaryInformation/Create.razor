@@ -1,0 +1,23 @@
+﻿@page "/beneficiary-create"
+@attribute [Authorize] 
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.BeneficiaryInformationChildComponents
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Information Entry</PageTitle>
+<div class="container-fluid py-4">
+    <div class="card shadow-sm bg-primary text-white mb-3">
+        <div class="card-body">
+            <h4 class="mb-0">Information Entry</h4>
+            <small class="opacity-75">Create a new record</small>
+        </div>
+    </div>
+    <div class="card shadow-sm mb-3">
+        <div class="card-body"><BeneficiaryImporting /></div>
+    </div>
+    <div class="card card-body shadow-sm">
+        <BeneficiaryForm IsEditMode="false" />
+    </div>
+</div>
+
+
+   

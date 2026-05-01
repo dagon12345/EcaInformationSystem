@@ -20,5 +20,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
         Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, string userName);
         byte[] GenerateImportTemplate();
+        Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
     }
 }

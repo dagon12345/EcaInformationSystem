@@ -1,4 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace EcaInformationSystem.Shared.DTOs
 {
@@ -29,16 +32,16 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? CivilStatus { get; set; }
         public int? Citizenship { get; set; }
         public int PsgcCodeRegion { get; set; }
-        public string? Region { get; set; }
+        public JsonElement? Region { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Province.")]
         public int PsgcCodeProvince { get; set; }
-        public string? Province { get; set; }
+        public JsonElement? Province { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Municipality.")]
         public int PsgcCodeMunicipality { get; set; }
-        public string? Municipality { get; set; }
+        public JsonElement? Municipality { get; set; }
         [Range(1, int.MaxValue, ErrorMessage = "Please select Barangay.")]
         public int PsgcCodeBarangay { get; set; }
-        public string? Barangay { get; set; }
+        public JsonElement? Barangay { get; set; }
         public bool IsCompliant { get; set; }
         [Required(ErrorMessage = "Validator is required.")]
         public string Validator { get; set; } = string.Empty;
@@ -56,5 +59,22 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
+
+        // Add these helper properties so your UI code doesn't have to change
+        public string RegionName => GetJsonString(Region);
+        public string ProvinceName => GetJsonString(Province);
+        public string MunicipalityName => GetJsonString(Municipality);
+        public string BarangayName => GetJsonString(Barangay);
+
+        private string GetJsonString(JsonElement? element)
+        {
+            if (element == null) return string.Empty;
+            return element.Value.ValueKind switch
+            {
+                JsonValueKind.String => element.Value.GetString() ?? "",
+                JsonValueKind.Number => element.Value.GetRawText(),
+                _ => ""
+            };
+        }
     }
 }
