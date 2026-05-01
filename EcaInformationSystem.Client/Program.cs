@@ -23,6 +23,7 @@ builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>()
       .CreateClient("AuthorizedClient"));
 
+builder.Services.AddScoped<BeneficiaryStateService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ToastService>(); // ← THIS WAS MISSING
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthStateProvider>();

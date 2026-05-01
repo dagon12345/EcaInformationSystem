@@ -152,5 +152,23 @@ namespace EcaInformationSystem.Api.Controllers
             var result = await _service.GetLogSummaryAsync(Id);
             return Ok(result);
         }
+        [HttpPost("bulk-payment-status")]
+        public async Task<IActionResult> BulkUpdatePaymentStatus([FromBody] BulkUpdatePaymentStatusRequestDto request)
+        {
+            try
+            {
+                // Get the current logged-in user's name
+                var userName = User.Identity?.Name ?? "System";
+
+                await _service.BulkUpdatePaymentStatusAsync(request.Ids, request.PaymentStatus, userName);
+
+                return Ok(new { message = "Bulk update successful" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
     }
 }
