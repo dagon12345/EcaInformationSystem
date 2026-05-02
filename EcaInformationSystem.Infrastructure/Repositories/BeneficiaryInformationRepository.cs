@@ -390,16 +390,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var query =
                 from b in _context.BeneficiaryInformations
 
-                join region in _context.Regions on b.Region equals region.PsgcCodeRegion into regionJoin
+                join region in _context.Regions
+                    on b.Region equals region.PsgcCodeRegion into regionJoin
                 from region in regionJoin.DefaultIfEmpty()
 
-                join province in _context.Provinces on b.Province equals province.PsgcCodeProvince into provinceJoin
+                join province in _context.Provinces
+                    on b.Province equals province.PsgcCodeProvince into provinceJoin
                 from province in provinceJoin.DefaultIfEmpty()
 
-                join municipality in _context.Municipalities on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
+                join municipality in _context.Municipalities
+                    on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
                 from municipality in municipalityJoin.DefaultIfEmpty()
 
-                join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
+                join barangay in _context.Barangays
+                    on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
                 where !b.IsDeleted
@@ -412,63 +416,119 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Barangay = barangay != null ? barangay.Name : null
                 };
 
+            // ── Location ─────────────────────────────────────────────────────────
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
                 query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
 
-            if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
-                query = query.Where(x => filter.PsgcCodeProvinces.Contains(x.Beneficiary.Province));
+            if (filter.PsgcCodeProvince != null)
+                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince);
 
-            if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
-                query = query.Where(x => filter.PsgcCodeMunicipalities.Contains(x.Beneficiary.Municipality));
+            if (filter.PsgcCodeMunicipality != null)
+                query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality);
 
-            if (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any())
-                query = query.Where(x => filter.PsgcCodeBarangays.Contains(x.Beneficiary.Barangay));
 
+            if (filter.PsgcCodeBarangay != null)
+                query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay);
+
+
+            // ── Name ──────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.LastName))
-                query = query.Where(x => x.Beneficiary.LastName!.Contains(filter.LastName));
-
+                query = query.Where(x =>
+                    x.Beneficiary.LastName != null &&
+                    x.Beneficiary.LastName.Contains(filter.LastName));
+         
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
-                query = query.Where(x => x.Beneficiary.FirstName.Contains(filter.FirstName));
+                query = query.Where(x =>
+                    x.Beneficiary.FirstName.Contains(filter.FirstName));
 
             if (!string.IsNullOrWhiteSpace(filter.FullName))
             {
                 var name = filter.FullName.Trim().ToLower();
                 query = query.Where(x =>
-                    (x.Beneficiary.LastName + " " + x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName).ToLower().Contains(name) ||
-                    (x.Beneficiary.FirstName + " " + x.Beneficiary.MiddleName + " " + x.Beneficiary.LastName).ToLower().Contains(name));
+                    (x.Beneficiary.LastName + " " +
+                     x.Beneficiary.FirstName + " " +
+                     x.Beneficiary.MiddleName).ToLower().Contains(name) ||
+                    (x.Beneficiary.FirstName + " " +
+                     x.Beneficiary.MiddleName + " " +
+                     x.Beneficiary.LastName).ToLower().Contains(name));
             }
 
-            if (filter.Sexes != null && filter.Sexes.Any())
-                query = query.Where(x => filter.Sexes.Contains(x.Beneficiary.Sex));
+            // ── Demographics ──────────────────────────────────────────────────────
+            if (filter.Sex != null)
+                query = query.Where(x => x.Beneficiary.Sex == filter.Sex);
+      
+            // ── Age — computed directly from BirthDate ────────────────────────────
+            // ✅ Moved from BuildBeneficiaryDtoQuery — now part of the single query
+            if (filter.SpecificAge.HasValue)
+            {
+                var cutoffEnd = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
+                var cutoffStart = DateTime.Today.AddYears(-filter.SpecificAge.Value - 1).Date;
+                query = query.Where(x =>
+                    x.Beneficiary.BirthDate > cutoffStart &&
+                    x.Beneficiary.BirthDate <= cutoffEnd);
+            }
 
-            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
-                query = query.Where(x => filter.PaymentStatuses.Contains(x.Beneficiary.PaymentStatus));
-
-            if (!string.IsNullOrWhiteSpace(filter.Validator))
-                query = query.Where(x => x.Beneficiary.Validator!.Contains(filter.Validator));
-
-            if (!string.IsNullOrWhiteSpace(filter.BatchCode))
-                query = query.Where(x => x.Beneficiary.BatchCode!.Contains(filter.BatchCode));
-
+            // ── Birthday ──────────────────────────────────────────────────────────
             if (filter.SpecificBirthday.HasValue)
             {
-                var specificBirthday = filter.SpecificBirthday.Value.Date;
-                query = query.Where(x => x.Beneficiary.BirthDate.Date == specificBirthday);
+                var start = filter.SpecificBirthday.Value.Date;
+                var end = start.AddDays(1);
+                query = query.Where(x =>
+                    x.Beneficiary.BirthDate >= start &&
+                    x.Beneficiary.BirthDate < end);
             }
             else
             {
                 if (filter.BirthdayFrom.HasValue)
                 {
-                    var birthdayFrom = filter.BirthdayFrom.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date >= birthdayFrom);
+                    var from = filter.BirthdayFrom.Value.Date;
+                    query = query.Where(x => x.Beneficiary.BirthDate >= from);
                 }
-
                 if (filter.BirthdayTo.HasValue)
                 {
-                    var birthdayTo = filter.BirthdayTo.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate.Date <= birthdayTo);
+                    var to = filter.BirthdayTo.Value.Date.AddDays(1);
+                    query = query.Where(x => x.Beneficiary.BirthDate < to);
                 }
             }
+
+            // ── Milestone Year — computed from BirthDate ──────────────────────────
+            // ✅ Moved from BuildBeneficiaryDtoQuery — translated directly to SQL
+            if (filter.MilestoneYear.HasValue)
+            {
+                var milestoneYear = filter.MilestoneYear.Value;
+                var milestones = new[] { 80, 85, 90, 95, 100 };
+
+                query = query.Where(x => milestones.Any(m =>
+                    x.Beneficiary.BirthDate.Year + m == milestoneYear));
+            }
+
+
+            // ── Payment ───────────────────────────────────────────────────────────
+            if (filter.PaymentStatus != null)
+                query = query.Where(x =>
+                    filter.PaymentStatus == x.Beneficiary.PaymentStatus);
+
+            if (filter.PaymentDate.HasValue) // ✅ && instead of &
+            {
+                var paymentStart = filter.PaymentDate.Value.Date;
+                var paymentEnd = paymentStart.AddDays(1);
+                query = query.Where(x =>
+                    x.Beneficiary.PaymentDate >= paymentStart &&
+                    x.Beneficiary.PaymentDate < paymentEnd);
+            }
+
+
+            // ── Other ─────────────────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.Validator))
+                query = query.Where(x =>
+                    x.Beneficiary.Validator != null &&
+                    x.Beneficiary.Validator.Contains(filter.Validator));
+
+            if (!string.IsNullOrWhiteSpace(filter.BatchCode))
+                query = query.Where(x =>
+                    x.Beneficiary.BatchCode != null &&
+                    x.Beneficiary.BatchCode.Contains(filter.BatchCode));
+            //Console.WriteLine(query);
             return query.AsNoTracking();
         }
 
@@ -534,22 +594,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Remarks = x.Beneficiary.Remarks,
                     IsDeleted = x.Beneficiary.IsDeleted
                 });
-
-        if (filter.SpecificAge.HasValue)
-            {
-                var cutoffStart = DateTime.Today.AddYears(-filter.SpecificAge.Value - 1).Date;
-                var cutoffEnd = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
-
-                query = query.Where(x =>
-                    x.BirthDate > cutoffStart &&
-                    x.BirthDate <= cutoffEnd
-                );
-            }
-
-            if (filter.MilestoneYear.HasValue)
-            {
-                query = query.Where(x => x.MilestoneYear == filter.MilestoneYear.Value);
-            }
 
             return query;
         }

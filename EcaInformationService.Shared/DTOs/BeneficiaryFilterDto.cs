@@ -19,15 +19,14 @@
         public bool? OnlyEightyYearsOld { get; set; }
         public int? MilestoneYear { get; set; }
         public int? Sex { get; set; }
-        public List<int>? PaymentStatuses { get; set; }
-
+        public int? PaymentStatus { get; set; }
+        public DateTime? PaymentDate { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
 
         public List<int> PsgcCodeProvinces { get; set; } = new();
         public List<int> PsgcCodeMunicipalities { get; set; } = new();
         public List<int> PsgcCodeBarangays { get; set; } = new();
-        public List<int> Sexes { get; set; } = new();
 
     }
 }

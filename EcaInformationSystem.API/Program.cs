@@ -129,11 +129,11 @@ var app = builder.Build();
 app.UseResponseCompression();
 
 // ─── DB Migration ───────────────────────────────────────────────────────────
-//using (var scope = app.Services.CreateScope())
-//{
-//    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-//    dbContext.Database.Migrate();
-//}
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.Migrate();
+}
 
 // 2. Fix the Middleware Pipeline
 if (app.Environment.IsDevelopment())
