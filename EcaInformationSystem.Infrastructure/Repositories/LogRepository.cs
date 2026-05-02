@@ -39,7 +39,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                             CreatedAt = log.CreatedAt,
                             BeneficiaryInformationId = beneficiary != null ? beneficiary.Id : Guid.Empty
                         };
-            var result =  await query.AsNoTracking().ToListAsync();
+            var result =  await query
+                .OrderByDescending(o => o.CreatedAt)
+                .AsNoTracking()
+                .ToListAsync();
             return result;
 
         }

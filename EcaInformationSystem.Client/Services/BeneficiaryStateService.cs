@@ -25,6 +25,16 @@ public class BeneficiaryStateService
     public int TotalPages { get; private set; }
     public bool IsLoading { get; private set; }
 
+    // ✅ Add these two
+    public DateTime? LastLoaded { get; private set; }
+
+    public void Invalidate() => LastLoaded = null; // ✅ forces reload on next visit
+
+    public bool IsStale() =>
+        LastLoaded == null ||
+        (DateTime.Now - LastLoaded.Value).TotalSeconds > 30; // ✅ also catches tab switches
+
+
     // Event to notify components of changes
     public event Action? OnChange;
 
