@@ -338,7 +338,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context.BeneficiaryInformations.Update(beneficiaryInformation);
             return Task.CompletedTask;
         }
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus)
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate)
         {
             var beneficiaries = await _context.BeneficiaryInformations
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
@@ -347,6 +347,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             foreach(var b in beneficiaries)
             {
                 b.PaymentStatus = paymentStatus;
+                b.PaymentDate = paymentStatus == 2  // ✅ 2 = Paid → save date
+                    ? paymentDate
+                    : null; //✅ 1 = Unpaid → always null
             }
 
             await _context.SaveChangesAsync();

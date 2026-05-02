@@ -28,6 +28,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<int?> GetBarangayCodeByNameAsync(string barangayName);
         Task<BeneficiaryInformation?> FindExistingAsync(string? lastName,string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn);
 
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus);
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate);
     }
 }

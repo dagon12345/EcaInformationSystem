@@ -1667,6 +1667,7 @@
     private bool IsExporting = false;
     private HashSet<Guid> checkedIds = new();
     private int bulkPaymentStatus = 0;
+    private DateTime bulkPaymentDate;
     private bool isBulkUpdating;
     private Modal bulkUpdateModal = default!;
     private string? fullNameFilter;
@@ -1808,7 +1809,7 @@
             var userName = authState.User.Identity?.Name ?? "System";
 
             await BeneficiaryInformationService.BulkUpdatePaymentStatusAsync(
-                checkedIds.ToList(), bulkPaymentStatus, userName);
+                checkedIds.ToList(), bulkPaymentStatus, bulkPaymentDate, userName);
 
             ShowSuccessToast(
                 $"Successfully updated {checkedIds.Count} record(s) to {GetPaymentStatusText(bulkPaymentStatus)}.");
