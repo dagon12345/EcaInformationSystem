@@ -12,8 +12,6 @@ public class BeneficiaryStateService
     public int SelectedProvinceId { get; set; } = 0;
     public int SelectedMunicipalityId { get; set; } = 0;
     public int SelectedBarangayId { get; set; } = 0;
-    public int SelectedSex { get; set; } = 0;
-    public int SelectedPaymentStatus { get; set; } = -1;
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
     public List<RegionLookupDto> FilterRegions { get; set; } = new();

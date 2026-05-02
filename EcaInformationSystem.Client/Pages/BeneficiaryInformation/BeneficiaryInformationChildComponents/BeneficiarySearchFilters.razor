@@ -128,10 +128,10 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Sex</label>
                             <select class="form-select"
-                                    value="@State.SelectedSex"
+                                    value="@State.Filter.Sex"
                                     @onchange="OnSexChanged"
                                     disabled="@IsLoading">
-                                <option value="0">-- Select Sex --</option>
+                                <option value="0">Select Sex</option>
                                 <option value="1">Male</option>
                                 <option value="2">Female</option>
                             </select>
@@ -141,14 +141,20 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Payment Status</label>
                             <select class="form-select"
-                                    value="@State.SelectedPaymentStatus"
+                                    value="@State.Filter.PaymentStatus"
                                     @onchange="OnPaymentStatusChanged"
                                     disabled="@IsLoading">
-                                <option value="-1">-- Select Status --</option>
+                                <option value="-1">Select Status</option>
                                 <option value="0">N/A</option>
                                 <option value="1">Unpaid</option>
                                 <option value="2">Paid</option>
                             </select>
+                        </div>
+
+                        <!--Paymen date-->
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <label class="form-label">Payment Date</label>
+                            <input type="date" class="form-control" @bind="State.Filter.PaymentDate" />
                         </div>
 
                     </div>
@@ -268,7 +274,7 @@
     // ── Province ──────────────────────────────────────────────
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
-        State.SelectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.Filter.PsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
         State.SelectedMunicipalityId = 0;
         State.SelectedBarangayId = 0;
         State.FilterMunicipalities.Clear();
@@ -298,13 +304,13 @@
     // ── Sex ───────────────────────────────────────────────────
     private void OnSexChanged(ChangeEventArgs e)
     {
-        State.SelectedSex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.Filter.Sex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
     // ── Payment Status ────────────────────────────────────────
     private void OnPaymentStatusChanged(ChangeEventArgs e)
     {
-        State.SelectedPaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
+        State.Filter.PaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
     }
 
     // ── Loaders ───────────────────────────────────────────────
@@ -330,50 +336,19 @@
         try
         {
             IsApplyingFilters = true;
-
-            // Hierarchy: most specific wins
-            if (State.SelectedBarangayId > 0)
-            {
-                State.Filter.PsgcCodeBarangays = new List<int> { State.SelectedBarangayId };
-                State.Filter.PsgcCodeMunicipalities = new List<int>();
-                State.Filter.PsgcCodeProvinces = new List<int>();
-            }
-            else if (State.SelectedMunicipalityId > 0)
-            {
-                State.Filter.PsgcCodeBarangays = new List<int>();
-                State.Filter.PsgcCodeMunicipalities = new List<int> { State.SelectedMunicipalityId };
-                State.Filter.PsgcCodeProvinces = new List<int>();
-            }
-            else if (State.SelectedProvinceId > 0)
-            {
-                State.Filter.PsgcCodeBarangays = new List<int>();
-                State.Filter.PsgcCodeMunicipalities = new List<int>();
-                State.Filter.PsgcCodeProvinces = new List<int> { State.SelectedProvinceId };
-            }
-            else
-            {
-                State.Filter.PsgcCodeBarangays = new List<int>();
-                State.Filter.PsgcCodeMunicipalities = new List<int>();
-                State.Filter.PsgcCodeProvinces = new List<int>();
-            }
-
-            // Sex — single value into list
-            State.Filter.Sexes = State.SelectedSex > 0
-                ? new List<int> { State.SelectedSex }
-                : new List<int>();
-
-            // Payment status — single value into list
-            State.Filter.PaymentStatuses = State.SelectedPaymentStatus >= 0
-                ? new List<int> { State.SelectedPaymentStatus }
-                : new List<int>();
-
             // Text / date fields
+            State.Filter.PsgcCodeProvince = State.Filter.PsgcCodeProvince;
+            State.Filter.PsgcCodeMunicipality = State.Filter.PsgcCodeMunicipality;
+            State.Filter.PsgcCodeBarangay = State.Filter.PsgcCodeBarangay;
+            State.Filter.PaymentStatus = State.Filter.PaymentStatus;
+            State.Filter.Sex = State.Filter.Sex;
             State.Filter.FullName = State.Filter.FullName;
             State.Filter.LastName = State.Filter.LastName;
             State.Filter.FirstName = State.Filter.FirstName;
             State.Filter.Validator = State.Filter.Validator;
             State.Filter.BatchCode = State.Filter.BatchCode;
             State.Filter.SpecificAge = State.Filter.SpecificAge;
+            State.Filter.PaymentDate = State.Filter.PaymentDate;
             State.Filter.SpecificBirthday = State.Filter.SpecificBirthday;
             State.Filter.BirthdayFrom = State.Filter.BirthdayFrom;
             State.Filter.BirthdayTo = State.Filter.BirthdayTo;
@@ -399,8 +374,9 @@
         State.SelectedProvinceId = 0;
         State.SelectedMunicipalityId = 0;
         State.SelectedBarangayId = 0;
-        State.SelectedSex = 0;
-        State.SelectedPaymentStatus = -1;
+        State.Filter.Sex = -1;
+        State.Filter.PaymentStatus = -1;
+        State.Filter.PaymentDate = null;
         State.FilterMunicipalities = new();
         State.FilterBarangays = new();
         State.Filter = new() { PageNumber = 1, PageSize = 10 };
@@ -435,11 +411,11 @@
         f.BirthdayFrom == null &&
         f.BirthdayTo == null &&
         f.MilestoneYear == null &&
-        (f.PsgcCodeProvinces == null || !f.PsgcCodeProvinces.Any()) &&
-        (f.PsgcCodeMunicipalities == null || !f.PsgcCodeMunicipalities.Any()) &&
-        (f.PsgcCodeBarangays == null || !f.PsgcCodeBarangays.Any()) &&
-        (f.Sexes == null || !f.Sexes.Any()) &&
-        (f.PaymentStatuses == null || !f.PaymentStatuses.Any());
+        f.PsgcCodeProvince == null &&
+        f.PsgcCodeMunicipality == null &&
+        f.PsgcCodeBarangay == null &&
+        f.Sex == null &&
+        f.PaymentStatus == null &&  f.PaymentDate == null;
     private async Task LoadMunicipalitiesAsync(int provinceId)
     {
         if (filterMunicipalityCache.TryGetValue(provinceId, out var cached))

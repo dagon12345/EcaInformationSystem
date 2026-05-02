@@ -70,8 +70,8 @@
                 <label class="form-label">Birth Date (Day/Month/Year) <span class="text-danger">*</span></label>
                 <input type="date"
                        class="form-control"
-                       value="@model.BirthDate.ToString("yyyy-MM-dd")"
-                       @onchange="OnBirthDateChanged" />
+                       @bind="@model.BirthDate"
+                       @bind:after="ApplyEligibilityRules" />
                 <ValidationMessage For="@(() => model.BirthDate)" class="text-danger small" />
             </div>
 
@@ -155,8 +155,8 @@
             <div class="col-12 col-md-6 col-lg-3">
                 <label class="form-label">Citizenship</label>
                 <select class="form-select"
-                        value="@model.Citizenship"
-                        @onchange="OnCitizenshipChanged">
+                        @bind="@model.Citizenship"
+                        @bind:after="ApplyEligibilityRules">
                     <option value="0">Select Citizenship</option>
                     <option value="1">Filipino</option>
                     <option value="2">Dual Citizenship</option>
@@ -574,6 +574,8 @@
 
             model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>(
                 $"api/beneficiary/edit/{id}") ?? model;
+            // ✅ Strip time/timezone — only the date matters for age calculation
+            model.BirthDate = model.BirthDate.Date;
 
             if (model.PsgcCodeProvince > 0)
                 await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
@@ -581,14 +583,17 @@
             if (model.PsgcCodeMunicipality > 0)
                 await LoadBarangaysAsync(model.PsgcCodeMunicipality);
 
-            // ✅ Now that lists are fully loaded, re-apply the model's codes
-            // so Blazor renders them as selected
-            StateHasChanged();
+            // ✅ Re-evaluate eligibility after full model is loaded
+            // This ensures Citizenship, BirthDate, IsDeceased are all set
+            // before the rule runs
+            ApplyEligibilityRules();
+
         }
         finally
         {
             _isLoadingRecord = false; // ✅ Re-enable cascade for user interaction
             IsLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -616,43 +621,37 @@
             _ = LoadProvincesAsync(DefaultRegionCode);
         }
     }
+    // ✅ @bind handles model.BirthDate — just call rules after
     private void ApplyEligibilityRules()
     {
         var age = GetEffectiveAge() ?? 0;
 
-        model.IsEligible = age >= 80 && model.Citizenship == 1 || age >= 80;
+        Console.WriteLine($"Age={age}, BirthDate={model.BirthDate:yyyy-MM-dd}, Citizenship={model.Citizenship}");
 
+        model.IsEligible = age >= 80 && model.Citizenship == 1 || age >= 80;
         StateHasChanged();
     }
     #region Age Methods
-    private int? GetAgeAtDate(DateTime? birthDate, DateTime? referenceDate)
-    {
-        if (birthDate == null || referenceDate == null)
-            return null;
-
-        var age = referenceDate.Value.Year - birthDate.Value.Year;
-
-        if (birthDate.Value.Date > referenceDate.Value.AddYears(-age))
-            age--;
-
-        return age < 0 ? 0 : age;
-    }
+    // ✅ Always read from model — no separate local variable
     private int? GetEffectiveAge()
     {
-        if (model.IsDeceased)
-        {
-            return GetAgeAtDate(model.BirthDate, model.DateOfDeath);
-        }
+        if (model.BirthDate == default || model.BirthDate == DateTime.MinValue)
+            return null;
 
-        return GetAge(model.BirthDate);
+        var asOf = model.IsDeceased && model.DateOfDeath.HasValue
+            ? model.DateOfDeath.Value
+            : DateTime.Today;
+
+        // ✅ Always use Today for eligibility — regardless of IsDeceased
+        return CalculateAge(model.BirthDate, DateTime.Today);
     }
-    private void OnBirthDateChanged(ChangeEventArgs e)
+    private int CalculateAge(DateTime birthDate, DateTime asOf)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var birthDate))
-        {
-            model.BirthDate = birthDate;
-            ApplyEligibilityRules();
-        }
+        // ✅ Use .Date to strip time component — avoids UTC/local mismatch
+        var birth = birthDate.Date;
+        var age = asOf.Date.Year - birth.Year;
+        if (birth > asOf.Date.AddYears(-age)) age--;
+        return age;
     }
     private int? GetAge(DateTime? birthDate)
     {
@@ -716,9 +715,10 @@
         if (int.TryParse(e.Value?.ToString(), out var value))
         {
             model.Citizenship = value;
+            ApplyEligibilityRules();
 
         }
-        ApplyEligibilityRules();
+
     }
     private void OnDateOfDeathChanged(ChangeEventArgs e)
     {
