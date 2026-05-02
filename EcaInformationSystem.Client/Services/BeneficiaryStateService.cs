@@ -6,24 +6,34 @@ public class BeneficiaryStateService
     private readonly HttpClient _http;
     public BeneficiaryStateService(HttpClient http) => _http = http;
 
+    public bool HasActiveFilter { get; private set; } = false;
+
+    // ✅ Persist filter UI selections across navigation
+    public int SelectedProvinceId { get; set; } = 0;
+    public int SelectedMunicipalityId { get; set; } = 0;
+    public int SelectedBarangayId { get; set; } = 0;
+    public int SelectedSex { get; set; } = 0;
+    public int SelectedPaymentStatus { get; set; } = -1;
+
+    // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
+    public List<RegionLookupDto> FilterRegions { get; set; } = new();
+    public List<ProvinceLookupDto> FilterProvinces { get; set; } = new();
+    public List<MunicipalityLookupDto> FilterMunicipalities { get; set; } = new();
+
+    public List<BarangayLookupDto> FilterBarangays { get; set; } = new();
+
     // Shared Data
     public BeneficiaryFilterDto Filter { get; set; } = new()
     {
         PageNumber = 1,
         PageSize = 10
     };
-    // ✅ Add this method
-    public void ClearData()
-    {
-        Beneficiaries = new List<BeneficiaryInformationDto>();
-        TotalCount = 0;
-        TotalPages = 0;
-        NotifyStateChanged();
-    }
+
     public List<BeneficiaryInformationDto> Beneficiaries { get; private set; } = new();
     public int TotalCount { get; private set; }
     public int TotalPages { get; private set; }
     public bool IsLoading { get; private set; }
+
 
     // ✅ Add these two
     public DateTime? LastLoaded { get; private set; }
@@ -37,6 +47,17 @@ public class BeneficiaryStateService
 
     // Event to notify components of changes
     public event Action? OnChange;
+
+    // ✅ Add this method
+    public void ClearData()
+    {
+        Beneficiaries = new List<BeneficiaryInformationDto>();
+        TotalCount = 0;
+        TotalPages = 0;
+        LastLoaded = null;
+        HasActiveFilter = false; // ✅ reset on clear
+        NotifyStateChanged();
+    }
 
     public async Task LoadAsync()
     {
@@ -58,7 +79,9 @@ public class BeneficiaryStateService
             IsLoading = false;
             NotifyStateChanged();
         }
+        HasActiveFilter = true; // ✅ mark that data was loaded with a filter
     }
+
 
     private string GetQueryString(BeneficiaryFilterDto filter)
     {

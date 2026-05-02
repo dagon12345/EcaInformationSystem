@@ -81,9 +81,16 @@
                                 <option value="1">Unpaid</option>
                                 <option value="2">Paid</option>
                             </select>
+                            <!-- ✅ Disabled when Unpaid (2) or no status selected (0) -->
+                            <InputDate class="form-control form-control-sm w-auto"
+                                       TValue="DateTime?"
+                                       @bind-Value="bulkPaymentDate"
+                                       disabled="@(bulkPaymentStatus != 2)" />
+
                             <button class="btn btn-sm btn-primary"
                                     @onclick="OpenBulkUpdateModal"
-                                    disabled="@(bulkPaymentStatus == 0 || IsBulkUpdating)">
+                                    disabled="@(bulkPaymentStatus == 0 || (bulkPaymentStatus == 2 && bulkPaymentDate == null) || IsBulkUpdating)">
+        
                                 @if (IsBulkUpdating)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -570,6 +577,7 @@
     private bool IsSaving;
     private HashSet<Guid> checkedIds = new();
     private int bulkPaymentStatus = 0;
+    private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
     private string? fullNameFilter;
     private BeneficiaryInformationDto? selectedDetails;
@@ -599,8 +607,9 @@
     {
         State.OnChange += StateHasChanged;
 
-        // ✅ Reload if never loaded or marked stale by edit/delete/import
-        if (!State.Beneficiaries.Any() || State.IsStale())
+        // ✅ Only reload if there was an active filter before navigation
+        // Don't auto-load on fresh visit or after clear
+        if (State.HasActiveFilter && State.IsStale())
         {
             await State.LoadAsync();
         }
@@ -855,7 +864,7 @@
     }
     private async Task OpenBulkUpdateModal()
     {
-        if (bulkPaymentStatus == 0 || !checkedIds.Any()) return;
+        if (bulkPaymentStatus == 0 || !checkedIds.Any() || bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
         await bulkUpdateModal.ShowAsync();
     }
     // ✅ AFTER — selects only visible filtered rows
@@ -871,6 +880,7 @@
     {
         checkedIds.Clear();
         bulkPaymentStatus = 0;
+        bulkPaymentDate = null;
     }
     private void GoToDashboardSummary()
     {
@@ -884,10 +894,11 @@
             IsBulkUpdating = true;
 
             // 1. Create the request object matching the Controller's DTO
-            var request = new
+            var request = new 
             {
                 Ids = checkedIds.ToList(),
-                PaymentStatus = bulkPaymentStatus
+                PaymentStatus = bulkPaymentStatus,
+                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null // ✅ 2 = Paid
             };
 
             // 2. Call the API directly using HttpClient
@@ -968,17 +979,6 @@
             IsExporting = false;
         }
     }
-    #region Lookups
-    public class LogsLookupDto
-    {
-        public Guid Id { get; set; }
-        public Guid BeneficiaryInformationId { get; set; }
-        public string Activity { get; set; } = string.Empty;
-        public string UserName { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
-    }
-
-    #endregion Lookups-end
     #region Private mapping
     private string GetSexText(int sex) => sex switch
     {

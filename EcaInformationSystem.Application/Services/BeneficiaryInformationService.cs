@@ -435,7 +435,7 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, string userName)
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName)
         {
             if (ids == null || !ids.Any())
                 throw new Exception("No records selected");
@@ -443,10 +443,17 @@ namespace EcaInformationSystem.Application.Services
             if (paymentStatus != 1 && paymentStatus != 2)
                 throw new Exception("Invalid payment status. Must be 1 (Unpaid) or 2 (Paid).");
 
-            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus);
+            // ✅ Paid requires a date
+            if (paymentStatus == 2 && paymentDate == null)
+                throw new Exception("Payment date is required when status is Paid.");
 
-            var statusLabel = paymentStatus == 1 ? "Unpaid" : "Paid";
-            foreach(var id in ids)
+
+
+            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus, paymentDate);
+
+            var statusLabel = paymentStatus == 2 ? $"Paid (Date: {paymentDate:yyyy-MM-dd})" : "Unpaid";
+
+            foreach (var id in ids)
             {
                 await AddLogAsync(id, $"Bulk payment status updated to: {statusLabel}", userName);
             }

@@ -30,11 +30,11 @@
                             <label class="form-label">Province</label>
                             <select class="form-select"
                                     @key="provinceSelectKey"
-                                    value="@selectedProvinceId"
+                                    value="@State.SelectedProvinceId"
                                     @onchange="OnProvinceChanged"
                                     disabled="@(IsLoading || IsFilterProvinceLoading)">
                                 <option value="0">Select Province</option>
-                                @foreach (var p in filterProvinces)
+                                @foreach (var p in State.FilterProvinces)
                                 {
                                     <option value="@p.PsgcCodeProvince">@p.Name</option>
                                 }
@@ -53,11 +53,11 @@
                             <label class="form-label">Municipality</label>
                             <select class="form-select"
                                     @key="municipalitySelectKey"
-                                    value="@selectedMunicipalityId"
+                                    value="@State.SelectedMunicipalityId"
                                     @onchange="OnMunicipalityChanged"
-                                    disabled="@(IsLoading || selectedProvinceId == 0 || IsFilterMunicipalityLoading)">
-                                <option value="0">-- Select Municipality --</option>
-                                @foreach (var m in filterMunicipalities)
+                                    disabled="@(IsLoading || State.SelectedProvinceId == 0 || IsFilterMunicipalityLoading)">
+                                <option value="0">Select Municipality</option>
+                                @foreach (var m in State.FilterMunicipalities)
                                 {
                                     <option value="@m.PsgcCodeMunicipality">@m.Name</option>
                                 }
@@ -76,11 +76,11 @@
                             <label class="form-label">Barangay</label>
                             <select class="form-select"
                                     @key="barangaySelectKey"
-                                    value="@selectedBarangayId"
+                                    value="@State.SelectedBarangayId"
                                     @onchange="OnBarangayChanged"
-                                    disabled="@(IsLoading || selectedMunicipalityId == 0 || IsFilterBarangayLoading)">
-                                <option value="0">-- Select Barangay --</option>
-                                @foreach (var b in filterBarangays)
+                                    disabled="@(IsLoading || State.SelectedMunicipalityId == 0 || IsFilterBarangayLoading)">
+                                <option value="0">Select Barangay</option>
+                                @foreach (var b in State.FilterBarangays)
                                 {
                                     <option value="@b.PsgcCodeBarangay">@b.Name</option>
                                 }
@@ -106,7 +106,7 @@
                             <label class="form-label">Full Name</label>
                             <input type="text" class="form-control"
                                    placeholder="Search by name..."
-                                   @bind="filterModel.FullName"
+                                   @bind="State.Filter.FullName"
                                    @bind:event="oninput" />
                         </div>
 
@@ -114,21 +114,21 @@
                             <label class="form-label">Last Name</label>
                             <input type="text" class="form-control"
                                    placeholder="Enter last name"
-                                   @bind="filterModel.LastName" />
+                                   @bind="State.Filter.LastName" />
                         </div>
 
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">First Name</label>
                             <input type="text" class="form-control"
                                    placeholder="Enter first name"
-                                   @bind="filterModel.FirstName" />
+                                   @bind="State.Filter.FirstName" />
                         </div>
 
                         <!-- Sex -->
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Sex</label>
                             <select class="form-select"
-                                    value="@selectedSex"
+                                    value="@State.SelectedSex"
                                     @onchange="OnSexChanged"
                                     disabled="@IsLoading">
                                 <option value="0">-- Select Sex --</option>
@@ -141,7 +141,7 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Payment Status</label>
                             <select class="form-select"
-                                    value="@selectedPaymentStatus"
+                                    value="@State.SelectedPaymentStatus"
                                     @onchange="OnPaymentStatusChanged"
                                     disabled="@IsLoading">
                                 <option value="-1">-- Select Status --</option>
@@ -160,17 +160,17 @@
                         <div class="row g-3">
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Specific Age</label>
-                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="filterModel.SpecificAge" />
+                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="State.Filter.SpecificAge" />
                             </div>
 
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Validator</label>
-                                <input type="text" class="form-control" placeholder="Validator" @bind="filterModel.Validator" />
+                            <input type="text" class="form-control" placeholder="Validator" @bind="State.Filter.Validator" />
                             </div>
 
                             <div class="col-12 col-md-4">
                                 <label class="form-label">BatchCode</label>
-                                <input type="text" class="form-control" placeholder="Batch Code" @bind="filterModel.BatchCode" />
+                            <input type="text" class="form-control" placeholder="Batch Code" @bind="State.Filter.BatchCode" />
                             </div>
                         </div>
                     </div>
@@ -181,23 +181,23 @@
                         <div class="row g-3">
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Specific Birthday</label>
-                                <input type="date" class="form-control" @bind="filterModel.SpecificBirthday" />
+                            <input type="date" class="form-control" @bind="State.Filter.SpecificBirthday" />
                             </div>
 
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Birthday From</label>
-                                <input type="date" class="form-control" @bind="filterModel.BirthdayFrom" />
+                            <input type="date" class="form-control" @bind="State.Filter.BirthdayFrom" />
                             </div>
 
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Birthday To</label>
-                                <input type="date" class="form-control" @bind="filterModel.BirthdayTo" />
+                            <input type="date" class="form-control" @bind="State.Filter.BirthdayTo" />
                             </div>
 
                             <div class="col-12 col-md-4">
                                 <label class="form-label">Milestone Year</label>
-                            <InputSelect @bind-Value="filterModel.MilestoneYear" class="form-select">
-                                <option value="">-- Select Year --</option>
+                            <InputSelect @bind-Value="State.Filter.MilestoneYear" class="form-select">
+                                <option value="">Select Year</option>
                                 @for (int year = DateTime.Now.Year; year >= 2024; year--)
                                 {
                                     <option value="@year">@year</option>
@@ -228,18 +228,9 @@
         </div>
     </div>
 @code {
-    private bool showProvinceDropdown;
-    private bool showMunicipalityDropdown;
-    private bool showBarangayDropdown;
-    private bool showSexDropdown;
-    private bool showPaymentStatusDropdown;
     private bool IsProvinceLoading;
-    private string? errorMessage;
-    private int bulkPaymentStatus = 0;
     private string? fullNameFilter;
     private const int DefaultRegionCode = 1600000000;
-    private int totalCount;
-    private int totalPages;
 
     private bool IsLoading = false;
     private bool IsMunicipalityDisabled = true;
@@ -249,38 +240,13 @@
     private bool IsFilterBarangayLoading = false;
     private bool IsApplyingFilters = false;
 
-    private int selectedProvinceId = 0;
-    private int selectedBarangayId = 0;
-    private HashSet<int> selectedMunicipalityIds = new();
-    private HashSet<int> selectedSexes = new();
-    private HashSet<int> selectedPaymentStatuses = new();
-
-    private HashSet<Guid> checkedIds = new();
-
     #region Filter dropdowns
-    private List<ProvinceLookupDto> filterProvinces = new();
-    private List<MunicipalityLookupDto> filterMunicipalities = new();
-    private List<BarangayLookupDto> filterBarangays = new();
-
-    private List<ProvinceLookupDto> provinces = new();
-    private List<MunicipalityLookupDto> municipalities = new();
-    private List<BarangayLookupDto> barangays = new();
-
     // Cache — keyed by province id and municipality id
     private Dictionary<int, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<int, List<BarangayLookupDto>> filterBarangayCache = new();
-
-
     #endregion
     private List<BeneficiaryInformationDto> beneficiaries = new();
     private BeneficiaryInformationDto model = new();
-    // ✅ Add reference to the dropdown container
-    private ElementReference municipalityDropdownRef;
-    private BeneficiaryFilterDto filterModel = new() { PageNumber = 1, PageSize = 10 };
-    // ── Fields ────────────────────────────────────────────────
-    private int selectedMunicipalityId = 0;
-    private int selectedSex = 0;
-    private int selectedPaymentStatus = -1;
 
     private int provinceSelectKey = 0;
     private int municipalitySelectKey = 0;
@@ -288,60 +254,67 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadFilterProvincesAsync(); // fills `filterProvinces` which the dropdown uses
-    }
+        await LoadFilterProvincesAsync();
 
+        // ✅ If a province was previously selected, restore its municipality list
+        if (State.SelectedProvinceId > 0 && !State.FilterMunicipalities.Any())
+            await LoadMunicipalitiesAsync(State.SelectedProvinceId);
+
+        // ✅ If a municipality was previously selected, restore its barangay list
+        if (State.SelectedMunicipalityId > 0 && !State.FilterBarangays.Any())
+            await LoadBarangaysAsync(State.SelectedMunicipalityId);
+    }
 
     // ── Province ──────────────────────────────────────────────
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
-        selectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        selectedMunicipalityId = 0;
-        selectedBarangayId = 0;
-        filterMunicipalities.Clear();
-        filterBarangays.Clear();
+        State.SelectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedMunicipalityId = 0;
+        State.SelectedBarangayId = 0;
+        State.FilterMunicipalities.Clear();
+        State.FilterBarangays.Clear();
 
-        if (selectedProvinceId > 0)
-            await LoadMunicipalitiesAsync(selectedProvinceId);
+        if (State.SelectedProvinceId > 0)
+            await LoadMunicipalitiesAsync(State.SelectedProvinceId);
     }
 
     // ── Municipality ──────────────────────────────────────────
     private async Task OnMunicipalityChanged(ChangeEventArgs e)
     {
-        selectedMunicipalityId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        selectedBarangayId = 0;
-        filterBarangays.Clear();
+        State.SelectedMunicipalityId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedBarangayId = 0;
+        State.FilterBarangays.Clear();
 
-        if (selectedMunicipalityId > 0)
-            await LoadBarangaysAsync(selectedMunicipalityId);
+        if (State.SelectedMunicipalityId > 0)
+            await LoadBarangaysAsync(State.SelectedMunicipalityId);
     }
 
     // ── Barangay ──────────────────────────────────────────────
     private void OnBarangayChanged(ChangeEventArgs e)
     {
-        selectedBarangayId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedBarangayId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
     // ── Sex ───────────────────────────────────────────────────
     private void OnSexChanged(ChangeEventArgs e)
     {
-        selectedSex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedSex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
     // ── Payment Status ────────────────────────────────────────
     private void OnPaymentStatusChanged(ChangeEventArgs e)
     {
-        selectedPaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
+        State.SelectedPaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
     }
 
     // ── Loaders ───────────────────────────────────────────────
     private async Task LoadFilterProvincesAsync()
     {
-        if (filterProvinces.Any()) return;
+        if (State.FilterProvinces.Any()) return;
         try
         {
             IsFilterProvinceLoading = true;
-            filterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+            State.FilterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 $"api/Province/by-region/{DefaultRegionCode}") ?? new();
         }
         finally
@@ -359,23 +332,23 @@
             IsApplyingFilters = true;
 
             // Hierarchy: most specific wins
-            if (selectedBarangayId > 0)
+            if (State.SelectedBarangayId > 0)
             {
-                State.Filter.PsgcCodeBarangays = new List<int> { selectedBarangayId };
+                State.Filter.PsgcCodeBarangays = new List<int> { State.SelectedBarangayId };
                 State.Filter.PsgcCodeMunicipalities = new List<int>();
                 State.Filter.PsgcCodeProvinces = new List<int>();
             }
-            else if (selectedMunicipalityId > 0)
+            else if (State.SelectedMunicipalityId > 0)
             {
                 State.Filter.PsgcCodeBarangays = new List<int>();
-                State.Filter.PsgcCodeMunicipalities = new List<int> { selectedMunicipalityId };
+                State.Filter.PsgcCodeMunicipalities = new List<int> { State.SelectedMunicipalityId };
                 State.Filter.PsgcCodeProvinces = new List<int>();
             }
-            else if (selectedProvinceId > 0)
+            else if (State.SelectedProvinceId > 0)
             {
                 State.Filter.PsgcCodeBarangays = new List<int>();
                 State.Filter.PsgcCodeMunicipalities = new List<int>();
-                State.Filter.PsgcCodeProvinces = new List<int> { selectedProvinceId };
+                State.Filter.PsgcCodeProvinces = new List<int> { State.SelectedProvinceId };
             }
             else
             {
@@ -385,26 +358,26 @@
             }
 
             // Sex — single value into list
-            State.Filter.Sexes = selectedSex > 0
-                ? new List<int> { selectedSex }
+            State.Filter.Sexes = State.SelectedSex > 0
+                ? new List<int> { State.SelectedSex }
                 : new List<int>();
 
             // Payment status — single value into list
-            State.Filter.PaymentStatuses = selectedPaymentStatus >= 0
-                ? new List<int> { selectedPaymentStatus }
+            State.Filter.PaymentStatuses = State.SelectedPaymentStatus >= 0
+                ? new List<int> { State.SelectedPaymentStatus }
                 : new List<int>();
 
             // Text / date fields
-            State.Filter.FullName = filterModel.FullName;
-            State.Filter.LastName = filterModel.LastName;
-            State.Filter.FirstName = filterModel.FirstName;
-            State.Filter.Validator = filterModel.Validator;
-            State.Filter.BatchCode = filterModel.BatchCode;
-            State.Filter.SpecificAge = filterModel.SpecificAge;
-            State.Filter.SpecificBirthday = filterModel.SpecificBirthday;
-            State.Filter.BirthdayFrom = filterModel.BirthdayFrom;
-            State.Filter.BirthdayTo = filterModel.BirthdayTo;
-            State.Filter.MilestoneYear = filterModel.MilestoneYear;
+            State.Filter.FullName = State.Filter.FullName;
+            State.Filter.LastName = State.Filter.LastName;
+            State.Filter.FirstName = State.Filter.FirstName;
+            State.Filter.Validator = State.Filter.Validator;
+            State.Filter.BatchCode = State.Filter.BatchCode;
+            State.Filter.SpecificAge = State.Filter.SpecificAge;
+            State.Filter.SpecificBirthday = State.Filter.SpecificBirthday;
+            State.Filter.BirthdayFrom = State.Filter.BirthdayFrom;
+            State.Filter.BirthdayTo = State.Filter.BirthdayTo;
+            State.Filter.MilestoneYear = State.Filter.MilestoneYear;
             State.Filter.PageNumber = 1;
 
             if (IsFilterEmpty(State.Filter))
@@ -420,19 +393,19 @@
             IsApplyingFilters = false;
         }
     }
-
     private async Task ClearFilterAsync()
     {
-        selectedProvinceId = 0;
-        selectedMunicipalityId = 0;
-        selectedBarangayId = 0;
-        selectedSex = 0;
-        selectedPaymentStatus = -1;
-        filterMunicipalities.Clear();
-        filterBarangays.Clear();
-        errorMessage = null;
+        // ✅ Reset State selections
+        State.SelectedProvinceId = 0;
+        State.SelectedMunicipalityId = 0;
+        State.SelectedBarangayId = 0;
+        State.SelectedSex = 0;
+        State.SelectedPaymentStatus = -1;
+        State.FilterMunicipalities = new();
+        State.FilterBarangays = new();
+        State.Filter = new() { PageNumber = 1, PageSize = 10 };
 
-        // ✅ Clear caches so next selection fetches fresh data
+        // Reset caches
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
 
@@ -441,11 +414,11 @@
         municipalitySelectKey++;
         barangaySelectKey++;
 
-        filterModel = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
+        // Reset shared filter and grid
         State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
         State.ClearData();
 
-        filterProvinces.Clear();
+        State.FilterProvinces.Clear();
         await LoadFilterProvincesAsync();
         StateHasChanged();
     }
@@ -474,7 +447,7 @@
             // ✅ Don't use cache if it's empty — re-fetch instead
             if (cached.Any())
             {
-                filterMunicipalities = cached;
+                State.FilterMunicipalities = cached;
                 StateHasChanged();
                 return;
             }
@@ -494,7 +467,7 @@
                 var result = await response.Content
                     .ReadFromJsonAsync<List<MunicipalityLookupDto>>() ?? new();
 
-                filterMunicipalities = result;
+                State.FilterMunicipalities = result;
 
                 // ✅ Only cache if we actually got data
                 if (result.Any())
@@ -514,7 +487,7 @@
             // ✅ Don't use empty cache
             if (cached.Any())
             {
-                filterBarangays = cached;
+                State.FilterBarangays = cached;
                 StateHasChanged();
                 return;
             }
@@ -533,7 +506,7 @@
                 var result = await response.Content
                     .ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
 
-                filterBarangays = result;
+                State.FilterBarangays = result;
 
                 // ✅ Only cache if we got data
                 if (result.Any())
@@ -573,67 +546,4 @@
 
         return string.Join("&", queryString);
     }
-    private async Task LoadBeneficiariesAsync()
-    {
-        try
-        {
-            IsLoading = true;
-            errorMessage = null;
-            checkedIds.Clear();
-
-            // 2. Automatically generate the full query string
-            var query = GetQueryString(filterModel);
-
-            // 3. Call the API
-            var paginatedResult = await Http.GetFromJsonAsync<PagedResultDto<BeneficiaryInformationDto>>(
-                $"api/beneficiary/paged?{query}");
-
-            beneficiaries = paginatedResult?.Items?.ToList() ?? new List<BeneficiaryInformationDto>();
-            totalCount = paginatedResult?.TotalCount ?? 0;
-            totalPages = paginatedResult?.TotalPages ?? 0;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Unable to load grantees. {ex.Message}";
-            beneficiaries = new List<BeneficiaryInformationDto>();
-        }
-        finally
-        {
-            IsLoading = false;
-        }
-    }
-   #region Lookup DTOS
-    public class LogsLookupDto
-    {
-        public Guid Id { get; set; }
-        public Guid BeneficiaryInformationId { get; set; }
-        public string Activity { get; set; } = string.Empty;
-        public string UserName { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
-    }
-
-    public class RegionLookupDto
-    {
-        public int PsgcCodeRegion { get; set; }
-        public string Name { get; set; } = string.Empty;
-    }
-    public class ProvinceLookupDto
-    {
-        public int PsgcCodeRegion { get; set; }
-        public int PsgcCodeProvince { get; set; }
-        public string Name { get; set; } = string.Empty;
-    }
-    public class MunicipalityLookupDto
-    {
-        public int PsgcCodeProvince { get; set; }
-        public int PsgcCodeMunicipality { get; set; }
-        public string Name { get; set; } = string.Empty;
-    }
-    public class BarangayLookupDto
-    {
-        public int PsgcCodeMunicipality { get; set; }
-        public int PsgcCodeBarangay { get; set; }
-        public string Name { get; set; } = string.Empty;
-    }
-   #endregion Lookup DTOS - End
 }

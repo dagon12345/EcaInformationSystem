@@ -167,7 +167,7 @@ namespace EcaInformationSystem.Api.Controllers
                 // Get the current logged-in user's name
                 var userName = User.Identity?.Name ?? "System";
 
-                await _service.BulkUpdatePaymentStatusAsync(request.Ids, request.PaymentStatus, userName);
+                await _service.BulkUpdatePaymentStatusAsync(request.Ids, request.PaymentStatus, request.PaymentDate, userName);
 
                 return Ok(new { message = "Bulk update successful" });
             }
