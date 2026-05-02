@@ -133,7 +133,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var item in State.Beneficiaries)
+                                @foreach (var item in FilteredBeneficiaries)
                                 {
                                     <tr>
                                         <td>
@@ -458,7 +458,7 @@
                     Close
                 </button>
               <button class="btn btn-outline-primary px-4"
-                   @onclick='() => Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}")'>
+                   @onclick="async () => {await OpenEditConfirmationModal(selectedDetails! ,selectedDetails!.Id);}">
                   <i class="bi bi-pencil-square me-1"></i> Edit
                </button>
                 <button class="btn btn-outline-info px-4"
@@ -563,7 +563,6 @@
     </FooterTemplate>
 </HxModal>
 @code {
-    private List<BeneficiaryInformationDto> beneficiaries = new();
     private string? errorMessage;
     private bool IsExporting;
     private bool IsLoading;
@@ -581,13 +580,14 @@
     private HxModal confirmModal = default!;
     private string selectedBeneficiaryName = string.Empty;
     private BeneficiaryInformationDto? selectedDeleteItem;
+    private BeneficiaryInformationDto? selectedEditItem;
     private List<LogsLookupDto> logs = new();
     private string pendingAction = string.Empty; //"add", "edit", "delete"
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
     private string? successMessage;
-    private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? beneficiaries
-           : beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? State.Beneficiaries
+           : State.Beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
 
     private async Task OpenDetailsPanel(BeneficiaryInformationDto item)
     {
@@ -595,9 +595,15 @@
         StateHasChanged();
         await detailsOffcanvas.ShowAsync();
     }
-    protected override void OnInitialized()
+    protected override async void OnInitialized()
     {
         State.OnChange += StateHasChanged;
+
+        // ✅ Reload if never loaded or marked stale by edit/delete/import
+        if (!State.Beneficiaries.Any() || State.IsStale())
+        {
+            await State.LoadAsync();
+        }
     }
 
     public void Dispose()
@@ -624,6 +630,10 @@
             {
                 case "delete":
                     await SoftDeleteBeneficiaryAsync();
+                    break;
+                case "navigate":
+                    //Routing here
+                    Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}");
                     break;
 
                 default:
@@ -660,7 +670,12 @@
                 toast.ShowSuccess($"Grantee '{selectedDeleteItem.FirstName} {selectedDeleteItem.LastName}' was deleted successfully.");
 
                 // 2. Refresh the grid (via your State Service or local load method)
-                await State.LoadAsync();
+                // ✅ Reload if never loaded or marked stale by edit/delete/import
+                if (!State.Beneficiaries.Any() || State.IsStale())
+                {
+                    State.Invalidate();
+                    await State.LoadAsync();
+                }
             }
             else
             {
@@ -702,7 +717,16 @@
     {
         await logModal.HideAsync();
     }
+    //Edit confirmation modal
+    private async Task OpenEditConfirmationModal(BeneficiaryInformationDto item, Guid Id)
+    {
+        ClearMessages();
+        pendingAction = "navigate";
+        confirmationTitle = "Proceed to Editing";
+        confirmationMessage = $"You are going to edit Grantee '{item.FirstName} {item.LastName}'";
+        await confirmModal.ShowAsync();
 
+    }
     //Delete confirmation modal
     private async Task OpenDeleteConfirmationModal(BeneficiaryInformationDto item)
     {
@@ -827,21 +851,22 @@
     private void OnFullNameFilterInput(ChangeEventArgs e)
     {
         fullNameFilter = e.Value?.ToString();
+        StateHasChanged(); // ✅ re-renders the grid with filtered results
     }
     private async Task OpenBulkUpdateModal()
     {
         if (bulkPaymentStatus == 0 || !checkedIds.Any()) return;
         await bulkUpdateModal.ShowAsync();
     }
+    // ✅ AFTER — selects only visible filtered rows
     private void ToggleSelectAll(ChangeEventArgs e)
     {
-        var isChecked = (bool)(e.Value ?? false);
-        if (isChecked)
-            foreach (var item in State.Beneficiaries) checkedIds.Add(item.Id);
+        if ((bool)e.Value!)
+            foreach (var item in FilteredBeneficiaries) // ✅ what user sees
+                checkedIds.Add(item.Id);
         else
             checkedIds.Clear();
     }
-
     private void ClearSelection()
     {
         checkedIds.Clear();
@@ -874,7 +899,11 @@
                     $"Successfully updated {checkedIds.Count} record(s) to {GetPaymentStatusText(bulkPaymentStatus)}.");
 
                 ClearSelection();
-                await State.LoadAsync();
+                if (!State.Beneficiaries.Any() || State.IsStale())
+                {
+                    State.Invalidate();
+                    await State.LoadAsync();
+                }
                 if (bulkUpdateModal != null)
                     await bulkUpdateModal.HideAsync();
 

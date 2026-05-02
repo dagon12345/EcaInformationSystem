@@ -5,6 +5,7 @@
 @inject ToastService toast
 @inject NavigationManager Navigation
 @inject AuthService AuthService
+@inject BeneficiaryStateService State;
 
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
     <DataAnnotationsValidator />
@@ -294,13 +295,13 @@
         <h5 class="text-primary mb-3">Payment Information & Remarks</h5>
         <div class="row g-3">
             <div class="col-12 col-md-6">
-                <label class="form-label">Payment Status <span class="text-danger">*</span></label>
+                <label class="form-label">Payment Status</label>
                 <InputSelect class="form-select" @bind-Value="model.PaymentStatus">
                     <option value="0">Select Payment Status</option>
+                    <option value="0">N/A</option>
                     <option value="1">Unpaid</option>
                     <option value="2">Paid</option>
                 </InputSelect>
-                <ValidationMessage For="@(() => model.PaymentStatus)" class="text-danger small" />
             </div>
             <div class="col-12 col-md-6">
                 <label class="form-label">Mode of Payment </label>
@@ -328,7 +329,7 @@
                     <option value="8">For Correction</option>
                     <option value="9">Waived</option>
                     <option value="10">Lacking Proof of Relationship</option>
-                    <option value="11">Now show</option>
+                    <option value="11">No show</option>
                     <option value="12">Double Application with Different Surename used</option>
                     <option value="13">For CGD Island Municipality</option>
                 </InputSelect>
@@ -344,7 +345,7 @@
 
     <div class="d-flex justify-content-end gap-2 mt-3">
         <button type="button" class="btn btn-secondary"
-                @onclick='() => Navigation.NavigateTo("/beneficiary-records")'>
+                @onclick='() => { State.Invalidate(); Navigation.NavigateTo("/beneficiary-records"); }'>
             Cancel
         </button>
         <button type="submit" class="btn btn-primary" disabled="@IsLoading">
@@ -715,8 +716,9 @@
         if (int.TryParse(e.Value?.ToString(), out var value))
         {
             model.Citizenship = value;
-            ApplyEligibilityRules();
+
         }
+        ApplyEligibilityRules();
     }
     private void OnDateOfDeathChanged(ChangeEventArgs e)
     {
@@ -752,7 +754,6 @@
     //Adding new beneficiary record
     private async Task UpdateBeneficiaryAsync()
     {
-        ApplyEligibilityRules();
         IsLoading = true;
 
         try
@@ -763,6 +764,7 @@
             if (response.IsSuccessStatusCode)
             {
                 toast.ShowSuccess("Record updated successfully.");
+                State.Invalidate(); // ✅ marks data as stale before leaving
                 Navigation.NavigateTo("/beneficiary-records");
             }
             else
@@ -778,8 +780,6 @@
     }
     private async Task AddBeneficiaryAsync()
     {
-        ApplyEligibilityRules();
-
         IsLoading = true;
         errorMessage = null;
         successMessage = null;

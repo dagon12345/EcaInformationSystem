@@ -471,7 +471,7 @@ namespace EcaInformationSystem.Application.Services
                   Id);
 
 
-            var changes = GetChangedFields(beneficiary, dto);
+            var changes = await GetChangedFields(beneficiary, dto);
 
             beneficiary.Update(dto.DateApplied, dto.DateEndorsed, dto.BatchCode, dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate, dto.PhoneNumber,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
@@ -1477,110 +1477,103 @@ namespace EcaInformationSystem.Application.Services
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
-        private List<string> GetChangedFields(BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
+        private async Task<List<string>> GetChangedFields(
+     BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
         {
             var changes = new List<string>();
 
+            // ── Simple text fields ────────────────────────────────
             if (beneficiary.DateApplied != dto.DateApplied)
-                changes.Add($"DateApplied: '{beneficiary.DateApplied}' -> '{dto.DateApplied}'");
+                changes.Add($"Date Applied: '{beneficiary.DateApplied:yyyy-MM-dd}' → '{dto.DateApplied:yyyy-MM-dd}'");
 
             if (beneficiary.DateEndorsed != dto.DateEndorsed)
-                changes.Add($"DateEndorsed: '{beneficiary.DateEndorsed}' -> '{dto.DateEndorsed}'");
+                changes.Add($"Date Endorsed: '{beneficiary.DateEndorsed:yyyy-MM-dd}' → '{dto.DateEndorsed:yyyy-MM-dd}'");
 
             if (beneficiary.BatchCode != dto.BatchCode)
-                changes.Add($"BatchCode: '{beneficiary.BatchCode}' -> '{dto.BatchCode}'");
+                changes.Add($"Batch Code: '{beneficiary.BatchCode}' → '{dto.BatchCode}'");
 
             if (beneficiary.OscaIdNumber != dto.OscaIdNumber)
-                changes.Add($"OscaIdNumber: '{beneficiary.OscaIdNumber}' -> '{dto.OscaIdNumber}'");
+                changes.Add($"OSCA ID Number: '{beneficiary.OscaIdNumber}' → '{dto.OscaIdNumber}'");
 
             if (beneficiary.OscaIdDateIssued != dto.OscaIdDateIssued)
-                changes.Add($"OscaIdDateIssued: '{beneficiary.OscaIdDateIssued}' -> '{dto.OscaIdDateIssued}'");
+                changes.Add($"OSCA ID Date Issued: '{beneficiary.OscaIdDateIssued:yyyy-MM-dd}' → '{dto.OscaIdDateIssued:yyyy-MM-dd}'");
 
             if (beneficiary.NcscRrn != dto.NcscRrn)
-                changes.Add($"NcscRrn: '{beneficiary.NcscRrn}' -> '{dto.NcscRrn}'");
+                changes.Add($"NCSC RRN: '{beneficiary.NcscRrn}' → '{dto.NcscRrn}'");
 
             if (beneficiary.LastName != dto.LastName)
-                changes.Add($"LastName: '{beneficiary.LastName}' -> '{dto.LastName}'");
+                changes.Add($"Last Name: '{beneficiary.LastName}' → '{dto.LastName}'");
 
             if (beneficiary.FirstName != dto.FirstName)
-                changes.Add($"FirstName: '{beneficiary.FirstName}' -> '{dto.FirstName}'");
+                changes.Add($"First Name: '{beneficiary.FirstName}' → '{dto.FirstName}'");
 
             if (beneficiary.MiddleName != dto.MiddleName)
-                changes.Add($"MiddleName: '{beneficiary.MiddleName}' -> '{dto.MiddleName}'");
+                changes.Add($"Middle Name: '{beneficiary.MiddleName}' → '{dto.MiddleName}'");
 
             if (beneficiary.Extension != dto.Extension)
-                changes.Add($"Extension: '{beneficiary.Extension}' -> '{dto.Extension}'");
+                changes.Add($"Extension: '{beneficiary.Extension}' → '{dto.Extension}'");
 
             if (beneficiary.BirthDate.Date != dto.BirthDate.Date)
-                changes.Add($"BirthDate: '{beneficiary.BirthDate:yyyy-MM-dd}' -> '{dto.BirthDate:yyyy-MM-dd}'");
+                changes.Add($"Birth Date: '{beneficiary.BirthDate:yyyy-MM-dd}' → '{dto.BirthDate:yyyy-MM-dd}'");
 
             if (beneficiary.PhoneNumber != dto.PhoneNumber)
-                changes.Add($"PhoneNumber: '{beneficiary.PhoneNumber}' -> '{dto.PhoneNumber}'");
+                changes.Add($"Phone Number: '{beneficiary.PhoneNumber}' → '{dto.PhoneNumber}'");
 
+            // ── Mapped fields ─────────────────────────────────────
             if (beneficiary.Sex != dto.Sex)
-                changes.Add($"Sex: '{beneficiary.Sex}' -> '{dto.Sex}'");
+                changes.Add($"Sex: '{MapSexLabel(beneficiary.Sex)}' → '{MapSexLabel(dto.Sex)}'");
 
             if (beneficiary.IsIndigenousPeople != dto.IsIndigenousPeople)
-                changes.Add($"IsIndigenousPeople: '{beneficiary.IsIndigenousPeople}' -> '{dto.IsIndigenousPeople}'");
+                changes.Add($"Indigenous People: '{(beneficiary.IsIndigenousPeople ? "Yes" : "No")}' → '{(dto.IsIndigenousPeople ? "Yes" : "No")}'");
 
             if (beneficiary.IsPersonWithDisability != dto.IsPersonWithDisability)
-                changes.Add($"IsPersonWithDisability: '{beneficiary.IsPersonWithDisability}' -> '{dto.IsPersonWithDisability}'");
+                changes.Add($"Person with Disability: '{(beneficiary.IsPersonWithDisability ? "Yes" : "No")}' → '{(dto.IsPersonWithDisability ? "Yes" : "No")}'");
 
             if (beneficiary.CivilStatus != dto.CivilStatus)
-                changes.Add($"CivilStatus: '{beneficiary.CivilStatus}' -> '{dto.CivilStatus}'");
+                changes.Add($"Civil Status: '{MapCivilStatusLabel(beneficiary.CivilStatus)}' → '{MapCivilStatusLabel(dto.CivilStatus)}'");
 
             if (beneficiary.Citizenship != dto.Citizenship)
-                changes.Add($"Citizenship: '{beneficiary.Citizenship}' -> '{dto.Citizenship}'");
+                changes.Add($"Citizenship: '{MapCitizenshipLabel(beneficiary.Citizenship)}' → '{MapCitizenshipLabel(dto.Citizenship)}'");
 
-            if (beneficiary.Province != dto.PsgcCodeProvince)
-                changes.Add($"Province: '{beneficiary.Province}' -> '{dto.PsgcCodeProvince}'");
-
-            if (beneficiary.Municipality != dto.PsgcCodeMunicipality)
-                changes.Add($"Municipality: '{beneficiary.Municipality}' -> '{dto.PsgcCodeMunicipality}'");
-
-            if (beneficiary.Barangay != dto.PsgcCodeBarangay)
-                changes.Add($"Barangay: '{beneficiary.Barangay}' -> '{dto.PsgcCodeBarangay}'");
-
+            // ── More mapped fields ────────────────────────────────
             if (beneficiary.IsCompliant != dto.IsCompliant)
-                changes.Add($"IsCompliant: '{beneficiary.IsCompliant}' -> '{dto.IsCompliant}'");
+                changes.Add($"Compliant: '{(beneficiary.IsCompliant ? "Yes" : "No")}' → '{(dto.IsCompliant ? "Yes" : "No")}'");
 
             if (beneficiary.Validator != dto.Validator)
-                changes.Add($"Validator: '{beneficiary.Validator}' -> '{dto.Validator}'");
+                changes.Add($"Validator: '{beneficiary.Validator}' → '{dto.Validator}'");
 
             if (beneficiary.ValidationDate != dto.ValidationDate)
-                changes.Add($"ValidationDate: '{beneficiary.ValidationDate}' -> '{dto.ValidationDate}'");
+                changes.Add($"Validation Date: '{beneficiary.ValidationDate:yyyy-MM-dd}' → '{dto.ValidationDate:yyyy-MM-dd}'");
 
             if (beneficiary.PaymentStatus != dto.PaymentStatus)
-                changes.Add($"PaymentStatus: '{beneficiary.PaymentStatus}' -> '{dto.PaymentStatus}'");
+                changes.Add($"Payment Status: '{MapPaymentStatusLabel(beneficiary.PaymentStatus)}' → '{MapPaymentStatusLabel(dto.PaymentStatus)}'");
 
             if (beneficiary.ModeOfPayment != dto.ModeOfPayment)
-                changes.Add($"ModeOfPayment: '{beneficiary.ModeOfPayment}' -> '{dto.ModeOfPayment}'");
+                changes.Add($"Mode of Payment: '{MapModeOfPaymentLabel(beneficiary.ModeOfPayment)}' → '{MapModeOfPaymentLabel(dto.ModeOfPayment)}'");
 
             if (beneficiary.PaymentDate != dto.PaymentDate)
-                changes.Add($"PaymentDate: '{beneficiary.PaymentDate}' -> '{dto.PaymentDate}'");
+                changes.Add($"Payment Date: '{beneficiary.PaymentDate:yyyy-MM-dd}' → '{dto.PaymentDate:yyyy-MM-dd}'");
 
             if (beneficiary.IsDeceased != dto.IsDeceased)
-                changes.Add($"IsDeceased: '{beneficiary.IsDeceased}' -> '{dto.IsDeceased}'");
+                changes.Add($"Is Deceased: '{(beneficiary.IsDeceased ? "Yes" : "No")}' → '{(dto.IsDeceased ? "Yes" : "No")}'");
 
             if (beneficiary.DateOfDeath != dto.DateOfDeath)
-                changes.Add($"DateOfDeath: '{beneficiary.DateOfDeath}' -> '{dto.DateOfDeath}'");
+                changes.Add($"Date of Death: '{beneficiary.DateOfDeath:yyyy-MM-dd}' → '{dto.DateOfDeath:yyyy-MM-dd}'");
 
             if (beneficiary.IsEligible != dto.IsEligible)
-                changes.Add($"IsEligible: '{beneficiary.IsEligible}' -> '{dto.IsEligible}'");
+                changes.Add($"Eligible: '{(beneficiary.IsEligible ? "Yes" : "No")}' → '{(dto.IsEligible ? "Yes" : "No")}'");
 
             if (beneficiary.AssessmentRemarks != dto.AssessmentRemarks)
-                changes.Add($"AssessmentRemarks: '{beneficiary.AssessmentRemarks}' -> '{dto.AssessmentRemarks}'");
+                changes.Add($"Assessment Remarks: '{beneficiary.AssessmentRemarks}' → '{dto.AssessmentRemarks}'");
 
             if (beneficiary.RemarkCategory != dto.RemarkCategory)
-                changes.Add($"RemarkCategory: '{beneficiary.RemarkCategory}' -> '{dto.RemarkCategory}'");
+                changes.Add($"Remark Category: '{MapRemarkCategoryLabel(beneficiary.RemarkCategory)}' → '{MapRemarkCategoryLabel(dto.RemarkCategory)}'");
 
             if (beneficiary.Remarks != dto.Remarks)
-                changes.Add($"Remarks: '{beneficiary.Remarks}' -> '{dto.Remarks}'");
+                changes.Add($"Remarks: '{beneficiary.Remarks}' → '{dto.Remarks}'");
 
             return changes;
         }
-
-
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)
         {
             var log = new Log
@@ -1815,6 +1808,63 @@ namespace EcaInformationSystem.Application.Services
 
             return null;
         }
+
+        private static string MapSexLabel(int sex) => sex switch
+        {
+            1 => "Male",
+            2 => "Female",
+            _ => "Unknown"
+        };
+
+        private static string MapCivilStatusLabel(int? status) => status switch
+        {
+            1 => "Single",
+            2 => "Widowed",
+            3 => "Married",
+            4 => "Live In",
+            _ => "N/A"
+        };
+
+        private static string MapCitizenshipLabel(int? citizenship) => citizenship switch
+        {
+            1 => "Filipino",
+            2 => "Dual Citizenship",
+            _ => "N/A"
+        };
+
+        private static string MapPaymentStatusLabel(int status) => status switch
+        {
+            0 => "N/A",
+            1 => "Unpaid",
+            2 => "Paid",
+            _ => "Unknown"
+        };
+
+        private static string MapModeOfPaymentLabel(int mode) => mode switch
+        {
+            0 => "N/A",
+            1 => "Cash Advance by SDO",
+            2 => "Bank Transfer",
+            _ => "Unknown"
+        };
+
+        private static string MapRemarkCategoryLabel(int? category) => category switch
+        {
+            1 => "Deceased prior reaching milestone age",
+            2 => "Out of town/Country",
+            3 => "Incomplete required documents",
+            4 => "Inconsistent documents",
+            5 => "Cannot be reached/Located",
+            6 => "Did not reach the milestone age",
+            7 => "Lacking of documents/Requirements",
+            8 => "For Correction",
+            9 => "Waived",
+            10 => "Lacking Proof of Relationship",
+            11 => "No show",
+            12 => "Double Application with Different Surename used",
+            13 => "For CGD Island Municipality",
+            _ => "N/A"
+        };
 
         #endregion
 
