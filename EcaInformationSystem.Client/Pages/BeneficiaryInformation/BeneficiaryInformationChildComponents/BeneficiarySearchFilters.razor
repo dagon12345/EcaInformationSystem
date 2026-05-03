@@ -29,7 +29,6 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Province</label>
                             <select class="form-select"
-                                    @key="provinceSelectKey"
                                     value="@State.SelectedProvinceId"
                                     @onchange="OnProvinceChanged"
                                     disabled="@(IsLoading || IsFilterProvinceLoading)">
@@ -52,7 +51,6 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Municipality</label>
                             <select class="form-select"
-                                    @key="municipalitySelectKey"
                                     value="@State.SelectedMunicipalityId"
                                     @onchange="OnMunicipalityChanged"
                                     disabled="@(IsLoading || State.SelectedProvinceId == 0 || IsFilterMunicipalityLoading)">
@@ -75,7 +73,6 @@
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label">Barangay</label>
                             <select class="form-select"
-                                    @key="barangaySelectKey"
                                     value="@State.SelectedBarangayId"
                                     @onchange="OnBarangayChanged"
                                     disabled="@(IsLoading || State.SelectedMunicipalityId == 0 || IsFilterBarangayLoading)">
@@ -234,39 +231,30 @@
         </div>
     </div>
 @code {
-    private bool IsProvinceLoading;
-    private string? fullNameFilter;
     private const int DefaultRegionCode = 1600000000;
-
     private bool IsLoading = false;
-    private bool IsMunicipalityDisabled = true;
-    private bool IsBarangayDisabled = true;
     private bool IsFilterProvinceLoading = false;
     private bool IsFilterMunicipalityLoading = false;
     private bool IsFilterBarangayLoading = false;
     private bool IsApplyingFilters = false;
 
-    #region Filter dropdowns
-    // Cache — keyed by province id and municipality id
     private Dictionary<int, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<int, List<BarangayLookupDto>> filterBarangayCache = new();
-    #endregion
-    private List<BeneficiaryInformationDto> beneficiaries = new();
-    private BeneficiaryInformationDto model = new();
 
     private int provinceSelectKey = 0;
     private int municipalitySelectKey = 0;
     private int barangaySelectKey = 0;
 
+
+
+    // ── Init ─────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         await LoadFilterProvincesAsync();
 
-        // ✅ If a province was previously selected, restore its municipality list
         if (State.SelectedProvinceId > 0 && !State.FilterMunicipalities.Any())
             await LoadMunicipalitiesAsync(State.SelectedProvinceId);
 
-        // ✅ If a municipality was previously selected, restore its barangay list
         if (State.SelectedMunicipalityId > 0 && !State.FilterBarangays.Any())
             await LoadBarangaysAsync(State.SelectedMunicipalityId);
     }
@@ -274,11 +262,11 @@
     // ── Province ──────────────────────────────────────────────
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
-        State.Filter.PsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
         State.SelectedMunicipalityId = 0;
         State.SelectedBarangayId = 0;
-        State.FilterMunicipalities.Clear();
-        State.FilterBarangays.Clear();
+        State.FilterMunicipalities = new();
+        State.FilterBarangays = new();
 
         if (State.SelectedProvinceId > 0)
             await LoadMunicipalitiesAsync(State.SelectedProvinceId);
@@ -329,30 +317,29 @@
         }
     }
 
-    // ── Apply ─────────────────────────────────────────────────
     private async Task ApplyFiltersAsync()
     {
         if (IsLoading || IsApplyingFilters) return;
         try
         {
             IsApplyingFilters = true;
-            // Text / date fields
-            State.Filter.PsgcCodeProvince = State.Filter.PsgcCodeProvince;
-            State.Filter.PsgcCodeMunicipality = State.Filter.PsgcCodeMunicipality;
-            State.Filter.PsgcCodeBarangay = State.Filter.PsgcCodeBarangay;
-            State.Filter.PaymentStatus = State.Filter.PaymentStatus;
-            State.Filter.Sex = State.Filter.Sex;
-            State.Filter.FullName = State.Filter.FullName;
-            State.Filter.LastName = State.Filter.LastName;
-            State.Filter.FirstName = State.Filter.FirstName;
-            State.Filter.Validator = State.Filter.Validator;
-            State.Filter.BatchCode = State.Filter.BatchCode;
-            State.Filter.SpecificAge = State.Filter.SpecificAge;
-            State.Filter.PaymentDate = State.Filter.PaymentDate;
-            State.Filter.SpecificBirthday = State.Filter.SpecificBirthday;
-            State.Filter.BirthdayFrom = State.Filter.BirthdayFrom;
-            State.Filter.BirthdayTo = State.Filter.BirthdayTo;
-            State.Filter.MilestoneYear = State.Filter.MilestoneYear;
+
+            // ✅ Set singular address fields directly from State selections
+            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
+            State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
+            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
+
+            // ✅ Sex — null if not selected
+            State.Filter.Sex = State.SelectedSex > 0
+                ? State.SelectedSex
+                : null;
+
+            // ✅ PaymentStatus — null if not selected (-1 = nothing chosen)
+            State.Filter.PaymentStatus = State.SelectedPaymentStatus >= 0
+                ? State.SelectedPaymentStatus
+                : null;
+
+
             State.Filter.PageNumber = 1;
 
             if (IsFilterEmpty(State.Filter))
@@ -374,8 +361,8 @@
         State.SelectedProvinceId = 0;
         State.SelectedMunicipalityId = 0;
         State.SelectedBarangayId = 0;
-        State.Filter.Sex = -1;
-        State.Filter.PaymentStatus = -1;
+        State.Filter.Sex = 0;
+        State.Filter.PaymentStatus = 0;
         State.Filter.PaymentDate = null;
         State.FilterMunicipalities = new();
         State.FilterBarangays = new();
@@ -399,7 +386,6 @@
         StateHasChanged();
     }
 
-    // ── Helpers ───────────────────────────────────────────────
     private bool IsFilterEmpty(BeneficiaryFilterDto f) =>
         string.IsNullOrWhiteSpace(f.FullName) &&
         string.IsNullOrWhiteSpace(f.LastName) &&
@@ -411,44 +397,25 @@
         f.BirthdayFrom == null &&
         f.BirthdayTo == null &&
         f.MilestoneYear == null &&
+        f.PaymentDate == null &&
         f.PsgcCodeProvince == null &&
         f.PsgcCodeMunicipality == null &&
         f.PsgcCodeBarangay == null &&
-        f.Sex == null &&
-        f.PaymentStatus == null &&  f.PaymentDate == null;
+        f.Sex == null && // ✅ null = not selected
+        f.PaymentStatus == null;                 // ✅ null = not selected
+
     private async Task LoadMunicipalitiesAsync(int provinceId)
     {
-        if (filterMunicipalityCache.TryGetValue(provinceId, out var cached))
-        {
-            // ✅ Don't use cache if it's empty — re-fetch instead
-            if (cached.Any())
-            {
-                State.FilterMunicipalities = cached;
-                StateHasChanged();
-                return;
-            }
-            // Remove bad cache entry and fall through to re-fetch
-            filterMunicipalityCache.Remove(provinceId);
-        }
-
         try
         {
             IsFilterMunicipalityLoading = true;
-            var response = await Http.PostAsJsonAsync(
-                "api/Municipality/by-provinces",
-                new LookupMultiRequestDto { Ids = new List<int> { provinceId } });
+            var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{provinceId}") ?? new();
 
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content
-                    .ReadFromJsonAsync<List<MunicipalityLookupDto>>() ?? new();
+            State.FilterMunicipalities = result;
 
-                State.FilterMunicipalities = result;
-
-                // ✅ Only cache if we actually got data
-                if (result.Any())
-                    filterMunicipalityCache[provinceId] = result;
-            }
+            if (result.Any())
+                filterMunicipalityCache[provinceId] = result;
         }
         finally
         {

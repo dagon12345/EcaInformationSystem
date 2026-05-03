@@ -3,12 +3,14 @@ namespace EcaInformationSystem.Shared.DTOs
 {
     public class RegionLookupDto
     {
+        public int Id { get; set; }
         public int PsgcCodeRegion { get; set; }
         public string Name { get; set; } = string.Empty;
     }
 
     public class ProvinceLookupDto
     {
+        public int Id { get; set; }
         public int PsgcCodeRegion { get; set; }
         public int PsgcCodeProvince { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -16,6 +18,7 @@ namespace EcaInformationSystem.Shared.DTOs
 
     public class MunicipalityLookupDto
     {
+        public int Id { get; set; }
         public int PsgcCodeProvince { get; set; }
         public int PsgcCodeMunicipality { get; set; }
         public string Name { get; set; } = string.Empty;
@@ -23,6 +26,7 @@ namespace EcaInformationSystem.Shared.DTOs
 
     public class BarangayLookupDto
     {
+        public int Id { get; set; }
         public int PsgcCodeMunicipality { get; set; }
         public int PsgcCodeBarangay { get; set; }
         public string Name { get; set; } = string.Empty;
