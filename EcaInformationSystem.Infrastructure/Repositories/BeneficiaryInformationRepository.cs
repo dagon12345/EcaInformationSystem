@@ -453,10 +453,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                      x.Beneficiary.LastName).ToLower().Contains(name));
             }
 
-            // ── Demographics ──────────────────────────────────────────────────────
-            if (filter.Sex != null)
-                query = query.Where(x => x.Beneficiary.Sex == filter.Sex);
-      
+
+
             // ── Age — computed directly from BirthDate ────────────────────────────
             // ✅ Moved from BuildBeneficiaryDtoQuery — now part of the single query
             if (filter.SpecificAge.HasValue)
@@ -468,7 +466,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.BirthDate <= cutoffEnd);
             }
 
-            // ── Birthday ──────────────────────────────────────────────────────────
+            //// ── Birthday ──────────────────────────────────────────────────────────
             if (filter.SpecificBirthday.HasValue)
             {
                 var start = filter.SpecificBirthday.Value.Date;
@@ -502,11 +500,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.BirthDate.Year + m == milestoneYear));
             }
 
+            // ✅ Sex — only filter when a real selection was made (1=Male, 2=Female)
+            if (filter.Sex.HasValue && filter.Sex.Value > 0)
+                query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
 
-            // ── Payment ───────────────────────────────────────────────────────────
-            if (filter.PaymentStatus != null)
-                query = query.Where(x =>
-                    filter.PaymentStatus == x.Beneficiary.PaymentStatus);
+            // ✅ PaymentStatus — only filter when a real selection was made (0=N/A, 1=Unpaid, 2=Paid)
+            // -1 means "not selected" — exclude it
+            if (filter.PaymentStatus.HasValue && filter.PaymentStatus.Value >= 0)
+                query = query.Where(x => x.Beneficiary.PaymentStatus == filter.PaymentStatus.Value);
 
             if (filter.PaymentDate.HasValue) // ✅ && instead of &
             {
@@ -518,7 +519,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
 
 
-            // ── Other ─────────────────────────────────────────────────────────────
+            //// ── Other ─────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x =>
                     x.Beneficiary.Validator != null &&
@@ -528,7 +529,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x =>
                     x.Beneficiary.BatchCode != null &&
                     x.Beneficiary.BatchCode.Contains(filter.BatchCode));
-            //Console.WriteLine(query);
+            Console.WriteLine(query);
             return query.AsNoTracking();
         }
 

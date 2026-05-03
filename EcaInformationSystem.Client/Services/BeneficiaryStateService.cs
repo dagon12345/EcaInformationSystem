@@ -12,6 +12,8 @@ public class BeneficiaryStateService
     public int SelectedProvinceId { get; set; } = 0;
     public int SelectedMunicipalityId { get; set; } = 0;
     public int SelectedBarangayId { get; set; } = 0;
+    public int SelectedSex { get; set; }
+    public int SelectedPaymentStatus { get; set; }
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
     public List<RegionLookupDto> FilterRegions { get; set; } = new();
@@ -88,6 +90,9 @@ public class BeneficiaryStateService
         {
             var value = prop.GetValue(filter, null);
             if (value == null) continue;
+
+            // ✅ Skip sentinel values — don't send -1 or 0 for Sex/PaymentStatus
+            if (value is int intVal && intVal < 0) continue;
 
             if (value is System.Collections.IEnumerable list && !(value is string))
             {
