@@ -1,6 +1,5 @@
-﻿using EcaInformationSystem.Application.DTOs;
-using EcaInformationSystem.Application.Interfaces;
-using EcaInformationSystem.Application.Services;
+﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

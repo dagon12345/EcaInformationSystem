@@ -388,7 +388,6 @@
     private bool IsLoading;
     private bool IsProvinceLoading;
     private bool IsBarangayLoading;
-    private bool IsFilterProvinceLoading;
     private bool IsMunicipalityLoading;
     private string pendingAction = string.Empty; //"add", "edit", "delete"
     private string confirmationTitle = "Confirm Action";
@@ -396,7 +395,6 @@
     private string? successMessage;
     private string? errorMessage;
     private HxModal confirmModal = default!;
-    private bool isSaving;
     private ElementReference batchCodeInput;
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
     private const int DefaultRegionCode = 1600000000;
@@ -437,28 +435,6 @@
         if (int.TryParse(e.Value?.ToString(), out var psgcCodeBarangay))
         {
             model.PsgcCodeBarangay = psgcCodeBarangay;
-        }
-    }
-    private async Task LoadFilterProvincesAsync()
-    {
-        if (provinces.Any())
-            return;
-
-        try
-        {
-            IsFilterProvinceLoading = true;
-            //get authorized client first
-            var client = await AuthService.GetAuthorizedClientAsync();
-            provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
-                $"api/Province/by-region/{DefaultRegionCode}") ?? new List<ProvinceLookupDto>();
-        }
-        catch
-        {
-            provinces = new List<ProvinceLookupDto>();
-        }
-        finally
-        {
-            IsFilterProvinceLoading = false;
         }
     }
     private async Task LoadProvincesAsync(int psgcCodeRegion)

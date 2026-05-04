@@ -7,14 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="DTOs\BeneficiarySummaryResultDto.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="DTOs\BeneficiarySummaryResultDto.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="5.0.17" />
   </ItemGroup>
 

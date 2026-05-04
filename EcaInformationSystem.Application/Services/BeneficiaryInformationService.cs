@@ -1,9 +1,8 @@
 ﻿using ClosedXML.Excel;
-using DocumentFormat.OpenXml.Vml.Office;
-using EcaInformationSystem.Application.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 
@@ -136,10 +135,10 @@ namespace EcaInformationSystem.Application.Services
 
                 worksheet.Cell(row, 13).Value = item.Sex == 1 ? "MALE" : "FEMALE";
 
-                worksheet.Cell(row, 14).Value = item.Region?.ToUpperInvariant();
-                worksheet.Cell(row, 15).Value = item.Province?.ToUpperInvariant();
-                worksheet.Cell(row, 16).Value = item.Municipality?.ToUpperInvariant();
-                worksheet.Cell(row, 17).Value = item.Barangay?.ToUpperInvariant();
+                worksheet.Cell(row, 14).Value = item.Region?.ToString().ToUpperInvariant();
+                worksheet.Cell(row, 15).Value = item.Province?.ToString().ToUpperInvariant();
+                worksheet.Cell(row, 16).Value = item.Municipality?.ToString().ToUpperInvariant();
+                worksheet.Cell(row, 17).Value = item.Barangay?.ToString().ToUpperInvariant();
 
                 // COMPLIANCE MAPPING
                 worksheet.Cell(row, 18).Value = item.IsCompliant
@@ -503,7 +502,462 @@ namespace EcaInformationSystem.Application.Services
             var result = await _logRepository.GetLogSummaryAsync(beneficiaryId);
             return result;
         }
-        #region Excel Updating and Importing - START
+        #region Excel Updating/Importing and creating Payroll - START
+
+        // ============================================================
+        // FIXES applied to your existing BuildPayrollSheet:
+        // 1. PAGE2_ROW_HT = PAGE1_ROW_HT = 35 (already same, but
+        //    the issue is CGP row pushes the height — fixed by
+        //    NOT changing currentRow height after CGP insert)
+        // 2. labelRow1 and labelRow2 were both = currentRow (same row!)
+        //    Fixed: labelRow1 = sig3Row + 1, labelRow2 = sig3Row + 2
+        // 3. SDO label was written to labelRow1 AND sig3Row (conflict)
+        //    Fixed: ALMIRA on sig3Row, SDO label on sig3Row+1,
+        //    "other officer" on sig3Row+2
+        // 4. CGP border was XLBorderStyleValues.None — should be Thin
+        // 5. Purpose text range was D–H (4–8), should be D–P (4–16)
+        // 6. Subtotal was currentRow+1 (skips a row) — matched to your code
+        // ============================================================
+
+        public async Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings)
+        {
+            if (settings.Ids == null || !settings.Ids.Any())
+                throw new InvalidOperationException("No records selected.");
+
+            var allData = await _repo.GetByIdsAsync(settings.Ids);
+            if (!allData.Any())
+                throw new InvalidOperationException("None of the selected records were found.");
+
+            var groups = allData
+                .GroupBy(x => (x.BatchCode ?? "NO BATCH").ToUpperInvariant())
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            using var workbook = new XLWorkbook();
+
+            foreach (var group in groups)
+            {
+                var batchCode = group.Key;
+                var records = group
+                    .OrderBy(x => x.BarangayName)
+                    .ThenBy(x => x.LastName)
+                    .ThenBy(x => x.FirstName)
+                    .ToList();
+
+                var sheetName = SanitizeSheetName(batchCode);
+                var ws = workbook.Worksheets.Add(sheetName);
+                BuildPayrollSheet(ws, batchCode, records, settings);
+            }
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        private static void BuildPayrollSheet(
+            IXLWorksheet ws,
+            string batchCode,
+            List<BeneficiaryInformationDto> records,
+            PayrollSettingsDto s)
+        {
+            const int COLS = 19;
+            const int PAGE1_RECORDS = 6;
+            const int PAGE2_RECORDS = 9;
+            // ✅ FIX 1: Both pages use the same row height — uniform
+            const double DATA_ROW_HT = 140;
+            const int FONT_SIZE = 14;
+
+            var first = records.FirstOrDefault();
+            var municipality = first?.MunicipalityName ?? "";
+            var province = first?.ProvinceName ?? "";
+
+            // ── Helpers ──────────────────────────────────────────────────────────────
+            void NavyHeader(IXLRange r, string text)
+            {
+                r.Merge();
+                r.Value = text;
+                r.Style.Font.Bold = true;
+                r.Style.Font.FontSize = FONT_SIZE;
+                r.Style.Font.FontName = "Arial";
+                r.Style.Font.FontColor = XLColor.White;
+                r.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F3864");
+                r.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                r.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                r.Style.Alignment.WrapText = true;
+                r.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                r.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            }
+
+            void MergeCenter(int row, int c1, int c2, string text, int fs = FONT_SIZE, bool bold = false)
+            {
+                if (c1 != c2) ws.Range(row, c1, row, c2).Merge();
+                var cell = ws.Cell(row, c1);
+                cell.Value = text;
+                cell.Style.Font.Bold = bold;
+                cell.Style.Font.FontSize = fs;
+                cell.Style.Font.FontName = "Arial";
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            }
+
+            void DataCell(int row, int col, object? val,
+                          XLAlignmentHorizontalValues align = XLAlignmentHorizontalValues.Left)
+            {
+                if (val != null) ws.Cell(row, col).Value = XLCellValue.FromObject(val);
+                ws.Cell(row, col).Style.Font.FontSize = 16;
+                ws.Cell(row, col).Style.Font.FontName = "Arial";
+                ws.Cell(row, col).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Cell(row, col).Style.Alignment.Horizontal = align;
+                ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                ws.Cell(row, col).Style.Alignment.WrapText = true;
+            }
+
+            // ✅ FIX 4: CGP border = Thin (was None)
+            void CgpCell(int row, string text)
+            {
+                ws.Range(row, 16, row, 17);
+                ws.Cell(row, 17).Value = text;
+                ws.Cell(row, 17).Style.Font.Bold = false;
+                ws.Cell(row, 17).Style.Font.FontSize = FONT_SIZE;
+                ws.Cell(row, 17).Style.Font.FontName = "Arial";
+                ws.Cell(row, 17).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                ws.Cell(row, 17).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Cell(row, 17).Style.Border.OutsideBorder = XLBorderStyleValues.None;
+            }
+
+            // =========================================================================
+            // SECTION 1: HEADER
+            // =========================================================================
+            ws.Row(3).Height = 24;
+            MergeCenter(3, 2, 2, "NATIONAL COMMISSION OF SENIOR CITIZENS", bold: true);
+
+            ws.Row(4).Height = 24;
+            MergeCenter(4, 2, 2, $"Regional Office XIII, Province of {province}, {municipality}");
+
+            ws.Row(5).Height = 21.75;
+            MergeCenter(5, 2, 2, "Expanded Centenarian Act");
+
+            ws.Row(6).Height = 10.5;
+            ws.Row(7).Height = 10.5;
+
+            ws.Row(8).Height = 18.75;
+            MergeCenter(8, 2, 2, "CASH GIFT PAYROLL", bold: true);
+
+            ws.Row(9).Height = 14.25;
+
+            // Row 10: A. PURPOSE: | D–P purpose text | Q CGP-0001
+            ws.Row(10).Height = 23.25;
+            ws.Cell(10, 2).Value = "A. PURPOSE:";
+            ws.Cell(10, 2).Style.Font.Bold = true;
+            ws.Cell(10, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(10, 2).Style.Font.FontName = "Arial";
+            ws.Cell(10, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            // ✅ FIX 5: Purpose text D(4)–P(16) not just D–H
+            ws.Range(10, 4, 10, 15).Merge();
+            ws.Cell(10, 4).Value = "Cash gift payout for Octogenarians, Nonagenarians, and Centenarians pursuant to R.A. No. 11982 - Expanded Centenarian Act.";
+            ws.Cell(10, 4).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(10, 4).Style.Font.FontName = "Arial";
+            ws.Cell(10, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            ws.Cell(10, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Cell(10, 4).Style.Alignment.WrapText = true;
+
+            CgpCell(10, $"CGP No.: {s.RegionCode}-{s.YearMonth}-{s.FixedSegment}-{s.ShortenYear}-0001");
+
+            ws.Row(11).Height = 11.25;
+
+            // =========================================================================
+            // SECTION 2: COLUMN HEADERS rows 12–14
+            // Row 12: ht=14.25  level-1
+            // Row 13: ht=24.75  spacer
+            // Row 14: ht=108.75 level-2 sub-headers
+            // =========================================================================
+            ws.Row(12).Height = 14.25;
+            ws.Row(13).Height = 24.75;
+            ws.Row(14).Height = 108.75;
+
+            NavyHeader(ws.Range(12, 2, 14, 2), "Batch\nCode");
+            NavyHeader(ws.Range(12, 3, 14, 3), "No.");
+            NavyHeader(ws.Range(12, 4, 13, 7), "FULL NAME OF BENEFICIARY");
+            NavyHeader(ws.Range(14, 4, 14, 4), "Last Name");
+            NavyHeader(ws.Range(14, 5, 14, 5), "First Name");
+            NavyHeader(ws.Range(14, 6, 14, 6), "Middle Name");
+            NavyHeader(ws.Range(14, 7, 14, 7), "Ext.");
+            NavyHeader(ws.Range(12, 8, 14, 8), "BDate\n(mm/dd/yyyy)");
+            NavyHeader(ws.Range(12, 9, 14, 9), "Age");
+            NavyHeader(ws.Range(12, 10, 14, 10), "Sex");
+            NavyHeader(ws.Range(12, 11, 14, 11), "Barangay");
+            NavyHeader(ws.Range(12, 12, 14, 12), "Amount");
+            NavyHeader(ws.Range(12, 13, 14, 13), "Amount\nReceived");
+            NavyHeader(ws.Range(12, 14, 13, 15), "Beneficiary / Authorized\nRepresentative");
+            NavyHeader(ws.Range(14, 14, 14, 14), "Signature Over\nPrinted Name");
+            NavyHeader(ws.Range(14, 15, 14, 15), "Thumbmark");
+            NavyHeader(ws.Range(12, 16, 14, 16), "For Authorized Representative\n(Relationship/Witness)");
+            NavyHeader(ws.Range(12, 17, 14, 17), "Date of\nDeath");
+            NavyHeader(ws.Range(12, 18, 14, 18), "Date\nReceived");
+            NavyHeader(ws.Range(12, 19, 14, 19), "Remarks");
+
+            // =========================================================================
+            // SECTION 3: DATA ROWS — start row 15
+            // =========================================================================
+            int currentRow = 15;
+            int globalSeq = 1;
+            int page = 1;
+            int processed = 0;
+
+            while (processed < records.Count)
+            {
+                int pageSize = page == 1 ? PAGE1_RECORDS : PAGE2_RECORDS;
+                var pageRecs = records.Skip(processed).Take(pageSize).ToList();
+
+                // CGP for pages 2+ — Q(17) only, ht=23.25 (exact from file)
+                if (page > 1)
+                {
+                    CgpCell(currentRow,
+                        $"CGP No.: {s.RegionCode}-{s.YearMonth}-{s.FixedSegment}-{s.ShortenYear}-{page:D4}");
+                    ws.Row(currentRow).Height = 23.25;
+                    currentRow++;
+                }
+
+                foreach (var rec in pageRecs)
+                {
+                    int dr = currentRow;
+                    // ✅ FIX 1: Same height for ALL data rows regardless of page
+                    ws.Row(dr).Height = DATA_ROW_HT;
+
+                    DataCell(dr, 2, (rec.BatchCode ?? "").ToUpperInvariant());
+
+                    DataCell(dr, 3, globalSeq, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 4, (rec.LastName ?? "").ToUpperInvariant());
+                    DataCell(dr, 5, (rec.FirstName ?? "").ToUpperInvariant());
+                    DataCell(dr, 6, (rec.MiddleName ?? "").ToUpperInvariant());
+                    DataCell(dr, 7, (rec.Extension ?? "").ToUpperInvariant());
+                    DataCell(dr, 8, rec.BirthDate.ToString("MM/dd/yyyy"), XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 9, rec.Age, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 10, rec.Sex == 1 ? "MALE" : "FEMALE", XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 11, rec.BarangayName.ToUpperInvariant());
+                    DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Right);
+                    ws.Cell(dr, 12).Style.NumberFormat.Format = "#,##0.00";
+                    if (rec.IsDeceased && rec.DateOfDeath.HasValue)
+                        DataCell(dr, 17, rec.DateOfDeath.Value.ToString("MM/dd/yyyy"),
+                                 XLAlignmentHorizontalValues.Center);
+
+                    ws.Range(dr, 2, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    ws.Range(dr, 2, dr, COLS).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+                    globalSeq++;
+                    currentRow++;
+                }
+
+                processed += pageRecs.Count;
+                page++;
+            }
+
+            // =========================================================================
+            // SECTION 4: SUBTOTAL — ht=18, I(9)=label, L(12)=formula
+            // =========================================================================
+            // ✅ Keep your +1 gap before subtotal
+            int subtotalRow = currentRow + 1;
+            int dataStartRow = 15;
+            ws.Row(subtotalRow).Height = 18;
+
+            ws.Range(subtotalRow, 2, subtotalRow, 9).Merge();
+            ws.Cell(subtotalRow, 2).Value = "SUBTOTAL";
+            ws.Cell(subtotalRow, 2).Style.Font.Bold = true;
+            ws.Cell(subtotalRow, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(subtotalRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(subtotalRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+            ws.Cell(subtotalRow, 12).FormulaA1 = $"=SUM(L{dataStartRow}:L{subtotalRow - 2})";
+            ws.Cell(subtotalRow, 12).Style.Font.Bold = true;
+            ws.Cell(subtotalRow, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(subtotalRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(subtotalRow, 12).Style.NumberFormat.Format = "#,##0.00";
+            ws.Cell(subtotalRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+            ws.Range(subtotalRow, 13, subtotalRow, COLS).Merge();
+
+            currentRow = subtotalRow + 2;
+
+            // =========================================================================
+            // SECTION 5: SIGNATORIES
+            // =========================================================================
+
+            // Cert text — B(2)–I(9)
+            ws.Range(currentRow, 2, currentRow, 9).Merge();
+            ws.Cell(currentRow, 2).Value = s.Signatory1Label;
+            ws.Cell(currentRow, 2).Style.Font.Italic = true;
+            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
+            ws.Cell(currentRow, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(currentRow).Height = 18;
+            currentRow++;
+
+            // Blank
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+
+            // "Approved for Payment:" — L(12)–P(16)
+            ws.Range(currentRow, 12, currentRow, 16).Merge();
+            ws.Cell(currentRow, 12).Value = s.Signatory2Label;
+            ws.Cell(currentRow, 12).Style.Font.Bold = true;
+            ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(currentRow, 12).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(currentRow).Height = 18;
+            currentRow++;
+
+            // Blank signing space rows (3)
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+
+            // SARAH ROSE B(2)–E(5) | CESAR L(12)–P(16) — underlined
+            int sigNamesRow = currentRow;
+            ws.Range(sigNamesRow, 2, sigNamesRow, 5).Merge();
+            ws.Cell(sigNamesRow, 2).Value = s.Signatory1Name;
+            ws.Cell(sigNamesRow, 2).Style.Font.Bold = true;
+            ws.Cell(sigNamesRow, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sigNamesRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(sigNamesRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sigNamesRow, 2, sigNamesRow, 5).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+            ws.Range(sigNamesRow, 12, sigNamesRow, 16).Merge();
+            ws.Cell(sigNamesRow, 12).Value = s.Signatory2Name;
+            ws.Cell(sigNamesRow, 12).Style.Font.Bold = true;
+            ws.Cell(sigNamesRow, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sigNamesRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(sigNamesRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sigNamesRow, 12, sigNamesRow, 16).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            ws.Row(sigNamesRow).Height = 18;
+            currentRow++;
+
+            // Positions
+            ws.Range(currentRow, 2, currentRow, 5).Merge();
+            ws.Cell(currentRow, 2).Value = s.Signatory1Position;
+            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            ws.Range(currentRow, 12, currentRow, 16).Merge();
+            ws.Cell(currentRow, 12).Value = s.Signatory2Position;
+            ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Row(currentRow).Height = 18;
+            currentRow++;
+
+            // Blank gap
+            ws.Row(currentRow).Height = 8; currentRow++;
+
+            // Oath text — B(2)–I(9), left side only
+            ws.Range(currentRow, 2, currentRow, 9).Merge();
+            ws.Cell(currentRow, 2).Value =
+                "R. I/we certify on my/our official oath that on ______________________________________," +
+                "I/we have paid in cash to each individual on the payroll, the amount set opposite to each name," +
+                " having presented himself/herself, established identity and affixed his/her signature or" +
+                " thumbmark on the space provided.";
+            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
+            ws.Row(currentRow).Height = 38;
+            currentRow++;
+
+            // Blank signing space
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+            ws.Row(currentRow).Height = 14.25; currentRow++;
+
+            // ✅ FIX 2: Correct row offsets — three separate rows
+            int sig3Row = currentRow;       // ALMIRA + underlines
+            int labelRow1 = currentRow + 1;   // SDO label + "Printed Name and Signature of"
+            int labelRow2 = currentRow + 2;   // "other officer present during Payout"
+
+            // ALMIRA — C(3)–J(10) underlined
+            ws.Row(sig3Row).Height = 21;
+            ws.Range(sig3Row, 3, sig3Row, 10).Merge();
+            ws.Cell(sig3Row, 3).Value = s.Signatory3Name;
+            ws.Cell(sig3Row, 3).Style.Font.Bold = true;
+            ws.Cell(sig3Row, 3).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sig3Row, 3).Style.Font.FontName = "Arial";
+            ws.Cell(sig3Row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sig3Row, 3, sig3Row, 10).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+            // Other officer 1 — N(14)–O(15) underlined blank
+            ws.Range(sig3Row, 14, sig3Row, 15).Merge();
+            ws.Range(sig3Row, 14, sig3Row, 15).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+            // Other officer 2 — P(16)–Q(17) underlined blank
+            ws.Range(sig3Row, 16, sig3Row, 17).Merge();
+            ws.Range(sig3Row, 16, sig3Row, 17).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+            // SDO label row
+            ws.Row(labelRow1).Height = 21;
+            ws.Range(labelRow1, 3, labelRow1, 10).Merge();
+            ws.Cell(labelRow1, 3).Value = s.Signatory3Position;
+            ws.Cell(labelRow1, 3).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 3).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            ws.Range(labelRow1, 14, labelRow1, 15).Merge();
+            ws.Cell(labelRow1, 14).Value = "Printed Name and Signature of";
+            ws.Cell(labelRow1, 14).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 14).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            ws.Range(labelRow1, 16, labelRow1, 17).Merge();
+            ws.Cell(labelRow1, 16).Value = "Printed Name and Signature of";
+            ws.Cell(labelRow1, 16).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 16).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            // "other officer present during Payout" row
+            ws.Row(labelRow2).Height = 14.25;
+            ws.Range(labelRow2, 14, labelRow2, 15).Merge();
+            ws.Cell(labelRow2, 14).Value = s.Signatory4Position;
+            ws.Cell(labelRow2, 14).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow2, 14).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow2, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            ws.Range(labelRow2, 16, labelRow2, 17).Merge();
+            ws.Cell(labelRow2, 16).Value = s.Signatory4Position;
+            ws.Cell(labelRow2, 16).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow2, 16).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow2, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            // =========================================================================
+            // SECTION 6: COLUMN WIDTHS (exact from file)
+            // =========================================================================
+            double[] colWidths = {
+             //  A      B       C     D       E       F       G       H       I
+                 1.82,  50.0,   8.0,  33.18,  28.82,  27.46,  12.82,  17.82,  8.72,
+             //  J       K       L       M       N      O       P      Q       R       S
+                 13.27,  22.82,  16.46,  15.72,  39.0,  32.18,  48.0,  14.27,  15.72,  25.82
+             };
+            for (int c = 1; c <= colWidths.Length; c++)
+                ws.Column(c).Width = colWidths[c - 1];
+
+            ws.PageSetup.PaperSize = XLPaperSize.LegalPaper;
+            ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            ws.PageSetup.FitToPages(1, 0);
+            ws.PageSetup.Margins.Top = 0.5;
+            ws.PageSetup.Margins.Bottom = 0.5;
+            ws.PageSetup.Margins.Left = 0.5;
+            ws.PageSetup.Margins.Right = 0.5;
+
+            ws.PageSetup.Footer.Center.AddText("Page ");
+            ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
+            ws.PageSetup.Footer.Center.AddText(" of ");
+            ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
+            ws.PageSetup.Margins.Footer = 0.3;
+        }
+
+        private static string SanitizeSheetName(string name)
+        {
+            var invalid = new[] { '\\', '/', '?', '*', '[', ']', ':' };
+            var clean = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+            return clean.Length > 31 ? clean[..31] : clean;
+        }
         //Template Generation method
         public byte[] GenerateImportTemplate()
         {
@@ -1280,7 +1734,7 @@ namespace EcaInformationSystem.Application.Services
             return await Task.FromResult(sheetNames);
         }
 
-        #endregion Excel update and Importing - END
+        #endregion Excel updating and Importing - END
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
             filter.PsgcCodeRegion = DefaultRegionCode;
@@ -1477,6 +1931,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.Sex != null ? filter.Sex : "null",
+                filter.PaymentStatus != null ? filter.PaymentStatus : "null",
+                filter.PaymentDate?.ToString("yyyy-MM-dd") ?? "null",
                 filter.SpecificAge?.ToString() ?? "null",
                 filter.MilestoneYear?.ToString() ?? "null",
                 filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",

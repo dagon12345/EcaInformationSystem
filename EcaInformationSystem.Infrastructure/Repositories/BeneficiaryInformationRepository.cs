@@ -1,8 +1,9 @@
-﻿using EcaInformationSystem.Application.DTOs;
-using EcaInformationSystem.Application.Interfaces;
+﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace EcaInformationSystem.Infrastructure.Repositories
 {
@@ -104,10 +105,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PsgcCodeBarangay = b.Barangay,
 
                     // ✅ Name joins — needed for display labels in the form
-                    Region = region.Name,
-                    Province = province.Name,
-                    Municipality = municipality.Name,
-                    Barangay = barangay.Name,
+                    Region = region != null ? JsonSerializer.SerializeToElement(region.Name) : null,
+                    Province = province != null ? JsonSerializer.SerializeToElement(province.Name) : null,
+                    Municipality = municipality != null ? JsonSerializer.SerializeToElement(municipality.Name) : null,
+                    Barangay = barangay != null ? JsonSerializer.SerializeToElement(barangay.Name) : null,
 
                     IsCompliant = b.IsCompliant,
                     Validator = b.Validator,
@@ -185,11 +186,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
         public async Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter)
         {
-            return await BuildBeneficiaryDtoQuery(filter)
-                         .OrderBy(x => x.LastName)
-                         .ThenBy(x => x.FirstName)
-                         .ThenBy(x => x.MiddleName)
-                         .ToListAsync();
+
+            // FilterAsync — AFTER:
+            var raw = await BuildBeneficiaryRawQuery(filter)
+                .OrderBy(x => x.LastName)
+                  .ThenBy(x => x.FirstName)
+                  .ThenBy(x => x.MiddleName)
+                  .ToListAsync();
+            return raw.Select(MapToDto).ToList();
         }
 
         public async Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync()
@@ -248,13 +252,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  Citizenship = b.Citizenship != null ? b.Citizenship : null,
                  Sex = b.Sex,
                  PsgcCodeRegion = b.Region,
-                 Region = region != null ? region.Name : null,
+                 Region = region != null ? JsonSerializer.SerializeToElement(region.Name) : null,
                  PsgcCodeProvince = b.Province,
-                 Province = province != null ? province.Name : null,
+                 Province = province != null ? JsonSerializer.SerializeToElement(province.Name) : null,
                  PsgcCodeMunicipality = b.Municipality,
-                 Municipality = municipality != null ? municipality.Name : null,
+                 Municipality = municipality != null ? JsonSerializer.SerializeToElement(municipality.Name) : null,
                  PsgcCodeBarangay = b.Barangay,
-                 Barangay = barangay != null ? barangay.Name : null,
+                 Barangay = barangay != null ? JsonSerializer.SerializeToElement(barangay.Name) : null,
                  IsCompliant = b.IsCompliant,
                  Validator = b.Validator,
                  ValidationDate = b.ValidationDate,
@@ -281,16 +285,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             //var beneficiaries = await BuildBeneficiaryDtoQuery(filter).ToListAsync();
 
             // Materialize first, then deduplicate in memory
-            var allItems = await BuildBeneficiaryDtoQuery(filter)
-                .OrderBy(x => x.LastName)
+
+            var allItems = await BuildBeneficiaryRawQuery(filter).OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ThenBy(x => x.MiddleName)
                 .ToListAsync();
-
             // Deduplicate in memory — safe here since it's already a List
-            var deduplicated = allItems
-                .DistinctBy(x => x.Id)
-                .ToList();
+            var deduplicated = allItems.DistinctBy(x => x.Id).Select(MapToDto).ToList();
 
             var result = new BeneficiarySummaryResultDto
             {
@@ -300,11 +301,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 TotalFemale = deduplicated.Count(x => x.Sex == 2),
 
                 ProvinceCounts = deduplicated
-                    .Where(x => !string.IsNullOrWhiteSpace(x.Province))
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Province.ToString()))
                     .GroupBy(x => x.Province!)
                     .Select(g => new ProvinceCountDto
                     {
-                        Province = g.Key,
+                        Province = g.Key.ToString()!,
                         Count = g.Count()
                     })
                     .OrderByDescending(x => x.Count)
@@ -312,11 +313,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ToList(),
 
                 MunicipalityCounts = deduplicated
-                    .Where(x => !string.IsNullOrWhiteSpace(x.Municipality))
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Municipality.ToString()))
                     .GroupBy(x => x.Municipality!)
                     .Select(g => new MunicipalityCountDto
                     {
-                        Municipality = g.Key,
+                        Municipality = g.Key.ToString()!,
                         Count = g.Count()
                     })
                     .OrderByDescending(x => x.Count)
@@ -344,7 +345,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
                 .ToListAsync();
 
-            foreach(var b in beneficiaries)
+            foreach (var b in beneficiaries)
             {
                 b.PaymentStatus = paymentStatus;
                 b.PaymentDate = paymentStatus == 2  // ✅ 2 = Paid → save date
@@ -360,22 +361,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
 
             // Materialize first, then deduplicate in memory
-            var allItems = await BuildBeneficiaryDtoQuery(filter)
+            var allItems = await BuildBeneficiaryRawQuery(filter)
                 .OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ThenBy(x => x.MiddleName)
                 .ToListAsync();
 
             // Deduplicate in memory — safe here since it's already a List
-            var deduplicated = allItems
-                .DistinctBy(x => x.Id)
-                .ToList();
-
+            var deduplicated = allItems.DistinctBy(x => x.Id).ToList();
             var totalCount = deduplicated.Count;
-            var items = deduplicated
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+            var items = deduplicated.Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(MapToDto).ToList();
 
             return new PagedResultDto<BeneficiaryInformationDto>
             {
@@ -436,7 +431,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x =>
                     x.Beneficiary.LastName != null &&
                     x.Beneficiary.LastName.Contains(filter.LastName));
-         
+
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 query = query.Where(x =>
                     x.Beneficiary.FirstName.Contains(filter.FirstName));
@@ -533,10 +528,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return query.AsNoTracking();
         }
 
-        private IQueryable<BeneficiaryInformationDto> BuildBeneficiaryDtoQuery(BeneficiaryFilterDto filter)
+
+        // ── Keep this method returning the raw anonymous IQueryable ──────────────────
+        private IQueryable<BeneficiaryRawDto> BuildBeneficiaryRawQuery(BeneficiaryFilterDto filter)
         {
-            var query = BuildBeneficiaryFilteredQuery(filter)
-                .Select(x => new BeneficiaryInformationDto
+            return BuildBeneficiaryFilteredQuery(filter)
+                .Select(x => new BeneficiaryRawDto
                 {
                     Id = x.Beneficiary.Id,
                     DateApplied = x.Beneficiary.DateApplied,
@@ -551,35 +548,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Extension = x.Beneficiary.Extension,
                     BirthDate = x.Beneficiary.BirthDate,
                     PhoneNumber = x.Beneficiary.PhoneNumber,
-                    Age = DateTime.Today.Year - x.Beneficiary.BirthDate.Year -
-                          (x.Beneficiary.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - x.Beneficiary.BirthDate.Year)) ? 1 : 0),
-                    // Milestone year = BirthYear + the highest milestone age already reached
-                    // that is on or after the program start year 2024
-                    MilestoneYear =
-                   (x.Beneficiary.BirthDate.Year + 100) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 100) >= 2024 ? x.Beneficiary.BirthDate.Year + 100 :
-                   (x.Beneficiary.BirthDate.Year + 100) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 100) >= 2024 ? x.Beneficiary.BirthDate.Year + 100 :
-                   (x.Beneficiary.BirthDate.Year + 95) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 95) >= 2024 ? x.Beneficiary.BirthDate.Year + 95 :
-                   (x.Beneficiary.BirthDate.Year + 95) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 95) >= 2024 ? x.Beneficiary.BirthDate.Year + 95 :
-                   (x.Beneficiary.BirthDate.Year + 90) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 90) >= 2024 ? x.Beneficiary.BirthDate.Year + 90 :
-                   (x.Beneficiary.BirthDate.Year + 90) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 90) >= 2024 ? x.Beneficiary.BirthDate.Year + 90 :
-                   (x.Beneficiary.BirthDate.Year + 85) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 85) >= 2024 ? x.Beneficiary.BirthDate.Year + 85 :
-                   (x.Beneficiary.BirthDate.Year + 85) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 85) >= 2024 ? x.Beneficiary.BirthDate.Year + 85 :
-                   (x.Beneficiary.BirthDate.Year + 80) < DateTime.Today.Year && (x.Beneficiary.BirthDate.Year + 80) >= 2024 ? x.Beneficiary.BirthDate.Year + 80 :
-                   (x.Beneficiary.BirthDate.Year + 80) == DateTime.Today.Year && x.Beneficiary.BirthDate.DayOfYear <= DateTime.Today.DayOfYear && (x.Beneficiary.BirthDate.Year + 80) >= 2024 ? x.Beneficiary.BirthDate.Year + 80 :
-                   0,
                     IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
                     IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
                     CivilStatus = x.Beneficiary.CivilStatus,
                     Citizenship = x.Beneficiary.Citizenship,
                     Sex = x.Beneficiary.Sex,
-                    PsgcCodeRegion = x.Beneficiary.Region,
-                    Region = x.Region,
-                    PsgcCodeProvince = x.Beneficiary.Province,
-                    Province = x.Province,
-                    PsgcCodeMunicipality = x.Beneficiary.Municipality,
-                    Municipality = x.Municipality,
-                    PsgcCodeBarangay = x.Beneficiary.Barangay,
-                    Barangay = x.Barangay,
                     IsCompliant = x.Beneficiary.IsCompliant,
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
@@ -593,11 +566,82 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     RemarkCategory = x.Beneficiary.RemarkCategory,
                     DateAdded = x.Beneficiary.DateAdded,
                     Remarks = x.Beneficiary.Remarks,
-                    IsDeleted = x.Beneficiary.IsDeleted
+                    IsDeleted = x.Beneficiary.IsDeleted,
+                    PsgcCodeRegion = x.Beneficiary.Region,
+                    PsgcCodeProvince = x.Beneficiary.Province,
+                    PsgcCodeMunicipality = x.Beneficiary.Municipality,
+                    PsgcCodeBarangay = x.Beneficiary.Barangay,
+                    RegionName = x.Region,
+                    ProvinceName = x.Province,
+                    MunicipalityName = x.Municipality,
+                    BarangayName = x.Barangay,
                 });
-
-            return query;
         }
+
+        // ── Mapper: call this AFTER .ToListAsync() ───────────────────────────────────
+        private static BeneficiaryInformationDto MapToDto(BeneficiaryRawDto x) => new()
+        {
+            Id = x.Id,
+            DateApplied = x.DateApplied,
+            DateEndorsed = x.DateEndorsed,
+            BatchCode = x.BatchCode,
+            OscaIdNumber = x.OscaIdNumber,
+            OscaIdDateIssued = x.OscaIdDateIssued,
+            NcscRrn = x.NcscRrn,
+            LastName = x.LastName,
+            FirstName = x.FirstName ?? string.Empty,
+            MiddleName = x.MiddleName,
+            Extension = x.Extension,
+            BirthDate = x.BirthDate,
+            PhoneNumber = x.PhoneNumber,
+            Age = DateTime.Today.Year - x.BirthDate.Year -
+                                     (x.BirthDate.Date > DateTime.Today.AddYears(
+                                         -(DateTime.Today.Year - x.BirthDate.Year)) ? 1 : 0),
+            MilestoneYear = ComputeMilestoneYear(x.BirthDate),
+            IsIndigenousPeople = x.IsIndigenousPeople,
+            IsPersonWithDisability = x.IsPersonWithDisability,
+            CivilStatus = x.CivilStatus,
+            Citizenship = x.Citizenship,
+            Sex = x.Sex,
+            PsgcCodeRegion = x.PsgcCodeRegion,
+            PsgcCodeProvince = x.PsgcCodeProvince,
+            PsgcCodeMunicipality = x.PsgcCodeMunicipality,
+            PsgcCodeBarangay = x.PsgcCodeBarangay,
+
+            // ✅ Safe: JsonSerializer runs in-memory, not in SQL
+            Region = x.RegionName != null ? JsonSerializer.SerializeToElement(x.RegionName) : null,
+            Province = x.ProvinceName != null ? JsonSerializer.SerializeToElement(x.ProvinceName) : null,
+            Municipality = x.MunicipalityName != null ? JsonSerializer.SerializeToElement(x.MunicipalityName) : null,
+            Barangay = x.BarangayName != null ? JsonSerializer.SerializeToElement(x.BarangayName) : null,
+
+            IsCompliant = x.IsCompliant,
+            Validator = x.Validator ?? string.Empty,
+            ValidationDate = x.ValidationDate,
+            PaymentStatus = x.PaymentStatus,
+            ModeOfPayment = x.ModeOfPayment,
+            PaymentDate = x.PaymentDate,
+            IsDeceased = x.IsDeceased,
+            DateOfDeath = x.DateOfDeath,
+            IsEligible = x.IsEligible,
+            AssessmentRemarks = x.AssessmentRemarks,
+            RemarkCategory = x.RemarkCategory,
+            DateAdded = x.DateAdded,
+            Remarks = x.Remarks,
+            IsDeleted = x.IsDeleted,
+        };
+
+        private static int ComputeMilestoneYear(DateTime birthDate)
+        {
+            var today = DateTime.Today;
+            foreach (var m in new[] { 100, 95, 90, 85, 80 })
+            {
+                int y = birthDate.Year + m;
+                if (y >= 2024 && (y < today.Year || (y == today.Year && birthDate.DayOfYear <= today.DayOfYear)))
+                    return y;
+            }
+            return 0;
+        }
+
 
         public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn)
         {
@@ -619,7 +663,162 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 );
         }
 
+        // ============================================================
+        // FIX: GetByIdsAsync in BeneficiaryInformationRepository.cs
+        //
+        // Since BeneficiaryInformationDto.Region/Province/Municipality/Barangay
+        // are JsonElement?, you cannot directly assign a string from EF Core.
+        // You must wrap the string value into a JsonElement using JsonSerializer.
+        //
+        // Replace the 4 lines in the select projection:
+        // ============================================================
 
+        // BEFORE (causes type mismatch — string? cannot assign to JsonElement?):
+        //   Region       = region       != null ? region.Name       : null,
+        //   Province     = province     != null ? province.Name     : null,
+        //   Municipality = municipality != null ? municipality.Name : null,
+        //   Barangay     = barangay     != null ? barangay.Name     : null,
+
+        // AFTER — serialize the string into a JsonElement so the type matches:
+        //   Region       = region       != null ? JsonSerializer.SerializeToElement(region.Name)       : null,
+        //   Province     = province     != null ? JsonSerializer.SerializeToElement(province.Name)     : null,
+        //   Municipality = municipality != null ? JsonSerializer.SerializeToElement(municipality.Name) : null,
+        //   Barangay     = barangay     != null ? JsonSerializer.SerializeToElement(barangay.Name)     : null,
+
+        // ============================================================
+        // FULL CORRECTED METHOD (drop-in replacement):
+        // ============================================================
+
+        public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)
+        {
+            // Step 1: Fetch the raw data with joins (no JsonElement in projection)
+            var raw = await (
+                from b in _context.BeneficiaryInformations
+
+                join region in _context.Regions
+                    on b.Region equals region.PsgcCodeRegion into regionJoin
+                from region in regionJoin.DefaultIfEmpty()
+
+                join province in _context.Provinces
+                    on b.Province equals province.PsgcCodeProvince into provinceJoin
+                from province in provinceJoin.DefaultIfEmpty()
+
+                join municipality in _context.Municipalities
+                    on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
+                from municipality in municipalityJoin.DefaultIfEmpty()
+
+                join barangay in _context.Barangays
+                    on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
+                from barangay in barangayJoin.DefaultIfEmpty()
+
+                where ids.Contains(b.Id) && !b.IsDeleted
+
+                select new
+                {
+                    b.Id,
+                    b.BatchCode,
+                    b.OscaIdNumber,
+                    b.OscaIdDateIssued,
+                    b.NcscRrn,
+                    b.LastName,
+                    b.FirstName,
+                    b.MiddleName,
+                    b.Extension,
+                    b.BirthDate,
+                    b.Sex,
+                    b.IsIndigenousPeople,
+                    b.IsPersonWithDisability,
+                    b.CivilStatus,
+                    b.Citizenship,
+                    b.IsCompliant,
+                    b.Validator,
+                    b.ValidationDate,
+                    b.PaymentStatus,
+                    b.ModeOfPayment,
+                    b.PaymentDate,
+                    b.IsDeceased,
+                    b.DateOfDeath,
+                    b.IsEligible,
+                    b.AssessmentRemarks,
+                    b.RemarkCategory,
+                    b.Remarks,
+                    b.DateAdded,
+                    b.IsDeleted,
+                    b.DateApplied,
+                    b.DateEndorsed,
+                    b.PhoneNumber,
+                    PsgcCodeRegion = b.Region,
+                    PsgcCodeProvince = b.Province,
+                    PsgcCodeMunicipality = b.Municipality,
+                    PsgcCodeBarangay = b.Barangay,
+                    RegionName = region != null ? region.Name : null,
+                    ProvinceName = province != null ? province.Name : null,
+                    MunicipalityName = municipality != null ? municipality.Name : null,
+                    BarangayName = barangay != null ? barangay.Name : null,
+                }
+            ).AsNoTracking().ToListAsync();
+
+            // Step 2: Map to DTO in-memory (safe to use JsonSerializer here)
+            var result = raw.Select(x => new BeneficiaryInformationDto
+            {
+                Id = x.Id,
+                DateApplied = x.DateApplied,
+                DateEndorsed = x.DateEndorsed,
+                BatchCode = x.BatchCode,
+                OscaIdNumber = x.OscaIdNumber,
+                OscaIdDateIssued = x.OscaIdDateIssued,
+                NcscRrn = x.NcscRrn,
+                LastName = x.LastName,
+                FirstName = x.FirstName ?? string.Empty,
+                MiddleName = x.MiddleName,
+                Extension = x.Extension,
+                BirthDate = x.BirthDate,
+                PhoneNumber = x.PhoneNumber,
+                Age = DateTime.Today.Year - x.BirthDate.Year -
+                                       (x.BirthDate.Date > DateTime.Today.AddYears(
+                                           -(DateTime.Today.Year - x.BirthDate.Year)) ? 1 : 0),
+                Sex = x.Sex,
+                IsIndigenousPeople = x.IsIndigenousPeople,
+                IsPersonWithDisability = x.IsPersonWithDisability,
+                CivilStatus = x.CivilStatus,
+                Citizenship = x.Citizenship,
+                PsgcCodeRegion = x.PsgcCodeRegion,
+                PsgcCodeProvince = x.PsgcCodeProvince,
+                PsgcCodeMunicipality = x.PsgcCodeMunicipality,
+                PsgcCodeBarangay = x.PsgcCodeBarangay,
+
+                // ✅ Wrap string → JsonElement so the type matches JsonElement?
+                Region = x.RegionName != null ? JsonSerializer.SerializeToElement(x.RegionName) : null,
+                Province = x.ProvinceName != null ? JsonSerializer.SerializeToElement(x.ProvinceName) : null,
+                Municipality = x.MunicipalityName != null ? JsonSerializer.SerializeToElement(x.MunicipalityName) : null,
+                Barangay = x.BarangayName != null ? JsonSerializer.SerializeToElement(x.BarangayName) : null,
+
+                IsCompliant = x.IsCompliant,
+                Validator = x.Validator ?? string.Empty,
+                ValidationDate = x.ValidationDate,
+                PaymentStatus = x.PaymentStatus,
+                ModeOfPayment = x.ModeOfPayment,
+                PaymentDate = x.PaymentDate,
+                IsDeceased = x.IsDeceased,
+                DateOfDeath = x.DateOfDeath,
+                IsEligible = x.IsEligible,
+                AssessmentRemarks = x.AssessmentRemarks,
+                RemarkCategory = x.RemarkCategory,
+                Remarks = x.Remarks,
+                DateAdded = x.DateAdded,
+                IsDeleted = x.IsDeleted,
+
+                MilestoneYear =
+                    (x.BirthDate.Year + 100) <= DateTime.Today.Year && (x.BirthDate.Year + 100) >= 2024 ? x.BirthDate.Year + 100 :
+                    (x.BirthDate.Year + 95) <= DateTime.Today.Year && (x.BirthDate.Year + 95) >= 2024 ? x.BirthDate.Year + 95 :
+                    (x.BirthDate.Year + 90) <= DateTime.Today.Year && (x.BirthDate.Year + 90) >= 2024 ? x.BirthDate.Year + 90 :
+                    (x.BirthDate.Year + 85) <= DateTime.Today.Year && (x.BirthDate.Year + 85) >= 2024 ? x.BirthDate.Year + 85 :
+                    (x.BirthDate.Year + 80) <= DateTime.Today.Year && (x.BirthDate.Year + 80) >= 2024 ? x.BirthDate.Year + 80 :
+                    0,
+            }).ToList();
+
+            return result;
+        }
         private sealed class BeneficiaryQueryModel
         {
             public BeneficiaryInformation Beneficiary { get; set; } = default!;
@@ -627,6 +826,49 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? Province { get; set; }
             public string? Municipality { get; set; }
             public string? Barangay { get; set; }
+        }
+        private sealed class BeneficiaryRawDto
+        {
+            public Guid Id { get; set; }
+            public DateTime? DateApplied { get; set; }
+            public DateTime? DateEndorsed { get; set; }
+            public string? BatchCode { get; set; }
+            public string? OscaIdNumber { get; set; }
+            public DateTime? OscaIdDateIssued { get; set; }
+            public int? NcscRrn { get; set; }
+            public string? LastName { get; set; }
+            public string? FirstName { get; set; }
+            public string? MiddleName { get; set; }
+            public string? Extension { get; set; }
+            public DateTime BirthDate { get; set; }
+            public string? PhoneNumber { get; set; }
+            public bool IsIndigenousPeople { get; set; }
+            public bool IsPersonWithDisability { get; set; }
+            public int? CivilStatus { get; set; }
+            public int? Citizenship { get; set; }
+            public int Sex { get; set; }
+            public int PsgcCodeRegion { get; set; }
+            public int PsgcCodeProvince { get; set; }
+            public int PsgcCodeMunicipality { get; set; }
+            public int PsgcCodeBarangay { get; set; }
+            public string? RegionName { get; set; }
+            public string? ProvinceName { get; set; }
+            public string? MunicipalityName { get; set; }
+            public string? BarangayName { get; set; }
+            public bool IsCompliant { get; set; }
+            public string? Validator { get; set; }
+            public DateTime ValidationDate { get; set; }
+            public int PaymentStatus { get; set; }
+            public int ModeOfPayment { get; set; }
+            public DateTime? PaymentDate { get; set; }
+            public bool IsDeceased { get; set; }
+            public DateTime? DateOfDeath { get; set; }
+            public bool IsEligible { get; set; }
+            public string? AssessmentRemarks { get; set; }
+            public int? RemarkCategory { get; set; }
+            public DateTime DateAdded { get; set; }
+            public string? Remarks { get; set; }
+            public bool IsDeleted { get; set; }
         }
 
     }
