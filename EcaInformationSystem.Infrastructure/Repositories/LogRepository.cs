@@ -1,7 +1,7 @@
-﻿using EcaInformationSystem.Application.DTOs;
-using EcaInformationSystem.Application.Interfaces.Repositories;
+﻿using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcaInformationSystem.Infrastructure.Repositories

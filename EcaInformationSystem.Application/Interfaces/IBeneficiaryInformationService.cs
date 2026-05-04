@@ -1,6 +1,6 @@
-﻿using EcaInformationSystem.Application.DTOs;
-using EcaInformationSystem.Domain.Entities;
-using Microsoft.AspNetCore.Http;
+﻿
+
+using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces
 {
@@ -21,5 +21,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
+        Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings);
     }
 }

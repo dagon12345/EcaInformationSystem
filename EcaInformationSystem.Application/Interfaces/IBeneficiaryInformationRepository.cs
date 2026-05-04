@@ -1,5 +1,5 @@
-﻿using EcaInformationSystem.Application.DTOs;
-using EcaInformationSystem.Domain.Entities;
+﻿using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces
 {
@@ -29,5 +29,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiaryInformation?> FindExistingAsync(string? lastName,string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn);
 
         Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate);
+        Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
     }
 }

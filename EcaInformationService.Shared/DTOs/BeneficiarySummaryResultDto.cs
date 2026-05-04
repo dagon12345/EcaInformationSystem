@@ -19,9 +19,9 @@
 
     public class ProvinceCountDto
     {
-        public string Province{ get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
         public int Count { get; set; }
-    }  
+    }
     public class MunicipalityCountDto
     {
         public string Municipality { get; set; } = string.Empty;

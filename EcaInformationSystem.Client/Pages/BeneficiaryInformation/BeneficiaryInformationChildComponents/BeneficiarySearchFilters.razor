@@ -5,31 +5,35 @@
 @inject BeneficiaryStateService State
 @inject IJSRuntime JS
 
-<div class="row mb-4">
-        <div class="col-12">
-            <HxCard Class="shadow-sm border-0">
-                <BodyTemplate>
-                <HxCardTitle>
-                        <div class="card-header bg-primary text-white">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h4 class="mb-0">Filter Grantees to show Records</h4>
-                                    <small class="opacity-75">Search and narrow down Grantee records</small>
-                                </div>
-                            </div>
-                        </div>
-                </HxCardTitle>
+<div class="sf-wrap">
+    <div class="sf-card">
 
-                <!-- Location -->
-                <div class="mb-4">
-                    <h6 class="text-primary mb-3">Location</h6>
-                    <div class="row g-3">
+        @* ── HEADER (clickable to collapse) ── *@
+        <div class="sf-header" @onclick="ToggleCollapse">
+            <div class="sf-header-left">
+                <div class="sf-header-icon">
+                    <i class="bi bi-funnel-fill"></i>
+                </div>
+                <div>
+                    <p class="sf-header-title">Filter Grantees</p>
+                    <p class="sf-header-sub">Search and narrow down records</p>
+                </div>
+            </div>
+            <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
+        </div>
 
-                        <!-- Province -->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Province</label>
-                            <select class="form-select"
-                                    value="@State.SelectedProvinceId"
+        @* ── BODY ── *@
+        @if (!_collapsed)
+        {
+            <div class="sf-body">
+
+                @* LOCATION *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-geo-alt me-1"></i>Location</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Province</label>
+                            <select value="@State.SelectedProvinceId"
                                     @onchange="OnProvinceChanged"
                                     disabled="@(IsLoading || IsFilterProvinceLoading)">
                                 <option value="0">Select Province</option>
@@ -40,18 +44,15 @@
                             </select>
                             @if (IsFilterProvinceLoading)
                             {
-                                <div class="small text-primary mt-1">
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    Loading provinces...
-                                </div>
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
                             }
                         </div>
 
-                        <!-- Municipality -->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Municipality</label>
-                            <select class="form-select"
-                                    value="@State.SelectedMunicipalityId"
+                        <div class="sf-field">
+                            <label>Municipality</label>
+                            <select value="@State.SelectedMunicipalityId"
                                     @onchange="OnMunicipalityChanged"
                                     disabled="@(IsLoading || State.SelectedProvinceId == 0 || IsFilterMunicipalityLoading)">
                                 <option value="0">Select Municipality</option>
@@ -62,18 +63,15 @@
                             </select>
                             @if (IsFilterMunicipalityLoading)
                             {
-                                <div class="small text-primary mt-1">
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    Loading municipalities...
-                                </div>
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
                             }
                         </div>
 
-                        <!-- Barangay -->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Barangay</label>
-                            <select class="form-select"
-                                    value="@State.SelectedBarangayId"
+                        <div class="sf-field">
+                            <label>Barangay</label>
+                            <select value="@State.SelectedBarangayId"
                                     @onchange="OnBarangayChanged"
                                     disabled="@(IsLoading || State.SelectedMunicipalityId == 0 || IsFilterBarangayLoading)">
                                 <option value="0">Select Barangay</option>
@@ -84,152 +82,137 @@
                             </select>
                             @if (IsFilterBarangayLoading)
                             {
-                                <div class="small text-primary mt-1">
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    Loading barangays...
-                                </div>
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
                             }
                         </div>
-
                     </div>
                 </div>
 
-                <!-- Personal Filters -->
-                <div class="mb-4">
-                    <h6 class="text-primary mb-3">Personal Filters</h6>
-                    <div class="row g-3">
-
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" class="form-control"
-                                   placeholder="Search by name..."
+                @* PERSONAL *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-person me-1"></i>Personal</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Full Name</label>
+                            <input type="text" placeholder="Search by name..."
                                    @bind="State.Filter.FullName"
                                    @bind:event="oninput" />
                         </div>
-
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Last Name</label>
-                            <input type="text" class="form-control"
-                                   placeholder="Enter last name"
+                        <div class="sf-field">
+                            <label>Last Name</label>
+                            <input type="text" placeholder="Last name"
                                    @bind="State.Filter.LastName" />
                         </div>
-
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">First Name</label>
-                            <input type="text" class="form-control"
-                                   placeholder="Enter first name"
+                        <div class="sf-field">
+                            <label>First Name</label>
+                            <input type="text" placeholder="First name"
                                    @bind="State.Filter.FirstName" />
                         </div>
-
-                        <!-- Sex -->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Sex</label>
-                            <select class="form-select"
-                                    value="@State.Filter.Sex"
-                                    @onchange="OnSexChanged"
-                                    disabled="@IsLoading">
+                        <div class="sf-field">
+                            <label>Sex</label>
+                            <select value="@State.Filter.Sex" @onchange="OnSexChanged" disabled="@IsLoading">
                                 <option value="0">Select Sex</option>
                                 <option value="1">Male</option>
                                 <option value="2">Female</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Batch Code</label>
+                            <input type="text" placeholder="Batch code"
+                                   @bind="State.Filter.BatchCode" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Validator</label>
+                            <input type="text" placeholder="Validator"
+                                   @bind="State.Filter.Validator" />
+                        </div>
+                    </div>
+                </div>
 
-                        <!-- Payment Status -->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Payment Status</label>
-                            <select class="form-select"
-                                    value="@State.Filter.PaymentStatus"
+                @* PAYMENT *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-credit-card me-1"></i>Payment</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Payment Status</label>
+                            <select value="@State.Filter.PaymentStatus"
                                     @onchange="OnPaymentStatusChanged"
                                     disabled="@IsLoading">
-                                <option value="-1">Select Status</option>
+                                <option value="-1">Select Payment Status</option>
                                 <option value="0">N/A</option>
                                 <option value="1">Unpaid</option>
                                 <option value="2">Paid</option>
                             </select>
                         </div>
-
-                        <!--Paymen date-->
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label">Payment Date</label>
-                            <input type="date" class="form-control" @bind="State.Filter.PaymentDate" />
+                        <div class="sf-field">
+                            <label>Payment Date</label>
+                            <input type="date" @bind="State.Filter.PaymentDate" />
                         </div>
-
                     </div>
                 </div>
 
-                    <!-- Age & Other Filters -->
-                    <div class="mb-4">
-                        <h6 class="text-primary mb-3">Age Filters</h6>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Specific Age</label>
-                                <input type="number" class="form-control" placeholder="e.g. 80" @bind="State.Filter.SpecificAge" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Validator</label>
-                            <input type="text" class="form-control" placeholder="Validator" @bind="State.Filter.Validator" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">BatchCode</label>
-                            <input type="text" class="form-control" placeholder="Batch Code" @bind="State.Filter.BatchCode" />
-                            </div>
+                @* AGE & BIRTHDAY *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-calendar3 me-1"></i>Age & Birthday</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Specific Age</label>
+                            <input type="number" placeholder="e.g. 80"
+                                   @bind="State.Filter.SpecificAge" />
                         </div>
-                    </div>
-
-                    <!-- Birthday Filters -->
-                    <div>
-                        <h6 class="text-primary mb-3">Birthday Filters</h6>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Specific Birthday</label>
-                            <input type="date" class="form-control" @bind="State.Filter.SpecificBirthday" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Birthday From</label>
-                            <input type="date" class="form-control" @bind="State.Filter.BirthdayFrom" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Birthday To</label>
-                            <input type="date" class="form-control" @bind="State.Filter.BirthdayTo" />
-                            </div>
-
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Milestone Year</label>
-                            <InputSelect @bind-Value="State.Filter.MilestoneYear" class="form-select">
-                                <option value="">Select Year</option>
-                                @for (int year = DateTime.Now.Year; year >= 2024; year--)
+                        <div class="sf-field">
+                            <label>Milestone Year</label>
+                            <select @bind="State.Filter.MilestoneYear">
+                                <option value="">Select Milestone Year</option>
+                                @for (int y = DateTime.Now.Year; y >= 2024; y--)
                                 {
-                                    <option value="@year">@year</option>
+                                    <option value="@y">@y</option>
                                 }
-                            </InputSelect>
-                            </div>
-
+                            </select>
+                        </div>
+                        <div class="sf-field">
+                            <label>Specific Birthday</label>
+                            <input type="date" @bind="State.Filter.SpecificBirthday" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Birthday From</label>
+                            <input type="date" @bind="State.Filter.BirthdayFrom" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Birthday To</label>
+                            <input type="date" @bind="State.Filter.BirthdayTo" />
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end gap-2">
-                        <HxButton Color="ThemeColor.Secondary" Size="ButtonSize.Small" @onclick="ClearFilterAsync">
-                            Clear Filters
-                        </HxButton>
-                        <HxButton Color="ThemeColor.Primary" Size="ButtonSize.Small" @onclick="ApplyFiltersAsync" Disabled="@(IsApplyingFilters || IsLoading)">
-                            @if (IsApplyingFilters)
-                            {
-                                <span>Applying...</span>
-                            }
-                            else
-                            {
-                                <span>Apply Filters</span>
-                            }
-                        </HxButton>
+                </div>
 
-                    </div>
-            </BodyTemplate>
-            </HxCard>
-        </div>
+                @* ACTIONS *@
+                <div class="sf-actions">
+                    <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                    <button class="sf-btn sf-btn-apply"
+                            @onclick="ApplyFiltersAsync"
+                            disabled="@(IsApplyingFilters || IsLoading)">
+                        @if (IsApplyingFilters)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                            <span>Applying...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search"></i>
+                            <span>Apply Filters</span>
+                        }
+                    </button>
+                </div>
+
+            </div>
+        }
     </div>
+</div>
+
 @code {
     private const int DefaultRegionCode = 1600000000;
     private bool IsLoading = false;
@@ -237,6 +220,7 @@
     private bool IsFilterMunicipalityLoading = false;
     private bool IsFilterBarangayLoading = false;
     private bool IsApplyingFilters = false;
+    private bool _collapsed = false; // starts expanded
 
     private Dictionary<int, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<int, List<BarangayLookupDto>> filterBarangayCache = new();
@@ -245,9 +229,8 @@
     private int municipalitySelectKey = 0;
     private int barangaySelectKey = 0;
 
+    private void ToggleCollapse() => _collapsed = !_collapsed;
 
-
-    // ── Init ─────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         await LoadFilterProvincesAsync();
@@ -259,7 +242,6 @@
             await LoadBarangaysAsync(State.SelectedMunicipalityId);
     }
 
-    // ── Province ──────────────────────────────────────────────
     private async Task OnProvinceChanged(ChangeEventArgs e)
     {
         State.SelectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
@@ -267,41 +249,34 @@
         State.SelectedBarangayId = 0;
         State.FilterMunicipalities = new();
         State.FilterBarangays = new();
-
         if (State.SelectedProvinceId > 0)
             await LoadMunicipalitiesAsync(State.SelectedProvinceId);
     }
 
-    // ── Municipality ──────────────────────────────────────────
     private async Task OnMunicipalityChanged(ChangeEventArgs e)
     {
         State.SelectedMunicipalityId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
         State.SelectedBarangayId = 0;
         State.FilterBarangays.Clear();
-
         if (State.SelectedMunicipalityId > 0)
             await LoadBarangaysAsync(State.SelectedMunicipalityId);
     }
 
-    // ── Barangay ──────────────────────────────────────────────
     private void OnBarangayChanged(ChangeEventArgs e)
     {
         State.SelectedBarangayId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
-    // ── Sex ───────────────────────────────────────────────────
     private void OnSexChanged(ChangeEventArgs e)
     {
         State.Filter.Sex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
-    // ── Payment Status ────────────────────────────────────────
     private void OnPaymentStatusChanged(ChangeEventArgs e)
     {
         State.Filter.PaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
     }
 
-    // ── Loaders ───────────────────────────────────────────────
     private async Task LoadFilterProvincesAsync()
     {
         if (State.FilterProvinces.Any()) return;
@@ -311,10 +286,7 @@
             State.FilterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 $"api/Province/by-region/{DefaultRegionCode}") ?? new();
         }
-        finally
-        {
-            IsFilterProvinceLoading = false;
-        }
+        finally { IsFilterProvinceLoading = false; }
     }
 
     private async Task ApplyFiltersAsync()
@@ -323,86 +295,60 @@
         try
         {
             IsApplyingFilters = true;
-
-            // ✅ Set singular address fields directly from State selections
-            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
+            State.Filter.PsgcCodeProvince     = State.SelectedProvinceId     > 0 ? State.SelectedProvinceId     : null;
             State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
-            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
-
-            // ✅ Sex — null if not selected
-            State.Filter.Sex = State.SelectedSex > 0
-                ? State.SelectedSex
-                : null;
-
-            // ✅ PaymentStatus — null if not selected (-1 = nothing chosen)
-            State.Filter.PaymentStatus = State.SelectedPaymentStatus >= 0
-                ? State.SelectedPaymentStatus
-                : null;
-
-
+            State.Filter.PsgcCodeBarangay     = State.SelectedBarangayId     > 0 ? State.SelectedBarangayId     : null;
             State.Filter.PageNumber = 1;
-
             if (IsFilterEmpty(State.Filter))
             {
                 toast.ShowError("Please select or input at least one filter.");
                 return;
             }
-
             await State.LoadAsync();
         }
-        finally
-        {
-            IsApplyingFilters = false;
-        }
+        finally { IsApplyingFilters = false; }
     }
+
     private async Task ClearFilterAsync()
     {
-        // ✅ Reset State selections
-        State.SelectedProvinceId = 0;
+        State.SelectedProvinceId     = 0;
         State.SelectedMunicipalityId = 0;
-        State.SelectedBarangayId = 0;
-        State.Filter.Sex = 0;
-        State.Filter.PaymentStatus = 0;
-        State.Filter.PaymentDate = null;
-        State.FilterMunicipalities = new();
-        State.FilterBarangays = new();
+        State.SelectedBarangayId     = 0;
+        State.Filter.Sex             = 0;
+        State.Filter.PaymentStatus   = 0;
+        State.Filter.PaymentDate     = null;
+        State.FilterMunicipalities   = new();
+        State.FilterBarangays        = new();
         State.Filter = new() { PageNumber = 1, PageSize = 10 };
-
-        // Reset caches
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
-
-        // Force DOM reset
         provinceSelectKey++;
         municipalitySelectKey++;
         barangaySelectKey++;
-
-        // Reset shared filter and grid
         State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
         State.ClearData();
-
         State.FilterProvinces.Clear();
         await LoadFilterProvincesAsync();
         StateHasChanged();
     }
 
     private bool IsFilterEmpty(BeneficiaryFilterDto f) =>
-        string.IsNullOrWhiteSpace(f.FullName) &&
-        string.IsNullOrWhiteSpace(f.LastName) &&
-        string.IsNullOrWhiteSpace(f.FirstName) &&
-        string.IsNullOrWhiteSpace(f.Validator) &&
-        string.IsNullOrWhiteSpace(f.BatchCode) &&
-        f.SpecificAge == null &&
+        string.IsNullOrWhiteSpace(f.FullName)     &&
+        string.IsNullOrWhiteSpace(f.LastName)     &&
+        string.IsNullOrWhiteSpace(f.FirstName)    &&
+        string.IsNullOrWhiteSpace(f.Validator)    &&
+        string.IsNullOrWhiteSpace(f.BatchCode)    &&
+        f.SpecificAge      == null &&
         f.SpecificBirthday == null &&
-        f.BirthdayFrom == null &&
-        f.BirthdayTo == null &&
-        f.MilestoneYear == null &&
-        f.PaymentDate == null &&
-        f.PsgcCodeProvince == null &&
-        f.PsgcCodeMunicipality == null &&
-        f.PsgcCodeBarangay == null &&
-        f.Sex == null && // ✅ null = not selected
-        f.PaymentStatus == null;                 // ✅ null = not selected
+        f.BirthdayFrom     == null &&
+        f.BirthdayTo       == null &&
+        f.MilestoneYear    == null &&
+        f.PaymentDate      == null &&
+        f.PsgcCodeProvince      == null &&
+        f.PsgcCodeMunicipality  == null &&
+        f.PsgcCodeBarangay      == null &&
+        f.Sex           == null &&
+        f.PaymentStatus == null;
 
     private async Task LoadMunicipalitiesAsync(int provinceId)
     {
@@ -411,82 +357,52 @@
             IsFilterMunicipalityLoading = true;
             var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
                 $"api/Municipality/by-province/{provinceId}") ?? new();
-
             State.FilterMunicipalities = result;
-
-            if (result.Any())
-                filterMunicipalityCache[provinceId] = result;
+            if (result.Any()) filterMunicipalityCache[provinceId] = result;
         }
-        finally
-        {
-            IsFilterMunicipalityLoading = false;
-            StateHasChanged();
-        }
+        finally { IsFilterMunicipalityLoading = false; StateHasChanged(); }
     }
+
     private async Task LoadBarangaysAsync(int municipalityId)
     {
-        if (filterBarangayCache.TryGetValue(municipalityId, out var cached))
+        if (filterBarangayCache.TryGetValue(municipalityId, out var cached) && cached.Any())
         {
-            // ✅ Don't use empty cache
-            if (cached.Any())
-            {
-                State.FilterBarangays = cached;
-                StateHasChanged();
-                return;
-            }
-            filterBarangayCache.Remove(municipalityId);
+            State.FilterBarangays = cached;
+            StateHasChanged();
+            return;
         }
-
+        filterBarangayCache.Remove(municipalityId);
         try
         {
             IsFilterBarangayLoading = true;
             var response = await Http.PostAsJsonAsync(
                 "api/Barangay/by-municipalities",
                 new LookupMultiRequestDto { Ids = new List<int> { municipalityId } });
-
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content
-                    .ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
-
+                var result = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
                 State.FilterBarangays = result;
-
-                // ✅ Only cache if we got data
-                if (result.Any())
-                    filterBarangayCache[municipalityId] = result;
+                if (result.Any()) filterBarangayCache[municipalityId] = result;
             }
         }
-        finally
-        {
-            IsFilterBarangayLoading = false;
-            StateHasChanged();
-        }
+        finally { IsFilterBarangayLoading = false; StateHasChanged(); }
     }
+
     private string GetQueryString(BeneficiaryFilterDto filter)
     {
         var properties = from p in filter.GetType().GetProperties()
                          let value = p.GetValue(filter, null)
                          where value != null
                          select new { p.Name, Value = value };
-
         var queryString = new List<string>();
-
         foreach (var prop in properties)
         {
-            // Check if the property is a List/Enumerable (but not a string)
             if (prop.Value is System.Collections.IEnumerable list && !(prop.Value is string))
-            {
                 foreach (var item in list)
-                {
                     queryString.Add($"{prop.Name}={Uri.EscapeDataString(item.ToString() ?? "")}");
-                }
-            }
             else
-            {
                 queryString.Add($"{prop.Name}={Uri.EscapeDataString(prop.Value.ToString() ?? "")}");
-            }
         }
-
         return string.Join("&", queryString);
     }
 }
