@@ -1,5 +1,3 @@
-// EcaInformationSystem.Api/Program.cs
-// This is a brand new minimal API project — NO Blazor, NO cookies
 using EcaInformationSystem.Application;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
@@ -11,15 +9,14 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Unified Swagger Registration (Remove the second call later in your file)
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddEndpointsApiExplorer();
+
+// ─── Swagger ────────────────────────────────────────────────────────────────
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ECAReS Caraga API", Version = "v1" });
-
-    // JWT Security Definition
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -30,52 +27,49 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Enter JWT token"
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
-{
     {
-        new OpenApiSecurityScheme
         {
-            Reference = new OpenApiReference
+            new OpenApiSecurityScheme
             {
-                Type = ReferenceType.SecurityScheme,
-                Id = "Bearer"
-            }
-        },
-        Array.Empty<string>()
-    }
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
-});
+// ─── JWT ─────────────────────────────────────────────────────────────────────
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
+    ?? throw new InvalidOperationException("Jwt:Key is missing.");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? throw new InvalidOperationException("Jwt:Issuer is missing from configuration.");
+    ?? throw new InvalidOperationException("Jwt:Issuer is missing.");
 var jwtAudience = builder.Configuration["Jwt:Audience"]
-    ?? throw new InvalidOperationException("Jwt:Audience is missing from configuration.");
+    ?? throw new InvalidOperationException("Jwt:Audience is missing.");
 
-
-// JWT ONLY — no cookies needed, WASM client sends Bearer tokens
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-      .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-      {
-          options.TokenValidationParameters = new TokenValidationParameters
-          {
-              ValidateIssuer = true,
-              ValidateAudience = true,
-              ValidateLifetime = true,
-              ValidateIssuerSigningKey = true,
-              ValidIssuer = jwtIssuer,
-              ValidAudience = jwtAudience,
-              IssuerSigningKey = new SymmetricSecurityKey(
-                                             Encoding.UTF8.GetBytes(jwtKey)),
-              ClockSkew = TimeSpan.Zero   // no grace period on expiry
-          };
-      });
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
-builder.Services.AddAuthorization();
 builder.Services.AddAuthorization(options =>
 {
-    // Any authenticated user — via cookie OR JWT — can hit API controllers
     options.AddPolicy(AuthPolicies.CookieOrJwt, policy =>
     {
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme);
@@ -83,44 +77,29 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
-
-// ─── CORS (needed when WASM runs on a different port in dev) ────────────────
+// ─── CORS — only ONE registration ────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WasmPolicy", policy =>
     {
         policy
-            // During dev your WASM client will be on a different port
             .WithOrigins(
-                builder.Configuration["Cors:WasmOrigin"] ?? "https://localhost:5002"
+                builder.Configuration["Cors:WasmOrigin"] ?? "http://192.168.0.247"
             )
             .AllowAnyMethod()
             .AllowAnyHeader();
-            //.AllowCredentials();  // needed if you ever send cookies cross-origin
     });
 });
 
-// ─── Caching & Compression ──────────────────────────────────────────────────
+// ─── Caching & Compression ───────────────────────────────────────────────────
 builder.Services.AddMemoryCache();
-
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
 });
 
-// No cookies, no Blazor, no DataProtection needed here
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddMemoryCache();
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("WasmPolicy", policy =>
-        policy.WithOrigins(builder.Configuration["Cors:WasmOrigin"]!)
-              .AllowAnyMethod()
-              .AllowAnyHeader());
-});
-
 
 // ════════════════════════════════════════════════════════════════════════════
 var app = builder.Build();
@@ -128,39 +107,34 @@ var app = builder.Build();
 
 app.UseResponseCompression();
 
-// ─── DB Migration ───────────────────────────────────────────────────────────
+// ─── DB Migration ────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
 }
 
-// 2. Fix the Middleware Pipeline
+// ─── Middleware Pipeline ──────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    // Keep these INSIDE development for security, but ensure your 
-    // launchSettings.json environment is explicitly set to "Development"
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        // Explicitly set the endpoint to avoid relative path 404s
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "ECAReS Caraga API v1");
     });
 }
 else
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-app.UseHttpsRedirection();
-app.UseStaticFiles();
-app.UseCors("WasmPolicy");
+// ❌ REMOVED: app.UseHttpsRedirection()  → HTTP only for local LAN
+// ❌ REMOVED: app.UseBlazorFrameworkFiles() → not a hosted solution
+// ❌ REMOVED: app.MapStaticAssets()         → not a hosted solution
+// ❌ REMOVED: app.MapFallbackToFile(...)    → not a hosted solution
+
+app.UseCors("WasmPolicy");        // ← Must be BEFORE Auth
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

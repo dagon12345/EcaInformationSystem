@@ -7,13 +7,10 @@
     <title>ECAReS</title>
     <base href="/" />
     <link href="_content/Havit.Blazor.Components.Web.Bootstrap/bootstrap.min.css?v=2.0.0%2Bc21d8dd7f78b4928a5dbf9123c0f4c2ab9f8b30a" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-    <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="EcaInformationSystem.Client.styles.css" rel="stylesheet" />
-    <link href="css/records.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
     <script type="importmap"></script>
     <style>
         #blazor-loading {
@@ -203,22 +200,12 @@
             document.body.removeChild(link);
         };
     </script>
-    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
     <!-- Add your script here for downloading the template -->
     <script src="js/fileDownload.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
             crossorigin="anonymous"></script>
-
-    <script>
-        Blazor.start().then(() => {
-            const loader = document.getElementById('blazor-loading');
-            if (loader) {
-                loader.style.opacity = '0';
-                setTimeout(() => loader.remove(), 400);
-            }
-        });
-    </script>
 </body>
 
 </html>

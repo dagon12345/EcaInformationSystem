@@ -1,23 +1,43 @@
 ﻿@page "/beneficiary-create"
-@attribute [Authorize] 
+@attribute [Authorize]
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.BeneficiaryInformationChildComponents
 @using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Information Entry</PageTitle>
-<div class="container-fluid py-4">
-    <div class="card shadow-sm bg-primary text-white mb-3">
-        <div class="card-body">
-            <h4 class="mb-0">Information Entry</h4>
-            <small class="opacity-75">Create a new record</small>
+
+<div class="container-fluid py-3">
+
+    @* ── Page header *@
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-person-plus-fill"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Information Entry</h5>
+            <span class="page-header-sub">Create a new grantee record</span>
         </div>
     </div>
-    <div class="card shadow-sm mb-3">
-        <div class="card-body"><BeneficiaryImporting /></div>
+
+    @* ── Import section *@
+    <div class="sys-card mb-3">
+        <div class="sys-card-header">
+            <i class="bi bi-file-earmark-arrow-up me-2"></i>
+            Bulk Import via Excel
+        </div>
+        <div class="sys-card-body">
+            <BeneficiaryImporting />
+        </div>
     </div>
-    <div class="card card-body shadow-sm">
-        <BeneficiaryForm IsEditMode="false" />
+
+    @* ── Form section *@
+    <div class="sys-card">
+        <div class="sys-card-header">
+            <i class="bi bi-clipboard2-pulse me-2"></i>
+            Manual Entry Form
+        </div>
+        <div class="sys-card-body">
+            <BeneficiaryForm IsEditMode="false" />
+        </div>
     </div>
+
 </div>
-
-
-   
