@@ -4,16 +4,31 @@
 @using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Edit Record</PageTitle>
-<div class="container-fluid py-4">
-    <div class="card shadow-sm bg-warning text-dark mb-3">
-        <div class="card-body">
-            <h4 class="mb-0">Edit Record</h4>
-            <small class="opacity-75">Update existing grantee information</small>
+
+<div class="container-fluid py-3">
+
+    @* ── Page header *@
+    <div class="page-header-bar page-header-bar--warn mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-pencil-square"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Edit Record</h5>
+            <span class="page-header-sub">Update existing grantee information</span>
         </div>
     </div>
-    <div class="card card-body shadow-sm">
-        <BeneficiaryForm IsEditMode="true" EditId="@Id" />
+
+    @* ── Form section *@
+    <div class="sys-card">
+        <div class="sys-card-header">
+            <i class="bi bi-clipboard2-data me-2"></i>
+            Grantee Information
+        </div>
+        <div class="sys-card-body">
+            <BeneficiaryForm IsEditMode="true" EditId="@Id" />
+        </div>
     </div>
+
 </div>
 
 @code {

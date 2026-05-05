@@ -4,16 +4,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+	  <WasmFingerprintAssets>false</WasmFingerprintAssets>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.7" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EcaInformationService.Shared\EcaInformationSystem.Shared.csproj" />
     <ProjectReference Include="..\EcaInformationSystem.Application\EcaInformationSystem.Application.csproj" />
+	  <ProjectReference Include="..\EcaInformationSystem.Client\EcaInformationSystem.Client.csproj">
+		  <Private>true</Private>
+		  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	  </ProjectReference>
     <ProjectReference Include="..\EcaInformationSystem.Infrastructure\EcaInformationSystem.Infrastructure.csproj" />
   </ItemGroup>
 
