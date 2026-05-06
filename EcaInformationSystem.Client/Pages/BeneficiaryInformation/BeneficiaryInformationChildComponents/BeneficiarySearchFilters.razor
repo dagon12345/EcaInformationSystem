@@ -292,21 +292,32 @@
     private async Task ApplyFiltersAsync()
     {
         if (IsLoading || IsApplyingFilters) return;
+
+        IsApplyingFilters = true;
+
         try
         {
-            IsApplyingFilters = true;
-            State.Filter.PsgcCodeProvince     = State.SelectedProvinceId     > 0 ? State.SelectedProvinceId     : null;
+            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
             State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
-            State.Filter.PsgcCodeBarangay     = State.SelectedBarangayId     > 0 ? State.SelectedBarangayId     : null;
+            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
             State.Filter.PageNumber = 1;
+
             if (IsFilterEmpty(State.Filter))
             {
                 toast.ShowError("Please select or input at least one filter.");
                 return;
             }
+
             await State.LoadAsync();
+
+            // Show toast only if error occurred
+            if (State.ErrorMessage is not null)
+                toast.ShowError(State.ErrorMessage);
         }
-        finally { IsApplyingFilters = false; }
+        finally
+        {
+            IsApplyingFilters = false;
+        }
     }
 
     private async Task ClearFilterAsync()
