@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="global.json" />
+  </Folder>
   <Project Path="EcaInformationService.Shared/EcaInformationSystem.Shared.csproj" Id="db1922b6-627c-4b2d-b500-3e1d7a1fd401" />
   <Project Path="EcaInformationSystem.Api/EcaInformationSystem.Api.csproj" Id="aa6938dd-d248-43be-9cd2-e03c2c56fcb6" />
   <Project Path="EcaInformationSystem.Application/EcaInformationSystem.Application.csproj" />
