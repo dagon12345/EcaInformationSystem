@@ -54,9 +54,9 @@
                                 <div class="form-text">e.g. RegionXIII</div>
                             </div>
                             <div class="col-md-2">
-                                <label class="form-label small fw-bold">Year-Month</label>
-                                <input class="form-control form-control-sm" @bind="_settings.YearMonth" maxlength="6" />
-                                <div class="form-text">YYYYMM</div>
+                                <label class="form-label small fw-bold">Month</label>
+                                <input class="form-control form-control-sm" @bind="_settings.Month" maxlength="6" />
+                                <div class="form-text">MM</div>
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label small fw-bold">Fixed Segment</label>
@@ -76,9 +76,9 @@
                             <div class="col-12">
                                 <div class="alert alert-info py-2 mb-0 small">
                                     <strong>CGP Preview:</strong>
-                                    CGP No.: @_settings.RegionCode-@_settings.YearMonth-@_settings.FixedSegment-@_settings.ShortenYear-0001
+                                    CGP No.: @_settings.RegionCode-@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0001
                                     &nbsp;→&nbsp;
-                                    CGP No.: @_settings.RegionCode-@_settings.YearMonth-@_settings.FixedSegment-@_settings.ShortenYear-0002
+                                    CGP No.: @_settings.RegionCode-@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0002
                                 </div>
                             </div>
                         </div>
@@ -245,7 +245,7 @@
                                 </td>
                                 <td colspan="2" style="border:1px solid #333; text-align:right; font-size:7pt;
                                     vertical-align:middle; padding:0 3px; white-space:nowrap;">
-                                    CGP No.: @_settings.RegionCode-@_settings.YearMonth-@_settings.FixedSegment-@_settings.ShortenYear-0001
+                                    CGP No.: @_settings.RegionCode-@_previewData.FirstOrDefault()?.MilestoneYear@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0001
                                 </td>
                             </tr>
                             <tr style="height:8pt;"><td colspan="19"></td></tr>
@@ -353,7 +353,7 @@
                                         <td colspan="17"></td>
                                         <td colspan="2" style="border:1px solid #333; text-align:right;
                                             font-size:6.5pt; padding:0 3px; vertical-align:middle;">
-                                            CGP No.: @_settings.RegionCode-@_settings.YearMonth-@_settings.FixedSegment-@_settings.ShortenYear-@pageN.ToString("D4")
+                                            CGP No.: @_settings.RegionCode-@_previewData.FirstOrDefault()?.MilestoneYear@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-@pageN.ToString("D4")
                                         </td>
                                     </tr>
                                 }
@@ -541,7 +541,7 @@
         _settings = new PayrollSettingsDto
         {
             Ids = selectedIds,
-            YearMonth = DateTime.Today.ToString("yyyyMM"),
+            Month = DateTime.Today.ToString("MM"),
             RecordsPerPage = 15,
         };
 

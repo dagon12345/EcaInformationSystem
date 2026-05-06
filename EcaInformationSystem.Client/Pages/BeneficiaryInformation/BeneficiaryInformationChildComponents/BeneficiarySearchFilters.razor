@@ -301,6 +301,7 @@
             State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
             State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
             State.Filter.PageNumber = 1;
+            State.Filter.PageSize = 10; // ✅ reset page size on every new search
 
             if (IsFilterEmpty(State.Filter))
             {
