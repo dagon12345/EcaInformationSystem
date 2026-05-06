@@ -362,10 +362,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var query = BuildBeneficiaryRawQuery(filter);
 
-            // COUNT in DB — no materialization
-            var totalCount = await query.CountAsync();
+            // ✅ Count distinct IDs only — EF Core CAN translate this
+            var totalCount = await query
+                .Select(x => x.Id)
+                .Distinct()
+                .CountAsync();
 
-            // Fetch ONLY the current page from DB
+            // ✅ Fetch the page — deduplicate in memory after ToList
             var items = await query
                 .OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
@@ -373,6 +376,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+
+            // ✅ Deduplicate in memory, then page
+            var deduped = items
+                .DistinctBy(x => x.Id)
+                .Select(MapToDto)
+                .ToList();
 
             return new PagedResultDto<BeneficiaryInformationDto>
             {

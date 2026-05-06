@@ -570,6 +570,7 @@ namespace EcaInformationSystem.Application.Services
             var first = records.FirstOrDefault();
             var municipality = first?.MunicipalityName ?? "";
             var province = first?.ProvinceName ?? "";
+            var milestoneYear = first?.MilestoneYear ?? 0;
 
             // ── Helpers ──────────────────────────────────────────────────────────────
             void NavyHeader(IXLRange r, string text)
@@ -662,7 +663,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(10, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Cell(10, 4).Style.Alignment.WrapText = true;
 
-            CgpCell(10, $"CGP No.: {s.RegionCode}-{s.YearMonth}-{s.FixedSegment}-{s.ShortenYear}-0001");
+            CgpCell(10, $"CGP No.: {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-0001");
 
             ws.Row(11).Height = 11.25;
 
@@ -714,7 +715,7 @@ namespace EcaInformationSystem.Application.Services
                 if (page > 1)
                 {
                     CgpCell(currentRow,
-                        $"CGP No.: {s.RegionCode}-{s.YearMonth}-{s.FixedSegment}-{s.ShortenYear}-{page:D4}");
+                        $"CGP No.: {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{page:D4}");
                     ws.Row(currentRow).Height = 23.25;
                     currentRow++;
                 }

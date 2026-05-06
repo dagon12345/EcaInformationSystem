@@ -19,7 +19,7 @@
                         <div class="d-flex flex-column">
                             <div class="d-flex align-items-center gap-2">
                                 <h5 class="mb-0">Showing</h5>
-                                <span class="badge bg-primary">@State.TotalCount Record(s)</span>
+                                <span class="badge bg-primary">@DisplayCount Record(s)</span>
                             </div>
                             <small class="opacity-75 mt-1">Select the checkbox to Bulk Update payment status or Create Payroll</small>
                         </div>
@@ -108,8 +108,8 @@
                         Showing
                         <strong>@(((State.Filter.PageNumber - 1) * State.Filter.PageSize) + 1)</strong>
                         –
-                        <strong>@Math.Min(State.Filter.PageNumber * State.Filter.PageSize, State.TotalCount)</strong>
-                        of <strong>@State.TotalCount</strong> record(s)
+                        <strong>@Math.Min(State.Filter.PageNumber * State.Filter.PageSize, DisplayCount)</strong>
+                        of <strong>@DisplayCount</strong> record(s)
                         &nbsp;·&nbsp; Page @State.Filter.PageNumber of @State.TotalPages
                     </span>
                     <div class="pag-controls">
@@ -126,14 +126,16 @@
                                 disabled="@(State.Filter.PageNumber >= State.TotalPages || State.IsLoading)">
                             Next →
                         </button>
-                        <select class="form-select form-select-sm w-auto" @onchange="OnPageSizeChanged">
-                            <option value="10" selected="@(State.Filter.PageSize == 10)">10 / page</option>
-                            <option value="20" selected="@(State.Filter.PageSize == 20)">20 / page</option>
-                            <option value="50" selected="@(State.Filter.PageSize == 50)">50 / page</option>
-                            <option value="100" selected="@(State.Filter.PageSize == 100)">100 / page</option>
-                            <option value="500" selected="@(State.Filter.PageSize == 500)">500 / page</option>
-                            <option value="1000" selected="@(State.Filter.PageSize == 1000)">1000 / page</option>
-                        </select>
+                            <select class="form-select form-select-sm w-auto"
+                                    @bind="State.Filter.PageSize"
+                                    @bind:after="OnPageSizeChangedAsync">
+                                <option value="10">10 / page</option>
+                                <option value="20">20 / page</option>
+                                <option value="50">50 / page</option>
+                                <option value="100">100 / page</option>
+                                <option value="500">500 / page</option>
+                                <option value="1000">1000 / page</option>
+                            </select>
                     </div>
                 </div>
 
@@ -608,6 +610,10 @@
     private string? successMessage;
     private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? State.Beneficiaries
            : State.Beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
+    // Add this computed property
+    private int DisplayCount => string.IsNullOrWhiteSpace(fullNameFilter)
+        ? State.TotalCount
+        : FilteredBeneficiaries.Count();
 
     private async Task OpenDetailsPanel(BeneficiaryInformationDto item)
     {
@@ -829,14 +835,10 @@
         await State.LoadAsync(); // ✅
     }
 
-    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    private async Task OnPageSizeChangedAsync()
     {
-        if (int.TryParse(e.Value?.ToString(), out var pageSize))
-        {
-            State.Filter.PageSize = pageSize;
-            State.Filter.PageNumber = 1;
-            await State.LoadAsync(); // ✅
-        }
+        State.Filter.PageNumber = 1;
+        await State.LoadAsync();
     }
 
     private int? GetAge(DateTime? birthDate)

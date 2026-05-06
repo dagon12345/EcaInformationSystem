@@ -16,8 +16,8 @@ namespace EcaInformationSystem.Shared.DTOs
         /// <summary>e.g. "RegionXIII" — defaults to "RegionXIII"</summary>
         public string RegionCode { get; set; } = "RegionXIII";
 
-        /// <summary>Year+Month, e.g. "202603" — defaults to current month</summary>
-        public string YearMonth { get; set; } = DateTime.Today.ToString("yyyyMM");
+        /// <summary> Month, e.g. "03" — defaults to current month</summary>
+        public string Month { get; set; } = DateTime.Today.ToString("MM");
 
         /// <summary>Fixed segment "01" per current format (configurable for future)</summary>
         public string FixedSegment { get; set; } = "01";
