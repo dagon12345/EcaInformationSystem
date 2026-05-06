@@ -2,10 +2,14 @@ using EcaInformationSystem.Application;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Net;
 using System.Text;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,7 +81,7 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
-// ─── CORS — only ONE registration ────────────────────────────────────────────
+// ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WasmPolicy", policy =>
@@ -129,10 +133,69 @@ else
     app.UseHsts();
 }
 
-// ❌ REMOVED: app.UseHttpsRedirection()  → HTTP only for local LAN
-// ❌ REMOVED: app.UseBlazorFrameworkFiles() → not a hosted solution
-// ❌ REMOVED: app.MapStaticAssets()         → not a hosted solution
-// ❌ REMOVED: app.MapFallbackToFile(...)    → not a hosted solution
+// ─── Global Exception Handler ────────────────────────────────────────────────
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
+        var exception = exceptionFeature?.Error;
+
+        // Always include CORS header so Blazor can read the error response
+        var wasmOrigin = builder.Configuration["Cors:WasmOrigin"] ?? "http://REDACTED_INTERNAL_IP";
+        context.Response.Headers.Append("Access-Control-Allow-Origin", wasmOrigin);
+        context.Response.ContentType = "application/json";
+
+        // Map exception types to appropriate status codes and messages
+        var (statusCode, message) = exception switch
+        {
+            SqlException { Number: -2 } or
+            Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: SqlException { Number: -2 } }
+                => (StatusCodes.Status504GatewayTimeout,
+                    "The request took too long to complete. Please try again or refine your search filters."),
+
+            SqlException
+                => (StatusCodes.Status503ServiceUnavailable,
+                    "A database error occurred. Please contact your system administrator."),
+
+            UnauthorizedAccessException
+                => (StatusCodes.Status401Unauthorized,
+                    "You are not authorized to perform this action."),
+
+            KeyNotFoundException
+                => (StatusCodes.Status404NotFound,
+                    "The requested record was not found."),
+
+            OperationCanceledException
+                => (StatusCodes.Status499ClientClosedRequest,
+                    "The request was cancelled."),
+
+            _ => (StatusCodes.Status500InternalServerError,
+                    "An unexpected error occurred. Please try again later.")
+        };
+
+        context.Response.StatusCode = statusCode;
+
+        // In development, include the real exception message for debugging
+        var detail = app.Environment.IsDevelopment()
+            ? exception?.ToString()
+            : null;
+
+        var response = new
+        {
+            status = statusCode,
+            message,
+            detail
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+    });
+});
+
+// ❌ REMOVED: app.UseHttpsRedirection()
+// ❌ REMOVED: app.UseBlazorFrameworkFiles()
+// ❌ REMOVED: app.MapStaticAssets()
+// ❌ REMOVED: app.MapFallbackToFile(...)
 
 app.UseCors("WasmPolicy");        // ← Must be BEFORE Auth
 app.UseAuthentication();

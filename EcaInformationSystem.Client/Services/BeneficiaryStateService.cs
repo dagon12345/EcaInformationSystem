@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Shared.DTOs;
+using System.Net;
 using System.Net.Http.Json;
 
 public class BeneficiaryStateService
@@ -14,6 +15,7 @@ public class BeneficiaryStateService
     public int SelectedBarangayId { get; set; } = 0;
     public int SelectedSex { get; set; }
     public int SelectedPaymentStatus { get; set; }
+    public string? ErrorMessage { get; set; }
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
     public List<RegionLookupDto> FilterRegions { get; set; } = new();
@@ -61,27 +63,69 @@ public class BeneficiaryStateService
 
     public async Task LoadAsync()
     {
+        ErrorMessage = null; // ← clear previous error
+
         try
         {
             IsLoading = true;
             NotifyStateChanged();
 
-            // Use the dynamic query string helper
             var query = GetQueryString(Filter);
-            var result = await _http.GetFromJsonAsync<PagedResultDto<BeneficiaryInformationDto>>($"api/beneficiary/paged?{query}");
+            var response = await _http.GetAsync($"api/beneficiary/paged?{query}");
 
-            Beneficiaries = result?.Items?.ToList() ?? new();
-            TotalCount = result?.TotalCount ?? 0;
-            TotalPages = result?.TotalPages ?? 0; 
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryInformationDto>>();
+                Beneficiaries = result?.Items?.ToList() ?? new();
+                TotalCount = result?.TotalCount ?? 0;
+                TotalPages = result?.TotalPages ?? 0;
+            }
+            else
+            {
+                // Read the structured error from your global exception handler
+                ApiErrorResponse? errorBody = null;
+                try
+                {
+                    errorBody = await response.Content.ReadFromJsonAsync<ApiErrorResponse>();
+                }
+                catch { /* response body wasn't JSON, fall through to default message */ }
+
+                ErrorMessage = response.StatusCode switch
+                {
+                    HttpStatusCode.GatewayTimeout or
+                    HttpStatusCode.RequestTimeout =>
+                        errorBody?.Message ?? "The search timed out. Try narrowing your filters.",
+
+                    HttpStatusCode.ServiceUnavailable =>
+                        errorBody?.Message ?? "The server is temporarily unavailable. Please try again.",
+
+                    HttpStatusCode.Unauthorized =>
+                        "Your session has expired. Please log in again.",
+
+                    HttpStatusCode.NotFound =>
+                        "No records found for the selected filters.",
+
+                    _ => errorBody?.Message ?? "An unexpected error occurred. Please try again."
+                };
+            }
+        }
+        catch (HttpRequestException)
+        {
+            ErrorMessage = "Cannot reach the server. Please check your connection or contact support.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "An unexpected error occurred. Please try again.";
+            Console.Error.WriteLine(ex);
         }
         finally
         {
             IsLoading = false;
             NotifyStateChanged();
         }
-        HasActiveFilter = true; // ✅ mark that data was loaded with a filter
-    }
 
+        HasActiveFilter = true;
+    }
 
     private string GetQueryString(BeneficiaryFilterDto filter)
     {

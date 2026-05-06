@@ -360,21 +360,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
             var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
 
-            // Materialize first, then deduplicate in memory
-            var allItems = await BuildBeneficiaryRawQuery(filter)
+            var query = BuildBeneficiaryRawQuery(filter);
+
+            // COUNT in DB — no materialization
+            var totalCount = await query.CountAsync();
+
+            // Fetch ONLY the current page from DB
+            var items = await query
                 .OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ThenBy(x => x.MiddleName)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
-
-            // Deduplicate in memory — safe here since it's already a List
-            var deduplicated = allItems.DistinctBy(x => x.Id).ToList();
-            var totalCount = deduplicated.Count;
-            var items = deduplicated.Skip((pageNumber - 1) * pageSize).Take(pageSize).Select(MapToDto).ToList();
 
             return new PagedResultDto<BeneficiaryInformationDto>
             {
-                Items = items,
+                Items = items.Select(MapToDto).ToList(),
                 TotalCount = totalCount,
                 PageNumber = pageNumber,
                 PageSize = pageSize
