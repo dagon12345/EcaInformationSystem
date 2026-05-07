@@ -1,0 +1,440 @@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@inject ToastService toast
+@inject IJSRuntime JS
+
+<HxModal @ref="_modal" Size="ModalSize.ExtraLarge">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i>
+            Generate Cash Disbursements Record (CDR)
+        </h5>
+    </HeaderTemplate>
+
+    <BodyTemplate>
+        @if (_isLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading preview...</p>
+            </div>
+        }
+        else if (_isGenerating)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-success" role="status"></div>
+                <p class="mt-2 mb-0">Generating CDR Excel file...</p>
+            </div>
+        }
+        else
+        {
+            <!-- ── TAB NAVIGATION ── -->
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <button class="nav-link @(_activeTab == "settings" ? "active" : "")"
+                            @onclick='() => _activeTab = "settings"'>
+                        <i class="bi bi-gear me-1"></i> Settings
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(_activeTab == "preview" ? "active" : "")"
+                            @onclick="LoadPreviewAsync">
+                        <i class="bi bi-table me-1"></i> Preview
+                        @if (_previewRows.Any())
+                        {
+                            <span class="badge bg-primary ms-1">@_previewRows.Count</span>
+                        }
+                    </button>
+                </li>
+            </ul>
+
+            <!-- ── SETTINGS TAB ── -->
+            @if (_activeTab == "settings")
+            {
+                <div class="row g-3">
+
+                    <!-- Header Info -->
+                    <div class="col-12">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">Header Information</h6>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Region / Organization Unit</label>
+                        <input class="form-control form-control-sm" @bind="_settings.RegionOrgUnit" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">New ORG Code</label>
+                        <input class="form-control form-control-sm" @bind="_settings.NewOrgCode" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Fund Cluster</label>
+                        <input class="form-control form-control-sm" @bind="_settings.FundCluster" />
+                    </div>
+
+                    <!-- Accountable Officer -->
+                    <div class="col-12 mt-1">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">Accountable Officer</h6>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Officer Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" placeholder="e.g. ALMIRA C. REBUCAS"
+                               @bind="_settings.AccountableOfficerName" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Official Designation <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" placeholder="e.g. PROJECT DEVELOPMENT OFFICER III"
+                               @bind="_settings.OfficialDesignation" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Station</label>
+                        <input class="form-control form-control-sm" @bind="_settings.Station" />
+                    </div>
+
+                    <!-- Cash Advance (DV row) -->
+                    <div class="col-12 mt-1">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">Cash Advance Row (DV-0001)</h6>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Input Date <span class="text-danger">*</span></label>
+                        <InputDate class="form-control form-control-sm"
+                                   TValue="DateTime"
+                                   @bind-Value="_settings.InputDate" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">DV Year</label>
+                        <input class="form-control form-control-sm" placeholder="2026" @bind="_settings.DvYear" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">DV Month</label>
+                        <input class="form-control form-control-sm" placeholder="03" @bind="_settings.DvMonth" />
+                        <small class="text-muted">→ DV: {Year}-{Month}-0001</small>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">DV Payee <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" placeholder="e.g. ALMIRA C. REBUCAS"
+                               @bind="_settings.DvPayee" />
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Nature of Payment (DV row)</label>
+                        <input class="form-control form-control-sm"
+                               placeholder="e.g. To pay for Cash Gift Distribution for 2024, 2025 and 2026 beneficiaries"
+                               @bind="_settings.NatureOfPayment" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Initial Cash Advance (₱) <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" type="number"
+                               @bind="_settings.InitialCashAdvance" />
+                    </div>
+
+                    <!-- CGP Settings -->
+                    <div class="col-12 mt-1">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">
+                            CGP Number Settings
+                            <small class="fw-normal text-muted ms-2">
+                                Format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter}
+                            </small>
+                        </h6>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Region Code</label>
+                        <input class="form-control form-control-sm" placeholder="RegionXIII"
+                               @bind="_settings.RegionCode" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Fixed Segment</label>
+                        <input class="form-control form-control-sm" placeholder="01"
+                               @bind="_settings.FixedSegment" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Shorten Year</label>
+                        <input class="form-control form-control-sm" placeholder="26"
+                               @bind="_settings.ShortenYear" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Rows Per A4 Page</label>
+                        <input class="form-control form-control-sm" type="number" min="4" max="15"
+                               @bind="_settings.RowsPerPage" />
+                        <small class="text-muted">Recommended: 8</small>
+                    </div>
+
+                    <!-- Certification -->
+                    <div class="col-12 mt-1">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">Certification</h6>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Period From</label>
+                        <input class="form-control form-control-sm" placeholder="e.g. March 17, 2026"
+                               @bind="_settings.CertificationPeriodFrom" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Period To</label>
+                        <input class="form-control form-control-sm" placeholder="e.g. April 17, 2026"
+                               @bind="_settings.CertificationPeriodTo" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Certification Date</label>
+                        <InputDate class="form-control form-control-sm"
+                                   TValue="DateTime"
+                                   @bind-Value="_settings.CertificationDate" />
+                    </div>
+
+                </div>
+            }
+
+            <!-- ── PREVIEW TAB ── -->
+            @if (_activeTab == "preview")
+            {
+                @if (!_previewRows.Any())
+                {
+                    <div class="alert alert-info mb-0">
+                        Click <strong>Preview</strong> tab to load the CDR rows preview.
+                    </div>
+                }
+                else
+                {
+                    <!-- Summary -->
+                    <div class="d-flex gap-3 mb-2 flex-wrap">
+                        <span class="badge bg-primary fs-6">@_previewRows.Count CDR Rows</span>
+                        <span class="badge bg-success fs-6">
+                            Initial: ₱@_settings.InitialCashAdvance.ToString("N2")
+                        </span>
+                        <span class="badge bg-warning text-dark fs-6">
+                            Total Disbursed: ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
+                        </span>
+                        <span class="badge bg-danger fs-6">
+                            Final Balance: ₱@(_previewRows.LastOrDefault()?.RunningBalance.ToString("N2") ?? "0.00")
+                        </span>
+                    </div>
+
+                    <div style="max-height:420px; overflow-y:auto;">
+                        <table class="table table-sm table-bordered table-hover align-middle mb-0"
+                               style="font-size:12px;">
+                            <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date</th>
+                                    <th>CGP No.</th>
+                                    <th>Payee</th>
+                                    <th>Nature of Payment</th>
+                                    <th class="text-end">Disbursement (₱)</th>
+                                    <th class="text-end">Balance (₱)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- DV Row 0001 -->
+                                <tr class="table-info fw-bold">
+                                    <td>1</td>
+                                    <td>@_settings.InputDate.ToString("MM/dd/yyyy")</td>
+                                    <td>DV: @_settings.DvYear-@_settings.DvMonth-0001</td>
+                                    <td>@_settings.DvPayee</td>
+                                    <td>@_settings.NatureOfPayment</td>
+                                    <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
+                                    <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
+                                </tr>
+                                @for (int i = 0; i < _previewRows.Count; i++)
+                                {
+                                    var row = _previewRows[i];
+                                    <tr>
+                                        <td>@(i + 2)</td>
+                                        <td>@row.PaymentDate.ToString("MM/dd/yyyy")</td>
+                                        <td style="white-space:nowrap;">@row.CgpNumber</td>
+                                        <td>@row.Payee</td>
+                                        <td>@row.NatureOfPayment</td>
+                                        <td class="text-end">@row.Disbursement.ToString("N2")</td>
+                                        <td class="text-end @(row.RunningBalance < 0 ? "text-danger" : "")">
+                                            @row.RunningBalance.ToString("N2")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="5" class="text-end">Total Disbursed:</td>
+                                    <td class="text-end">
+                                        ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            }
+        }
+    </BodyTemplate>
+
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary"
+                  @onclick="() => _modal.HideAsync()"
+                  Disabled="@(_isLoading || _isGenerating)">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Primary"
+                  @onclick="LoadPreviewAsync"
+                  Disabled="@(_isLoading || _isGenerating)">
+            <i class="bi bi-eye me-1"></i> Preview
+        </HxButton>
+        <HxButton Color="ThemeColor.Success"
+                  @onclick="GenerateAsync"
+                  Disabled="@(_isLoading || _isGenerating || !IsValid())">
+            @if (_isGenerating)
+            {
+                <span>Generating...</span>
+            }
+            else
+            {
+                <i class="bi bi-file-earmark-excel me-1"></i>
+                <span>Export CDR</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private HxModal _modal = default!;
+    private LiquidationSettingsDto _settings = new();
+    private List<LiquidationPreviewRowDto> _previewRows = new();
+    private LiquidationFilterDto _filter = new();
+    private string _activeTab = "settings";
+    private bool _isLoading;
+    private bool _isGenerating;
+
+    public async Task ShowAsync(BeneficiaryFilterDto filter)
+    {
+        // ✅ Map filter
+        _filter = new LiquidationFilterDto
+        {
+            PsgcCodeProvince = filter.PsgcCodeProvince,
+            PaymentDateFrom = filter.PaymentDateFrom,
+            PaymentDateTo = filter.PaymentDateTo,
+        };
+
+        // ✅ Read logged-in user claims from JWT
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        var fullName = user.FindFirst("FullName")?.Value ?? string.Empty;
+        var position = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+
+        // ✅ Auto-fill settings from user claims
+        _settings.AccountableOfficerName = fullName;
+        _settings.OfficialDesignation = position;
+        _settings.DvPayee = fullName; // same as officer name
+
+        // ✅ Auto-fill DV date fields
+        _settings.DvYear = DateTime.Today.Year.ToString();
+        _settings.DvMonth = DateTime.Today.Month.ToString("D2");
+        _settings.InputDate = DateTime.Today;
+        _settings.CertificationDate = DateTime.Today;
+
+        // ✅ Auto-fill Period From/To from the filter dates
+        _settings.CertificationPeriodFrom = filter.PaymentDateFrom.HasValue
+            ? filter.PaymentDateFrom.Value.ToString("MMMM dd, yyyy")
+            : string.Empty;
+
+        _settings.CertificationPeriodTo = filter.PaymentDateTo.HasValue
+            ? filter.PaymentDateTo.Value.ToString("MMMM dd, yyyy")
+            : string.Empty;
+
+        _previewRows = new();
+        _activeTab = "settings";
+
+        await _modal.ShowAsync();
+    }
+
+    private bool IsValid() =>
+        !string.IsNullOrWhiteSpace(_settings.AccountableOfficerName) &&
+        !string.IsNullOrWhiteSpace(_settings.OfficialDesignation) &&
+        !string.IsNullOrWhiteSpace(_settings.DvPayee) &&
+        _settings.InitialCashAdvance > 0;
+
+    private async Task LoadPreviewAsync()
+    {
+        _activeTab = "preview";
+
+        if (!IsValid())
+        {
+            toast.ShowError("Please fill in all required fields in Settings first.");
+            _activeTab = "settings";
+            return;
+        }
+
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            var request = new { Filter = _filter, Settings = _settings };
+            var response = await Http.PostAsJsonAsync("api/liquidation/preview", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"Preview failed: {err}");
+                _activeTab = "settings";
+                return;
+            }
+
+            _previewRows = await response.Content
+                .ReadFromJsonAsync<List<LiquidationPreviewRowDto>>() ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Preview failed: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateAsync()
+    {
+        if (!IsValid())
+        {
+            toast.ShowError("Please fill in all required fields.");
+            return;
+        }
+
+        try
+        {
+            _isGenerating = true;
+            StateHasChanged();
+
+            var request = new { Filter = _filter, Settings = _settings };
+            var response = await Http.PostAsJsonAsync("api/liquidation/generate-cdr", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"CDR generation failed: {err}");
+                return;
+            }
+
+            var fileBytes = await response.Content.ReadAsByteArrayAsync();
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                toast.ShowError("No data returned from CDR generation.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            var fileName = $"CDR_{DateTime.Now:yyyy-MM-dd}.xlsx";
+            await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+
+            toast.ShowSuccess("CDR generated successfully.");
+            await _modal.HideAsync();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"CDR generation failed: {ex.Message}");
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+}

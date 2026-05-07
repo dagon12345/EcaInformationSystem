@@ -39,7 +39,11 @@ public class BeneficiaryStateService
 
     // ✅ Add these two
     public DateTime? LastLoaded { get; private set; }
-
+    public void SetBeneficiaries(List<BeneficiaryInformationDto> items)
+    {
+        Beneficiaries = items;
+        NotifyStateChanged();
+    }
     public void Invalidate() => LastLoaded = null; // ✅ forces reload on next visit
 
     public bool IsStale() =>

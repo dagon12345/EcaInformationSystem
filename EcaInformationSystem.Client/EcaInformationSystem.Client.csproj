@@ -27,4 +27,8 @@
     <ProjectReference Include="..\EcaInformationService.Shared\EcaInformationSystem.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Pages\BeneficiaryInformation\LiquidationComponents\Modal\" />
+  </ItemGroup>
+
 </Project>
