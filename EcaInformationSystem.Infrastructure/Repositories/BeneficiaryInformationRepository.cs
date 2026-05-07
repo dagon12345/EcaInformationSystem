@@ -524,6 +524,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.PaymentDate < paymentEnd);
             }
 
+            // ✅ Add payment date range support
+            if (filter.PaymentDateFrom.HasValue)
+            {
+                var from = filter.PaymentDateFrom.Value.Date;
+                query = query.Where(x => x.Beneficiary.PaymentDate >= from);
+            }
+
+            if (filter.PaymentDateTo.HasValue)
+            {
+                var to = filter.PaymentDateTo.Value.Date.AddDays(1);
+                query = query.Where(x => x.Beneficiary.PaymentDate < to);
+            }
 
             //// ── Other ─────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.Validator))

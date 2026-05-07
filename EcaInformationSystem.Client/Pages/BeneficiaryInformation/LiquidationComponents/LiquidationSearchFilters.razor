@@ -1,0 +1,175 @@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject ToastService toast
+@inject HttpClient Http
+@inject BeneficiaryStateService State
+
+<div class="sf-wrap">
+    <div class="sf-card">
+
+        <div class="sf-header" @onclick="ToggleCollapse">
+            <div class="sf-header-left">
+                <div class="sf-header-icon">
+                    <i class="bi bi-funnel-fill"></i>
+                </div>
+                <div>
+                    <p class="sf-header-title">Filter Paid Records</p>
+                    <p class="sf-header-sub">Filter by payment date range and province</p>
+                </div>
+            </div>
+            <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
+        </div>
+
+        @if (!_collapsed)
+        {
+            <div class="sf-body">
+
+                <div class="sf-grid">
+
+                    <!-- Province -->
+                    <div class="sf-field">
+                        <label>Province</label>
+                        <select value="@_selectedProvinceId"
+                                @onchange="OnProvinceChanged"
+                                disabled="@(_isLoading || _isProvinceLoading)">
+                            <option value="0">All Provinces</option>
+                            @foreach (var p in _provinces)
+                            {
+                                <option value="@p.PsgcCodeProvince">@p.Name</option>
+                            }
+                        </select>
+                        @if (_isProvinceLoading)
+                        {
+                            <span class="sf-loading-pill">
+                                <span class="spinner-border spinner-border-sm"></span> Loading...
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Payment Date From -->
+                    <div class="sf-field">
+                        <label>Payment Date From <span class="text-danger">*</span></label>
+                        <input type="date" @bind="_paymentDateFrom" />
+                    </div>
+
+                    <!-- Payment Date To -->
+                    <div class="sf-field">
+                        <label>Payment Date To <span class="text-danger">*</span></label>
+                        <input type="date" @bind="_paymentDateTo" />
+                    </div>
+
+                </div>
+
+                <div class="sf-actions">
+                    <button class="sf-btn sf-btn-clear" @onclick="ClearAsync">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                    <button class="sf-btn sf-btn-apply"
+                            @onclick="ApplyAsync"
+                            disabled="@(_isApplying || _isLoading)">
+                        @if (_isApplying)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                            <span>Applying...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search"></i>
+                            <span>Apply Filters</span>
+                        }
+                    </button>
+                </div>
+
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int DefaultRegionCode = 1600000000;
+
+    private bool _collapsed;
+    private bool _isLoading;
+    private bool _isApplying;
+    private bool _isProvinceLoading;
+
+    private int _selectedProvinceId;
+    private DateTime? _paymentDateFrom;
+    private DateTime? _paymentDateTo;
+
+    private List<ProvinceLookupDto> _provinces = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProvincesAsync();
+    }
+
+    private void ToggleCollapse() => _collapsed = !_collapsed;
+
+    private async Task LoadProvincesAsync()
+    {
+        if (_provinces.Any()) return;
+        try
+        {
+            _isProvinceLoading = true;
+            _provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{DefaultRegionCode}") ?? new();
+        }
+        finally
+        {
+            _isProvinceLoading = false;
+        }
+    }
+
+    private void OnProvinceChanged(ChangeEventArgs e)
+    {
+        _selectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_isLoading || _isApplying) return;
+
+        if (_paymentDateFrom == null && _paymentDateTo == null && _selectedProvinceId == 0)
+        {
+            toast.ShowError("Please select at least Payment Date From, Payment Date To, or Province.");
+            return;
+        }
+
+        _isApplying = true;
+
+        try
+        {
+            State.Filter = new BeneficiaryFilterDto
+            {
+                PageNumber = 1,
+                PageSize = 1000,
+                PaymentStatus = 2,                // ✅ always Paid
+                PaymentDate = null,             // ✅ null — use range instead
+                PaymentDateFrom = _paymentDateFrom, // ✅ passed to repo
+                PaymentDateTo = _paymentDateTo,   // ✅ passed to repo
+                PsgcCodeProvince = _selectedProvinceId > 0 ? _selectedProvinceId : null,
+            };
+
+            await State.LoadAsync();
+
+            // ✅ No more in-memory post-filter needed — repo handles it
+            if (State.ErrorMessage is not null)
+                toast.ShowError(State.ErrorMessage);
+        }
+        finally
+        {
+            _isApplying = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _selectedProvinceId = 0;
+        _paymentDateFrom    = null;
+        _paymentDateTo      = null;
+        State.Filter        = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
+        State.ClearData();
+        StateHasChanged();
+    }
+}

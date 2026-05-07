@@ -1736,6 +1736,754 @@ namespace EcaInformationSystem.Application.Services
         }
 
         #endregion Excel updating and Importing - END
+        #region Payroll Liquidation - Start
+        // ── Shared helper: build grouped CDR rows from filtered data ──────────────
+        private async Task<List<LiquidationRowDto>> BuildCdrRowsAsync(
+            LiquidationFilterDto filter,
+            LiquidationSettingsDto settings)
+        {
+            // ✅ Internally map to BeneficiaryFilterDto — no conflict with other filters
+            var beneficiaryFilter = new BeneficiaryFilterDto
+            {
+                PageNumber = 1,
+                PageSize = 10000,
+                PaymentStatus = 2,           // always Paid
+                PaymentDate = null,        // use range not single date
+                PaymentDateFrom = filter.PaymentDateFrom,
+                PaymentDateTo = filter.PaymentDateTo,
+                PsgcCodeProvince = filter.PsgcCodeProvince,
+            };
+
+            var rawData = await _repo.FilterAsync(beneficiaryFilter);
+            var data = rawData
+                .DistinctBy(x => x.Id)
+                .Where(x => x.PaymentDate.HasValue)
+                .OrderBy(x => x.PaymentDate)
+                .ThenBy(x => x.MunicipalityName)
+                .ThenBy(x => x.MilestoneYear)
+                .ToList();
+
+            if (!data.Any())
+                throw new InvalidOperationException("No paid records found for the selected filters.");
+
+            // CGP counter starts at 2 (row 1 = DV cash advance = 0001)
+            int cgpCounter = 2;
+            var cdrRows = new List<LiquidationRowDto>();
+
+            var groups = data
+                .GroupBy(x => new
+                {
+                    x.PaymentDate!.Value.Date,
+                    Municipality = x.MunicipalityName ?? string.Empty,
+                    Province = x.ProvinceName ?? string.Empty,
+                    x.MilestoneYear
+                })
+                .OrderBy(g => g.Key.Date)
+                .ThenBy(g => g.Key.Municipality)
+                .ThenBy(g => g.Key.MilestoneYear);
+
+            foreach (var group in groups)
+            {
+                var records = group.OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToList();
+                var first = records.First();
+
+                // Payee: LASTNAME, FIRSTNAME MIDDLENAME ET AL.
+                var firstFullName = $"{first.LastName}, {first.FirstName} {first.MiddleName}".Trim().TrimEnd(',');
+                var payee = records.Count > 1
+                    ? $"{firstFullName} ET AL."
+                    : firstFullName;
+
+                // Total disbursement: age 100 = ₱100,000; others = ₱10,000
+                var disbursement = records.Sum(x => x.Age >= 100 ? 100_000m : 10_000m);
+
+                // CGP format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter:D4}
+                // Example:    CGP No.: RegionXIII-202403-01-26-0002
+                var paymentMonth = group.Key.Date.Month.ToString("D2");
+                var cgpNumber = $"CGP No.: {settings.RegionCode}-{group.Key.MilestoneYear}{paymentMonth}-{settings.FixedSegment}-{settings.ShortenYear}-{cgpCounter:D4}";
+
+                // Nature of Payment
+                var locType = group.Key.Municipality.Contains("City", StringComparison.OrdinalIgnoreCase)
+                    ? "City of"
+                    : "Municipality of";
+                var location = $"{locType} {group.Key.Municipality}";
+                var provinceStr = !string.IsNullOrWhiteSpace(group.Key.Province)
+                    ? $", Province of {group.Key.Province}"
+                    : string.Empty;
+                var nature = $"RA 11982 Cash Gift Distribution for the {location}{provinceStr} CY {group.Key.MilestoneYear}";
+
+                cdrRows.Add(new LiquidationRowDto
+                {
+                    PaymentDate = group.Key.Date,
+                    CgpNumber = cgpNumber,
+                    Payee = payee,
+                    NatureOfPayment = nature,
+                    Disbursement = disbursement,
+                    MilestoneYear = group.Key.MilestoneYear,
+                    MunicipalityName = group.Key.Municipality,
+                    ProvinceName = group.Key.Province
+                });
+
+                cgpCounter++;
+            }
+
+            // Compute running balance (starts after the DV row = InitialCashAdvance)
+            var runningBalance = settings.InitialCashAdvance;
+            foreach (var row in cdrRows)
+            {
+                runningBalance -= row.Disbursement;
+                row.CashAdvanceBalance = runningBalance;
+            }
+
+            return cdrRows;
+        }
+
+        // ── Preview: return rows for the modal table ───────────────────────────────
+        public async Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(
+            LiquidationFilterDto filter,
+            LiquidationSettingsDto settings)
+        {
+            var rows = await BuildCdrRowsAsync(filter, settings);
+
+            return rows.Select(r => new LiquidationPreviewRowDto
+            {
+                PaymentDate = r.PaymentDate,
+                CgpNumber = r.CgpNumber,
+                Payee = r.Payee,
+                NatureOfPayment = r.NatureOfPayment,
+                Disbursement = r.Disbursement,
+                RunningBalance = r.CashAdvanceBalance,
+                MunicipalityName = r.MunicipalityName,
+                ProvinceName = r.ProvinceName,
+                MilestoneYear = r.MilestoneYear
+            }).ToList();
+        }
+
+        // ── Generate: build and return the Excel workbook bytes ───────────────────
+        public async Task<byte[]> GenerateCdrAsync(
+            LiquidationFilterDto filter,
+            LiquidationSettingsDto settings)
+        {
+            var cdrRows = await BuildCdrRowsAsync(filter, settings);
+
+            using var workbook = new XLWorkbook();
+
+            int rowsPerPage = settings.RowsPerPage > 0 ? settings.RowsPerPage : 8;
+            // Page 1 has the DV cash advance row so it holds (rowsPerPage - 1) data rows
+            int page1Max = rowsPerPage - 1;
+            int totalData = cdrRows.Count;
+
+            // Estimate total pages
+            int remainAfterPage1 = Math.Max(0, totalData - page1Max);
+            int totalPages = 1 + (int)Math.Ceiling((double)remainAfterPage1 / rowsPerPage);
+
+            int processedRows = 0;
+            int pageNum = 1;
+            decimal prevBalance = settings.InitialCashAdvance;
+
+            while (processedRows < totalData)
+            {
+                bool isFirstPage = pageNum == 1;
+                int takeCount = isFirstPage ? page1Max : rowsPerPage;
+                var pageRows = cdrRows.Skip(processedRows).Take(takeCount).ToList();
+
+                bool isLastPage = (processedRows + pageRows.Count) >= totalData;
+
+                // ✅ Always put certification on the last page — no complex math
+                bool includeCertification = isLastPage;
+
+                string sheetName = isLastPage ? "final" : $"CashDR_Page{pageNum}";
+
+                var ws = workbook.Worksheets.Add(sheetName);
+                BuildCdrSheet(ws, pageNum, totalPages, pageRows, settings,
+                  isFirstPage, includeCertification, prevBalance);
+                if (pageRows.Any())
+                    prevBalance = pageRows.Last().CashAdvanceBalance;
+
+                processedRows += pageRows.Count;
+                pageNum++;
+            }
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        // ── Sheet builder — exact match to CDR_1st-Qtr-2026.xlsx template ────────
+        private static void BuildCdrSheet(
+            IXLWorksheet ws,
+            int pageNum,
+            int totalPages,
+            List<LiquidationRowDto> rows,
+            LiquidationSettingsDto s,
+            bool isFirstPage,
+            bool includeCertification,
+            decimal balanceBefore)
+        {
+            // ══════════════════════════════════════════════════════════════════
+            // EXACT values from template (CDR_1st-Qtr-2026.xlsx CashDR_Page1)
+            // ══════════════════════════════════════════════════════════════════
+            const string FONT = "Times New Roman";
+            const int FS_SM = 11;   // standard cell font size
+            const int FS_TITLE = 14;  // "CASH DISBURSEMENTS RECORD"
+            const int FS_SUB = 12;   // sub-headings & appendix
+
+            // ── Column widths (exact from template) ──────────────────────────
+            ws.Column(1).Width = 16.60;  // A  Date
+            ws.Column(2).Width = 21.70;  // B  ADA/Ref
+            ws.Column(3).Width = 29.40;  // C  Payee
+            ws.Column(4).Width = 14.00;  // D  UACS
+            ws.Column(5).Width = 33.60;  // E  Nature of Payment
+            ws.Column(6).Width = 22.30;  // F  Cash Advance Received
+            ws.Column(7).Width = 14.70;  // G  Disbursements
+            ws.Column(8).Width = 19.00;  // H  Cash Advance Balance
+
+            // ── Page setup (exact from template: paperSize=9=A4, portrait, scale=57) ──
+            ws.PageSetup.PaperSize = XLPaperSize.A4Paper;
+            ws.PageSetup.PageOrientation = XLPageOrientation.Portrait;
+            ws.PageSetup.Scale = 57;
+            ws.PageSetup.Margins.Left = 0.7;
+            ws.PageSetup.Margins.Right = 0.7;
+            ws.PageSetup.Margins.Top = 0.12;
+            ws.PageSetup.Margins.Bottom = 0.75;
+            ws.PageSetup.Margins.Header = 0.12;
+            ws.PageSetup.Margins.Footer = 0.3;
+
+            // ── Style helper ─────────────────────────────────────────────────
+            void S(IXLCell cell,
+                int fs = FS_SM, bool bold = false, bool italic = false,
+                XLAlignmentHorizontalValues h = XLAlignmentHorizontalValues.Left,
+                XLAlignmentVerticalValues v = XLAlignmentVerticalValues.Center,
+                bool wrap = false)
+            {
+                cell.Style.Font.FontName = FONT;
+                cell.Style.Font.FontSize = fs;
+                cell.Style.Font.Bold = bold;
+                cell.Style.Font.Italic = italic;
+                cell.Style.Alignment.Horizontal = h;
+                cell.Style.Alignment.Vertical = v;
+                cell.Style.Alignment.WrapText = wrap;
+            }
+
+            // Merge A-H for a row, set value and style
+            void MergeAH(int r, string text, int fs = FS_SM, bool bold = false,
+                XLAlignmentHorizontalValues h = XLAlignmentHorizontalValues.Center,
+                XLAlignmentVerticalValues v = XLAlignmentVerticalValues.Center)
+            {
+                ws.Range(r, 1, r, 8).Merge();
+                var cell = ws.Cell(r, 1);
+                cell.Value = text;
+                S(cell, fs, bold, false, h, v);
+            }
+
+            void BorderAll(int r, int c1, int c2)
+            {
+                var range = ws.Range(r, c1, r, c2);
+                range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            }
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 1 — blank (height 22.5)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(1).Height = 22.5;
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 1 col G-H — "Appendix  40" (top-right)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Range(1, 7, 1, 8).Merge();
+            var appendixCell = ws.Cell(1, 7);
+            appendixCell.Value = "Appendix  40";
+            S(appendixCell, FS_SUB, false, true,
+              XLAlignmentHorizontalValues.Right, XLAlignmentVerticalValues.Center);
+
+            ws.Row(2).Height = 22.5;
+            ws.Row(3).Height = 15.75;
+            ws.Row(4).Height = 22.5;
+            ws.Row(5).Height = 22.5;
+
+            // Row 2: Republic of the Philippines
+            ws.Range(2, 1, 2, 8).Merge();
+            ws.Cell(2, 1).Value = "Republic of the Philippines";
+            S(ws.Cell(2, 1), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+
+            // Row 3: NATIONAL COMMISSION — BOLD
+            ws.Range(3, 1, 3, 8).Merge();
+            ws.Cell(3, 1).Value = "NATIONAL COMMISSION OF SENIOR CITIZENS";
+            S(ws.Cell(3, 1), FS_SM, true, false,  // ✅ bold = true
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+
+            // Row 4: Address
+            ws.Range(4, 1, 4, 8).Merge();
+            ws.Cell(4, 1).Value = "The Upper Class Tower, Quezon Avenue cor. Scout Reyes St., Diliman, Quezon City 1117";
+            S(ws.Cell(4, 1), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+
+            // Row 5: Website
+            ws.Range(5, 1, 5, 8).Merge();
+            ws.Cell(5, 1).Value = "Official website: www.ncsc.gov.ph";
+            S(ws.Cell(5, 1), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 6 — blank separator (height 22.5)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(6).Height = 22.5;
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 7 — "CASH DISBURSEMENTS RECORD" (A7:H7, merged)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(7).Height = 17.65;
+            MergeAH(7, "CASH DISBURSEMENTS RECORD", FS_TITLE, true);
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 8 — Program name (A8:H8, merged)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(8).Height = 15.75;
+            MergeAH(8, "SENIOR CITIZENS WELFARE DEVELOPMENT SERVICES PROGRAM", FS_SUB, true);
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 9 — Implementation line (A9:H9, merged)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(9).Height = 15.75;
+            MergeAH(9, "Implementation of the Expanded Centenarian Act Pursuant to R.A. 11982", FS_SUB, true);
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 10 — blank (height 15.75)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(10).Height = 15.75;
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 11 — Region / Org Code (height 30)
+            // A11:B11 merged = "Region / Organization Unit:"
+            // C11 = region name
+            // F11 = "New ORG Code:"
+            // G11:H11 merged = org code value
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(11).Height = 30.0;
+            ws.Range(11, 1, 11, 2).Merge();
+            ws.Cell(11, 1).Value = "Region / Organization Unit:";
+            S(ws.Cell(11, 1), FS_SM, true, false,
+              XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
+
+            ws.Cell(11, 3).Value = s.RegionOrgUnit;
+            S(ws.Cell(11, 3), FS_SM, true, false,
+              XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
+            ws.Range(11, 3, 11, 4).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+            ws.Cell(11, 6).Value = "New ORG Code:";
+            S(ws.Cell(11, 6), FS_SM, true, true,
+              XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
+
+            ws.Range(11, 7, 11, 8).Merge();
+            ws.Cell(11, 7).Value = s.NewOrgCode;
+            S(ws.Cell(11, 7), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+            ws.Range(11, 7, 11, 8).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 12 — Fund Cluster / Sheet No (height 19.5)
+            // A12 = fund cluster text
+            // F12:H12 merged = Sheet No.
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(12).Height = 19.5;
+
+            var fundCell = ws.Cell(12, 1);
+            fundCell.Style.Font.FontName = FONT;
+            fundCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            fundCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            var fundRt = fundCell.GetRichText();
+
+            // Part 1 — "Fund Cluster : " not underlined
+            fundRt.AddText(" Fund Cluster : ")
+              .SetFontName(FONT)
+              .SetFontSize(FS_SM)
+              .SetBold(true);
+            // Part 2 — actual value underlined
+            fundRt.AddText(s.FundCluster)
+              .SetFontName(FONT)
+              .SetFontSize(FS_SM)
+              .SetBold(true)
+              .SetUnderline(); // ✅ only the value is underlined
+
+            ws.Range(12, 6, 12, 8).Merge();
+            var sheetCell = ws.Cell(12, 6);
+            sheetCell.Style.Font.FontName = FONT;
+            sheetCell.Style.Font.Bold = true;
+            sheetCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            sheetCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            var sheetRt = sheetCell.GetRichText();
+
+            // Part 1 — "Sheet No. : " normal, not underlined
+            sheetRt.AddText("Sheet No. : ")
+              .SetFontName(FONT)
+              .SetFontSize(FS_SM)
+              .SetBold(true);
+
+            // Part 2 — "{pageNum} of {totalPages}" underlined
+            sheetRt.AddText($"{pageNum} of {totalPages}")
+              .SetFontName(FONT)
+              .SetFontSize(FS_SM)
+              .SetBold(true)
+              .SetUnderline(); // ✅ only the numbers are underlined
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 13 — blank (height 19.5)
+            // ROW 14 — blank (height 9.75)
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(13).Height = 19.5;
+            ws.Row(14).Height = 9.75;
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 15 — Accountable officer names (height 36)
+            // A15:C15 merged = officer name
+            // D15:F15 merged = designation
+            // G15:H15 merged = station
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(15).Height = 36.0;
+
+            // ── Officer Name ──────────────────────────────────────────────────────
+            ws.Range(15, 1, 15, 3).Merge();
+            ws.Range(15, 1, 16, 3).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            var officerCell = ws.Cell(15, 1);
+            officerCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            officerCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Bottom;
+            var officerRt = officerCell.GetRichText();
+            officerRt.AddText(s.AccountableOfficerName)
+              .SetFontName(FONT).SetFontSize(FS_SM).SetBold(true)
+              .SetUnderline(); // ✅ only the name is underlined
+
+            // ── Official Designation ──────────────────────────────────────────────
+            ws.Range(15, 4, 15, 6).Merge();
+            ws.Range(15, 4, 16, 6).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            var desigCell = ws.Cell(15, 4);
+            desigCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            desigCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Bottom;
+            var desigRt = desigCell.GetRichText();
+            desigRt.AddText(s.OfficialDesignation)
+              .SetFontName(FONT).SetFontSize(FS_SM).SetBold(true)
+              .SetUnderline(); // ✅ only the designation is underlined
+
+
+            // ── Station ───────────────────────────────────────────────────────────
+            ws.Range(15, 7, 15, 8).Merge();
+            ws.Range(15, 7, 16, 8).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            var stationCell = ws.Cell(15, 7);
+            stationCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            stationCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Bottom;
+            var stationRt = stationCell.GetRichText();
+            stationRt.AddText(s.Station)
+              .SetFontName(FONT).SetFontSize(FS_SM).SetBold(true)
+              .SetUnderline(); // ✅ only the station value is underlined
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROW 16 — Labels under officer names (height 18)
+            // A16:C16 merged = "Accountable Officer"
+            // D16:F16 merged = "Official Designation"
+            // G16:H16 merged = "Station"
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(16).Height = 18.0;
+            ws.Range(16, 1, 16, 3).Merge();
+            ws.Cell(16, 1).Value = "Accountable Officer";
+            S(ws.Cell(16, 1), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+            ws.Range(16, 4, 16, 6).Merge();
+            ws.Cell(16, 4).Value = "Official Designation";
+            S(ws.Cell(16, 4), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+            ws.Range(16, 7, 16, 8).Merge();
+            ws.Cell(16, 7).Value = "Station";
+            S(ws.Cell(16, 7), FS_SM, false, false,
+              XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+            // ══════════════════════════════════════════════════════════════════
+            // ROWS 17-18 — Column headers (merged vertically, height 34.5 each)
+            // A17:A18 = Date
+            // B17:B18 = ADA/Check/DV/Payroll/Reference No.
+            // C17:C18 = Payee
+            // D17:D18 = UACS Object Code
+            // E17:E18 = Nature of Payment
+            // F17:F18 = Cash Advance Received/(Refunded)
+            // G17:G18 = Disbursements
+            // H17:H18 = Cash Advance Balance
+            // ══════════════════════════════════════════════════════════════════
+            ws.Row(17).Height = 34.5;
+            ws.Row(18).Height = 34.5;
+
+            var colHeaders = new[]
+            {
+        (1, "Date"),
+        (2, "ADA/Check/\nDV/Payroll/\nReference No. "),
+        (3, "Payee"),
+        (4, "UACS Object Code "),
+        (5, "Nature of Payment"),
+        (6, "Cash Advance Received/ (Refunded)"),
+        (7, "Disbursements"),
+        (8, "Cash Advance Balance"),
+    };
+
+            foreach (var (col, label) in colHeaders)
+            {
+                ws.Range(17, col, 18, col).Merge();
+                var cell = ws.Cell(17, col);
+                cell.Value = label;
+                S(cell, FS_SM, true, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center, true);
+                ws.Range(17, col, 18, col).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            }
+
+            // ══════════════════════════════════════════════════════════════════
+            // DATA ROWS — start at row 19
+            // Template data rows: height 105.75 (rows 19-25), 87.5 (row 26)
+            // We use 105.75 for all data rows to match template
+            // ══════════════════════════════════════════════════════════════════
+            int R = 19;
+
+            // ── DV Cash Advance row (page 1 only) ────────────────────────────
+            if (isFirstPage)
+            {
+                ws.Row(R).Height = 105.75;
+
+                ws.Cell(R, 1).Value = s.InputDate;
+                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                S(ws.Cell(R, 1), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 2).Value = $"DV: {s.DvYear}-{s.DvMonth}-0001";
+                S(ws.Cell(R, 2), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 3).Value = s.DvPayee;
+                S(ws.Cell(R, 3), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 4).Value = "50214990-00";
+                S(ws.Cell(R, 4), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 5).Value = s.NatureOfPayment;
+                S(ws.Cell(R, 5), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 6).Value = s.InitialCashAdvance;
+                ws.Cell(R, 6).Style.NumberFormat.Format = "#,##0.00";
+                S(ws.Cell(R, 6), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                // Col 7 (Disbursements) blank
+                ws.Cell(R, 8).Value = s.InitialCashAdvance; // Balance = initial
+                ws.Cell(R, 8).Style.NumberFormat.Format = "#,##0.00";
+                S(ws.Cell(R, 8), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                BorderAll(R, 1, 8);
+                R++;
+            }
+
+            // ── CDR data rows ─────────────────────────────────────────────────
+            foreach (var row in rows)
+            {
+                ws.Row(R).Height = 105.75;
+
+                ws.Cell(R, 1).Value = row.PaymentDate;
+                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                S(ws.Cell(R, 1), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 2).Value = row.CgpNumber;
+                S(ws.Cell(R, 2), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 3).Value = row.Payee;
+                S(ws.Cell(R, 3), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 4).Value = "50214990-00";
+                S(ws.Cell(R, 4), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 5).Value = row.NatureOfPayment;
+                S(ws.Cell(R, 5), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                // Col 6 (Cash Advance Received) blank for data rows
+
+                ws.Cell(R, 7).Value = row.Disbursement;
+                ws.Cell(R, 7).Style.NumberFormat.Format = "#,##0.00";
+                S(ws.Cell(R, 7), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 8).Value = row.CashAdvanceBalance;
+                ws.Cell(R, 8).Style.NumberFormat.Format = "#,##0.00";
+                S(ws.Cell(R, 8), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                BorderAll(R, 1, 8);
+                R++;
+            }
+
+            // ══════════════════════════════════════════════════════════════════
+            // CERTIFICATION BLOCK (final sheet only)
+            // Matches exact structure from 'final' sheet in template
+            // ══════════════════════════════════════════════════════════════════
+            if (includeCertification)
+            {
+                // ── Unclaimed row ────────────────────────────────────────────
+                ws.Row(R).Height = 74.25;
+
+                ws.Cell(R, 1).Value = s.CertificationDate;
+                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                S(ws.Cell(R, 1), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 3).Value = "NCSC CLUSTER 8 RO 13 (CARAGA)";
+                S(ws.Cell(R, 3), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 4).Value = "1990103000";
+                S(ws.Cell(R, 4), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 5).Value = "UNCLAIMED RA 11982 CASH GIFTS";
+                S(ws.Cell(R, 5), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
+
+                ws.Cell(R, 6).Value = rows.Any() ? rows.Last().CashAdvanceBalance : balanceBefore;
+                ws.Cell(R, 6).Style.NumberFormat.Format = "#,##0.00";
+                S(ws.Cell(R, 6), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 7).Value = "-";
+                S(ws.Cell(R, 7), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                ws.Cell(R, 8).Value = "-";
+                S(ws.Cell(R, 8), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
+
+                BorderAll(R, 1, 8);
+                R++;
+
+                // ── CERTIFICATION title (A:H merged) ─────────────────────────
+                ws.Row(R).Height = 14.5;
+                ws.Range(R, 1, R + 1, 8).Merge();
+                ws.Cell(R, 1).Value = "C E R T I F I C A T I O N";
+                S(ws.Cell(R, 1), FS_SUB, true, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+                R++;
+
+                // ── Blank row ─────────────────────────────────────────────────
+                ws.Row(R).Height = 13.0;
+                R++;
+
+                // ── Certification text (A:H merged, 4 rows) ───────────────────
+                int certTextStart = R;
+                ws.Row(R).Height = 13.0;
+                ws.Row(R + 1).Height = 13.0;
+                ws.Row(R + 2).Height = 13.0;
+                ws.Row(R + 3).Height = 13.0;
+                ws.Range(R, 1, R + 3, 8).Merge();
+
+                // ✅ Use rich text to bold specific parts
+                var certCell = ws.Cell(R, 1);
+                certCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                certCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                certCell.Style.Alignment.WrapText = true;
+
+                var rt = certCell.GetRichText();
+
+                // Part 1 — normal
+                rt.AddText(
+                    "I hereby certify on my official oath that the foregoing is a correct and complete " +
+                    "record of all cash disbursements had by me in my capacity as\n")
+                  .SetFontName(FONT)
+                  .SetFontSize(FS_SUB)
+                  .SetBold(false);
+
+                // Part 2 — BOLD: designation + org name
+                rt.AddText(
+                    $"{s.OfficialDesignation} / Special Disbursing Officer ")
+                  .SetFontName(FONT)
+                  .SetFontSize(FS_SUB)
+                  .SetBold(true)
+                  .SetUnderline(); // ✅ bold
+
+                // Part 2 — BOLD: designation + org name
+                rt.AddText(
+                    "of the")
+                  .SetFontName(FONT)
+                  .SetFontSize(FS_SUB)
+                  .SetBold(false);
+
+                // Part 2 — BOLD: designation + org name
+                rt.AddText(
+                    $" National Commission of " +
+                    "Senior Citizens Cluster 8 - Caraga Region")
+                  .SetFontName(FONT)
+                  .SetFontSize(FS_SUB)
+                  .SetBold(true)
+                  .SetUnderline(); // ✅ bold
+
+
+                // Part 3 — normal: rest of the sentence
+                rt.AddText(
+                    $" during the period from\n" +
+                    $"{s.CertificationPeriodFrom} to {s.CertificationPeriodTo}, inclusive, as indicated " +
+                    $"in the corresponding columns.")
+                  .SetFontName(FONT)
+                  .SetFontSize(FS_SUB)
+                  .SetBold(false);
+
+                R += 4;
+
+                // ── Blank gap rows ────────────────────────────────────────────
+                ws.Row(R).Height = 13.0; R++;
+                ws.Row(R).Height = 13.0; R++;
+                ws.Row(R).Height = 13.0; R++;
+
+                // ── Signature name (E:G merged, underlined) ───────────────────
+                ws.Row(R).Height = 14.0;
+                ws.Range(R, 5, R, 7).Merge();
+                ws.Cell(R, 5).Value = s.AccountableOfficerName;
+                S(ws.Cell(R, 5), FS_SUB, true, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+                ws.Range(R, 5, R, 7).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+                R++;
+
+                // ── "Name and Signature of Disbursing Officer" ────────────────
+                ws.Row(R).Height = 15.75;
+                ws.Range(R, 5, R, 7).Merge();
+                ws.Cell(R, 5).Value = "Name and Signature of Disbursing Officer";
+                S(ws.Cell(R, 5), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+                R++;
+
+                // ── Blank ─────────────────────────────────────────────────────
+                ws.Row(R).Height = 15.75; R++;
+
+                // ── Certification date (E:G merged, underlined) ───────────────
+                ws.Row(R).Height = 14.0;
+                ws.Range(R, 5, R, 7).Merge();
+                ws.Cell(R, 5).Value = s.CertificationDate;
+                ws.Cell(R, 5).Style.NumberFormat.Format = "MMMM D, YYYY";
+                S(ws.Cell(R, 5), FS_SUB, true, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+                ws.Range(R, 5, R, 7).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+                R++;
+
+                // ── "Date" label ──────────────────────────────────────────────
+                ws.Row(R).Height = 15.75;
+                ws.Range(R, 5, R, 7).Merge();
+                ws.Cell(R, 5).Value = "Date";
+                S(ws.Cell(R, 5), FS_SM, false, false,
+                  XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
+            }
+        }
+        #endregion Payroll Liquidation - End
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
             filter.PsgcCodeRegion = DefaultRegionCode;
@@ -1788,7 +2536,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.MilestoneYear?.ToString() ?? "null",
                 filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
                 filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
-                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null"
+                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null",
+                filter.PaymentDateFrom?.ToString("yyyy-MM-dd") ?? "null",
+                filter.PaymentDateTo?.ToString("yyyy-MM-dd") ?? "null"
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName,string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)

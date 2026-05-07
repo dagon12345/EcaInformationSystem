@@ -28,5 +28,8 @@
         public List<int> PsgcCodeMunicipalities { get; set; } = new();
         public List<int> PsgcCodeBarangays { get; set; } = new();
 
+        public DateTime? PaymentDateFrom { get; set; }
+        public DateTime? PaymentDateTo { get; set; }
+
     }
 }
