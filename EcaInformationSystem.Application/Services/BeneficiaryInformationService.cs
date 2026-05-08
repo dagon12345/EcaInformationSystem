@@ -1,6 +1,8 @@
 ﻿using ClosedXML.Excel;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Domain.Common.Enum;
+using EcaInformationSystem.Domain.Common.Extensions;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.Extensions.Caching.Memory;
@@ -42,10 +44,10 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
 
             if (data == null || !data.Any())
-                throw new InvalidOperationException("No data available to export.");
+                throw new InvalidOperationException(CommonConstants.NoDataAvailableToExport);
 
             using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add("Grantees");
+            var worksheet = workbook.Worksheets.Add(CommonConstants.Grantees);
 
             // =========================
             // ✅ TITLE HEADER (ROW 1–9)
@@ -64,16 +66,16 @@ namespace EcaInformationSystem.Application.Services
             }
 
             // Row 1
-            AddCenteredTitle(1, "NATIONAL COMMISSION OF SENIOR CITIZENS");
+            AddCenteredTitle(1, CommonConstants.NCSC);
 
             // Row 2
-            AddCenteredTitle(2, "Expanded Centenarian Act");
+            AddCenteredTitle(2, CommonConstants.Act);
 
             // Row 3
-            AddCenteredTitle(3, "Regional Office Caraga");
+            AddCenteredTitle(3, CommonConstants.RegionalOfficeCaraga);
 
             // Row 4
-            AddCenteredTitle(4, $"(List of Validated/Paid Beneficiaries for FY {DateTime.UtcNow.ToString("yyyy")})");
+            AddCenteredTitle(4, $"({CommonConstants.ListOfValidatedPaid} {DateTime.UtcNow.ToYear()})");
 
             // Row 5–9 intentionally blank (no content)
 
@@ -83,13 +85,14 @@ namespace EcaInformationSystem.Application.Services
             int headerRow = 10;
 
             string[] headers = new[]
-             {           
-                "BATCH CODE","NO.","OSCA ID NUMBER","NCSC RRN",
-                "LAST NAME","FIRST NAME","MIDDLE NAME","EXTENSION",
-                "BIRTH MONTH","BIRTH DAY","BIRTH YEAR","AGE",
-                "SEX","REGION","PROVINCE","MUNICIPALITY/CITY","BARANGAY",
-                "COMPLIANCE TO DOCUMENTARY REQUIREMENTS",
-                "NAME OF VALIDATOR","VALIDATION DATE","REMARKS"
+             {
+                CommonConstants.BatchCode, CommonConstants.Number, CommonConstants.OscaIdNumber,
+                CommonConstants.NcscRrn, CommonConstants.LastName, CommonConstants.FirstName,
+                CommonConstants.MiddleName, CommonConstants.Extension, CommonConstants.BirthMonth,
+                CommonConstants.BirthDay, CommonConstants.BirthYear, CommonConstants.Age,
+                CommonConstants.Sex, CommonConstants.Region, CommonConstants.Province,
+                CommonConstants.Municipality, CommonConstants.Barangay, CommonConstants.ComplianceToDocumentaryRequirements,
+                CommonConstants.NameOfValidator, CommonConstants.ValidationDate, CommonConstants.Remarks
             };
 
             for (int col = 1; col <= headers.Length; col++)
@@ -127,13 +130,13 @@ namespace EcaInformationSystem.Application.Services
 
                 // MONTH AS TEXT
                 worksheet.Cell(row, 9).Value = GetMonthName(item.BirthDate.Month);
-                worksheet.Cell(row, 10).Value = item.BirthDate.Day.ToString("D2");
+                worksheet.Cell(row, 10).Value = item.BirthDate.Day.ToPaddedDay();
                 worksheet.Cell(row, 11).Value = item.BirthDate.Year;
 
                 // AGE (NEW COLUMN)
                 worksheet.Cell(row, 12).Value = GetAge(item.BirthDate);
 
-                worksheet.Cell(row, 13).Value = item.Sex == 1 ? "MALE" : "FEMALE";
+                worksheet.Cell(row, 13).Value = item.Sex == 1 ? CommonConstants.Male : CommonConstants.Female;
 
                 worksheet.Cell(row, 14).Value = item.Region?.ToString().ToUpperInvariant();
                 worksheet.Cell(row, 15).Value = item.Province?.ToString().ToUpperInvariant();
@@ -142,11 +145,11 @@ namespace EcaInformationSystem.Application.Services
 
                 // COMPLIANCE MAPPING
                 worksheet.Cell(row, 18).Value = item.IsCompliant
-                    ? "COMPLIANT"
-                    : "NON-COMPLIANT";
+                    ? CommonConstants.Compliant
+                    : CommonConstants.NonCompliant;
 
                 worksheet.Cell(row, 19).Value = item.Validator?.ToUpperInvariant();
-                worksheet.Cell(row, 20).Value = item.ValidationDate.ToString("dd/MM/yyyy");
+                worksheet.Cell(row, 20).Value = item.ValidationDate.ToDefaultFormat();
                 worksheet.Cell(row, 21).Value = item.Remarks?.ToUpperInvariant();
 
                 worksheet.Range(row, 1, row, 21)
@@ -172,7 +175,7 @@ namespace EcaInformationSystem.Application.Services
             // ✅ SIGNATURE BLOCK
             // =========================
             int signatureStartRow = row + 2;
-            string today = DateTime.Today.ToString("MMMM dd, yyyy");
+            string today = DateTime.Today.ToCompeleteDate();
 
             // Helper to build one signature block
             void AddSignatureBlock(int labelCol, int blockStartCol, int blockEndCol, int nameStartCol, int nameEndCol, string role)
@@ -186,21 +189,21 @@ namespace EcaInformationSystem.Application.Services
                 // Name — italic placeholder, flush left, with underline
                 var nameRange = worksheet.Range(nameRow, nameStartCol, nameRow, nameEndCol);
                 nameRange.Merge();
-                nameRange.Value = "(Enter name)";
+                nameRange.Value = CommonConstants.EnterName;
                 nameRange.Style.Font.Italic = true;
                 nameRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
                 // Position — italic placeholder, flush left, with underline
                 var posRange = worksheet.Range(nameRow + 1, nameStartCol, nameRow + 1, nameEndCol);
                 posRange.Merge();
-                posRange.Value = "(Enter position)";
+                posRange.Value = CommonConstants.EnterPosition;
                 posRange.Style.Font.Italic = true;
                 posRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
                 // "Signature over printed name" — flush left, no center
                 var sigRange = worksheet.Range(nameRow + 2, blockStartCol, nameRow + 2, blockEndCol);
                 sigRange.Merge();
-                sigRange.Value = "Signature over printed name";
+                sigRange.Value = CommonConstants.SignatureOverPrintedName;
                 sigRange.Style.Font.Italic = true;
                 sigRange.Style.Font.FontSize = 8;
                 sigRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
@@ -218,21 +221,21 @@ namespace EcaInformationSystem.Application.Services
                 labelCol: 1,
                 blockStartCol: 1, blockEndCol: 6,
                 nameStartCol: 1, nameEndCol: 5,
-                role: "Prepared by:");
+                role: CommonConstants.PreparedBy);
 
             // NOTED BY — middle, label at col 8, underlines cols 8–13
             AddSignatureBlock(
                 labelCol: 8,
                 blockStartCol: 8, blockEndCol: 14,
                 nameStartCol: 8, nameEndCol: 13,
-                role: "Noted by:");
+                role: CommonConstants.NotedBy);
 
             // APPROVED BY — right, label at col 16, underlines cols 16–20
             AddSignatureBlock(
                 labelCol: 16,
                 blockStartCol: 16, blockEndCol: 21,
                 nameStartCol: 16, nameEndCol: 20,
-                role: "Approved by:");
+                role: CommonConstants.ApprovedBy);
             // =========================
             // ✅ PAGE SETUP
             // =========================
@@ -252,9 +255,9 @@ namespace EcaInformationSystem.Application.Services
 
             // Page numbering — "Page 1 of 12" format
             // Center footer
-            worksheet.PageSetup.Footer.Center.AddText("Page ");
+            worksheet.PageSetup.Footer.Center.AddText(CommonConstants.Page);
             worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
-            worksheet.PageSetup.Footer.Center.AddText(" of ");
+            worksheet.PageSetup.Footer.Center.AddText(CommonConstants.Of);
             worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
             // Push footer below content area
             worksheet.PageSetup.Margins.Bottom = 0.7; // inches — gives footer room
@@ -276,8 +279,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.OscaIdNumber,
                 dto.NcscRrn);
             if (isDuplicate)
-                throw new Exception("Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.");
-
+                throw new Exception(CommonConstants.DuplicateFound);
 
             var beneficiary = new BeneficiaryInformation
             {
@@ -324,7 +326,7 @@ namespace EcaInformationSystem.Application.Services
             //Logging
             await AddLogAsync(
         beneficiary.Id,
-        $"Created beneficiary record for {beneficiary.LastName}, {beneficiary.FirstName}",
+        $"{CommonConstants.CreatedBeneficiary} {beneficiary.LastName}, {beneficiary.FirstName}",
         userName);
 
             await _repo.SaveChangesAsync();
@@ -418,7 +420,7 @@ namespace EcaInformationSystem.Application.Services
         {
             var selectedBeneficiary = await _repo.GetEntityByIdAsync(Id);
             if (selectedBeneficiary == null)
-                throw new Exception("Grantee not found");
+                throw new Exception(CommonConstants.GranteeNotFound);
 
             selectedBeneficiary.IsDeleted = true;
 
@@ -427,7 +429,7 @@ namespace EcaInformationSystem.Application.Services
             //Logging
             await AddLogAsync(
              selectedBeneficiary.Id,
-             "Soft deleted beneficiary record",
+             CommonConstants.LogSoftDelete,
              userName);
 
 
@@ -437,24 +439,24 @@ namespace EcaInformationSystem.Application.Services
         public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName)
         {
             if (ids == null || !ids.Any())
-                throw new Exception("No records selected");
+                throw new Exception(CommonConstants.NoRecordsSelected);
 
             if (paymentStatus != 1 && paymentStatus != 2)
-                throw new Exception("Invalid payment status. Must be 1 (Unpaid) or 2 (Paid).");
+                throw new Exception(CommonConstants.InvalidPaymentStatus);
 
             // ✅ Paid requires a date
             if (paymentStatus == 2 && paymentDate == null)
-                throw new Exception("Payment date is required when status is Paid.");
+                throw new Exception(CommonConstants.PaymentDateRequiredForPaidStatus);
 
 
 
             await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus, paymentDate);
 
-            var statusLabel = paymentStatus == 2 ? $"Paid (Date: {paymentDate:yyyy-MM-dd})" : "Unpaid";
+            var statusLabel = paymentStatus == 2 ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})" : CommonConstants.Unpaid;
 
             foreach (var id in ids)
             {
-                await AddLogAsync(id, $"Bulk payment status updated to: {statusLabel}", userName);
+                await AddLogAsync(id, $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}", userName);
             }
 
             await _repo.SaveChangesAsync();
@@ -464,7 +466,7 @@ namespace EcaInformationSystem.Application.Services
         {
             var beneficiary = await _repo.GetEntityByIdAsync(Id);
             if (beneficiary == null)
-                throw new Exception("Grantee not found");
+                throw new Exception(CommonConstants.GranteeNotFound);
 
             //Check Duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
@@ -479,10 +481,17 @@ namespace EcaInformationSystem.Application.Services
 
             var changes = await GetChangedFields(beneficiary, dto);
 
-            beneficiary.Update(dto.DateApplied, dto.DateEndorsed, dto.BatchCode, dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn, dto.LastName, dto.FirstName, dto.MiddleName, dto.Extension, dto.BirthDate, dto.PhoneNumber,
-                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability, dto.CivilStatus, dto.Citizenship, DefaultRegionCode, dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
-                dto.IsCompliant, dto.Validator, dto.ValidationDate, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
-                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible, dto.AssessmentRemarks, dto.RemarkCategory, dto.Remarks);
+            beneficiary.Update(dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
+                dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
+                dto.LastName, dto.FirstName, dto.MiddleName,
+                dto.Extension, dto.BirthDate, dto.PhoneNumber,
+                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
+                dto.CivilStatus, dto.Citizenship, DefaultRegionCode,
+                dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
+                dto.IsCompliant, dto.Validator, dto.ValidationDate,
+                dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
+                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
+                dto.AssessmentRemarks, dto.RemarkCategory, dto.Remarks);
 
             await _repo.UpdateAsync(beneficiary);
 
@@ -490,7 +499,7 @@ namespace EcaInformationSystem.Application.Services
             {
                 await AddLogAsync(
                     beneficiary.Id,
-                    $"Updated beneficiary. Changes: {string.Join("; ", changes)}",
+                    $"{CommonConstants.UpdatedBeneficiaryChanges} {string.Join("; ", changes)}",
                     userName);
             }
             await _repo.SaveChangesAsync();
@@ -504,32 +513,17 @@ namespace EcaInformationSystem.Application.Services
         }
         #region Excel Updating/Importing and creating Payroll - START
 
-        // ============================================================
-        // FIXES applied to your existing BuildPayrollSheet:
-        // 1. PAGE2_ROW_HT = PAGE1_ROW_HT = 35 (already same, but
-        //    the issue is CGP row pushes the height — fixed by
-        //    NOT changing currentRow height after CGP insert)
-        // 2. labelRow1 and labelRow2 were both = currentRow (same row!)
-        //    Fixed: labelRow1 = sig3Row + 1, labelRow2 = sig3Row + 2
-        // 3. SDO label was written to labelRow1 AND sig3Row (conflict)
-        //    Fixed: ALMIRA on sig3Row, SDO label on sig3Row+1,
-        //    "other officer" on sig3Row+2
-        // 4. CGP border was XLBorderStyleValues.None — should be Thin
-        // 5. Purpose text range was D–H (4–8), should be D–P (4–16)
-        // 6. Subtotal was currentRow+1 (skips a row) — matched to your code
-        // ============================================================
-
         public async Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings)
         {
             if (settings.Ids == null || !settings.Ids.Any())
-                throw new InvalidOperationException("No records selected.");
+                throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
 
             var allData = await _repo.GetByIdsAsync(settings.Ids);
             if (!allData.Any())
-                throw new InvalidOperationException("None of the selected records were found.");
+                throw new InvalidOperationException(CommonConstants.NoneOfTheRecordsFound);
 
             var groups = allData
-                .GroupBy(x => (x.BatchCode ?? "NO BATCH").ToUpperInvariant())
+                .GroupBy(x => (x.BatchCode ?? CommonConstants.NoBatch).ToUpperInvariant())
                 .OrderBy(g => g.Key)
                 .ToList();
 
@@ -579,9 +573,9 @@ namespace EcaInformationSystem.Application.Services
                 r.Value = text;
                 r.Style.Font.Bold = true;
                 r.Style.Font.FontSize = FONT_SIZE;
-                r.Style.Font.FontName = "Arial";
+                r.Style.Font.FontName = CommonConstants.Arial;
                 r.Style.Font.FontColor = XLColor.White;
-                r.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F3864");
+                r.Style.Fill.BackgroundColor = XLColor.FromHtml(CommonConstants.NavyColor);
                 r.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 r.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 r.Style.Alignment.WrapText = true;
@@ -596,7 +590,7 @@ namespace EcaInformationSystem.Application.Services
                 cell.Value = text;
                 cell.Style.Font.Bold = bold;
                 cell.Style.Font.FontSize = fs;
-                cell.Style.Font.FontName = "Arial";
+                cell.Style.Font.FontName = CommonConstants.Arial;
                 cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             }
@@ -606,7 +600,7 @@ namespace EcaInformationSystem.Application.Services
             {
                 if (val != null) ws.Cell(row, col).Value = XLCellValue.FromObject(val);
                 ws.Cell(row, col).Style.Font.FontSize = 16;
-                ws.Cell(row, col).Style.Font.FontName = "Arial";
+                ws.Cell(row, col).Style.Font.FontName = CommonConstants.Arial;
                 ws.Cell(row, col).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 ws.Cell(row, col).Style.Alignment.Horizontal = align;
                 ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
@@ -620,7 +614,7 @@ namespace EcaInformationSystem.Application.Services
                 ws.Cell(row, 17).Value = text;
                 ws.Cell(row, 17).Style.Font.Bold = false;
                 ws.Cell(row, 17).Style.Font.FontSize = FONT_SIZE;
-                ws.Cell(row, 17).Style.Font.FontName = "Arial";
+                ws.Cell(row, 17).Style.Font.FontName = CommonConstants.Arial;
                 ws.Cell(row, 17).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
                 ws.Cell(row, 17).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 ws.Cell(row, 17).Style.Border.OutsideBorder = XLBorderStyleValues.None;
@@ -630,40 +624,40 @@ namespace EcaInformationSystem.Application.Services
             // SECTION 1: HEADER
             // =========================================================================
             ws.Row(3).Height = 24;
-            MergeCenter(3, 2, 2, "NATIONAL COMMISSION OF SENIOR CITIZENS", bold: true);
+            MergeCenter(3, 2, 2, CommonConstants.NCSC, bold: true);
 
             ws.Row(4).Height = 24;
-            MergeCenter(4, 2, 2, $"Regional Office XIII, Province of {province}, {municipality}");
+            MergeCenter(4, 2, 2, $"{CommonConstants.RegionalOfficeProvinceOf} {province}, {municipality}");
 
             ws.Row(5).Height = 21.75;
-            MergeCenter(5, 2, 2, "Expanded Centenarian Act");
+            MergeCenter(5, 2, 2, CommonConstants.Act);
 
             ws.Row(6).Height = 10.5;
             ws.Row(7).Height = 10.5;
 
             ws.Row(8).Height = 18.75;
-            MergeCenter(8, 2, 2, "CASH GIFT PAYROLL", bold: true);
+            MergeCenter(8, 2, 2, CommonConstants.CashGiftPayroll, bold: true);
 
             ws.Row(9).Height = 14.25;
 
             // Row 10: A. PURPOSE: | D–P purpose text | Q CGP-0001
             ws.Row(10).Height = 23.25;
-            ws.Cell(10, 2).Value = "A. PURPOSE:";
+            ws.Cell(10, 2).Value = CommonConstants.Apurpose;
             ws.Cell(10, 2).Style.Font.Bold = true;
             ws.Cell(10, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(10, 2).Style.Font.FontName = "Arial";
+            ws.Cell(10, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(10, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
             // ✅ FIX 5: Purpose text D(4)–P(16) not just D–H
             ws.Range(10, 4, 10, 15).Merge();
-            ws.Cell(10, 4).Value = "Cash gift payout for Octogenarians, Nonagenarians, and Centenarians pursuant to R.A. No. 11982 - Expanded Centenarian Act.";
+            ws.Cell(10, 4).Value = CommonConstants.PayrollPurpose;
             ws.Cell(10, 4).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(10, 4).Style.Font.FontName = "Arial";
+            ws.Cell(10, 4).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(10, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
             ws.Cell(10, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Cell(10, 4).Style.Alignment.WrapText = true;
 
-            CgpCell(10, $"CGP No.: {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-0001");
+            CgpCell(10, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{CommonConstants.DefaultOrderNo}");
 
             ws.Row(11).Height = 11.25;
 
@@ -677,26 +671,26 @@ namespace EcaInformationSystem.Application.Services
             ws.Row(13).Height = 24.75;
             ws.Row(14).Height = 108.75;
 
-            NavyHeader(ws.Range(12, 2, 14, 2), "Batch\nCode");
-            NavyHeader(ws.Range(12, 3, 14, 3), "No.");
-            NavyHeader(ws.Range(12, 4, 13, 7), "FULL NAME OF BENEFICIARY");
-            NavyHeader(ws.Range(14, 4, 14, 4), "Last Name");
-            NavyHeader(ws.Range(14, 5, 14, 5), "First Name");
-            NavyHeader(ws.Range(14, 6, 14, 6), "Middle Name");
-            NavyHeader(ws.Range(14, 7, 14, 7), "Ext.");
-            NavyHeader(ws.Range(12, 8, 14, 8), "BDate\n(mm/dd/yyyy)");
-            NavyHeader(ws.Range(12, 9, 14, 9), "Age");
-            NavyHeader(ws.Range(12, 10, 14, 10), "Sex");
-            NavyHeader(ws.Range(12, 11, 14, 11), "Barangay");
-            NavyHeader(ws.Range(12, 12, 14, 12), "Amount");
-            NavyHeader(ws.Range(12, 13, 14, 13), "Amount\nReceived");
-            NavyHeader(ws.Range(12, 14, 13, 15), "Beneficiary / Authorized\nRepresentative");
-            NavyHeader(ws.Range(14, 14, 14, 14), "Signature Over\nPrinted Name");
-            NavyHeader(ws.Range(14, 15, 14, 15), "Thumbmark");
-            NavyHeader(ws.Range(12, 16, 14, 16), "For Authorized Representative\n(Relationship/Witness)");
-            NavyHeader(ws.Range(12, 17, 14, 17), "Date of\nDeath");
-            NavyHeader(ws.Range(12, 18, 14, 18), "Date\nReceived");
-            NavyHeader(ws.Range(12, 19, 14, 19), "Remarks");
+            NavyHeader(ws.Range(12, 2, 14, 2), CommonConstants.BatchCode.ToTitleCase());
+            NavyHeader(ws.Range(12, 3, 14, 3), CommonConstants.Number);
+            NavyHeader(ws.Range(12, 4, 13, 7), CommonConstants.FullNameOfBeneficiary);
+            NavyHeader(ws.Range(14, 4, 14, 4), CommonConstants.LastName.ToTitleCase());
+            NavyHeader(ws.Range(14, 5, 14, 5), CommonConstants.FirstName.ToTitleCase());
+            NavyHeader(ws.Range(14, 6, 14, 6), CommonConstants.MiddleName.ToTitleCase());
+            NavyHeader(ws.Range(14, 7, 14, 7), CommonConstants.Ext);
+            NavyHeader(ws.Range(12, 8, 14, 8), CommonConstants.PayrollBirthdate);
+            NavyHeader(ws.Range(12, 9, 14, 9), CommonConstants.Age.ToTitleCase());
+            NavyHeader(ws.Range(12, 10, 14, 10), CommonConstants.Sex.ToTitleCase());
+            NavyHeader(ws.Range(12, 11, 14, 11), CommonConstants.Barangay.ToTitleCase());
+            NavyHeader(ws.Range(12, 12, 14, 12), CommonConstants.Amount);
+            NavyHeader(ws.Range(12, 13, 14, 13), CommonConstants.AmountReceived);
+            NavyHeader(ws.Range(12, 14, 13, 15), CommonConstants.BeneficiaryAuthRepresentative);
+            NavyHeader(ws.Range(14, 14, 14, 14), CommonConstants.SignatureOverPrintedName);
+            NavyHeader(ws.Range(14, 15, 14, 15), CommonConstants.Thumbmark);
+            NavyHeader(ws.Range(12, 16, 14, 16), CommonConstants.ForAuthRep);
+            NavyHeader(ws.Range(12, 17, 14, 17), CommonConstants.DateOfDeath);
+            NavyHeader(ws.Range(12, 18, 14, 18), CommonConstants.DateReceived);
+            NavyHeader(ws.Range(12, 19, 14, 19), CommonConstants.Remarks.ToTitleCase());
 
             // =========================================================================
             // SECTION 3: DATA ROWS — start row 15
@@ -715,7 +709,7 @@ namespace EcaInformationSystem.Application.Services
                 if (page > 1)
                 {
                     CgpCell(currentRow,
-                        $"CGP No.: {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{page:D4}");
+                        $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{page.ToPaddedPage()}");
                     ws.Row(currentRow).Height = 23.25;
                     currentRow++;
                 }
@@ -733,14 +727,14 @@ namespace EcaInformationSystem.Application.Services
                     DataCell(dr, 5, (rec.FirstName ?? "").ToUpperInvariant());
                     DataCell(dr, 6, (rec.MiddleName ?? "").ToUpperInvariant());
                     DataCell(dr, 7, (rec.Extension ?? "").ToUpperInvariant());
-                    DataCell(dr, 8, rec.BirthDate.ToString("MM/dd/yyyy"), XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 8, rec.BirthDate.ToStandardDate(), XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 9, rec.Age, XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 10, rec.Sex == 1 ? "MALE" : "FEMALE", XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female, XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 11, rec.BarangayName.ToUpperInvariant());
                     DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Right);
-                    ws.Cell(dr, 12).Style.NumberFormat.Format = "#,##0.00";
+                    ws.Cell(dr, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                     if (rec.IsDeceased && rec.DateOfDeath.HasValue)
-                        DataCell(dr, 17, rec.DateOfDeath.Value.ToString("MM/dd/yyyy"),
+                        DataCell(dr, 17, rec.DateOfDeath.Value.ToStandardDate(),
                                  XLAlignmentHorizontalValues.Center);
 
                     ws.Range(dr, 2, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
@@ -763,17 +757,17 @@ namespace EcaInformationSystem.Application.Services
             ws.Row(subtotalRow).Height = 18;
 
             ws.Range(subtotalRow, 2, subtotalRow, 9).Merge();
-            ws.Cell(subtotalRow, 2).Value = "SUBTOTAL";
+            ws.Cell(subtotalRow, 2).Value = CommonConstants.SubTotal;
             ws.Cell(subtotalRow, 2).Style.Font.Bold = true;
             ws.Cell(subtotalRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(subtotalRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(subtotalRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(subtotalRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
             ws.Cell(subtotalRow, 12).FormulaA1 = $"=SUM(L{dataStartRow}:L{subtotalRow - 2})";
             ws.Cell(subtotalRow, 12).Style.Font.Bold = true;
             ws.Cell(subtotalRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(subtotalRow, 12).Style.Font.FontName = "Arial";
-            ws.Cell(subtotalRow, 12).Style.NumberFormat.Format = "#,##0.00";
+            ws.Cell(subtotalRow, 12).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(subtotalRow, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
             ws.Cell(subtotalRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
             ws.Range(subtotalRow, 13, subtotalRow, COLS).Merge();
@@ -789,7 +783,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(currentRow, 2).Value = s.Signatory1Label;
             ws.Cell(currentRow, 2).Style.Font.Italic = true;
             ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
             ws.Cell(currentRow, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Row(currentRow).Height = 18;
@@ -803,7 +797,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(currentRow, 12).Value = s.Signatory2Label;
             ws.Cell(currentRow, 12).Style.Font.Bold = true;
             ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 12).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Cell(currentRow, 12).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Row(currentRow).Height = 18;
@@ -820,7 +814,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(sigNamesRow, 2).Value = s.Signatory1Name;
             ws.Cell(sigNamesRow, 2).Style.Font.Bold = true;
             ws.Cell(sigNamesRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sigNamesRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(sigNamesRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(sigNamesRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(sigNamesRow, 2, sigNamesRow, 5).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
@@ -828,7 +822,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(sigNamesRow, 12).Value = s.Signatory2Name;
             ws.Cell(sigNamesRow, 12).Style.Font.Bold = true;
             ws.Cell(sigNamesRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sigNamesRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(sigNamesRow, 12).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(sigNamesRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(sigNamesRow, 12, sigNamesRow, 16).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
             ws.Row(sigNamesRow).Height = 18;
@@ -838,13 +832,13 @@ namespace EcaInformationSystem.Application.Services
             ws.Range(currentRow, 2, currentRow, 5).Merge();
             ws.Cell(currentRow, 2).Value = s.Signatory1Position;
             ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             ws.Range(currentRow, 12, currentRow, 16).Merge();
             ws.Cell(currentRow, 12).Value = s.Signatory2Position;
             ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 12).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 12).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Row(currentRow).Height = 18;
             currentRow++;
@@ -860,7 +854,7 @@ namespace EcaInformationSystem.Application.Services
                 " having presented himself/herself, established identity and affixed his/her signature or" +
                 " thumbmark on the space provided.";
             ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = "Arial";
+            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
             ws.Row(currentRow).Height = 38;
             currentRow++;
@@ -880,7 +874,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(sig3Row, 3).Value = s.Signatory3Name;
             ws.Cell(sig3Row, 3).Style.Font.Bold = true;
             ws.Cell(sig3Row, 3).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sig3Row, 3).Style.Font.FontName = "Arial";
+            ws.Cell(sig3Row, 3).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(sig3Row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(sig3Row, 3, sig3Row, 10).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
@@ -897,19 +891,19 @@ namespace EcaInformationSystem.Application.Services
             ws.Range(labelRow1, 3, labelRow1, 10).Merge();
             ws.Cell(labelRow1, 3).Value = s.Signatory3Position;
             ws.Cell(labelRow1, 3).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 3).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 3).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow1, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             ws.Range(labelRow1, 14, labelRow1, 15).Merge();
-            ws.Cell(labelRow1, 14).Value = "Printed Name and Signature of";
+            ws.Cell(labelRow1, 14).Value = CommonConstants.PrintedNameAndSignatureOf;
             ws.Cell(labelRow1, 14).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 14).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 14).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow1, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             ws.Range(labelRow1, 16, labelRow1, 17).Merge();
-            ws.Cell(labelRow1, 16).Value = "Printed Name and Signature of";
+            ws.Cell(labelRow1, 16).Value = CommonConstants.PrintedNameAndSignatureOf;
             ws.Cell(labelRow1, 16).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 16).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow1, 16).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow1, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             // "other officer present during Payout" row
@@ -917,13 +911,13 @@ namespace EcaInformationSystem.Application.Services
             ws.Range(labelRow2, 14, labelRow2, 15).Merge();
             ws.Cell(labelRow2, 14).Value = s.Signatory4Position;
             ws.Cell(labelRow2, 14).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow2, 14).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow2, 14).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow2, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             ws.Range(labelRow2, 16, labelRow2, 17).Merge();
             ws.Cell(labelRow2, 16).Value = s.Signatory4Position;
             ws.Cell(labelRow2, 16).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow2, 16).Style.Font.FontName = "Arial";
+            ws.Cell(labelRow2, 16).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow2, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             // =========================================================================
@@ -946,9 +940,9 @@ namespace EcaInformationSystem.Application.Services
             ws.PageSetup.Margins.Left = 0.5;
             ws.PageSetup.Margins.Right = 0.5;
 
-            ws.PageSetup.Footer.Center.AddText("Page ");
+            ws.PageSetup.Footer.Center.AddText(CommonConstants.Page);
             ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
-            ws.PageSetup.Footer.Center.AddText(" of ");
+            ws.PageSetup.Footer.Center.AddText(CommonConstants.Of);
             ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
             ws.PageSetup.Margins.Footer = 0.3;
         }
@@ -963,7 +957,7 @@ namespace EcaInformationSystem.Application.Services
         public byte[] GenerateImportTemplate()
         {
             using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add("Grantees");
+            var worksheet = workbook.Worksheets.Add(CommonConstants.Grantees);
 
             int colCount = 28;
 
@@ -981,10 +975,10 @@ namespace EcaInformationSystem.Application.Services
                 range.Style.Font.FontSize = 11;
             }
 
-            AddCenteredTitle(1, "NATIONAL COMMISSION OF SENIOR CITIZENS");
-            AddCenteredTitle(2, "Expanded Centenarian Act");
-            AddCenteredTitle(3, "Regional Office Caraga");
-            AddCenteredTitle(4, $"(Import Template for FY {DateTime.UtcNow.Year})");
+            AddCenteredTitle(1, CommonConstants.NCSC);
+            AddCenteredTitle(2, CommonConstants.Act);
+            AddCenteredTitle(3, CommonConstants.RegionalOfficeCaraga);
+            AddCenteredTitle(4, $"({CommonConstants.ImportTemplateForFy} {DateTime.UtcNow.Year})");
 
             // Rows 5–9: blank (data starts at row 11, header at row 10)
             for (int r = 5; r <= 9; r++)
@@ -1002,38 +996,38 @@ namespace EcaInformationSystem.Application.Services
             string[] headers = new[]
             {
         // Col 1–8: Identity
-        "BATCH CODE",
-        "NO.",
-        "OSCA ID NUMBER",
-        "NCSC RRN",
-        "LAST NAME",
-        "FIRST NAME",        // required
-        "MIDDLE NAME",
-        "EXTENSION",
+        CommonConstants.BatchCode,
+        CommonConstants.Number.ToUpperInvariant(),
+        CommonConstants.OscaIdNumber,
+        CommonConstants.NcscRrn,
+        CommonConstants.LastName,
+        CommonConstants.FirstName,        // required
+        CommonConstants.MiddleName,
+        CommonConstants.Extension,
         // Col 9–12: Birth date (split)
-        "BIRTH MONTH",       // e.g. JANUARY
-        "BIRTH DAY",         // e.g. 01
-        "BIRTH YEAR",        // e.g. 1926
-        "AGE",               // auto-computed, leave blank
+        CommonConstants.BirthMonth,       // e.g. JANUARY
+        CommonConstants.BirthDay,         // e.g. 01
+        CommonConstants.BirthYear,        // e.g. 1926
+        CommonConstants.Age,               // auto-computed, leave blank
         // Col 13–18: Demographics & location
-        "SEX",               // MALE or FEMALE
-        "REGION",            // e.g. REGION XIII (CARAGA) — leave blank to default
-        "PROVINCE",
-        "MUNICIPALITY/CITY",
-        "BARANGAY",
-        "COMPLIANCE TO DOCUMENTARY REQUIREMENTS", // COMPLIANT or NON-COMPLIANT
+        CommonConstants.Sex,               // MALE or FEMALE
+        CommonConstants.Region,            // e.g. REGION XIII (CARAGA) — leave blank to default
+        CommonConstants.Province,
+        CommonConstants.Municipality,
+        CommonConstants.Barangay,
+        CommonConstants.ComplianceToDocumentaryRequirements, // COMPLIANT or NON-COMPLIANT
         // Col 19–20: Validation
-        "NAME OF VALIDATOR",
-        "VALIDATION DATE",   // e.g. March 17, 2026
+        CommonConstants.NameOfValidator,
+        CommonConstants.ValidationDate,   // e.g. March 17, 2026
         // Col 21–28: Newly added columns
-        "CONTACT NUMBER",
-        "DATE OF DEATH",     // e.g. March 17, 2026
-        "DATE APPLIED",      // e.g. March 17, 2026
-        "DATE ENDORSED",     // e.g. March 17, 2026
-        "OSCA ID DATE ISSUED",
-        "INDIGENOUS PEOPLE", // YES or NO
-        "PERSON WITH DISABILITY", // YES or NO
-        "NCSC ASSESSMENT"    // ELIGIBLE or INELIGIBLE
+        CommonConstants.ContactNumber,
+        CommonConstants.DateOfDeath.ToUpperInvariant(),     // e.g. March 17, 2026
+        CommonConstants.DateApplied,      // e.g. March 17, 2026
+        CommonConstants.DateEndorsed,     // e.g. March 17, 2026
+        CommonConstants.OscaIdDateIssued,
+        CommonConstants.IP, // YES or NO
+        CommonConstants.PWD, // YES or NO
+        CommonConstants.NcscAssessment    // ELIGIBLE or INELIGIBLE
     };
 
             for (int col = 1; col <= headers.Length; col++)
@@ -1104,7 +1098,7 @@ namespace EcaInformationSystem.Application.Services
             // =========================
             // INSTRUCTIONS SHEET
             // =========================
-            var instructions = workbook.Worksheets.Add("Instructions");
+            var instructions = workbook.Worksheets.Add(CommonConstants.Instructions);
 
             var instrHeaders = new[] { "COLUMN", "REQUIRED", "ACCEPTED VALUES / FORMAT", "EXAMPLE" };
             for (int col = 1; col <= instrHeaders.Length; col++)
@@ -1120,34 +1114,34 @@ namespace EcaInformationSystem.Application.Services
 
             var instrData = new[]
             {
-        new[] { "BATCH CODE",                      "No",  "Any text",                             "BC-2026" },
-        new[] { "NO.",                             "No",  "Number (auto if left blank)",           "1" },
-        new[] { "OSCA ID NUMBER",                  "No",  "Any text",                             "OSCA-00001" },
-        new[] { "NCSC RRN",                        "No",  "Numbers only, no special characters",  "12345" },
-        new[] { "LAST NAME",                       "No",  "Any text",                             "DELA CRUZ" },
-        new[] { "FIRST NAME",                      "YES", "Any text",                             "JUAN" },
-        new[] { "MIDDLE NAME",                     "No",  "Any text",                             "SANTOS" },
-        new[] { "EXTENSION",                       "No",  "Jr. / Sr. / II / III / IV / V",        "Jr." },
-        new[] { "BIRTH MONTH",                     "YES", "Full month name in CAPS",              "JANUARY" },
-        new[] { "BIRTH DAY",                       "YES", "Two-digit day",                        "01" },
-        new[] { "BIRTH YEAR",                      "YES", "Four-digit year",                      "1926" },
-        new[] { "AGE",                             "No",  "Leave blank — auto-computed",          "" },
-        new[] { "SEX",                             "No",  "MALE or FEMALE",                       "MALE" },
-        new[] { "REGION",                          "No",  "Leave blank to default to Caraga",     "REGION XIII (CARAGA)" },
-        new[] { "PROVINCE",                        "YES", "Full province name",                   "AGUSAN DEL NORTE" },
-        new[] { "MUNICIPALITY/CITY",               "YES", "Full municipality or city name",       "BUTUAN CITY" },
-        new[] { "BARANGAY",                        "YES", "Full barangay name",                   "AMBAGO" },
-        new[] { "COMPLIANCE",                      "No",  "COMPLIANT or NON-COMPLIANT",           "COMPLIANT" },
-        new[] { "NAME OF VALIDATOR",               "No",  "Any text",                             "JANE DOE" },
-        new[] { "VALIDATION DATE",                 "No",  "Month DD, YYYY",                       "March 17, 2026" },
-        new[] { "CONTACT NUMBER",                  "No",  "Any text",                             "09171234567" },
-        new[] { "DATE OF DEATH",                   "No",  "Month DD, YYYY — leave blank if alive","" },
-        new[] { "DATE APPLIED",                    "No",  "Month DD, YYYY",                       "January 5, 2026" },
-        new[] { "DATE ENDORSED",                   "No",  "Month DD, YYYY",                       "February 1, 2026" },
-        new[] { "OSCA ID DATE ISSUED",             "No",  "Month DD, YYYY",                       "March 1, 2020" },
-        new[] { "INDIGENOUS PEOPLE",               "No",  "YES or NO",                            "NO" },
-        new[] { "PERSON WITH DISABILITY",          "No",  "YES or NO",                            "NO" },
-        new[] { "NCSC ASSESSMENT",                 "YES", "ELIGIBLE or INELIGIBLE",               "ELIGIBLE" },
+        new[] { CommonConstants.BatchCode,                      CommonConstants.No,  "Any text",                             "BC-2026" },
+        new[] { CommonConstants.Number.ToUpperInvariant(),      CommonConstants.No,  "Number (auto if left blank)",           "1" },
+        new[] { CommonConstants.OscaIdNumber,                   CommonConstants.No,  "Any text",                             "OSCA-00001" },
+        new[] { CommonConstants.NcscRrn,                        CommonConstants.No,  "Numbers only, no special characters",  "12345" },
+        new[] { CommonConstants.LastName,                       CommonConstants.No,  "Any text",                             "DELA CRUZ" },
+        new[] { CommonConstants.FirstName,                      CommonConstants.Yes, "Any text",                             "JUAN" },
+        new[] { CommonConstants.MiddleName,                     CommonConstants.No,  "Any text",                             "SANTOS" },
+        new[] { CommonConstants.Extension,                      CommonConstants.No,  "Jr. / Sr. / II / III / IV / V",        "Jr." },
+        new[] { CommonConstants.BirthMonth,                     CommonConstants.Yes, "Full month name in CAPS",              "JANUARY" },
+        new[] { CommonConstants.BirthDay,                       CommonConstants.Yes, "Two-digit day",                        "01" },
+        new[] { CommonConstants.BirthYear,                      CommonConstants.Yes, "Four-digit year",                      "1926" },
+        new[] { CommonConstants.Age,                            CommonConstants.No,  "Leave blank — auto-computed",          "" },
+        new[] { CommonConstants.Sex,                            CommonConstants.No,  "MALE or FEMALE",                       "MALE" },
+        new[] { CommonConstants.Region,                         CommonConstants.No,  "Leave blank to default to Caraga",     "REGION XIII (CARAGA)" },
+        new[] { CommonConstants.Province,                       CommonConstants.Yes, "Full province name",                   "AGUSAN DEL NORTE" },
+        new[] { CommonConstants.Municipality,                   CommonConstants.Yes, "Full municipality or city name",       "BUTUAN CITY" },
+        new[] { CommonConstants.Barangay,                       CommonConstants.Yes, "Full barangay name",                   "AMBAGO" },
+        new[] { CommonConstants.Compliance,                     CommonConstants.No,  "COMPLIANT or NON-COMPLIANT",           "COMPLIANT" },
+        new[] { CommonConstants.NameOfValidator,                CommonConstants.No,  "Any text",                             "JANE DOE" },
+        new[] { CommonConstants.ValidationDate,                 CommonConstants.No,  "Month DD, YYYY",                       "March 17, 2026" },
+        new[] { CommonConstants.ContactNumber,                  CommonConstants.No,  "Any text",                             "09171234567" },
+        new[] { CommonConstants.DateOfDeath,                    CommonConstants.No,  "Month DD, YYYY — leave blank if alive","" },
+        new[] { CommonConstants.DateApplied,                    CommonConstants.No,  "Month DD, YYYY",                       "January 5, 2026" },
+        new[] { CommonConstants.DateEndorsed,                   CommonConstants.No,  "Month DD, YYYY",                       "February 1, 2026" },
+        new[] { CommonConstants.OscaIdDateIssued,               CommonConstants.No,  "Month DD, YYYY",                       "March 1, 2020" },
+        new[] { CommonConstants.IP,                             CommonConstants.No,  "YES or NO",                            "NO" },
+        new[] { CommonConstants.PWD,                            CommonConstants.No,  "YES or NO",                            "NO" },
+        new[] { CommonConstants.NcscAssessment,                 CommonConstants.Yes, "ELIGIBLE or INELIGIBLE",               "ELIGIBLE" },
     };
 
             for (int i = 0; i < instrData.Length; i++)
@@ -1158,10 +1152,10 @@ namespace EcaInformationSystem.Application.Services
                     instructions.Cell(i + 2, col).Value = rowData[col - 1];
                 }
                 // Highlight required rows
-                if (rowData[1] == "YES")
+                if (rowData[1] == CommonConstants.Yes)
                 {
                     instructions.Range(i + 2, 1, i + 2, 4)
-                        .Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF3CD");
+                        .Style.Fill.BackgroundColor = XLColor.FromHtml(CommonConstants.AmberYellow);
                 }
                 instructions.Range(i + 2, 1, i + 2, 4)
                     .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
@@ -1189,14 +1183,14 @@ namespace EcaInformationSystem.Application.Services
             stream.Position = 0;      // 👈 Crucial: Reset pointer to start
             return stream.ToArray();
         }
-        public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream,string fileName, string sheetName, string userName)
+        public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
             var result = new BeneficiaryImportResultDto();
 
             using var workbook = new XLWorkbook(fileStream);
 
             var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName)
-                ?? throw new Exception($"Worksheet '{sheetName}' not found.");
+                ?? throw new Exception($"{CommonConstants.WorksheetNotFound} '{sheetName}'.");
 
             const int firstDataRowNumber = 11;
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
@@ -1244,8 +1238,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Record",
-                            Message = "Record not found in database. Update not allowed.",
+                            Field = CommonConstants.Record,
+                            Message = CommonConstants.RecordNotFoundInDatabase,
                             RawValue = $"{lastName}, {firstName}"
                         });
 
@@ -1265,7 +1259,7 @@ namespace EcaInformationSystem.Application.Services
 
                     await AddLogAsync(
                         existing.Id,
-                        $"Excel Update: {existing.LastName}, {existing.FirstName}",
+                        $"{CommonConstants.ExcelUpdate} {existing.LastName}, {existing.FirstName}",
                         userName);
 
                     result.ImportedCount++;
@@ -1275,7 +1269,7 @@ namespace EcaInformationSystem.Application.Services
                     result.Errors.Add(new BeneficiaryImportErrorDto
                     {
                         RowNumber = rowNumber,
-                        Field = "General",
+                        Field = CommonConstants.General,
                         Message = ex.Message
                     });
                 }
@@ -1285,18 +1279,18 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
             return result;
         }
-        
+
         public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
             if (fileStream == null || !fileStream.CanRead)
-                throw new Exception("Please upload a valid Excel file.");
+                throw new Exception(CommonConstants.InvalidExcelUploaded);
 
             if (string.IsNullOrWhiteSpace(fileName))
-                throw new Exception("Invalid file name.");
+                throw new Exception(CommonConstants.InvalidExcelFile);
 
             var extension = Path.GetExtension(fileName);
-            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
-                throw new Exception("Only .xlsx Excel files are allowed.");
+            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
 
             var result = new BeneficiaryImportResultDto();
             var beneficiariesToImport = new List<BeneficiaryInformation>();
@@ -1310,18 +1304,18 @@ namespace EcaInformationSystem.Application.Services
 
 
             if (string.IsNullOrWhiteSpace(sheetName))
-                throw new Exception("Please select a worksheet.");
+                throw new Exception(CommonConstants.PleaseSelectAWorksheet);
 
             var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
 
             if (worksheet == null)
-                throw new Exception($"Worksheet '{sheetName}' not found.");
+                throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
 
             const int firstDataRowNumber = 11;
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             if (lastRow < firstDataRowNumber)
-                throw new Exception("Sheet1 does not contain data rows.");
+                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
 
             //Track duplicated inside the upload file itself
             var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1360,7 +1354,7 @@ namespace EcaInformationSystem.Application.Services
                     var complianceRaw = row.Cell(18).GetFormattedString().Trim();
                     var validator = row.Cell(19).GetFormattedString().Trim();
                     var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
-                    
+
                     //Newly added column for importing.
                     var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
                     var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
@@ -1375,11 +1369,11 @@ namespace EcaInformationSystem.Application.Services
 
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
-                        result.Errors.Add(new BeneficiaryImportErrorDto 
-                        { 
-                            RowNumber = rowNumber, 
-                            Field = "First Name", 
-                            Message = "First Name is required.", 
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.FirstName.ToTitleCase(),
+                            Message = CommonConstants.FirstNameRequired,
                             RawValue = firstName
 
                         });
@@ -1392,8 +1386,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Birth Date",
-                            Message = "Invalid Birth Date from Month/Day/Year values.",
+                            Field = CommonConstants.BirthDate.ToTitleCase(),
+                            Message = CommonConstants.InvalidBirthDate,
                             RawValue = birthDateRaw
 
                         });
@@ -1411,8 +1405,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Osca Id Date Issued",
-                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            Field = CommonConstants.OscaIdDateIssued.ToTitleCase(),
+                            Message = CommonConstants.InvalidDateFormat,
                             RawValue = oscaIdDateIssued
                         });
 
@@ -1427,8 +1421,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Date Endrosed",
-                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            Field = CommonConstants.DateEndorsed.ToTitleCase(),
+                            Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateEndorsed
                         });
 
@@ -1443,8 +1437,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Date of Application",
-                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            Field = CommonConstants.DateOfApplication,
+                            Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateApplied
                         });
 
@@ -1459,8 +1453,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Date of Death",
-                            Message = "Invalid date format. Example valid format: 'March 17, 2026'.",
+                            Field = CommonConstants.DateOfDeath,
+                            Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateOfDeath
                         });
 
@@ -1481,10 +1475,10 @@ namespace EcaInformationSystem.Application.Services
                             result.Errors.Add(new BeneficiaryImportErrorDto
                             {
                                 RowNumber = rowNumber,
-                                Field = "NCSC RRN",
-                                Message = "Invalid NCSC RRN.",
+                                Field = CommonConstants.NcscRrn,
+                                Message = CommonConstants.InvalidRrn,
                                 RawValue = ncscRrnRaw,
-                                Suggestion = "Remove special character."
+                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName
                             });
 
                             rowHasError = true;
@@ -1502,12 +1496,12 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Region",
-                            Message = "Region not found.",
+                            Field = CommonConstants.Region,
+                            Message = CommonConstants.RegionNotFound,
                             RawValue = regionName,
                             Suggestion = suggestion != null
-                            ? $"Possible match: '{suggestion}'"
-                            : "Check spelling and spacing."
+                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
@@ -1519,12 +1513,12 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Province",
-                            Message = "Province not found.",
+                            Field = CommonConstants.Province.ToTitleCase(),
+                            Message = CommonConstants.ProvinceNotFound,
                             RawValue = provinceName,
                             Suggestion = suggestion != null
-                                ? $"Possible match: '{suggestion}'"
-                                : "Check spelling and spacing."
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
@@ -1538,12 +1532,12 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Municipality/City",
-                            Message = "Municipality/City not found.",
+                            Field = CommonConstants.Municipality,
+                            Message = CommonConstants.MunicipalityNotFound,
                             RawValue = municipalityName,
                             Suggestion = suggestion != null
-                                ? $"Possible match: '{suggestion}'"
-                                : "Check spelling and spacing."
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
@@ -1556,12 +1550,12 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "Barangay",
-                            Message = "Barangay not found.",
+                            Field = CommonConstants.Barangay.ToTitleCase(),
+                            Message = CommonConstants.BarangayNotFound,
                             RawValue = barangayName,
                             Suggestion = suggestion != null
-                                ? $"Possible match: '{suggestion}'"
-                                : "Check spelling and spacing."
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
@@ -1573,8 +1567,8 @@ namespace EcaInformationSystem.Application.Services
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
-                            Field = "NCSC Assessment",
-                            Message = "Please enter Eligible or InEligible only.",
+                            Field = CommonConstants.NcscAssessment.ToTitleCase(),
+                            Message = CommonConstants.NcscAssessmentNotFound,
                             RawValue = isEligibleRaw
 
                         });
@@ -1591,7 +1585,7 @@ namespace EcaInformationSystem.Application.Services
                  (lastName ?? string.Empty).Trim().ToLower(),
                  (firstName ?? string.Empty).Trim().ToLower(),
                  (middleName ?? string.Empty).Trim().ToLower(),
-                 birthDate == DateTime.MinValue ? "" : birthDate.ToString("yyyy-MM-dd"),
+                 birthDate == DateTime.MinValue ? "" : birthDate.ToFullDate(),
                  (oscaIdNumber ?? string.Empty).Trim().ToLower(),
                  ncscRrn?.ToString() ?? "");
 
@@ -1602,8 +1596,8 @@ namespace EcaInformationSystem.Application.Services
                             result.Errors.Add(new BeneficiaryImportErrorDto
                             {
                                 RowNumber = rowNumber,
-                                Field = "Duplicate",
-                                Message = "Duplicate record found within the uploaded file.",
+                                Field = CommonConstants.Duplicate,
+                                Message = CommonConstants.DuplicateRecordFound,
                                 RawValue = $"{lastName}, {firstName}"
                             });
                             rowHasError = true;
@@ -1623,8 +1617,8 @@ namespace EcaInformationSystem.Application.Services
                             result.Errors.Add(new BeneficiaryImportErrorDto
                             {
                                 RowNumber = rowNumber,
-                                Field = "Duplicate",
-                                Message = "Duplicate record already exists in the database.",
+                                Field = CommonConstants.Duplicate,
+                                Message = CommonConstants.DuplicateRecordExistInDatabase,
                                 RawValue = $"{lastName}, {firstName}"
                             });
                             rowHasError = true;
@@ -1658,7 +1652,7 @@ namespace EcaInformationSystem.Application.Services
                         Municipality = municipality!.PsgcCodeMunicipality,
                         Barangay = barangay!.PsgcCodeBarangay,
                         IsCompliant = MapCompliance(complianceRaw),
-                        Validator = string.IsNullOrWhiteSpace(validator) ? "N/A" : validator.Trim(),
+                        Validator = string.IsNullOrWhiteSpace(validator) ? CommonConstants.None : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
                         PaymentStatus = 0,
                         ModeOfPayment = 0,
@@ -1678,7 +1672,7 @@ namespace EcaInformationSystem.Application.Services
                     result.Errors.Add(new BeneficiaryImportErrorDto
                     {
                         RowNumber = rowNumber,
-                        Field = "General",
+                        Field = CommonConstants.General,
                         Message = ex.Message,
                         RawValue = null
                     });
@@ -1691,7 +1685,7 @@ namespace EcaInformationSystem.Application.Services
             if (result.ErrorCount > 0)
             {
                 result.ImportedCount = 0;
-                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == "Duplicate");
+                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == CommonConstants.Duplicate);
                 return result;
             }
             foreach (var beneficiary in beneficiariesToImport)
@@ -1699,7 +1693,7 @@ namespace EcaInformationSystem.Application.Services
                 await _repo.AddAsync(beneficiary);
                 await AddLogAsync(
                     beneficiary.Id,
-                    $"Imported beneficiary from Excel: {beneficiary.LastName}, {beneficiary.FirstName}",
+                    $"{CommonConstants.ImportedBeneficiaryFromExcel} {beneficiary.LastName}, {beneficiary.FirstName}",
                     userName);
             }
 
@@ -1716,14 +1710,14 @@ namespace EcaInformationSystem.Application.Services
         public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
         {
             if (fileStream == null || !fileStream.CanRead)
-                throw new Exception("Please upload a valid Excel file.");
+                throw new Exception(CommonConstants.InvalidExcelUploaded);
             if (string.IsNullOrWhiteSpace(fileName))
-                throw new Exception("Invalid file name.");
+                throw new Exception(CommonConstants.InvalidFileName);
 
             var extension = Path.GetExtension(fileName);
 
-            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
-                throw new Exception("Only .xlsx Excel files are allowed.");
+            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
 
             fileStream.Position = 0;
 
@@ -1764,7 +1758,7 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
 
             if (!data.Any())
-                throw new InvalidOperationException("No paid records found for the selected filters.");
+                throw new InvalidOperationException(CommonConstants.NoPaidRecordsMessage);
 
             // CGP counter starts at 2 (row 1 = DV cash advance = 0001)
             int cgpCounter = 2;
@@ -1790,7 +1784,7 @@ namespace EcaInformationSystem.Application.Services
                 // Payee: LASTNAME, FIRSTNAME MIDDLENAME ET AL.
                 var firstFullName = $"{first.LastName}, {first.FirstName} {first.MiddleName}".Trim().TrimEnd(',');
                 var payee = records.Count > 1
-                    ? $"{firstFullName} ET AL."
+                    ? $"{firstFullName} {CommonConstants.ETAL}"
                     : firstFullName;
 
                 // Total disbursement: age 100 = ₱100,000; others = ₱10,000
@@ -1798,18 +1792,18 @@ namespace EcaInformationSystem.Application.Services
 
                 // CGP format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter:D4}
                 // Example:    CGP No.: RegionXIII-202403-01-26-0002
-                var paymentMonth = group.Key.Date.Month.ToString("D2");
-                var cgpNumber = $"CGP No.: {settings.RegionCode}-{group.Key.MilestoneYear}{paymentMonth}-{settings.FixedSegment}-{settings.ShortenYear}-{cgpCounter:D4}";
+                var paymentMonth = group.Key.Date.Month.ToPaddedDay();
+                var cgpNumber = $"{CommonConstants.CgpNo} {settings.RegionCode}-{group.Key.MilestoneYear}{paymentMonth}-{settings.FixedSegment}-{settings.ShortenYear}-{cgpCounter.ToPaddedPage()}";
 
                 // Nature of Payment
-                var locType = group.Key.Municipality.Contains("City", StringComparison.OrdinalIgnoreCase)
-                    ? "City of"
-                    : "Municipality of";
+                var locType = group.Key.Municipality.Contains(CommonConstants.City, StringComparison.OrdinalIgnoreCase)
+                    ? CommonConstants.CityOf
+                    : CommonConstants.MunicipalityOf;
                 var location = $"{locType} {group.Key.Municipality}";
                 var provinceStr = !string.IsNullOrWhiteSpace(group.Key.Province)
-                    ? $", Province of {group.Key.Province}"
+                    ? $", {CommonConstants.ProvinceOf} {group.Key.Province}"
                     : string.Empty;
-                var nature = $"RA 11982 Cash Gift Distribution for the {location}{provinceStr} CY {group.Key.MilestoneYear}";
+                var nature = $"{CommonConstants.RA} {location}{provinceStr} {CommonConstants.CY} {group.Key.MilestoneYear}";
 
                 cdrRows.Add(new LiquidationRowDto
                 {
@@ -1891,7 +1885,7 @@ namespace EcaInformationSystem.Application.Services
                 // ✅ Always put certification on the last page — no complex math
                 bool includeCertification = isLastPage;
 
-                string sheetName = isLastPage ? "final" : $"CashDR_Page{pageNum}";
+                string sheetName = isLastPage ? CommonConstants.final : $"{CommonConstants.CashDrPage}{pageNum}";
 
                 var ws = workbook.Worksheets.Add(sheetName);
                 BuildCdrSheet(ws, pageNum, totalPages, pageRows, settings,
@@ -1922,7 +1916,7 @@ namespace EcaInformationSystem.Application.Services
             // ══════════════════════════════════════════════════════════════════
             // EXACT values from template (CDR_1st-Qtr-2026.xlsx CashDR_Page1)
             // ══════════════════════════════════════════════════════════════════
-            const string FONT = "Times New Roman";
+            const string FONT = CommonConstants.TimesNewRoman;
             const int FS_SM = 11;   // standard cell font size
             const int FS_TITLE = 14;  // "CASH DISBURSEMENTS RECORD"
             const int FS_SUB = 12;   // sub-headings & appendix
@@ -1992,7 +1986,7 @@ namespace EcaInformationSystem.Application.Services
             // ══════════════════════════════════════════════════════════════════
             ws.Range(1, 7, 1, 8).Merge();
             var appendixCell = ws.Cell(1, 7);
-            appendixCell.Value = "Appendix  40";
+            appendixCell.Value = CommonConstants.Appendix40;
             S(appendixCell, FS_SUB, false, true,
               XLAlignmentHorizontalValues.Right, XLAlignmentVerticalValues.Center);
 
@@ -2003,25 +1997,25 @@ namespace EcaInformationSystem.Application.Services
 
             // Row 2: Republic of the Philippines
             ws.Range(2, 1, 2, 8).Merge();
-            ws.Cell(2, 1).Value = "Republic of the Philippines";
+            ws.Cell(2, 1).Value = CommonConstants.RepublicOfThePhilippines;
             S(ws.Cell(2, 1), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
 
             // Row 3: NATIONAL COMMISSION — BOLD
             ws.Range(3, 1, 3, 8).Merge();
-            ws.Cell(3, 1).Value = "NATIONAL COMMISSION OF SENIOR CITIZENS";
+            ws.Cell(3, 1).Value = CommonConstants.NCSC;
             S(ws.Cell(3, 1), FS_SM, true, false,  // ✅ bold = true
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
 
             // Row 4: Address
             ws.Range(4, 1, 4, 8).Merge();
-            ws.Cell(4, 1).Value = "The Upper Class Tower, Quezon Avenue cor. Scout Reyes St., Diliman, Quezon City 1117";
+            ws.Cell(4, 1).Value = CommonConstants.NcscAddress;
             S(ws.Cell(4, 1), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
 
             // Row 5: Website
             ws.Range(5, 1, 5, 8).Merge();
-            ws.Cell(5, 1).Value = "Official website: www.ncsc.gov.ph";
+            ws.Cell(5, 1).Value = CommonConstants.NcscWebsite;
             S(ws.Cell(5, 1), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
 
@@ -2034,19 +2028,19 @@ namespace EcaInformationSystem.Application.Services
             // ROW 7 — "CASH DISBURSEMENTS RECORD" (A7:H7, merged)
             // ══════════════════════════════════════════════════════════════════
             ws.Row(7).Height = 17.65;
-            MergeAH(7, "CASH DISBURSEMENTS RECORD", FS_TITLE, true);
+            MergeAH(7, CommonConstants.CashDisbursementsRecord, FS_TITLE, true);
 
             // ══════════════════════════════════════════════════════════════════
             // ROW 8 — Program name (A8:H8, merged)
             // ══════════════════════════════════════════════════════════════════
             ws.Row(8).Height = 15.75;
-            MergeAH(8, "SENIOR CITIZENS WELFARE DEVELOPMENT SERVICES PROGRAM", FS_SUB, true);
+            MergeAH(8, CommonConstants.SCDSP, FS_SUB, true);
 
             // ══════════════════════════════════════════════════════════════════
             // ROW 9 — Implementation line (A9:H9, merged)
             // ══════════════════════════════════════════════════════════════════
             ws.Row(9).Height = 15.75;
-            MergeAH(9, "Implementation of the Expanded Centenarian Act Pursuant to R.A. 11982", FS_SUB, true);
+            MergeAH(9, CommonConstants.Implentation, FS_SUB, true);
 
             // ══════════════════════════════════════════════════════════════════
             // ROW 10 — blank (height 15.75)
@@ -2062,7 +2056,7 @@ namespace EcaInformationSystem.Application.Services
             // ══════════════════════════════════════════════════════════════════
             ws.Row(11).Height = 30.0;
             ws.Range(11, 1, 11, 2).Merge();
-            ws.Cell(11, 1).Value = "Region / Organization Unit:";
+            ws.Cell(11, 1).Value = CommonConstants.Unit;
             S(ws.Cell(11, 1), FS_SM, true, false,
               XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
 
@@ -2071,7 +2065,7 @@ namespace EcaInformationSystem.Application.Services
               XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
             ws.Range(11, 3, 11, 4).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
-            ws.Cell(11, 6).Value = "New ORG Code:";
+            ws.Cell(11, 6).Value = CommonConstants.OrgCode;
             S(ws.Cell(11, 6), FS_SM, true, true,
               XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Center);
 
@@ -2096,7 +2090,7 @@ namespace EcaInformationSystem.Application.Services
             var fundRt = fundCell.GetRichText();
 
             // Part 1 — "Fund Cluster : " not underlined
-            fundRt.AddText(" Fund Cluster : ")
+            fundRt.AddText(CommonConstants.FundCluster)
               .SetFontName(FONT)
               .SetFontSize(FS_SM)
               .SetBold(true);
@@ -2117,13 +2111,13 @@ namespace EcaInformationSystem.Application.Services
             var sheetRt = sheetCell.GetRichText();
 
             // Part 1 — "Sheet No. : " normal, not underlined
-            sheetRt.AddText("Sheet No. : ")
+            sheetRt.AddText(CommonConstants.SheetNo)
               .SetFontName(FONT)
               .SetFontSize(FS_SM)
               .SetBold(true);
 
             // Part 2 — "{pageNum} of {totalPages}" underlined
-            sheetRt.AddText($"{pageNum} of {totalPages}")
+            sheetRt.AddText($"{pageNum}{CommonConstants.Of}{totalPages}")
               .SetFontName(FONT)
               .SetFontSize(FS_SM)
               .SetBold(true)
@@ -2186,17 +2180,17 @@ namespace EcaInformationSystem.Application.Services
             // ══════════════════════════════════════════════════════════════════
             ws.Row(16).Height = 18.0;
             ws.Range(16, 1, 16, 3).Merge();
-            ws.Cell(16, 1).Value = "Accountable Officer";
+            ws.Cell(16, 1).Value = CommonConstants.AccountableOfficer;
             S(ws.Cell(16, 1), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
             ws.Range(16, 4, 16, 6).Merge();
-            ws.Cell(16, 4).Value = "Official Designation";
+            ws.Cell(16, 4).Value = CommonConstants.OfficialDesignation;
             S(ws.Cell(16, 4), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
             ws.Range(16, 7, 16, 8).Merge();
-            ws.Cell(16, 7).Value = "Station";
+            ws.Cell(16, 7).Value = CommonConstants.Station;
             S(ws.Cell(16, 7), FS_SM, false, false,
               XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2216,14 +2210,14 @@ namespace EcaInformationSystem.Application.Services
 
             var colHeaders = new[]
             {
-        (1, "Date"),
-        (2, "ADA/Check/\nDV/Payroll/\nReference No. "),
-        (3, "Payee"),
-        (4, "UACS Object Code "),
-        (5, "Nature of Payment"),
-        (6, "Cash Advance Received/ (Refunded)"),
-        (7, "Disbursements"),
-        (8, "Cash Advance Balance"),
+        (1, CommonConstants.Date),
+        (2, CommonConstants.Column2Header),
+        (3, CommonConstants.Payee),
+        (4, CommonConstants.UACS),
+        (5, CommonConstants.NatureOfPayment),
+        (6, CommonConstants.CashAdvanceReceived),
+        (7, CommonConstants.Disbursement),
+        (8, CommonConstants.Balance),
     };
 
             foreach (var (col, label) in colHeaders)
@@ -2249,11 +2243,11 @@ namespace EcaInformationSystem.Application.Services
                 ws.Row(R).Height = 105.75;
 
                 ws.Cell(R, 1).Value = s.InputDate;
-                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                ws.Cell(R, 1).Style.NumberFormat.Format = CommonConstants.DatePlaceHolder;
                 S(ws.Cell(R, 1), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
-                ws.Cell(R, 2).Value = $"DV: {s.DvYear}-{s.DvMonth}-0001";
+                ws.Cell(R, 2).Value = $"{CommonConstants.Dv} {s.DvYear}-{s.DvMonth}-{CommonConstants.DefaultOrderNo}";
                 S(ws.Cell(R, 2), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
@@ -2261,7 +2255,7 @@ namespace EcaInformationSystem.Application.Services
                 S(ws.Cell(R, 3), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
-                ws.Cell(R, 4).Value = "50214990-00";
+                ws.Cell(R, 4).Value = CommonConstants.ConstantUacs;
                 S(ws.Cell(R, 4), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2270,13 +2264,13 @@ namespace EcaInformationSystem.Application.Services
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
                 ws.Cell(R, 6).Value = s.InitialCashAdvance;
-                ws.Cell(R, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(R, 6).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                 S(ws.Cell(R, 6), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
                 // Col 7 (Disbursements) blank
                 ws.Cell(R, 8).Value = s.InitialCashAdvance; // Balance = initial
-                ws.Cell(R, 8).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(R, 8).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                 S(ws.Cell(R, 8), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2290,7 +2284,7 @@ namespace EcaInformationSystem.Application.Services
                 ws.Row(R).Height = 105.75;
 
                 ws.Cell(R, 1).Value = row.PaymentDate;
-                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                ws.Cell(R, 1).Style.NumberFormat.Format = CommonConstants.DatePlaceHolder;
                 S(ws.Cell(R, 1), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2302,7 +2296,7 @@ namespace EcaInformationSystem.Application.Services
                 S(ws.Cell(R, 3), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
-                ws.Cell(R, 4).Value = "50214990-00";
+                ws.Cell(R, 4).Value = CommonConstants.ConstantUacs;
                 S(ws.Cell(R, 4), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2313,12 +2307,12 @@ namespace EcaInformationSystem.Application.Services
                 // Col 6 (Cash Advance Received) blank for data rows
 
                 ws.Cell(R, 7).Value = row.Disbursement;
-                ws.Cell(R, 7).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(R, 7).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                 S(ws.Cell(R, 7), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
                 ws.Cell(R, 8).Value = row.CashAdvanceBalance;
-                ws.Cell(R, 8).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(R, 8).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                 S(ws.Cell(R, 8), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2336,24 +2330,24 @@ namespace EcaInformationSystem.Application.Services
                 ws.Row(R).Height = 74.25;
 
                 ws.Cell(R, 1).Value = s.CertificationDate;
-                ws.Cell(R, 1).Style.NumberFormat.Format = "MMMM dd, yyyy";
+                ws.Cell(R, 1).Style.NumberFormat.Format = CommonConstants.DatePlaceHolder;
                 S(ws.Cell(R, 1), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
-                ws.Cell(R, 3).Value = "NCSC CLUSTER 8 RO 13 (CARAGA)";
+                ws.Cell(R, 3).Value = CommonConstants.Cluster;
                 S(ws.Cell(R, 3), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
-                ws.Cell(R, 4).Value = "1990103000";
+                ws.Cell(R, 4).Value = CommonConstants.TreasuryConstant;
                 S(ws.Cell(R, 4), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
-                ws.Cell(R, 5).Value = "UNCLAIMED RA 11982 CASH GIFTS";
+                ws.Cell(R, 5).Value = CommonConstants.Unclaimed;
                 S(ws.Cell(R, 5), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
                 ws.Cell(R, 6).Value = rows.Any() ? rows.Last().CashAdvanceBalance : balanceBefore;
-                ws.Cell(R, 6).Style.NumberFormat.Format = "#,##0.00";
+                ws.Cell(R, 6).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                 S(ws.Cell(R, 6), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -2371,7 +2365,7 @@ namespace EcaInformationSystem.Application.Services
                 // ── CERTIFICATION title (A:H merged) ─────────────────────────
                 ws.Row(R).Height = 14.5;
                 ws.Range(R, 1, R + 1, 8).Merge();
-                ws.Cell(R, 1).Value = "C E R T I F I C A T I O N";
+                ws.Cell(R, 1).Value = CommonConstants.CertificationSpaced;
                 S(ws.Cell(R, 1), FS_SUB, true, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
                 R++;
@@ -2457,7 +2451,7 @@ namespace EcaInformationSystem.Application.Services
                 // ── "Name and Signature of Disbursing Officer" ────────────────
                 ws.Row(R).Height = 15.75;
                 ws.Range(R, 5, R, 7).Merge();
-                ws.Cell(R, 5).Value = "Name and Signature of Disbursing Officer";
+                ws.Cell(R, 5).Value = CommonConstants.NameAndSignatureOfDisbursingOfficer;
                 S(ws.Cell(R, 5), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
                 R++;
@@ -2469,7 +2463,7 @@ namespace EcaInformationSystem.Application.Services
                 ws.Row(R).Height = 14.0;
                 ws.Range(R, 5, R, 7).Merge();
                 ws.Cell(R, 5).Value = s.CertificationDate;
-                ws.Cell(R, 5).Style.NumberFormat.Format = "MMMM D, YYYY";
+                ws.Cell(R, 5).Style.NumberFormat.Format = CommonConstants.DatePlaceHolderUpperCase;
                 S(ws.Cell(R, 5), FS_SUB, true, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
                 ws.Range(R, 5, R, 7).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
@@ -2478,7 +2472,7 @@ namespace EcaInformationSystem.Application.Services
                 // ── "Date" label ──────────────────────────────────────────────
                 ws.Row(R).Height = 15.75;
                 ws.Range(R, 5, R, 7).Merge();
-                ws.Cell(R, 5).Value = "Date";
+                ws.Cell(R, 5).Value = CommonConstants.Date;
                 S(ws.Cell(R, 5), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Center);
             }
@@ -2517,31 +2511,31 @@ namespace EcaInformationSystem.Application.Services
 
             return string.Join("|",
                 version,
-                "beneficiary-paginated",
-                filter.PsgcCodeRegion?.ToString() ?? "null",
+                CommonConstants.BeneficiaryPaginated,
+                filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
                 filter.PageNumber.ToString(),
                 filter.PageSize.ToString(),
-                filter.PsgcCodeProvince.ToString() ??  "null",
-                filter.PsgcCodeMunicipality.ToString() ?? "null",
-                filter.PsgcCodeBarangays.ToString() ?? "null",
+                filter.PsgcCodeProvince.ToString() ?? CommonConstants.Null,
+                filter.PsgcCodeMunicipality.ToString() ?? CommonConstants.Null,
+                filter.PsgcCodeBarangays.ToString() ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,
                 filter.Validator ?? string.Empty,
                 filter.BatchCode ?? string.Empty,
-                filter.Sex != null ? filter.Sex : "null",
-                filter.PaymentStatus != null ? filter.PaymentStatus : "null",
-                filter.PaymentDate?.ToString("yyyy-MM-dd") ?? "null",
-                filter.SpecificAge?.ToString() ?? "null",
-                filter.MilestoneYear?.ToString() ?? "null",
-                filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
-                filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
-                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null",
-                filter.PaymentDateFrom?.ToString("yyyy-MM-dd") ?? "null",
-                filter.PaymentDateTo?.ToString("yyyy-MM-dd") ?? "null"
+                filter.Sex != null ? filter.Sex : CommonConstants.Null,
+                filter.PaymentStatus != null ? filter.PaymentStatus : CommonConstants.Null,
+                filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
+                filter.SpecificAge?.ToString() ?? CommonConstants.Null,
+                filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
+                filter.SpecificBirthday?.ToFullDate() ?? CommonConstants.Null,
+                filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
+                filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,
+                filter.PaymentDateFrom?.ToFullDate() ?? CommonConstants.Null,
+                filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null
             );
         }
-        private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName,string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
+        private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
         {
             return await _repo.FindExistingAsync(
                 lastName,
@@ -2557,8 +2551,8 @@ namespace EcaInformationSystem.Application.Services
         {
             return value?.Trim().ToUpper() switch
             {
-                "COMPLIANT" => true,
-                "YES" => true,
+                CommonConstants.Compliant => true,
+                CommonConstants.Yes => true,
                 _ => false
             };
         }
@@ -2569,24 +2563,9 @@ namespace EcaInformationSystem.Application.Services
 
             return normalized switch
             {
-                "YES" => true,
-                "NO" => false,
+                CommonConstants.Yes => true,
+                CommonConstants.NoUpperCase => false,
                 _ => false
-            };
-        }
-        //Payment Status Map
-        private int? MapPaymentStatus(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return null; // ✅ allow empty = N/A
-
-            var normalized = value.Trim().ToUpper();
-
-            return normalized switch
-            {
-                "PAID" => 2,
-                "UNPAID" => 1,
-                _ => null
             };
         }
         //Map Indigenous People
@@ -2596,8 +2575,8 @@ namespace EcaInformationSystem.Application.Services
 
             return normalized switch
             {
-                "YES" => true,
-                "NO" => false,
+                CommonConstants.Yes => true,
+                CommonConstants.NoUpperCase => false,
                 _ => false
             };
         }
@@ -2609,8 +2588,8 @@ namespace EcaInformationSystem.Application.Services
 
             return normalized switch
             {
-                "ELIGIBLE" => true,
-                "INELIGIBLE" => false,
+                CommonConstants.Eligible => true,
+                CommonConstants.Ineligible => false,
                 _ => null
             }; ;
         }
@@ -2619,7 +2598,7 @@ namespace EcaInformationSystem.Application.Services
         private string GetMonthName(int month)
         {
             return new DateTime(2000, month, 1)
-                .ToString("MMMM")
+                .ToMonth()
                 .ToUpperInvariant();
         }
 
@@ -2650,21 +2629,18 @@ namespace EcaInformationSystem.Application.Services
             return bestMatch?.Name;
         }
 
-
-        private const string SummaryCacheVersionKey = "beneficiary-summary-version";
-
         private void InvalidateSummaryCache()
         {
             var newVersion = Guid.NewGuid().ToString();
-            _memoryCache.Set(SummaryCacheVersionKey, newVersion);
+            _memoryCache.Set(CommonConstants.SummaryCacheVersionKey, newVersion);
         }
 
         private string GetCurrentSummaryCacheVersion()
         {
-            return _memoryCache.GetOrCreate(SummaryCacheVersionKey, entry =>
+            return _memoryCache.GetOrCreate(CommonConstants.SummaryCacheVersionKey, entry =>
             {
                 entry.Priority = CacheItemPriority.NeverRemove;
-                return "v1";
+                return CommonConstants.V1;
             })!;
         }
 
@@ -2674,21 +2650,21 @@ namespace EcaInformationSystem.Application.Services
 
             return string.Join("|",
                 version,
-                "beneficiary-summary",
-                filter.PsgcCodeRegion?.ToString() ?? "null",
-                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : "null"),
-                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : "null"),
-                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any() ? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)) : "null"),
+                CommonConstants.BeneficiarySummary,
+                filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : CommonConstants.Null),
+                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : CommonConstants.Null),
+                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any() ? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)) : CommonConstants.Null),
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
-                filter.Sex != null ? filter.Sex : "null",
-                filter.PaymentStatus != null ? filter.PaymentStatus : "null",
-                filter.PaymentDate?.ToString("yyyy-MM-dd") ?? "null",
-                filter.SpecificAge?.ToString() ?? "null",
-                filter.MilestoneYear?.ToString() ?? "null",
-                filter.SpecificBirthday?.ToString("yyyy-MM-dd") ?? "null",
-                filter.BirthdayFrom?.ToString("yyyy-MM-dd") ?? "null",
-                filter.BirthdayTo?.ToString("yyyy-MM-dd") ?? "null"
+                filter.Sex != null ? filter.Sex : CommonConstants.Null,
+                filter.PaymentStatus != null ? filter.PaymentStatus : CommonConstants.Null,
+                filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
+                filter.SpecificAge?.ToString() ?? CommonConstants.Null,
+                filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
+                filter.SpecificBirthday?.ToFullDate() ?? CommonConstants.Null,
+                filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
+                filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
@@ -2699,93 +2675,91 @@ namespace EcaInformationSystem.Application.Services
 
             // ── Simple text fields ────────────────────────────────
             if (beneficiary.DateApplied != dto.DateApplied)
-                changes.Add($"Date Applied: '{beneficiary.DateApplied:yyyy-MM-dd}' → '{dto.DateApplied:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.DateApplied.ToTitleCase()} '{beneficiary.DateApplied.ToFullDate()}' → '{dto.DateApplied.ToFullDate()}'");
 
             if (beneficiary.DateEndorsed != dto.DateEndorsed)
-                changes.Add($"Date Endorsed: '{beneficiary.DateEndorsed:yyyy-MM-dd}' → '{dto.DateEndorsed:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.DateEndorsed.ToTitleCase()} '{beneficiary.DateEndorsed.ToFullDate()}' → '{dto.DateEndorsed.ToFullDate()}'");
 
             if (beneficiary.BatchCode != dto.BatchCode)
-                changes.Add($"Batch Code: '{beneficiary.BatchCode}' → '{dto.BatchCode}'");
+                changes.Add($"{CommonConstants.BatchCode.ToTitleCase()} '{beneficiary.BatchCode}' → '{dto.BatchCode}'");
 
             if (beneficiary.OscaIdNumber != dto.OscaIdNumber)
-                changes.Add($"OSCA ID Number: '{beneficiary.OscaIdNumber}' → '{dto.OscaIdNumber}'");
+                changes.Add($"{CommonConstants.OscaIdNumber.ToTitleCase()} '{beneficiary.OscaIdNumber}' → '{dto.OscaIdNumber}'");
 
             if (beneficiary.OscaIdDateIssued != dto.OscaIdDateIssued)
-                changes.Add($"OSCA ID Date Issued: '{beneficiary.OscaIdDateIssued:yyyy-MM-dd}' → '{dto.OscaIdDateIssued:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.OscaIdDateIssued.ToTitleCase()} '{beneficiary.OscaIdDateIssued.ToFullDate()}' → '{dto.OscaIdDateIssued.ToFullDate()}'");
 
             if (beneficiary.NcscRrn != dto.NcscRrn)
-                changes.Add($"NCSC RRN: '{beneficiary.NcscRrn}' → '{dto.NcscRrn}'");
+                changes.Add($"{CommonConstants.NcscRrn.ToTitleCase()} '{beneficiary.NcscRrn}' → '{dto.NcscRrn}'");
 
             if (beneficiary.LastName != dto.LastName)
-                changes.Add($"Last Name: '{beneficiary.LastName}' → '{dto.LastName}'");
+                changes.Add($"{CommonConstants.LastName.ToTitleCase()} '{beneficiary.LastName}' → '{dto.LastName}'");
 
             if (beneficiary.FirstName != dto.FirstName)
-                changes.Add($"First Name: '{beneficiary.FirstName}' → '{dto.FirstName}'");
+                changes.Add($"{CommonConstants.FirstName.ToTitleCase()} '{beneficiary.FirstName}' → '{dto.FirstName}'");
 
             if (beneficiary.MiddleName != dto.MiddleName)
-                changes.Add($"Middle Name: '{beneficiary.MiddleName}' → '{dto.MiddleName}'");
+                changes.Add($"{CommonConstants.MiddleName.ToTitleCase()} '{beneficiary.MiddleName}' → '{dto.MiddleName}'");
 
             if (beneficiary.Extension != dto.Extension)
-                changes.Add($"Extension: '{beneficiary.Extension}' → '{dto.Extension}'");
+                changes.Add($"{CommonConstants.Extension.ToTitleCase()} '{beneficiary.Extension}' → '{dto.Extension}'");
 
             if (beneficiary.BirthDate.Date != dto.BirthDate.Date)
-                changes.Add($"Birth Date: '{beneficiary.BirthDate:yyyy-MM-dd}' → '{dto.BirthDate:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.BirthDate.ToTitleCase()} '{beneficiary.BirthDate.ToFullDate()}' → '{dto.BirthDate.ToFullDate()}'");
 
             if (beneficiary.PhoneNumber != dto.PhoneNumber)
-                changes.Add($"Phone Number: '{beneficiary.PhoneNumber}' → '{dto.PhoneNumber}'");
+                changes.Add($"{CommonConstants.ContactNumber.ToTitleCase()} '{beneficiary.PhoneNumber}' → '{dto.PhoneNumber}'");
 
             // ── Mapped fields ─────────────────────────────────────
             if (beneficiary.Sex != dto.Sex)
-                changes.Add($"Sex: '{MapSexLabel(beneficiary.Sex)}' → '{MapSexLabel(dto.Sex)}'");
-
+                changes.Add($"{CommonConstants.Sex.ToTitleCase()} '{MapSexLabel(beneficiary.Sex)}' → '{MapSexLabel(dto.Sex)}'");
             if (beneficiary.IsIndigenousPeople != dto.IsIndigenousPeople)
-                changes.Add($"Indigenous People: '{(beneficiary.IsIndigenousPeople ? "Yes" : "No")}' → '{(dto.IsIndigenousPeople ? "Yes" : "No")}'");
+                changes.Add($"{CommonConstants.IP.ToTitleCase()} '{(beneficiary.IsIndigenousPeople ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsIndigenousPeople ? CommonConstants.Yes : CommonConstants.No)}'");
 
             if (beneficiary.IsPersonWithDisability != dto.IsPersonWithDisability)
-                changes.Add($"Person with Disability: '{(beneficiary.IsPersonWithDisability ? "Yes" : "No")}' → '{(dto.IsPersonWithDisability ? "Yes" : "No")}'");
+                changes.Add($"{CommonConstants.PWD.ToTitleCase()} '{(beneficiary.IsPersonWithDisability ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsPersonWithDisability ? CommonConstants.Yes : CommonConstants.No)}'");
 
             if (beneficiary.CivilStatus != dto.CivilStatus)
-                changes.Add($"Civil Status: '{MapCivilStatusLabel(beneficiary.CivilStatus)}' → '{MapCivilStatusLabel(dto.CivilStatus)}'");
+                changes.Add($"{CommonConstants.CivilStatus.ToTitleCase()} '{MapCivilStatusLabel(beneficiary.CivilStatus)}' → '{MapCivilStatusLabel(dto.CivilStatus)}'");
 
             if (beneficiary.Citizenship != dto.Citizenship)
-                changes.Add($"Citizenship: '{MapCitizenshipLabel(beneficiary.Citizenship)}' → '{MapCitizenshipLabel(dto.Citizenship)}'");
+                changes.Add($"{CommonConstants.Citizenship.ToTitleCase()} '{MapCitizenshipLabel(beneficiary.Citizenship)}' → '{MapCitizenshipLabel(dto.Citizenship)}'");
 
             // ── More mapped fields ────────────────────────────────
             if (beneficiary.IsCompliant != dto.IsCompliant)
-                changes.Add($"Compliant: '{(beneficiary.IsCompliant ? "Yes" : "No")}' → '{(dto.IsCompliant ? "Yes" : "No")}'");
-
+                changes.Add($"{CommonConstants.Compliant.ToTitleCase()} '{(beneficiary.IsCompliant ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsCompliant ? CommonConstants.Yes : CommonConstants.No)}'");
             if (beneficiary.Validator != dto.Validator)
-                changes.Add($"Validator: '{beneficiary.Validator}' → '{dto.Validator}'");
+                changes.Add($"{CommonConstants.Validator.ToTitleCase()} '{beneficiary.Validator}' → '{dto.Validator}'");
 
             if (beneficiary.ValidationDate != dto.ValidationDate)
-                changes.Add($"Validation Date: '{beneficiary.ValidationDate:yyyy-MM-dd}' → '{dto.ValidationDate:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.ValidationDate.ToTitleCase()} '{beneficiary.ValidationDate.ToFullDate()}' → '{dto.ValidationDate.ToFullDate()}'");
 
             if (beneficiary.PaymentStatus != dto.PaymentStatus)
-                changes.Add($"Payment Status: '{MapPaymentStatusLabel(beneficiary.PaymentStatus)}' → '{MapPaymentStatusLabel(dto.PaymentStatus)}'");
+                changes.Add($"{CommonConstants.PaymentStatus.ToTitleCase()} '{MapPaymentStatusLabel(beneficiary.PaymentStatus)}' → '{MapPaymentStatusLabel(dto.PaymentStatus)}'");
 
             if (beneficiary.ModeOfPayment != dto.ModeOfPayment)
-                changes.Add($"Mode of Payment: '{MapModeOfPaymentLabel(beneficiary.ModeOfPayment)}' → '{MapModeOfPaymentLabel(dto.ModeOfPayment)}'");
+                changes.Add($"{CommonConstants.ModeOfPayment} '{MapModeOfPaymentLabel(beneficiary.ModeOfPayment)}' → '{MapModeOfPaymentLabel(dto.ModeOfPayment)}'");
 
             if (beneficiary.PaymentDate != dto.PaymentDate)
-                changes.Add($"Payment Date: '{beneficiary.PaymentDate:yyyy-MM-dd}' → '{dto.PaymentDate:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.PaymentDate.ToTitleCase()} '{beneficiary.PaymentDate.ToFullDate()}' → '{dto.PaymentDate.ToFullDate()}'");
 
             if (beneficiary.IsDeceased != dto.IsDeceased)
-                changes.Add($"Is Deceased: '{(beneficiary.IsDeceased ? "Yes" : "No")}' → '{(dto.IsDeceased ? "Yes" : "No")}'");
+                changes.Add($"{CommonConstants.IsDeceased.ToTitleCase()} '{(beneficiary.IsDeceased ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsDeceased ? CommonConstants.Yes : CommonConstants.No)}'");
 
             if (beneficiary.DateOfDeath != dto.DateOfDeath)
-                changes.Add($"Date of Death: '{beneficiary.DateOfDeath:yyyy-MM-dd}' → '{dto.DateOfDeath:yyyy-MM-dd}'");
+                changes.Add($"{CommonConstants.DateOfDeath} '{beneficiary.DateOfDeath.ToFullDate()}' → '{dto.DateOfDeath.ToFullDate()}'");
 
             if (beneficiary.IsEligible != dto.IsEligible)
-                changes.Add($"Eligible: '{(beneficiary.IsEligible ? "Yes" : "No")}' → '{(dto.IsEligible ? "Yes" : "No")}'");
+                changes.Add($"{CommonConstants.Eligible.ToTitleCase()} '{(beneficiary.IsEligible ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsEligible ? CommonConstants.Yes : CommonConstants.No)}'");
 
             if (beneficiary.AssessmentRemarks != dto.AssessmentRemarks)
-                changes.Add($"Assessment Remarks: '{beneficiary.AssessmentRemarks}' → '{dto.AssessmentRemarks}'");
+                changes.Add($"{CommonConstants.AssessmentRemarks} '{beneficiary.AssessmentRemarks}' → '{dto.AssessmentRemarks}'");
 
             if (beneficiary.RemarkCategory != dto.RemarkCategory)
-                changes.Add($"Remark Category: '{MapRemarkCategoryLabel(beneficiary.RemarkCategory)}' → '{MapRemarkCategoryLabel(dto.RemarkCategory)}'");
+                changes.Add($"{CommonConstants.RemarkCategory} '{MapRemarkCategoryLabel(beneficiary.RemarkCategory)}' → '{MapRemarkCategoryLabel(dto.RemarkCategory)}'");
 
             if (beneficiary.Remarks != dto.Remarks)
-                changes.Add($"Remarks: '{beneficiary.Remarks}' → '{dto.Remarks}'");
+                changes.Add($"{CommonConstants.Remarks.ToTitleCase()} '{beneficiary.Remarks}' → '{dto.Remarks}'");
 
             return changes;
         }
@@ -2801,12 +2775,8 @@ namespace EcaInformationSystem.Application.Services
             };
             await _logRepository.AddAsync(log);
         }
-        private static T? FindBestNameMatch<T>(
-     IEnumerable<T> items,
-     Func<T, string?> nameSelector,
-     string rawName,
-     int minimumScore = 60)
-     where T : class
+        private static T? FindBestNameMatch<T>(IEnumerable<T> items, Func<T, string?> nameSelector, string rawName,
+        int minimumScore = 60) where T : class
         {
             var matches = items
                 .Select(item => new
@@ -2822,7 +2792,6 @@ namespace EcaInformationSystem.Application.Services
 
             return matches.FirstOrDefault()?.Item;
         }
-
 
         private static string? NullIfEmpty(string? value)
         {
@@ -2903,15 +2872,15 @@ namespace EcaInformationSystem.Application.Services
             var normalized = NormalizeName(value);
 
             var ignoredWords = new HashSet<string>
-    {
-        "BARANGAY",
-        "POBLACION",
-        "CITY",
-        "MUNICIPALITY",
-        "THE",
-        "AND",
-        "OF"
-    };
+             {
+                 "BARANGAY",
+                 "POBLACION",
+                 "CITY",
+                 "MUNICIPALITY",
+                 "THE",
+                 "AND",
+                 "OF"
+             };
 
             return normalized
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries)
@@ -2923,8 +2892,8 @@ namespace EcaInformationSystem.Application.Services
         {
             return value?.Trim().ToUpper() switch
             {
-                "MALE" => 1,
-                "FEMALE" => 2,
+                CommonConstants.Male => 1,
+                CommonConstants.Female => 2,
                 _ => 0
             };
         }
@@ -2937,12 +2906,12 @@ namespace EcaInformationSystem.Application.Services
             // Try exact formats first (faster & safer)
             var formats = new[]
             {
-        "MMMM d, yyyy",   // March 17, 2026
-        "MMM d, yyyy",    // Mar 17, 2026
-        "MM/dd/yyyy",
-        "M/d/yyyy",
-        "yyyy-MM-dd"
-    };
+                 "MMMM d, yyyy",   // March 17, 2026
+                 "MMM d, yyyy",    // Mar 17, 2026
+                 "MM/dd/yyyy",
+                 "M/d/yyyy",
+                 "yyyy-MM-dd"
+            };
 
             if (DateTime.TryParseExact(value.Trim(), formats,
                 CultureInfo.InvariantCulture,
@@ -3026,59 +2995,59 @@ namespace EcaInformationSystem.Application.Services
 
         private static string MapSexLabel(int sex) => sex switch
         {
-            1 => "Male",
-            2 => "Female",
-            _ => "Unknown"
+            1 => CommonConstants.Male.ToTitleCase(),
+            2 => CommonConstants.Female.ToTitleCase(),
+            _ => CommonConstants.Unknown
         };
 
         private static string MapCivilStatusLabel(int? status) => status switch
         {
-            1 => "Single",
-            2 => "Widowed",
-            3 => "Married",
-            4 => "Live In",
-            _ => "N/A"
+            1 => CommonConstants.Single.ToTitleCase(),
+            2 => CommonConstants.Widowed.ToTitleCase(),
+            3 => CommonConstants.Married.ToTitleCase(),
+            4 => CommonConstants.LiveIn.ToTitleCase(),
+            _ => CommonConstants.None
         };
 
         private static string MapCitizenshipLabel(int? citizenship) => citizenship switch
         {
-            1 => "Filipino",
-            2 => "Dual Citizenship",
-            _ => "N/A"
+            1 => CommonConstants.Filipino.ToTitleCase(),
+            2 => CommonConstants.DualCitizenship.ToTitleCase(),
+            _ => CommonConstants.None
         };
 
         private static string MapPaymentStatusLabel(int status) => status switch
         {
-            0 => "N/A",
-            1 => "Unpaid",
-            2 => "Paid",
-            _ => "Unknown"
+            0 => CommonConstants.None,
+            1 => CommonConstants.Unpaid,
+            2 => CommonConstants.Paid,
+            _ => CommonConstants.Unknown
         };
 
         private static string MapModeOfPaymentLabel(int mode) => mode switch
         {
-            0 => "N/A",
-            1 => "Cash Advance by SDO",
-            2 => "Bank Transfer",
-            _ => "Unknown"
+            0 => CommonConstants.None,
+            1 => CommonConstants.CashAdvanceBySdo,
+            2 => CommonConstants.BankTransfer,
+            _ => CommonConstants.Unknown
         };
 
         private static string MapRemarkCategoryLabel(int? category) => category switch
         {
-            1 => "Deceased prior reaching milestone age",
-            2 => "Out of town/Country",
-            3 => "Incomplete required documents",
-            4 => "Inconsistent documents",
-            5 => "Cannot be reached/Located",
-            6 => "Did not reach the milestone age",
-            7 => "Lacking of documents/Requirements",
-            8 => "For Correction",
-            9 => "Waived",
-            10 => "Lacking Proof of Relationship",
-            11 => "No show",
-            12 => "Double Application with Different Surename used",
-            13 => "For CGD Island Municipality",
-            _ => "N/A"
+            1 => CommonConstants.DeceasedPriorReachingMilestoneAge,
+            2 => CommonConstants.OutOfTownOrCountry,
+            3 => CommonConstants.IncompleteRequiredDocuments,
+            4 => CommonConstants.InconsistentDocuments,
+            5 => CommonConstants.CannotBeReachedOrLocated,
+            6 => CommonConstants.DidNotReachTheMilestoneAge,
+            7 => CommonConstants.LackingOfDocumentsOrRequirements,
+            8 => CommonConstants.ForCorrection,
+            9 => CommonConstants.Waived,
+            10 => CommonConstants.LackingProofOfRelationship,
+            11 => CommonConstants.NoShow,
+            12 => CommonConstants.DoubleApplicationWithDifferentSurnameUsed,
+            13 => CommonConstants.ForCGDIslandMunicipality,
+            _ =>  CommonConstants.None
         };
 
         #endregion
