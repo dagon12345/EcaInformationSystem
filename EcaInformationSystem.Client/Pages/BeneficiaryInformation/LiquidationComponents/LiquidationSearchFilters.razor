@@ -1,5 +1,7 @@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @inject ToastService toast
 @inject HttpClient Http
 @inject BeneficiaryStateService State

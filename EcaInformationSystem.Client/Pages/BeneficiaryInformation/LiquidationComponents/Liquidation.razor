@@ -2,6 +2,8 @@
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.LiquidationComponents.Modal
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @implements IDisposable
 @inject BeneficiaryStateService State
 @inject ToastService toast
