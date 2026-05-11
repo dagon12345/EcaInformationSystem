@@ -385,7 +385,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return new PagedResultDto<BeneficiaryInformationDto>
             {
-                Items = items.Select(MapToDto).ToList(),
+                Items = deduped,
                 TotalCount = totalCount,
                 PageNumber = pageNumber,
                 PageSize = pageSize
@@ -686,32 +686,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 );
         }
 
-        // ============================================================
-        // FIX: GetByIdsAsync in BeneficiaryInformationRepository.cs
-        //
-        // Since BeneficiaryInformationDto.Region/Province/Municipality/Barangay
-        // are JsonElement?, you cannot directly assign a string from EF Core.
-        // You must wrap the string value into a JsonElement using JsonSerializer.
-        //
-        // Replace the 4 lines in the select projection:
-        // ============================================================
-
-        // BEFORE (causes type mismatch — string? cannot assign to JsonElement?):
-        //   Region       = region       != null ? region.Name       : null,
-        //   Province     = province     != null ? province.Name     : null,
-        //   Municipality = municipality != null ? municipality.Name : null,
-        //   Barangay     = barangay     != null ? barangay.Name     : null,
-
-        // AFTER — serialize the string into a JsonElement so the type matches:
-        //   Region       = region       != null ? JsonSerializer.SerializeToElement(region.Name)       : null,
-        //   Province     = province     != null ? JsonSerializer.SerializeToElement(province.Name)     : null,
-        //   Municipality = municipality != null ? JsonSerializer.SerializeToElement(municipality.Name) : null,
-        //   Barangay     = barangay     != null ? JsonSerializer.SerializeToElement(barangay.Name)     : null,
-
-        // ============================================================
-        // FULL CORRECTED METHOD (drop-in replacement):
-        // ============================================================
-
         public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)
         {
             // Step 1: Fetch the raw data with joins (no JsonElement in projection)
@@ -838,7 +812,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (x.BirthDate.Year + 85) <= DateTime.Today.Year && (x.BirthDate.Year + 85) >= 2024 ? x.BirthDate.Year + 85 :
                     (x.BirthDate.Year + 80) <= DateTime.Today.Year && (x.BirthDate.Year + 80) >= 2024 ? x.BirthDate.Year + 80 :
                     0,
-            }).ToList();
+            })
+                .DistinctBy(x => x.Id)
+                .ToList();
 
             return result;
         }

@@ -7,6 +7,7 @@ using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
+using System.IO.Compression;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -522,43 +523,74 @@ namespace EcaInformationSystem.Application.Services
             if (!allData.Any())
                 throw new InvalidOperationException(CommonConstants.NoneOfTheRecordsFound);
 
-            var groups = allData
-                .GroupBy(x => (x.BatchCode ?? CommonConstants.NoBatch).ToUpperInvariant())
-                .OrderBy(g => g.Key)
-                .ToList();
+            int continousNo = 1; // Global counter: remains continuous across ALL file
 
-            using var workbook = new XLWorkbook();
+            byte[] finalizedResult;
 
-            foreach (var group in groups)
+            using (var zipStream = new MemoryStream())
             {
-                var batchCode = group.Key;
-                var records = group
-                    .OrderBy(x => x.BarangayName)
-                    .ThenBy(x => x.LastName)
-                    .ThenBy(x => x.FirstName)
-                    .ToList();
+                using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
+                {
+                    //2. group by province
+                    var provinceGroups = allData
+                                        .GroupBy(x => x.ProvinceName)
+                                        .OrderBy(g => g.Key);
 
-                var sheetName = SanitizeSheetName(batchCode);
-                var ws = workbook.Worksheets.Add(sheetName);
-                BuildPayrollSheet(ws, batchCode, records, settings);
+                    foreach (var provinceGroup in provinceGroups)
+                    {
+                        string province = provinceGroup.Key ?? "Unkown Province";
+
+                        using (var workbookNew = new XLWorkbook())
+                        {
+                            var muniGroups = provinceGroup
+                                        .GroupBy(x => (x.MunicipalityName).ToUpperInvariant())
+                                        .OrderBy(g => g.Key);
+
+                            foreach (var muniGroup in muniGroups)
+                            {
+                                string municipality = muniGroup.Key;
+
+                                var records = muniGroup
+                                     .OrderBy(x => x.BarangayName)
+                                     .ThenBy(x => x.LastName)
+                                     .ThenBy(x => x.FirstName)
+                                     .ToList();
+
+                                var sheetName = SanitizeSheetName(municipality);
+                                var ws = workbookNew.Worksheets.Add(sheetName);
+                                BuildPayrollSheet(ws, municipality, records, settings, ref continousNo);
+                            }
+                            string safeProvince = SanitizeSheetName(province);
+                            // 4. Save this Province Workbook into the ZIP archive
+                            var entry = archive.CreateEntry($"{safeProvince}_Payroll.xlsx");
+                            using (var entryStream = entry.Open())
+                            {
+                                workbookNew.SaveAs(entryStream);
+                            }
+
+                        }
+                    }
+
+                }
+                zipStream.Position = 0;
+                finalizedResult = zipStream.ToArray();
             }
-
-            using var ms = new MemoryStream();
-            workbook.SaveAs(ms);
-            return ms.ToArray();
+            return finalizedResult;
         }
 
         private static void BuildPayrollSheet(
             IXLWorksheet ws,
-            string batchCode,
+            string municipalityName,
             List<BeneficiaryInformationDto> records,
-            PayrollSettingsDto s)
+            PayrollSettingsDto s
+            ,ref int continousNo)
         {
             const int COLS = 19;
             const int PAGE1_RECORDS = 6;
-            const int PAGE2_RECORDS = 9;
+            const int PAGE2_RECORDS = 7;
             // ✅ FIX 1: Both pages use the same row height — uniform
-            const double DATA_ROW_HT = 140;
+            const double PAGE_ONE_HT = 192;
+            const double PAGE_TWO_PLUS_HT = 210;
             const int FONT_SIZE = 14;
 
             var first = records.FirstOrDefault();
@@ -610,33 +642,37 @@ namespace EcaInformationSystem.Application.Services
             // ✅ FIX 4: CGP border = Thin (was None)
             void CgpCell(int row, string text)
             {
-                ws.Range(row, 16, row, 17);
-                ws.Cell(row, 17).Value = text;
-                ws.Cell(row, 17).Style.Font.Bold = false;
-                ws.Cell(row, 17).Style.Font.FontSize = FONT_SIZE;
-                ws.Cell(row, 17).Style.Font.FontName = CommonConstants.Arial;
-                ws.Cell(row, 17).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                ws.Cell(row, 17).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Cell(row, 17).Style.Border.OutsideBorder = XLBorderStyleValues.None;
+                ws.Range(row, 19, row, 19);
+                ws.Cell(row, 19).Value = text;
+                ws.Cell(row, 19).Style.Font.Bold = false;
+                ws.Cell(row, 19).Style.Font.FontSize = FONT_SIZE;
+                ws.Cell(row, 19).Style.Font.FontName = CommonConstants.Arial;
+                ws.Cell(row, 19).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                ws.Cell(row, 19).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Cell(row, 19).Style.Border.OutsideBorder = XLBorderStyleValues.None;
             }
 
             // =========================================================================
             // SECTION 1: HEADER
             // =========================================================================
             ws.Row(3).Height = 24;
-            MergeCenter(3, 2, 2, CommonConstants.NCSC, bold: true);
+            MergeCenter(3, 11, 11, CommonConstants.NCSC, bold: true);
 
             ws.Row(4).Height = 24;
-            MergeCenter(4, 2, 2, $"{CommonConstants.RegionalOfficeProvinceOf} {province}, {municipality}");
+            // Check if the municipality string already includes "City"
+            string municipalityDisplay = municipality.Contains("City", StringComparison.OrdinalIgnoreCase)
+                ? municipality
+                : $"{CommonConstants.MunicipalityOf} {municipality}";
+            MergeCenter(4, 11, 11, $"{CommonConstants.RegionalOfficeProvinceOf} {province}, {municipalityDisplay}");
 
             ws.Row(5).Height = 21.75;
-            MergeCenter(5, 2, 2, CommonConstants.Act);
+            MergeCenter(5, 11, 11, CommonConstants.Act);
 
             ws.Row(6).Height = 10.5;
             ws.Row(7).Height = 10.5;
 
             ws.Row(8).Height = 18.75;
-            MergeCenter(8, 2, 2, CommonConstants.CashGiftPayroll, bold: true);
+            MergeCenter(8, 11, 11, CommonConstants.CashGiftPayroll, bold: true);
 
             ws.Row(9).Height = 14.25;
 
@@ -647,6 +683,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(10, 2).Style.Font.FontSize = FONT_SIZE;
             ws.Cell(10, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(10, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Cell(10, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
             // ✅ FIX 5: Purpose text D(4)–P(16) not just D–H
             ws.Range(10, 4, 10, 15).Merge();
@@ -696,7 +733,6 @@ namespace EcaInformationSystem.Application.Services
             // SECTION 3: DATA ROWS — start row 15
             // =========================================================================
             int currentRow = 15;
-            int globalSeq = 1;
             int page = 1;
             int processed = 0;
 
@@ -718,11 +754,15 @@ namespace EcaInformationSystem.Application.Services
                 {
                     int dr = currentRow;
                     // ✅ FIX 1: Same height for ALL data rows regardless of page
-                    ws.Row(dr).Height = DATA_ROW_HT;
+ 
+
+                    // 3. Conditional Row Height (Inside your Data Loop)
+                    // Assuming 'dr' is your current Excel row index
+                    ws.Row(dr).Height = (page <= 1) ? PAGE_ONE_HT : PAGE_TWO_PLUS_HT;
 
                     DataCell(dr, 2, (rec.BatchCode ?? "").ToUpperInvariant());
 
-                    DataCell(dr, 3, globalSeq, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 3, continousNo++, XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 4, (rec.LastName ?? "").ToUpperInvariant());
                     DataCell(dr, 5, (rec.FirstName ?? "").ToUpperInvariant());
                     DataCell(dr, 6, (rec.MiddleName ?? "").ToUpperInvariant());
@@ -730,8 +770,8 @@ namespace EcaInformationSystem.Application.Services
                     DataCell(dr, 8, rec.BirthDate.ToStandardDate(), XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 9, rec.Age, XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female, XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 11, rec.BarangayName.ToUpperInvariant());
-                    DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Right);
+                    DataCell(dr, 11, rec.BarangayName.ToUpperInvariant(), XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Center);
                     ws.Cell(dr, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
                     if (rec.IsDeceased && rec.DateOfDeath.HasValue)
                         DataCell(dr, 17, rec.DateOfDeath.Value.ToStandardDate(),
@@ -740,7 +780,6 @@ namespace EcaInformationSystem.Application.Services
                     ws.Range(dr, 2, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                     ws.Range(dr, 2, dr, COLS).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
-                    globalSeq++;
                     currentRow++;
                 }
 
@@ -925,9 +964,9 @@ namespace EcaInformationSystem.Application.Services
             // =========================================================================
             double[] colWidths = {
              //  A      B       C     D       E       F       G       H       I
-                 1.82,  50.0,   8.0,  33.18,  28.82,  27.46,  12.82,  17.82,  8.72,
+                 1.82,  25.82,   8.0,  33.18,  28.82,  27.46,  12.82,  17.82,  8.72,
              //  J       K       L       M       N      O       P      Q       R       S
-                 13.27,  22.82,  16.46,  15.72,  39.0,  32.18,  48.0,  14.27,  15.72,  25.82
+                 13.27,  22.82,  16.46,  15.72,  39.0,  32.18,  48.0,  14.27,  15.72,  50.0
              };
             for (int c = 1; c <= colWidths.Length; c++)
                 ws.Column(c).Width = colWidths[c - 1];
