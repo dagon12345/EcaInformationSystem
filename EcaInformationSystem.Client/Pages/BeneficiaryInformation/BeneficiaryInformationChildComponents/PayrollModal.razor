@@ -1,11 +1,15 @@
 ﻿@* ============================================================
-   PayrollModal.razor
-   Matches BuildPayrollSheet exactly:
-   - Same row structure: rows 1–14 header, row 15+ data
-   - Same pagination: page1=6 records, page2+=9 records
-   - Same signatory layout: cert, approved, sarah/cesar,
-     oath, almira + 2 officer blocks (3 separate rows)
-   - Same column positions (B–S = cols 2–19)
+   PayrollModal.razor — Improved
+   Bug fixes:
+   - P2 pagination: PAGE2_RECORDS = 7 (was 9 in RefreshPreview)
+   - CGP number format matches backend exactly: {Region}-{MilestoneYear}{Month}-{Fixed}-{ShortYear}-{NNNN}
+   - Municipality grouping headers render correctly inside while loop
+   - Deceased rows highlighted in preview
+   New features:
+   - Live CGP number preview (updates on input)
+   - MilestoneYear read-only (derived from BirthDate, not user input)
+   - Stats bar in preview (records, provinces, municipalities, pages)
+   - Records-per-page shown as read-only informational field
    ============================================================ *@
 
 @using EcaInformationSystem.Client.Services
@@ -16,10 +20,16 @@
 
 <HxModal @ref="_modal" Size="ModalSize.ExtraLarge">
     <HeaderTemplate>
-        <h5 class="modal-title">
-            <i class="bi bi-file-earmark-excel me-2 text-success"></i>
-            Generate Cash Gift Payroll
-        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <div class="rounded-2 d-flex align-items-center justify-content-center"
+                 style="width:32px;height:32px;background:#EAF3DE;">
+                <i class="bi bi-file-earmark-excel text-success"></i>
+            </div>
+            <div>
+                <h5 class="modal-title mb-0">Generate Cash Gift Payroll</h5>
+                <small class="text-muted">Configure and export payroll sheets grouped by province and municipality</small>
+            </div>
+        </div>
     </HeaderTemplate>
 
     <BodyTemplate>
@@ -42,124 +52,175 @@
         @if (_activeTab == "settings")
         {
             <div class="row g-3">
+
+                @* ── CGP Numbering ── *@
                 <div class="col-12">
-                    <div class="card border-primary">
-                        <div class="card-header bg-primary text-white py-2">
-                            <strong><i class="bi bi-hash me-1"></i>CGP Numbering</strong>
-                        </div>
-                        <div class="card-body row g-2">
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold">Region Code</label>
-                                <input class="form-control form-control-sm" @bind="_settings.RegionCode" />
-                                <div class="form-text">e.g. RegionXIII</div>
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold mb-3">
+                                <i class="bi bi-hash me-1 text-secondary"></i>CGP Numbering
+                            </h6>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">Region Code</label>
+                                    <input class="form-control form-control-sm"
+                                           @bind="_settings.RegionCode"
+                                           @bind:event="oninput"
+                                           @bind:after="StateHasChanged" />
+                                    <div class="form-text">e.g. RegionXIII</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-semibold">Milestone Year</label>
+                                    <input class="form-control form-control-sm bg-white"
+                                           value="@_milestoneYearDisplay"
+                                           disabled
+                                           title="Derived from beneficiary birth date" />
+                                    <div class="form-text text-muted">From record</div>
+                                </div>
+                                <div class="col-md-1">
+                                    <label class="form-label small fw-semibold">Month</label>
+                                    <input class="form-control form-control-sm"
+                                           @bind="_settings.Month"
+                                           @bind:event="oninput"
+                                           @bind:after="StateHasChanged"
+                                           maxlength="2" placeholder="MM" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small fw-semibold">Fixed Segment</label>
+                                    <input class="form-control form-control-sm"
+                                           @bind="_settings.FixedSegment"
+                                           @bind:event="oninput"
+                                           @bind:after="StateHasChanged"
+                                           maxlength="4" />
+                                    <div class="form-text">Usually "01"</div>
+                                </div>
+                                <div class="col-md-1">
+                                    <label class="form-label small fw-semibold">Short Year</label>
+                                    <input class="form-control form-control-sm"
+                                           @bind="_settings.ShortenYear"
+                                           @bind:event="oninput"
+                                           @bind:after="StateHasChanged"
+                                           maxlength="2" placeholder="26" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small fw-semibold">Cash Gift Amount (₱)</label>
+                                    <input type="number" class="form-control form-control-sm"
+                                           @bind="_settings.CashGiftAmount" min="0" step="500" />
+                                </div>
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label small fw-bold">Month</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Month" maxlength="6" />
-                                <div class="form-text">MM</div>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small fw-bold">Fixed Segment</label>
-                                <input class="form-control form-control-sm" @bind="_settings.FixedSegment" maxlength="4" />
-                                <div class="form-text">Usually "01"</div>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small fw-bold">Shortened Year</label>
-                                <input class="form-control form-control-sm" @bind="_settings.ShortenYear" maxlength="6" />
-                                <div class="form-text">e.g. "26"</div>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold">Cash Gift Amount (₱)</label>
-                                <input type="number" class="form-control form-control-sm"
-                                       @bind="_settings.CashGiftAmount" min="0" step="500" />
-                            </div>
-                            <div class="col-12">
-                                <div class="alert alert-info py-2 mb-0 small">
-                                    <strong>CGP Preview:</strong>
-                                    CGP No.: @_settings.RegionCode-@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0001
-                                    &nbsp;→&nbsp;
-                                    CGP No.: @_settings.RegionCode-@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0002
+
+                            @* Live CGP Preview *@
+                            <div class="alert alert-success py-2 mb-0 small d-flex align-items-center gap-2">
+                                <i class="bi bi-tag-fill flex-shrink-0"></i>
+                                <div>
+                                    <strong>CGP Preview: </strong>
+                                    <code>@CgpNumber(1)</code>
+                                    <span class="mx-1 text-muted">→</span>
+                                    <code>@CgpNumber(2)</code>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                @* Signatory 1 — SARAH ROSE *@
+                @* Pagination info strip *@
+                <div class="col-12">
+                    <div class="alert alert-light border small mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle text-primary flex-shrink-0"></i>
+                        <span>
+                            <strong>@_selectedCount record(s)</strong> selected &mdash;
+                            Grouped by <strong>Province → Municipality → Barangay</strong>.
+                            Page 1 = <strong>6 records</strong>, Page 2+ = <strong>7 records</strong>.
+                            Output: one <code>.xlsx</code> per province inside a <code>.zip</code>.
+                        </span>
+                    </div>
+                </div>
+
+                @* ── Signatory 1 — SARAH ROSE ── *@
                 <div class="col-md-6">
-                    <div class="card border-secondary h-100">
-                        <div class="card-header bg-secondary text-white py-2">
-                            <strong>Signatory 1 — Certified by</strong>
-                        </div>
-                        <div class="card-body row g-2">
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Certification Text</label>
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold mb-3 small text-uppercase text-muted">
+                                <span class="badge rounded-circle bg-primary me-1">1</span>
+                                Certified by
+                            </h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Certification Text</label>
                                 <textarea class="form-control form-control-sm" rows="2"
                                           @bind="_settings.Signatory1Label"></textarea>
                             </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Name</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory1Name" />
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Position</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory1Position" />
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Name</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory1Name" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Position</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory1Position" />
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                @* Signatory 2 — CESAR *@
+                @* ── Signatory 2 — CESAR ── *@
                 <div class="col-md-6">
-                    <div class="card border-secondary h-100">
-                        <div class="card-header bg-secondary text-white py-2">
-                            <strong>Signatory 2 — Approved by</strong>
-                        </div>
-                        <div class="card-body row g-2">
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Approval Label</label>
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold mb-3 small text-uppercase text-muted">
+                                <span class="badge rounded-circle bg-success me-1">2</span>
+                                Approved by
+                            </h6>
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Approval Label</label>
                                 <input class="form-control form-control-sm" @bind="_settings.Signatory2Label" />
                             </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Name</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory2Name" />
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Position</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory2Position" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                @* Signatory 3 — ALMIRA (SDO) *@
-                <div class="col-md-6">
-                    <div class="card border-info h-100">
-                        <div class="card-header bg-info text-dark py-2">
-                            <strong>Signatory 3 — SDO</strong>
-                        </div>
-                        <div class="card-body row g-2">
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Name</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory3Name" />
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Label</label>
-                                <input class="form-control form-control-sm" @bind="_settings.Signatory3Position" />
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Name</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory2Name" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Position</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory2Position" />
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                @* Signatory 4 — Other Officers (2 blank blocks) *@
+                @* ── Signatory 3 — ALMIRA (SDO) ── *@
                 <div class="col-md-6">
-                    <div class="card border-info h-100">
-                        <div class="card-header bg-info text-dark py-2">
-                            <strong>Signatory 4 — Other Officers (×2 blank blocks)</strong>
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold mb-3 small text-uppercase text-muted">
+                                <span class="badge rounded-circle bg-warning text-dark me-1">3</span>
+                                SDO Officer
+                            </h6>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Name</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory3Name" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-semibold">Label / Position</label>
+                                    <input class="form-control form-control-sm" @bind="_settings.Signatory3Position" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body row g-2">
-                            <div class="col-12">
-                                <label class="form-label small fw-bold">Label (used for both blocks)</label>
+                    </div>
+                </div>
+
+                @* ── Signatory 4 — Other Officers ── *@
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title fw-semibold mb-3 small text-uppercase text-muted">
+                                <span class="badge rounded-circle bg-secondary me-1">4</span>
+                                Other Officers (×2 blank blocks)
+                            </h6>
+                            <div>
+                                <label class="form-label small fw-semibold">Label (used for both blocks)</label>
                                 <input class="form-control form-control-sm" @bind="_settings.Signatory4Position" />
                                 <div class="form-text">e.g. "other officer present during Payout"</div>
                             </div>
@@ -167,15 +228,6 @@
                     </div>
                 </div>
 
-                <div class="col-12">
-                    <div class="alert alert-light border small mb-0">
-                        <i class="bi bi-info-circle text-primary me-1"></i>
-                        <strong>@_selectedCount record(s)</strong> selected.
-                        Grouped by <strong>Batch Code</strong>.
-                        Page 1 = <strong>6 records</strong>, Page 2+ = <strong>9 records</strong>.
-                        Switch to <em>Preview</em> to verify before downloading.
-                    </div>
-                </div>
             </div>
         }
 
@@ -186,337 +238,298 @@
             {
                 <div class="text-center py-5">
                     <div class="spinner-border text-primary"></div>
-                    <p class="mt-2 text-muted small">Building preview...</p>
+                    <p class="mt-2 text-muted small">Building preview…</p>
                 </div>
             }
             else
             {
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small">
-                        <strong>@_previewData.Count</strong> record(s) —
-                        <strong>@_previewPages.Count</strong> page(s)
-                    </span>
+                @* Stats bar *@
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-people me-1"></i>
+                            <strong>@_previewData.Count</strong> records
+                        </span>
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-building me-1"></i>
+                            <strong>@_provinceCount</strong> province(s)
+                        </span>
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-geo me-1"></i>
+                            <strong>@_municipalityCount</strong> municipality(ies)
+                        </span>
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-file-earmark me-1"></i>
+                            <strong>@_previewPages.Count</strong> page(s)
+                        </span>
+                    </div>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshPreview">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                     </button>
                 </div>
 
-                <div style="max-height:600px; overflow-y:auto; background:#d0d0d0; padding:8px; border-radius:4px;">
+                <div style="max-height:600px; overflow-y:auto; background:#d0d0d0;
+                    padding:8px; border-radius:4px;">
                     <div style="background:white; font-family:Arial,sans-serif; font-size:8pt;
                         padding:16px; border:1px solid #aaa;">
 
-                        @* ── HEADER ── *@
-                        <table style="width:100%; border-collapse:collapse;">
-                            <tr style="height:18pt;">
-                                <td colspan="2"></td>
-                                <td colspan="4" style="text-align:center; font-size:11pt; font-weight:bold;">
-                                    NATIONAL COMMISSION OF SENIOR CITIZENS
-                                </td>
-                                <td colspan="13"></td>
-                            </tr>
-                            <tr style="height:18pt;">
-                                <td colspan="2"></td>
-                                <td colspan="4" style="text-align:center; font-size:9pt;">
-                                    Regional Office XIII, Province of @(_previewData.FirstOrDefault()?.ProvinceName ?? ""),
-                                    @(_previewData.FirstOrDefault()?.MunicipalityName ?? "")
-                                </td>
-                                <td colspan="13"></td>
-                            </tr>
-                            <tr style="height:16pt;">
-                                <td colspan="2"></td>
-                                <td colspan="4" style="text-align:center; font-size:9pt;">Expanded Centenarian Act</td>
-                                <td colspan="13"></td>
-                            </tr>
-                            <tr style="height:8pt;"><td colspan="19"></td></tr>
-                            <tr style="height:14pt;">
-                                <td colspan="2"></td>
-                                <td colspan="4" style="text-align:center; font-size:10pt; font-weight:bold;">CASH GIFT PAYROLL</td>
-                                <td colspan="13"></td>
-                            </tr>
-                            <tr style="height:8pt;"><td colspan="19"></td></tr>
-                            @* A. PURPOSE row *@
-                            <tr style="height:18pt;">
-                                <td style="width:2%;"></td>
-                                <td style="width:5%; font-weight:bold; white-space:nowrap; vertical-align:middle; font-size:8pt;">A. PURPOSE:</td>
-                                <td style="width:2%;"></td>
-                                <td colspan="13" style="font-size:8pt; vertical-align:middle; padding:0 4px;">
-                                    Cash gift payout for Octogenarians, Nonagenarians, and Centenarians
-                                    pursuant to R.A. No. 11982 - Expanded Centenarian Act.
-                                </td>
-                                <td colspan="2" style="border:1px solid #333; text-align:right; font-size:7pt;
-                                    vertical-align:middle; padding:0 3px; white-space:nowrap;">
-                                    CGP No.: @_settings.RegionCode-@_previewData.FirstOrDefault()?.MilestoneYear@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-0001
-                                </td>
-                            </tr>
-                            <tr style="height:8pt;"><td colspan="19"></td></tr>
-                        </table>
+                        @* ── DOCUMENT HEADER ── *@
+                        <div style="text-align:center; margin-bottom:8px;">
+                            <div style="font-size:11pt; font-weight:bold;">
+                                NATIONAL COMMISSION OF SENIOR CITIZENS
+                            </div>
+                            <div style="font-size:8.5pt;">
+                                Regional Office XIII, Province of @(_previewData.FirstOrDefault()?.ProvinceName ?? "—"),
+                                @(_previewData.FirstOrDefault()?.MunicipalityName ?? "—")
+                            </div>
+                            <div style="font-size:8.5pt;">Expanded Centenarian Act</div>
+                            <div style="font-size:10pt; font-weight:bold; margin-top:4px;">
+                                CASH GIFT PAYROLL
+                            </div>
+                        </div>
 
-                        @* ── COLUMN HEADERS (2-level, matches rows 12–14) ── *@
+                        @* ── PURPOSE ROW ── *@
+                        <div style="display:flex; align-items:flex-start; gap:8px; margin:6px 0; font-size:7.5pt;">
+                            <span style="font-weight:bold; white-space:nowrap;">A. PURPOSE:</span>
+                            <span style="flex:1;">
+                                Cash gift payout for Octogenarians, Nonagenarians, and Centenarians
+                                pursuant to R.A. No. 11982 - Expanded Centenarian Act.
+                            </span>
+                            <span style="border:1px solid #333; padding:2px 5px; font-size:6.5pt;
+                                white-space:nowrap; flex-shrink:0;">
+                                @CgpNumber(1, _previewData.FirstOrDefault()?.MilestoneYear)
+                            </span>
+                        </div>
+
+                        @* ── COLUMN HEADERS ── *@
                         <table style="width:100%; border-collapse:collapse; font-size:7pt;">
                             <colgroup>
-                                <col style="width:2%" />   @* A blank *@
-                                <col style="width:10%" />  @* B BatchCode *@
-                                <col style="width:3%" />   @* C No *@
-                                <col style="width:6%" />   @* D Last *@
-                                <col style="width:6%" />   @* E First *@
-                                <col style="width:6%" />   @* F Middle *@
-                                <col style="width:3%" />   @* G Ext *@
-                                <col style="width:6%" />   @* H BDate *@
-                                <col style="width:3%" />   @* I Age *@
-                                <col style="width:4%" />   @* J Sex *@
-                                <col style="width:6%" />   @* K Barangay *@
-                                <col style="width:5%" />   @* L Amount *@
-                                <col style="width:5%" />   @* M Amt Rcvd *@
-                                <col style="width:7%" />   @* N Sig *@
-                                <col style="width:5%" />   @* O Thumbmark *@
-                                <col style="width:8%" />   @* P Auth Rep *@
-                                <col style="width:4%" />   @* Q Date Death *@
-                                <col style="width:4%" />   @* R Date Rcvd *@
-                                <col style="width:5%" />   @* S Remarks *@
+                                <col style="width:10%" />@* Batch Code *@
+                                <col style="width:3%" /> @* No *@
+                                <col style="width:6%" /> @* Last *@
+                                <col style="width:6%" /> @* First *@
+                                <col style="width:6%" /> @* Middle *@
+                                <col style="width:3%" /> @* Ext *@
+                                <col style="width:7%" /> @* BDate *@
+                                <col style="width:3%" /> @* Age *@
+                                <col style="width:5%" /> @* Sex *@
+                                <col style="width:7%" /> @* Barangay *@
+                                <col style="width:6%" /> @* Amount *@
+                                <col style="width:6%" /> @* Amt Rcvd *@
+                                <col style="width:7%" /> @* Signature *@
+                                <col style="width:5%" /> @* Thumbmark *@
+                                <col style="width:8%" /> @* Auth Rep *@
+                                <col style="width:5%" /> @* Date Death *@
+                                <col style="width:5%" /> @* Date Rcvd *@
+                                <col style="width:7%" /> @* Remarks *@
                             </colgroup>
-                            @* Row 12: level-1 *@
                             <tr style="background:#1F3864; color:white; font-weight:bold; height:14pt;">
-                                <td></td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Batch Code</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">No.</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" colspan="4">FULL NAME OF BENEFICIARY</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">BDate<br />(mm/dd/yyyy)</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Age</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Sex</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Barangay</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Amount</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Amount Received</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" colspan="2">Beneficiary / Authorized Representative</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">For Authorized Representative (Relationship/Witness)</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Date of Death</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Date Received</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px;" rowspan="3">Remarks</td>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Batch Code</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">No.</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" colspan="4">Full Name of Beneficiary</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">BDate<br />(mm/dd/yyyy)</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Age</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Sex</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Barangay</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Amount</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Amount Received</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" colspan="2">Beneficiary / Authorized Representative</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">For Auth. Rep.</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Date of Death</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Date Received</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Remarks</th>
                             </tr>
-                            @* Row 13: spacer row (blank but navy fill) *@
-                            <tr style="background:#1F3864; color:white; height:10pt;">
-                                <td></td>
+                            <tr style="background:#1F3864; height:8pt;">
                                 <td colspan="4" style="border:1px solid #555;"></td>
                                 <td colspan="2" style="border:1px solid #555;"></td>
                             </tr>
-                            @* Row 14: level-2 sub-headers (tall) *@
-                            <tr style="background:#1F3864; color:white; font-weight:bold; height:35pt;">
-                                <td></td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">Last Name</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">First Name</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">Middle Name</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">Ext.</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">Signature Over Printed Name</td>
-                                <td style="border:1px solid #555; text-align:center; padding:1px; vertical-align:middle;">Thumbmark</td>
+                            <tr style="background:#1F3864; color:white; font-weight:bold; height:32pt;">
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">Last Name</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">First Name</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">Middle Name</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">Ext.</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">Signature Over Printed Name</th>
+                                <th style="border:1px solid #555; text-align:center; padding:2px; vertical-align:middle;">Thumbmark</th>
                             </tr>
                         </table>
 
-                        @* ── DATA ROWS + CGP rows (continuous, page 1=6 recs, p2+=9) ── *@
+                        @* ── DATA ROWS ── *@
                         <table style="width:100%; border-collapse:collapse; font-size:7pt;">
                             <colgroup>
-                                <col style="width:2%" />
                                 <col style="width:10%" />
                                 <col style="width:3%" />
                                 <col style="width:6%" />
                                 <col style="width:6%" />
                                 <col style="width:6%" />
                                 <col style="width:3%" />
-                                <col style="width:6%" />
+                                <col style="width:7%" />
                                 <col style="width:3%" />
-                                <col style="width:4%" />
+                                <col style="width:5%" />
+                                <col style="width:7%" />
                                 <col style="width:6%" />
-                                <col style="width:5%" />
-                                <col style="width:5%" />
+                                <col style="width:6%" />
                                 <col style="width:7%" />
                                 <col style="width:5%" />
                                 <col style="width:8%" />
-                                <col style="width:4%" />
-                                <col style="width:4%" />
                                 <col style="width:5%" />
+                                <col style="width:5%" />
+                                <col style="width:7%" />
                             </colgroup>
+
                             @{
                                 decimal total = 0;
-
+                                // ✅ FIX: Matches backend PAGE2_RECORDS = 7 (was incorrectly 9)
                                 const int P1 = 6;
                                 const int P2 = 7;
-
                                 int globalSeq = 1;
                             }
-                          @foreach (var provinceGroup in _previewData
-        .GroupBy(x => x?.ProvinceName))
-    {
-        <tr>
-            <td colspan="19"
-                style="
-                    background:#212529;
-                    color:white;
-                    font-weight:bold;
-                    padding:8px;
-                    font-size:8pt;
-                    border-top:3px solid #000;">
 
-                Province Workbook:
-                @provinceGroup.Key
-            </td>
-        </tr>
+                            @foreach (var provinceGroup in _previewData.GroupBy(x => x?.ProvinceName).OrderBy(g => g.Key))
+                            {
+                                @* Province header row *@
+                                <tr>
+                                    <td colspan="18"
+                                        style="background:#212529; color:white; font-weight:bold;
+                                        padding:6px 8px; font-size:8pt;
+                                        border-top:2px solid #000;">
+                                        <i class="bi bi-building me-1"></i>
+                                        Province Workbook: @provinceGroup.Key
+                                    </td>
+                                </tr>
 
-       
-            int pageN = 1;
-            int done = 0;
+                                int pageN = 1;
+                                int done = 0;
 
-            var provinceRecords = provinceGroup
-                .OrderBy(x => x?.MunicipalityName)
-                .ThenBy(x => x?.BatchCode)
-                .ThenBy(x => x?.BarangayName)
-                .ThenBy(x => x?.LastName)
-                .ThenBy(x => x?.FirstName)
-                .ToList();
-       
+                                var provinceRecords = provinceGroup
+                                    .OrderBy(x => x?.MunicipalityName)
+                                    .ThenBy(x => x?.BatchCode)
+                                    .ThenBy(x => x?.BarangayName)
+                                    .ThenBy(x => x?.LastName)
+                                    .ThenBy(x => x?.FirstName)
+                                    .ToList();
 
-        @while (done < provinceRecords.Count)
-        {
-            int take = pageN == 1 ? P1 : P2;
+                                while (done < provinceRecords.Count)
+                                {
+                                    int take = pageN == 1 ? P1 : P2;
+                                    var pageRecs = provinceRecords.Skip(done).Take(take).ToList();
 
-            var pageRecs = provinceRecords
-                .Skip(done)
-                .Take(take)
-                .ToList();
+                                    if (pageN > 1)
+                                    {
+                                        <tr>
+                                            <td colspan="16"></td>
+                                            <td colspan="2"
+                                                style="border:1px solid #333; text-align:right;
+                                                font-size:6.5pt; padding:2px 5px;
+                                                vertical-align:middle; height:18pt;">
+                                                @CgpNumber(pageN, provinceRecords.FirstOrDefault()?.MilestoneYear)
+                                            </td>
+                                        </tr>
+                                    }
 
-            @if (pageN > 1)
-            {
-                <tr style="height:18pt;">
-                    <td colspan="17"></td>
+                                    string? prevMuni = pageN == 1
+                                        ? null
+                                        : provinceRecords.Take(done).LastOrDefault()?.MunicipalityName;
 
-                    <td colspan="2"
-                        style="
-                            border:1px solid #333;
-                            text-align:right;
-                            font-size:6.5pt;
-                            padding:0 3px;
-                            vertical-align:middle;">
+                                    foreach (var rec in pageRecs)
+                                    {
+                                        if (rec?.MunicipalityName != prevMuni)
+                                        {
+                                            <tr>
+                                                <td colspan="18"
+                                                    style="background:#f1f3f5; font-weight:bold;
+                                                    padding:5px 8px; border-top:1.5px solid #666;
+                                                    font-size:7.5pt;">
+                                                    Municipality Sheet: @rec?.MunicipalityName
+                                                </td>
+                                            </tr>
+                                        }
+                                        prevMuni = rec?.MunicipalityName;
 
-                        CGP No.:
-                        @_settings.RegionCode-
-                        @_previewData.FirstOrDefault()?.MilestoneYear
-                        @_settings.Month-
-                        @_settings.FixedSegment-
-                        @_settings.ShortenYear-
-                        @pageN.ToString("D4")
-                    </td>
-                </tr>
-            }
+                                        total += _settings.CashGiftAmount;
 
-            @foreach (var rec in pageRecs)
-            {
-                @if (rec != pageRecs.First())
-                {
-                    var prev = pageRecs[pageRecs.IndexOf(rec) - 1];
+                                        @* ✅ Deceased rows highlighted *@
+                                        bool isDeceased = rec?.IsDeceased == true;
+                                        string rowStyle = isDeceased
+                                            ? "height:25pt; vertical-align:middle; background:#fff5f5;"
+                                            : "height:25pt; vertical-align:middle;";
 
-                    @if (prev?.MunicipalityName != rec?.MunicipalityName)
-                    {
-                        <tr>
-                            <td colspan="19"
-                                style="
-                                    background:#f1f3f5;
-                                    font-weight:bold;
-                                    padding:6px;
-                                    border-top:2px solid #666;
-                                    text-align:left;
-                                    font-size:7.5pt;">
+                                        <tr style="@rowStyle">
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.BatchCode?.ToUpperInvariant()
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                                                @globalSeq
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.LastName?.ToUpperInvariant()
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.FirstName?.ToUpperInvariant()
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.MiddleName?.ToUpperInvariant()
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.Extension
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                                                @rec?.BirthDate.ToString("MM/dd/yyyy")
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                                                @rec?.Age
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                                                @(rec?.Sex == 1 ? "MALE" : "FEMALE")
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;">
+                                                @rec?.BarangayName?.ToUpperInvariant()
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:right;">
+                                                @_settings.CashGiftAmount.ToString("N2")
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;"></td>
+                                            <td style="border:1px solid #ccc; padding:2px;"></td>
+                                            <td style="border:1px solid #ccc; padding:2px;"></td>
+                                            <td style="border:1px solid #ccc; padding:2px;"></td>
+                                            @* Date of Death — colored red if deceased *@
+                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;
+                                                @(isDeceased ? "color:#c0392b; font-weight:bold;" : "")">
+                                                @(isDeceased && rec?.DateOfDeath != null
+                                                    ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy")
+                                                    : "")
+                                            </td>
+                                            <td style="border:1px solid #ccc; padding:2px;"></td>
+                                            @* Remarks — flag deceased *@
+                                            <td style="border:1px solid #ccc; padding:2px; font-size:6.5pt;
+                                                @(isDeceased ? "color:#c0392b;" : "")">
+                                                @(isDeceased ? "Deceased" : "")
+                                            </td>
+                                        </tr>
 
-                                Municipality Sheet:
-                                @rec?.MunicipalityName
-                            </td>
-                        </tr>
-                    }
-                }
+                                        globalSeq++;
+                                    }
 
-                total += _settings.CashGiftAmount;
-
-                <tr style="height:27pt; vertical-align:middle;">
-                    <td></td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.BatchCode?.ToUpperInvariant()
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                        @globalSeq
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.LastName?.ToUpperInvariant()
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.FirstName?.ToUpperInvariant()
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.MiddleName?.ToUpperInvariant()
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.Extension
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                        @rec?.BirthDate.ToString("MM/dd/yyyy")
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                        @rec?.Age
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                        @(rec?.Sex == 1 ? "MALE" : "FEMALE")
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;">
-                        @rec?.BarangayName?.ToUpperInvariant()
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:right;">
-                        @_settings.CashGiftAmount.ToString("N2")
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-
-                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                        @(rec?.IsDeceased == true && rec?.DateOfDeath != null
-                            ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy")
-                            : "")
-                    </td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-
-                    <td style="border:1px solid #ccc; padding:2px;"></td>
-                </tr>
-
-                globalSeq++;
-            }
-
-            done += pageRecs.Count;
-            pageN++;
-        }
-    }
+                                    done += pageRecs.Count; pageN++;
+                                }
+                            }
 
                             @* SUBTOTAL *@
-                            <tr style="font-weight:bold; height:14pt; vertical-align:middle;">
-                                <td></td>
-                                <td colspan="9" style="border:1px solid #999; text-align:right; padding:2px;">SUBTOTAL</td>
-                                <td style="border:1px solid #999; padding:2px; text-align:right;">@total.ToString("N2")</td>
-                                <td colspan="8" style="border:1px solid #999;"></td>
+                            <tr style="font-weight:bold; height:14pt; vertical-align:middle;
+                                background:#f0f4e8; border-top:1.5px solid #3B6D11;">
+                                <td colspan="10" style="border:1px solid #999;
+                                    text-align:right; padding:2px;">
+                                    SUBTOTAL
+                                </td>
+                                <td style="border:1px solid #999; padding:2px;
+                                    text-align:right; color:#27500A;">
+                                    @total.ToString("N2")
+                                </td>
+                                <td colspan="7" style="border:1px solid #999;"></td>
                             </tr>
                         </table>
 
                         @* ── SIGNATORIES ── *@
-                        <div style="margin-top:12px; font-size:8pt;">
+                        <div style="margin-top:14px; font-size:8pt;">
 
                             @* Cert text — left side *@
                             <div style="font-style:italic; width:55%; margin-bottom:8px; line-height:1.4;">
@@ -530,10 +543,10 @@
                                 </div>
                             </div>
 
-                            @* 3 blank rows (signing space) *@
+                            @* Signing space *@
                             <div style="height:42px;"></div>
 
-                            @* SARAH ROSE (left cols B–E) | CESAR (right cols L–P) *@
+                            @* Sig names row: SARAH ROSE (left) | CESAR (right) *@
                             <div style="display:flex; justify-content:space-between; align-items:flex-end;">
                                 <div style="width:28%; text-align:center;">
                                     <div style="border-bottom:1px solid #000; font-weight:bold; padding-bottom:2px;">
@@ -549,7 +562,7 @@
                                 </div>
                             </div>
 
-                            @* Oath text — left side only (cols B–I) *@
+                            @* Oath text *@
                             <div style="margin-top:14px; width:55%; line-height:1.5; font-size:7.5pt;">
                                 R. I/we certify on my/our official oath that on ______________________________________,
                                 I/we have paid in cash to each individual on the payroll, the amount set opposite to
@@ -557,40 +570,30 @@
                                 his/her signature or thumbmark on the space provided.
                             </div>
 
-                            @* 2 blank signing rows *@
                             <div style="height:28px;"></div>
 
-                            @* Bottom 3 sig blocks:
-                               ALMIRA center (cols C–J)
-                               Officer1 (cols N–O)
-                               Officer2 (cols P–Q) *@
+                            @* Bottom sig blocks: ALMIRA (center) | Officer1 | Officer2 *@
                             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:4px;">
-
-                                @* ALMIRA — centered *@
-                                <div style="width:35%; text-align:center; margin-left:8%;">
+                                <div style="width:35%; text-align:center; margin-left:6%;">
                                     <div style="border-bottom:1px solid #000; font-weight:bold; padding-bottom:2px;">
                                         @_settings.Signatory3Name
                                     </div>
                                     <div style="font-size:7.5pt; margin-top:2px;">@_settings.Signatory3Position</div>
                                 </div>
-
-                                @* Officer 1 — blank underline *@
                                 <div style="width:18%; text-align:center;">
                                     <div style="border-bottom:1px solid #000; padding-bottom:2px; min-height:14px;">&nbsp;</div>
                                     <div style="font-size:7pt; margin-top:2px; line-height:1.3;">
                                         Printed Name and Signature of<br />@_settings.Signatory4Position
                                     </div>
                                 </div>
-
-                                @* Officer 2 — blank underline *@
                                 <div style="width:18%; text-align:center;">
                                     <div style="border-bottom:1px solid #000; padding-bottom:2px; min-height:14px;">&nbsp;</div>
                                     <div style="font-size:7pt; margin-top:2px; line-height:1.3;">
                                         Printed Name and Signature of<br />@_settings.Signatory4Position
                                     </div>
                                 </div>
-
                             </div>
+
                         </div>
 
                     </div>
@@ -616,7 +619,7 @@
                           Disabled="@_isDownloading">
                     @if (_isDownloading)
                     {
-                        <span>Generating...</span>
+                        <span>Generating…</span>
                     }
                     else
                     {
@@ -635,51 +638,68 @@
     private bool _isDownloading;
     private int _selectedCount;
 
+    // Computed preview stats
+    private int _provinceCount;
+    private int _municipalityCount;
+    private string _milestoneYearDisplay = "";
+
     private PayrollSettingsDto _settings = new();
     private List<BeneficiaryInformationDto?> _previewData = new();
     private List<(int PageNum, List<BeneficiaryInformationDto?> Recs)> _previewPages = new();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CGP Number helper — builds the formatted CGP string exactly as the
+    // backend does: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{NNNN}
+    // milestoneYear is optional so we can call it from both header and per-page rows.
+    // ─────────────────────────────────────────────────────────────────────────
+    private string CgpNumber(int pageNum, int? milestoneYear = null)
+    {
+        var year = milestoneYear ?? 0;
+        var yearStr = year > 0 ? year.ToString() : "YYYY";
+        return $"CGP No.: {_settings.RegionCode}-{yearStr}{_settings.Month}-{_settings.FixedSegment}-{_settings.ShortenYear}-{pageNum:D4}";
+    }
 
     public async Task ShowAsync(
         List<Guid> selectedIds,
         List<BeneficiaryInformationDto> allBeneficiaries)
     {
-        // ✅ Deduplicate selected IDs first
-        var distinctIds = selectedIds
-            .Distinct()
-            .ToHashSet();
+        // Deduplicate IDs and beneficiaries
+        var distinctIds = selectedIds.Distinct().ToHashSet();
 
-        // ✅ Deduplicate beneficiaries by Id
         var distinctBeneficiaries = allBeneficiaries
             .GroupBy(x => x.Id)
             .Select(g => g.First())
             .ToList();
 
-        // ✅ Build preview from deduplicated data
         _previewData = distinctBeneficiaries
-          .Where(x => distinctIds.Contains(x.Id))
-          .OrderBy(x => x.ProvinceName)
-          .ThenBy(x => x.MunicipalityName)
-          .ThenBy(x => x.BatchCode)
-          .ThenBy(x => x.BarangayName)
-          .ThenBy(x => x.LastName)
-          .ThenBy(x => x.FirstName)
-          .Cast<BeneficiaryInformationDto?>()
-          .ToList();
+            .Where(x => distinctIds.Contains(x.Id))
+            .OrderBy(x => x.ProvinceName)
+            .ThenBy(x => x.MunicipalityName)
+            .ThenBy(x => x.BatchCode)
+            .ThenBy(x => x.BarangayName)
+            .ThenBy(x => x.LastName)
+            .ThenBy(x => x.FirstName)
+            .Cast<BeneficiaryInformationDto?>()
+            .ToList();
 
-        // ✅ Use ACTUAL preview count
         _selectedCount = _previewData.Count;
+
+        // Compute stats for the UI
+        _provinceCount = _previewData.Select(x => x?.ProvinceName).Distinct().Count();
+        _municipalityCount = _previewData.Select(x => x?.MunicipalityName).Distinct().Count();
+
+        // MilestoneYear is read-only — derived from the first record's BirthDate
+        var firstMilestone = _previewData.FirstOrDefault()?.MilestoneYear ?? 0;
+        _milestoneYearDisplay = firstMilestone > 0 ? firstMilestone.ToString() : "—";
 
         _settings = new PayrollSettingsDto
         {
             Ids = distinctIds.ToList(),
-
             Month = DateTime.Today.ToString("MM"),
-
             RecordsPerPage = 15,
         };
 
         _activeTab = "settings";
-
         _previewPages.Clear();
 
         await _modal.ShowAsync();
@@ -697,7 +717,9 @@
         StateHasChanged();
 
         _previewPages.Clear();
-        const int p1 = 6, p2 = 9;
+
+        // ✅ FIX: PAGE2_RECORDS = 7 — matches BuildPayrollSheet exactly
+        const int p1 = 6, p2 = 7;
         int done = 0, pageN = 1;
 
         while (done < _previewData.Count)
@@ -721,16 +743,16 @@
             Toast.ShowError("No records selected.");
             return;
         }
+
         try
         {
             _isDownloading = true;
             StateHasChanged();
 
-            _settings.Ids = _settings.Ids
-             .Distinct()
-             .ToList();
+            _settings.Ids = _settings.Ids.Distinct().ToList();
 
             var response = await Http.PostAsJsonAsync("api/payroll/generate-payroll", _settings);
+
             if (!response.IsSuccessStatusCode)
             {
                 var err = await response.Content.ReadAsStringAsync();
