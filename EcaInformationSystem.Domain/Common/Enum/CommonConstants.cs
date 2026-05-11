@@ -120,7 +120,7 @@ namespace EcaInformationSystem.Domain.Common.Enum
 
         public const string RegionalOfficeProvinceOf = "Regional Office XIII, Province of";
         public const string CashGiftPayroll = "Cash Gift Payroll";
-        public const string Apurpose = "A. PURPOSE";
+        public const string Apurpose = "A. PURPOSE:";
         public const string PayrollPurpose = "Cash gift payout for Octogenarians, Nonagenarians, and Centenarians pursuant to R.A. No. 11982 - Expanded Centenarian Act.";
         public const string CgpNo = "CGP No.:";
         public const string DefaultOrderNo = "0001";

@@ -29,11 +29,11 @@ namespace EcaInformationSystem.Api.Controllers
             try
             {
                 var fileBytes = await _beneficiaryInformationService.GeneratePayrollAsync(settings);
-                var fileName = $"CashGiftPayroll_{DateTime.Today:yyyy-MM-dd}.xlsx";
+                var fileName = $"CashGiftPayroll_{DateTime.Today:yyyy-MM-dd}.zip";
 
                 return File(
                     fileBytes,
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/zip",
                     fileName);
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }

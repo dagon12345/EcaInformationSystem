@@ -334,64 +334,177 @@
                                 <col style="width:5%" />
                             </colgroup>
                             @{
-                                int seq = 1;
-                                int pageN = 1;
-                                int done = 0;
                                 decimal total = 0;
+
                                 const int P1 = 6;
-                                const int P2 = 9;
+                                const int P2 = 7;
+
+                                int globalSeq = 1;
                             }
-                            @while (done < _previewData.Count)
-                            {
-                                int take = pageN == 1 ? P1 : P2;
-                                var pageRecs = _previewData.Skip(done).Take(take).ToList();
+                          @foreach (var provinceGroup in _previewData
+        .GroupBy(x => x?.ProvinceName))
+    {
+        <tr>
+            <td colspan="19"
+                style="
+                    background:#212529;
+                    color:white;
+                    font-weight:bold;
+                    padding:8px;
+                    font-size:8pt;
+                    border-top:3px solid #000;">
 
-                                @* CGP row for pages 2+ *@
-                                @if (pageN > 1)
-                                {
-                                    <tr style="height:18pt;">
-                                        <td colspan="17"></td>
-                                        <td colspan="2" style="border:1px solid #333; text-align:right;
-                                            font-size:6.5pt; padding:0 3px; vertical-align:middle;">
-                                            CGP No.: @_settings.RegionCode-@_previewData.FirstOrDefault()?.MilestoneYear@_settings.Month-@_settings.FixedSegment-@_settings.ShortenYear-@pageN.ToString("D4")
-                                        </td>
-                                    </tr>
-                                }
+                Province Workbook:
+                @provinceGroup.Key
+            </td>
+        </tr>
 
-                                @* Data rows — uniform height (matches DATA_ROW_HT=35) *@
-                                @foreach (var rec in pageRecs)
-                                {
-                                    total += _settings.CashGiftAmount;
-                                    <tr style="height:27pt; vertical-align:middle;">
-                                        <td></td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.BatchCode?.ToUpperInvariant()</td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:center;">@seq</td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.LastName?.ToUpperInvariant()</td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.FirstName?.ToUpperInvariant()</td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.MiddleName?.ToUpperInvariant()</td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.Extension</td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:center;">@rec?.BirthDate.ToString("MM/dd/yyyy")</td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:center;">@rec?.Age</td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:center;">@(rec?.Sex == 1 ? "MALE" : "FEMALE")</td>
-                                        <td style="border:1px solid #ccc; padding:2px;">@rec?.BarangayName?.ToUpperInvariant()</td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:right;">@_settings.CashGiftAmount.ToString("N2")</td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                        <td style="border:1px solid #ccc; padding:2px; text-align:center;">
-                                            @(rec?.IsDeceased == true && rec?.DateOfDeath != null
-                                                ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy") : "")
-                                        </td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                        <td style="border:1px solid #ccc; padding:2px;"></td>
-                                    </tr>
-                                    seq++;
-                                }
+       
+            int pageN = 1;
+            int done = 0;
 
-                                done += pageRecs.Count;
-                                pageN++;
-                            }
+            var provinceRecords = provinceGroup
+                .OrderBy(x => x?.MunicipalityName)
+                .ThenBy(x => x?.BatchCode)
+                .ThenBy(x => x?.BarangayName)
+                .ThenBy(x => x?.LastName)
+                .ThenBy(x => x?.FirstName)
+                .ToList();
+       
+
+        @while (done < provinceRecords.Count)
+        {
+            int take = pageN == 1 ? P1 : P2;
+
+            var pageRecs = provinceRecords
+                .Skip(done)
+                .Take(take)
+                .ToList();
+
+            @if (pageN > 1)
+            {
+                <tr style="height:18pt;">
+                    <td colspan="17"></td>
+
+                    <td colspan="2"
+                        style="
+                            border:1px solid #333;
+                            text-align:right;
+                            font-size:6.5pt;
+                            padding:0 3px;
+                            vertical-align:middle;">
+
+                        CGP No.:
+                        @_settings.RegionCode-
+                        @_previewData.FirstOrDefault()?.MilestoneYear
+                        @_settings.Month-
+                        @_settings.FixedSegment-
+                        @_settings.ShortenYear-
+                        @pageN.ToString("D4")
+                    </td>
+                </tr>
+            }
+
+            @foreach (var rec in pageRecs)
+            {
+                @if (rec != pageRecs.First())
+                {
+                    var prev = pageRecs[pageRecs.IndexOf(rec) - 1];
+
+                    @if (prev?.MunicipalityName != rec?.MunicipalityName)
+                    {
+                        <tr>
+                            <td colspan="19"
+                                style="
+                                    background:#f1f3f5;
+                                    font-weight:bold;
+                                    padding:6px;
+                                    border-top:2px solid #666;
+                                    text-align:left;
+                                    font-size:7.5pt;">
+
+                                Municipality Sheet:
+                                @rec?.MunicipalityName
+                            </td>
+                        </tr>
+                    }
+                }
+
+                total += _settings.CashGiftAmount;
+
+                <tr style="height:27pt; vertical-align:middle;">
+                    <td></td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.BatchCode?.ToUpperInvariant()
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                        @globalSeq
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.LastName?.ToUpperInvariant()
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.FirstName?.ToUpperInvariant()
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.MiddleName?.ToUpperInvariant()
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.Extension
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                        @rec?.BirthDate.ToString("MM/dd/yyyy")
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                        @rec?.Age
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                        @(rec?.Sex == 1 ? "MALE" : "FEMALE")
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;">
+                        @rec?.BarangayName?.ToUpperInvariant()
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:right;">
+                        @_settings.CashGiftAmount.ToString("N2")
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+
+                    <td style="border:1px solid #ccc; padding:2px; text-align:center;">
+                        @(rec?.IsDeceased == true && rec?.DateOfDeath != null
+                            ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy")
+                            : "")
+                    </td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+
+                    <td style="border:1px solid #ccc; padding:2px;"></td>
+                </tr>
+
+                globalSeq++;
+            }
+
+            done += pageRecs.Count;
+            pageN++;
+        }
+    }
 
                             @* SUBTOTAL *@
                             <tr style="font-weight:bold; height:14pt; vertical-align:middle;">
@@ -503,7 +616,6 @@
                           Disabled="@_isDownloading">
                     @if (_isDownloading)
                     {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
                         <span>Generating...</span>
                     }
                     else
@@ -527,26 +639,49 @@
     private List<BeneficiaryInformationDto?> _previewData = new();
     private List<(int PageNum, List<BeneficiaryInformationDto?> Recs)> _previewPages = new();
 
-    public async Task ShowAsync(List<Guid> selectedIds, List<BeneficiaryInformationDto> allBeneficiaries)
+    public async Task ShowAsync(
+        List<Guid> selectedIds,
+        List<BeneficiaryInformationDto> allBeneficiaries)
     {
-        _selectedCount = selectedIds.Count;
-        _previewData = allBeneficiaries
-            .Where(x => selectedIds.Contains(x.Id))
-            .OrderBy(x => x.BatchCode)
-            .ThenBy(x => x.BarangayName)  // ✅ use helper — not JsonElement?
-            .ThenBy(x => x.LastName)
-            .Cast<BeneficiaryInformationDto?>()
+        // ✅ Deduplicate selected IDs first
+        var distinctIds = selectedIds
+            .Distinct()
+            .ToHashSet();
+
+        // ✅ Deduplicate beneficiaries by Id
+        var distinctBeneficiaries = allBeneficiaries
+            .GroupBy(x => x.Id)
+            .Select(g => g.First())
             .ToList();
+
+        // ✅ Build preview from deduplicated data
+        _previewData = distinctBeneficiaries
+          .Where(x => distinctIds.Contains(x.Id))
+          .OrderBy(x => x.ProvinceName)
+          .ThenBy(x => x.MunicipalityName)
+          .ThenBy(x => x.BatchCode)
+          .ThenBy(x => x.BarangayName)
+          .ThenBy(x => x.LastName)
+          .ThenBy(x => x.FirstName)
+          .Cast<BeneficiaryInformationDto?>()
+          .ToList();
+
+        // ✅ Use ACTUAL preview count
+        _selectedCount = _previewData.Count;
 
         _settings = new PayrollSettingsDto
         {
-            Ids = selectedIds,
+            Ids = distinctIds.ToList(),
+
             Month = DateTime.Today.ToString("MM"),
+
             RecordsPerPage = 15,
         };
 
         _activeTab = "settings";
+
         _previewPages.Clear();
+
         await _modal.ShowAsync();
     }
 
@@ -591,6 +726,10 @@
             _isDownloading = true;
             StateHasChanged();
 
+            _settings.Ids = _settings.Ids
+             .Distinct()
+             .ToList();
+
             var response = await Http.PostAsJsonAsync("api/payroll/generate-payroll", _settings);
             if (!response.IsSuccessStatusCode)
             {
@@ -601,11 +740,11 @@
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
             var base64 = Convert.ToBase64String(bytes);
-            var file = $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.xlsx";
+            var file = $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.zip";
             await JS.InvokeVoidAsync("downloadFile", file, base64);
 
             await _modal.HideAsync();
-            Toast.ShowSuccess($"Payroll downloaded — {_settings.Ids.Count} record(s).");
+            Toast.ShowSuccess($"Payroll downloaded — {_previewData.Count} record(s).");
         }
         catch (Exception ex)
         {
