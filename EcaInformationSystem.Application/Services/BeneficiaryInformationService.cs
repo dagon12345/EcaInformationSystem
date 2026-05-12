@@ -1400,11 +1400,13 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // 🔥 MAP FIELDS
+                    var batchCode = row.Cell(1).GetFormattedString().Trim();
                     var isEligible = MapEligibility(row.Cell(28).GetFormattedString());
                     var dateOfDeath = ParseFlexibleDate(row.Cell(22).GetFormattedString());
                     var validationDate = row.Cell(20).Value;
 
                     // 🔥 UPDATE ONLY
+                    existing.BatchCode = batchCode;
                     existing.IsEligible = isEligible.HasValue ? isEligible.Value : false;
                     existing.DateOfDeath = dateOfDeath;
                     existing.ValidationDate = validationDate;
