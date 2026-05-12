@@ -514,6 +514,17 @@ namespace EcaInformationSystem.Application.Services
         }
         #region Excel Updating/Importing and creating Payroll - START
 
+        // ============================================================
+        // Drop-in replacement for BuildPayrollSheet + GeneratePayrollAsync
+        // Fixes:
+        //   1. continousNo  — already global across the ZIP; no change needed there.
+        //   2. CGP page number — now passed in by ref so it continues across
+        //      every municipality sheet inside the same province workbook.
+        //   3. Empty-last-page — when total records == PAGE1_RECORDS (6),
+        //      page 1 is reduced to PAGE1_RECORDS-1 (5) so page 2 gets at
+        //      least one data row instead of just a footer.
+        // ============================================================
+
         public async Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings)
         {
             if (settings.Ids == null || !settings.Ids.Any())
@@ -523,7 +534,10 @@ namespace EcaInformationSystem.Application.Services
             if (!allData.Any())
                 throw new InvalidOperationException(CommonConstants.NoneOfTheRecordsFound);
 
-            int continousNo = 1; // Global counter: remains continuous across ALL file
+            // Both counters are global across the entire ZIP —
+            // they never reset between provinces or municipalities.
+            int continousNo = 1;
+            int cgpPageNumber = 1;
 
             byte[] finalizedResult;
 
@@ -531,74 +545,151 @@ namespace EcaInformationSystem.Application.Services
             {
                 using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
                 {
-                    //2. group by province
                     var provinceGroups = allData
-                                        .GroupBy(x => x.ProvinceName)
-                                        .OrderBy(g => g.Key);
+                        .GroupBy(x => x.ProvinceName)
+                        .OrderBy(g => g.Key);
 
                     foreach (var provinceGroup in provinceGroups)
                     {
-                        string province = provinceGroup.Key ?? "Unkown Province";
+                        string province = provinceGroup.Key ?? "Unknown Province";
 
                         using (var workbookNew = new XLWorkbook())
                         {
                             var muniGroups = provinceGroup
-                                        .GroupBy(x => (x.MunicipalityName).ToUpperInvariant())
-                                        .OrderBy(g => g.Key);
+                                .GroupBy(x => (x.MunicipalityName ?? "").ToUpperInvariant())
+                                .OrderBy(g => g.Key);
 
                             foreach (var muniGroup in muniGroups)
                             {
                                 string municipality = muniGroup.Key;
 
                                 var records = muniGroup
-                                     .OrderBy(x => x.BarangayName)
-                                     .ThenBy(x => x.LastName)
-                                     .ThenBy(x => x.FirstName)
-                                     .ToList();
+                                    .OrderBy(x => x.BarangayName)
+                                    .ThenBy(x => x.LastName)
+                                    .ThenBy(x => x.FirstName)
+                                    .ToList();
 
                                 var sheetName = SanitizeSheetName(municipality);
                                 var ws = workbookNew.Worksheets.Add(sheetName);
-                                BuildPayrollSheet(ws, municipality, records, settings, ref continousNo);
+
+                                BuildPayrollSheet(
+                                    ws,
+                                    records,
+                                    settings,
+                                    ref continousNo,
+                                    ref cgpPageNumber);
                             }
+
                             string safeProvince = SanitizeSheetName(province);
-                            // 4. Save this Province Workbook into the ZIP archive
                             var entry = archive.CreateEntry($"{safeProvince}_Payroll.xlsx");
                             using (var entryStream = entry.Open())
                             {
                                 workbookNew.SaveAs(entryStream);
                             }
-
                         }
                     }
-
                 }
+
                 zipStream.Position = 0;
                 finalizedResult = zipStream.ToArray();
             }
+
             return finalizedResult;
         }
 
         private static void BuildPayrollSheet(
             IXLWorksheet ws,
-            string municipalityName,
             List<BeneficiaryInformationDto> records,
-            PayrollSettingsDto s
-            ,ref int continousNo)
+            PayrollSettingsDto s,
+            ref int continousNo,
+            ref int cgpPageNumber)
         {
             const int COLS = 19;
-            const int PAGE1_RECORDS = 6;
-            const int PAGE2_RECORDS = 7;
-            // ✅ FIX 1: Both pages use the same row height — uniform
-            const double PAGE_ONE_HT = 192;
-            const double PAGE_TWO_PLUS_HT = 210;
             const int FONT_SIZE = 14;
+            const double PAGE_TWO_PLUS_HT = 210.0;
+
+            // Page 1 layout budget (Excel row-height units, legal landscape 0.5" margins):
+            //   Header rows 1–14  ≈ 237 units
+            //   Signatory block   ≈ 330 units  (with generous signing space)
+            //   Subtotal + gap    ≈  36 units
+            //   Available for data rows = total page capacity − 237 − 330 − 36 = 1097
+            const double PAGE1_DATA_BUDGET = 1097.0;
+
+            // ── Page capacity constants ───────────────────────────────────────────────
+            // Page 1: maximum 5 data rows (hard cap so footer always fits at full height)
+            // Page 2+: maximum 7 data rows
+            // LAST PAGE: always exactly 1 data row — guaranteed alongside the footer
+            const int PAGE1_MAX = 5;
+            const int PAGE2_MAX = 7;
 
             var first = records.FirstOrDefault();
             var municipality = first?.MunicipalityName ?? "";
             var province = first?.ProvinceName ?? "";
             var milestoneYear = first?.MilestoneYear ?? 0;
 
-            // ── Helpers ──────────────────────────────────────────────────────────────
+            // =========================================================================
+            // BUILD PAGE PLAN UPFRONT
+            // =========================================================================
+            // Rule: the very last page ALWAYS has exactly 1 record alongside the footer.
+            // Working backwards:
+            //   - Reserve 1 record for the last page.
+            //   - Distribute the rest: page 1 gets up to PAGE1_MAX, page 2+ get PAGE2_MAX.
+            //   - The last page then always gets exactly 1.
+            //
+            // Special case: if there is only 1 record total, it stays on page 1 alone
+            // (we cannot split a single record) and the footer prints with it.
+            //
+            // Examples (records → page sizes):
+            //   1  → [1]              (single page: 1 row + footer)
+            //   2  → [1, 1]           (page1: 1 row  | page2: 1 row + footer)
+            //   3  → [2, 1]           (page1: 2 rows | page2: 1 row + footer)
+            //   6  → [5, 1]           (page1: 5 rows | page2: 1 row + footer)
+            //   7  → [5, 1, 1]        (page1: 5 rows | page2: 1 row | page3: 1 row + footer)
+            //   8  → [5, 2, 1]        (page1: 5 rows | page2: 2 rows | page3: 1 row + footer)
+            //  13  → [5, 7, 1]        (page1: 5 rows | page2: 7 rows | page3: 1 row + footer)
+            //  14  → [5, 7, 1, 1]     (page1: 5 rows | page2: 7 rows | page3: 1 | page4: 1 + footer)
+            //  20  → [5, 7, 7, 1]     (page1: 5 rows | page2: 7 | page3: 7 | page4: 1 + footer)
+            //  21  → [5, 7, 7, 1, 1]  (page1: 5 | page2: 7 | page3: 7 | page4: 1 | page5: 1 + footer)
+            // =========================================================================
+            var pagePlan = new List<int>();
+
+            if (records.Count <= 1)
+            {
+                // Single record — keep on page 1, footer prints with it
+                pagePlan.Add(records.Count);
+            }
+            else
+            {
+                int toDistribute = records.Count - 1; // reserve 1 for the last page
+
+                // Page 1
+                int p1 = Math.Min(toDistribute, PAGE1_MAX);
+                pagePlan.Add(p1);
+                toDistribute -= p1;
+
+                // Middle pages (page 2, 3, …) — each gets up to PAGE2_MAX
+                while (toDistribute > 1)
+                {
+                    int take = Math.Min(toDistribute - 1, PAGE2_MAX);
+                    // Ensure we never empty the last-record reservation
+                    if (take < 1) take = 1;
+                    pagePlan.Add(take);
+                    toDistribute -= take;
+                }
+
+                // Last page — always exactly 1 record + footer
+                pagePlan.Add(1);
+            }
+
+            // ── Dynamic page 1 row height ─────────────────────────────────────────────
+            // Divide the data budget by however many rows page 1 will hold.
+            // Capped at 192 (baseline for 6 rows), floored at 60 (readability).
+            int p1Count = pagePlan.Count > 0 ? pagePlan[0] : 1;
+            double page1RowHeight = p1Count > 0
+                ? Math.Max(60.0, Math.Min(192.0, Math.Floor(PAGE1_DATA_BUDGET / p1Count)))
+                : 192.0;
+
+            // ── Helpers ───────────────────────────────────────────────────────────────
             void NavyHeader(IXLRange r, string text)
             {
                 r.Merge();
@@ -639,10 +730,8 @@ namespace EcaInformationSystem.Application.Services
                 ws.Cell(row, col).Style.Alignment.WrapText = true;
             }
 
-            // ✅ FIX 4: CGP border = Thin (was None)
             void CgpCell(int row, string text)
             {
-                ws.Range(row, 19, row, 19);
                 ws.Cell(row, 19).Value = text;
                 ws.Cell(row, 19).Style.Font.Bold = false;
                 ws.Cell(row, 19).Style.Font.FontSize = FONT_SIZE;
@@ -659,7 +748,6 @@ namespace EcaInformationSystem.Application.Services
             MergeCenter(3, 11, 11, CommonConstants.NCSC, bold: true);
 
             ws.Row(4).Height = 24;
-            // Check if the municipality string already includes "City"
             string municipalityDisplay = municipality.Contains("City", StringComparison.OrdinalIgnoreCase)
                 ? municipality
                 : $"{CommonConstants.MunicipalityOf} {municipality}";
@@ -676,7 +764,7 @@ namespace EcaInformationSystem.Application.Services
 
             ws.Row(9).Height = 14.25;
 
-            // Row 10: A. PURPOSE: | D–P purpose text | Q CGP-0001
+            // Row 10: A. PURPOSE + CGP page 1
             ws.Row(10).Height = 23.25;
             ws.Cell(10, 2).Value = CommonConstants.Apurpose;
             ws.Cell(10, 2).Style.Font.Bold = true;
@@ -685,7 +773,6 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(10, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Cell(10, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-            // ✅ FIX 5: Purpose text D(4)–P(16) not just D–H
             ws.Range(10, 4, 10, 15).Merge();
             ws.Cell(10, 4).Value = CommonConstants.PayrollPurpose;
             ws.Cell(10, 4).Style.Font.FontSize = FONT_SIZE;
@@ -694,15 +781,14 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(10, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Cell(10, 4).Style.Alignment.WrapText = true;
 
-            CgpCell(10, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{CommonConstants.DefaultOrderNo}");
+            CgpCell(10, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
+            cgpPageNumber++;
 
             ws.Row(11).Height = 11.25;
 
+            PayrollLogos.AddLogos(ws);
             // =========================================================================
             // SECTION 2: COLUMN HEADERS rows 12–14
-            // Row 12: ht=14.25  level-1
-            // Row 13: ht=24.75  spacer
-            // Row 14: ht=108.75 level-2 sub-headers
             // =========================================================================
             ws.Row(12).Height = 14.25;
             ws.Row(13).Height = 24.75;
@@ -730,22 +816,27 @@ namespace EcaInformationSystem.Application.Services
             NavyHeader(ws.Range(12, 19, 14, 19), CommonConstants.Remarks.ToTitleCase());
 
             // =========================================================================
-            // SECTION 3: DATA ROWS — start row 15
+            // SECTION 3: DATA ROWS — driven by the pre-built pagePlan
             // =========================================================================
             int currentRow = 15;
-            int page = 1;
             int processed = 0;
 
-            while (processed < records.Count)
+            for (int pageIndex = 0; pageIndex < pagePlan.Count; pageIndex++)
             {
-                int pageSize = page == 1 ? PAGE1_RECORDS : PAGE2_RECORDS;
+                int pageSize = pagePlan[pageIndex];
                 var pageRecs = records.Skip(processed).Take(pageSize).ToList();
+                bool isFirstPage = pageIndex == 0;
 
-                // CGP for pages 2+ — Q(17) only, ht=23.25 (exact from file)
-                if (page > 1)
+                // ── Pages 2+: manual page break then CGP row ──────────────────────
+                // AddHorizontalPageBreak(row) ends the page AFTER that row number,
+                // so our CGP row becomes the very first row of the new page —
+                // it will never appear at the bottom of the previous page.
+                if (!isFirstPage)
                 {
-                    CgpCell(currentRow,
-                        $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{page.ToPaddedPage()}");
+                    ws.PageSetup.AddHorizontalPageBreak(currentRow - 1);
+
+                    CgpCell(currentRow, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
+                    cgpPageNumber++;
                     ws.Row(currentRow).Height = 23.25;
                     currentRow++;
                 }
@@ -753,15 +844,12 @@ namespace EcaInformationSystem.Application.Services
                 foreach (var rec in pageRecs)
                 {
                     int dr = currentRow;
-                    // ✅ FIX 1: Same height for ALL data rows regardless of page
- 
 
-                    // 3. Conditional Row Height (Inside your Data Loop)
-                    // Assuming 'dr' is your current Excel row index
-                    ws.Row(dr).Height = (page <= 1) ? PAGE_ONE_HT : PAGE_TWO_PLUS_HT;
+                    // Page 1: dynamic height so the footer never overflows.
+                    // Page 2+: fixed taller height for comfortable reading/signing.
+                    ws.Row(dr).Height = isFirstPage ? page1RowHeight : PAGE_TWO_PLUS_HT;
 
                     DataCell(dr, 2, (rec.BatchCode ?? "").ToUpperInvariant());
-
                     DataCell(dr, 3, continousNo++, XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 4, (rec.LastName ?? "").ToUpperInvariant());
                     DataCell(dr, 5, (rec.FirstName ?? "").ToUpperInvariant());
@@ -769,13 +857,15 @@ namespace EcaInformationSystem.Application.Services
                     DataCell(dr, 7, (rec.Extension ?? "").ToUpperInvariant());
                     DataCell(dr, 8, rec.BirthDate.ToStandardDate(), XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 9, rec.Age, XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female,
+                                     XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 11, rec.BarangayName.ToUpperInvariant(), XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Center);
                     ws.Cell(dr, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
+
                     if (rec.IsDeceased && rec.DateOfDeath.HasValue)
                         DataCell(dr, 17, rec.DateOfDeath.Value.ToStandardDate(),
-                                 XLAlignmentHorizontalValues.Center);
+                                         XLAlignmentHorizontalValues.Center);
 
                     ws.Range(dr, 2, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                     ws.Range(dr, 2, dr, COLS).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
@@ -783,14 +873,12 @@ namespace EcaInformationSystem.Application.Services
                     currentRow++;
                 }
 
-                processed += pageRecs.Count;
-                page++;
+                processed += pageSize;
             }
 
             // =========================================================================
-            // SECTION 4: SUBTOTAL — ht=18, I(9)=label, L(12)=formula
+            // SECTION 4: SUBTOTAL
             // =========================================================================
-            // ✅ Keep your +1 gap before subtotal
             int subtotalRow = currentRow + 1;
             int dataStartRow = 15;
             ws.Row(subtotalRow).Height = 18;
@@ -815,9 +903,22 @@ namespace EcaInformationSystem.Application.Services
 
             // =========================================================================
             // SECTION 5: SIGNATORIES
+            // Layout (A–L):
+            //   A) Cert italic text B–I                        18 pt
+            //   B) Gap                                         14 pt
+            //   C) "Approved for Payment:" L–P                 18 pt
+            //   D) Signing space ×3                            28 pt each
+            //   E) Name row underlined — Sig1 | Sig2           22 pt
+            //   F) Position row                                 18 pt
+            //   G) Gap before oath                              8 pt
+            //   H) Oath text B–I                               52 pt
+            //   I) Signing space ×2                            28 pt each
+            //   J) Sig3 name underlined | Officer1 | Officer2  22 pt
+            //   K) SDO label | "Printed Name and Sig of" ×2    21 pt
+            //   L) "other officer present during Payout" ×2    18 pt
             // =========================================================================
 
-            // Cert text — B(2)–I(9)
+            // A)
             ws.Range(currentRow, 2, currentRow, 9).Merge();
             ws.Cell(currentRow, 2).Value = s.Signatory1Label;
             ws.Cell(currentRow, 2).Style.Font.Italic = true;
@@ -828,10 +929,11 @@ namespace EcaInformationSystem.Application.Services
             ws.Row(currentRow).Height = 18;
             currentRow++;
 
-            // Blank
-            ws.Row(currentRow).Height = 14.25; currentRow++;
+            // B)
+            ws.Row(currentRow).Height = 14.25;
+            currentRow++;
 
-            // "Approved for Payment:" — L(12)–P(16)
+            // C)
             ws.Range(currentRow, 12, currentRow, 16).Merge();
             ws.Cell(currentRow, 12).Value = s.Signatory2Label;
             ws.Cell(currentRow, 12).Style.Font.Bold = true;
@@ -842,13 +944,15 @@ namespace EcaInformationSystem.Application.Services
             ws.Row(currentRow).Height = 18;
             currentRow++;
 
-            // Blank signing space rows (3)
-            ws.Row(currentRow).Height = 14.25; currentRow++;
-            ws.Row(currentRow).Height = 14.25; currentRow++;
-            ws.Row(currentRow).Height = 14.25; currentRow++;
+            // D) Signing space — 3 rows at 28 pt for actual room to sign
+            ws.Row(currentRow).Height = 28; currentRow++;
+            ws.Row(currentRow).Height = 28; currentRow++;
+            ws.Row(currentRow).Height = 28; currentRow++;
 
-            // SARAH ROSE B(2)–E(5) | CESAR L(12)–P(16) — underlined
+            // E) Names underlined
             int sigNamesRow = currentRow;
+            ws.Row(sigNamesRow).Height = 22;
+
             ws.Range(sigNamesRow, 2, sigNamesRow, 5).Merge();
             ws.Cell(sigNamesRow, 2).Value = s.Signatory1Name;
             ws.Cell(sigNamesRow, 2).Style.Font.Bold = true;
@@ -864,10 +968,9 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(sigNamesRow, 12).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(sigNamesRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(sigNamesRow, 12, sigNamesRow, 16).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-            ws.Row(sigNamesRow).Height = 18;
             currentRow++;
 
-            // Positions
+            // F) Positions
             ws.Range(currentRow, 2, currentRow, 5).Merge();
             ws.Cell(currentRow, 2).Value = s.Signatory1Position;
             ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
@@ -882,33 +985,35 @@ namespace EcaInformationSystem.Application.Services
             ws.Row(currentRow).Height = 18;
             currentRow++;
 
-            // Blank gap
-            ws.Row(currentRow).Height = 8; currentRow++;
+            // G)
+            ws.Row(currentRow).Height = 8;
+            currentRow++;
 
-            // Oath text — B(2)–I(9), left side only
+            // H) Oath text
             ws.Range(currentRow, 2, currentRow, 9).Merge();
             ws.Cell(currentRow, 2).Value =
                 "R. I/we certify on my/our official oath that on ______________________________________," +
-                "I/we have paid in cash to each individual on the payroll, the amount set opposite to each name," +
+                " I/we have paid in cash to each individual on the payroll, the amount set opposite to each name," +
                 " having presented himself/herself, established identity and affixed his/her signature or" +
                 " thumbmark on the space provided.";
             ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
             ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
-            ws.Row(currentRow).Height = 38;
+            ws.Cell(currentRow, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+            ws.Row(currentRow).Height = 52;
             currentRow++;
 
-            // Blank signing space
-            ws.Row(currentRow).Height = 14.25; currentRow++;
-            ws.Row(currentRow).Height = 14.25; currentRow++;
+            // I) Signing space — 2 rows at 28 pt
+            ws.Row(currentRow).Height = 28; currentRow++;
+            ws.Row(currentRow).Height = 28; currentRow++;
 
-            // ✅ FIX 2: Correct row offsets — three separate rows
-            int sig3Row = currentRow;       // ALMIRA + underlines
-            int labelRow1 = currentRow + 1;   // SDO label + "Printed Name and Signature of"
-            int labelRow2 = currentRow + 2;   // "other officer present during Payout"
+            // J) Bottom sig row
+            int sig3Row = currentRow;
+            int labelRow1 = currentRow + 1;
+            int labelRow2 = currentRow + 2;
 
-            // ALMIRA — C(3)–J(10) underlined
-            ws.Row(sig3Row).Height = 21;
+            ws.Row(sig3Row).Height = 22;
+
             ws.Range(sig3Row, 3, sig3Row, 10).Merge();
             ws.Cell(sig3Row, 3).Value = s.Signatory3Name;
             ws.Cell(sig3Row, 3).Style.Font.Bold = true;
@@ -917,16 +1022,15 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(sig3Row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             ws.Range(sig3Row, 3, sig3Row, 10).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            // Other officer 1 — N(14)–O(15) underlined blank
             ws.Range(sig3Row, 14, sig3Row, 15).Merge();
             ws.Range(sig3Row, 14, sig3Row, 15).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            // Other officer 2 — P(16)–Q(17) underlined blank
             ws.Range(sig3Row, 16, sig3Row, 17).Merge();
             ws.Range(sig3Row, 16, sig3Row, 17).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            // SDO label row
+            // K)
             ws.Row(labelRow1).Height = 21;
+
             ws.Range(labelRow1, 3, labelRow1, 10).Merge();
             ws.Cell(labelRow1, 3).Value = s.Signatory3Position;
             ws.Cell(labelRow1, 3).Style.Font.FontSize = FONT_SIZE;
@@ -945,8 +1049,9 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(labelRow1, 16).Style.Font.FontName = CommonConstants.Arial;
             ws.Cell(labelRow1, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-            // "other officer present during Payout" row
-            ws.Row(labelRow2).Height = 14.25;
+            // L)
+            ws.Row(labelRow2).Height = 18;
+
             ws.Range(labelRow2, 14, labelRow2, 15).Merge();
             ws.Cell(labelRow2, 14).Value = s.Signatory4Position;
             ws.Cell(labelRow2, 14).Style.Font.FontSize = FONT_SIZE;
@@ -960,25 +1065,32 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(labelRow2, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
             // =========================================================================
-            // SECTION 6: COLUMN WIDTHS (exact from file)
+            // SECTION 6: COLUMN WIDTHS + PAGE SETUP
             // =========================================================================
-            double[] colWidths = {
-             //  A      B       C     D       E       F       G       H       I
-                 1.82,  25.82,   8.0,  33.18,  28.82,  27.46,  12.82,  17.82,  8.72,
-             //  J       K       L       M       N      O       P      Q       R       S
-                 13.27,  22.82,  16.46,  15.72,  39.0,  32.18,  48.0,  14.27,  15.72,  50.0
-             };
+            double[] colWidths =
+            {
+         1.82, 25.82,  8.0,  33.18, 28.82, 27.46, 12.82, 17.82,  8.72,
+        13.27, 22.82, 16.46, 15.72, 39.0,  32.18, 48.0,  14.27, 15.72, 50.0
+    };
             for (int c = 1; c <= colWidths.Length; c++)
                 ws.Column(c).Width = colWidths[c - 1];
 
             ws.PageSetup.PaperSize = XLPaperSize.LegalPaper;
             ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
-            ws.PageSetup.FitToPages(1, 0);
             ws.PageSetup.Margins.Top = 0.5;
             ws.PageSetup.Margins.Bottom = 0.5;
             ws.PageSetup.Margins.Left = 0.5;
             ws.PageSetup.Margins.Right = 0.5;
 
+            // ✅ FitToPages(1, 0):
+            //   - Width  = 1: columns always fit on one page wide (no horizontal overflow)
+            //   - Height = 0: free — rows flow across as many pages as needed
+            // This is what allows AddHorizontalPageBreak to control page splits correctly.
+            // Each worksheet is independent so page numbering (&P of &N) resets per sheet,
+            // giving "1 of N" per municipality automatically.
+            ws.PageSetup.FitToPages(1, 0);
+
+            // Page number footer — resets to "1 of N" for each worksheet independently
             ws.PageSetup.Footer.Center.AddText(CommonConstants.Page);
             ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
             ws.PageSetup.Footer.Center.AddText(CommonConstants.Of);

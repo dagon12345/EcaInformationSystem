@@ -91,7 +91,8 @@ builder.Services.AddCors(options =>
                 builder.Configuration["Cors:WasmOrigin"] ?? "http://192.168.0.247"
             )
             .AllowAnyMethod()
-            .AllowAnyHeader();
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
