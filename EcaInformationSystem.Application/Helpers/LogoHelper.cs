@@ -39,10 +39,13 @@ public static class PayrollLogos
     // ✅ UPDATED defaults:
     public static void AddLogos(
         IXLWorksheet ws,
+        int anchorRow = 3,
+        int leftCol = 2,
+        int rightCol = 19,
         int widthPx = 95,
         int heightPx = 95,
         int offsetLeft = 4,
-        int offsetRight = 4)
+        int offsetRight = 251)  // ✅ was 245, now 251
     {
         // ── LEFT: NCSC seal ──────────────────────────────────────────────
         // Anchored at row 3, col 2 (column B) — immediately left of the
@@ -51,7 +54,7 @@ public static class PayrollLogos
             Convert.FromBase64String(_ncscBase64));
 
         ws.AddPicture(ncscStream, XLPictureFormat.Png)
-          .MoveTo(ws.Cell(3, 2), offsetLeft, 2)
+          .MoveTo(ws.Cell(anchorRow, leftCol), offsetLeft, 2)
           .WithSize(widthPx, heightPx);
 
         // ── RIGHT: Bagong Pilipinas ──────────────────────────────────────
@@ -69,7 +72,9 @@ public static class PayrollLogos
         // Offset to right-align = 350 - 72 - 4 (margin) = 274px
 
         ws.AddPicture(bagongStream, XLPictureFormat.Png)
-          .MoveTo(ws.Cell(3, 19), 274, 2)
+          .MoveTo(ws.Cell(anchorRow, rightCol), offsetRight, 2)
           .WithSize(widthPx, heightPx);
+
+
     }
 }
