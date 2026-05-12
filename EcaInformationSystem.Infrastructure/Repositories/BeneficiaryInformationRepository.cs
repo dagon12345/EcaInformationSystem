@@ -812,9 +812,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (x.BirthDate.Year + 85) <= DateTime.Today.Year && (x.BirthDate.Year + 85) >= 2024 ? x.BirthDate.Year + 85 :
                     (x.BirthDate.Year + 80) <= DateTime.Today.Year && (x.BirthDate.Year + 80) >= 2024 ? x.BirthDate.Year + 80 :
                     0,
-            })
-                .DistinctBy(x => x.Id)
-                .ToList();
+            }).ToList();
 
             return result;
         }

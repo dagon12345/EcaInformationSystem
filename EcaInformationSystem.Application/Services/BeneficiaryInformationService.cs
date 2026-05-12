@@ -530,7 +530,11 @@ namespace EcaInformationSystem.Application.Services
             if (settings.Ids == null || !settings.Ids.Any())
                 throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
 
-            var allData = await _repo.GetByIdsAsync(settings.Ids);
+            var allData = (await _repo.GetByIdsAsync(settings.Ids))
+                    .DistinctBy(x => x.Id)   // ✅ keep here, remove from repository
+                    .ToList();
+
+
             if (!allData.Any())
                 throw new InvalidOperationException(CommonConstants.NoneOfTheRecordsFound);
 
@@ -660,25 +664,23 @@ namespace EcaInformationSystem.Application.Services
             }
             else
             {
-                int toDistribute = records.Count - 1; // reserve 1 for the last page
+                int remaining = records.Count;
 
                 // Page 1
-                int p1 = Math.Min(toDistribute, PAGE1_MAX);
+                int p1 = Math.Min(remaining - 1, PAGE1_MAX); // always leave at least 1
                 pagePlan.Add(p1);
-                toDistribute -= p1;
+                remaining -= p1;
 
-                // Middle pages (page 2, 3, …) — each gets up to PAGE2_MAX
-                while (toDistribute > 1)
+                // Middle pages — keep going until only 1 left
+                while (remaining > 1)
                 {
-                    int take = Math.Min(toDistribute - 1, PAGE2_MAX);
-                    // Ensure we never empty the last-record reservation
-                    if (take < 1) take = 1;
+                    int take = Math.Min(remaining - 1, PAGE2_MAX); // always leave at least 1
                     pagePlan.Add(take);
-                    toDistribute -= take;
+                    remaining -= take;
                 }
 
-                // Last page — always exactly 1 record + footer
-                pagePlan.Add(1);
+                // Last page — always exactly 1
+                pagePlan.Add(remaining); // remaining is always 1 here
             }
 
             // ── Dynamic page 1 row height ─────────────────────────────────────────────
