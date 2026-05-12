@@ -502,11 +502,44 @@
 
     private void ApplyEligibilityRules()
     {
-        var age = GetEffectiveAge() ?? 0;
-        model.IsEligible = age >= 80 && model.Citizenship == 1 || age >= 80;
+        var milestoneReached = ComputeMilestoneYear(model.BirthDate) > 0;
+        var isFilipino = model.Citizenship == 1;
+
+        model.IsEligible = milestoneReached && isFilipino;
         StateHasChanged();
     }
+    /// <summary>
+    /// Mirrors BeneficiaryInformationRepository.ComputeMilestoneYear exactly.
+    /// Returns the milestone year (e.g. 2026) if the person has already reached
+    /// a milestone age (80, 85, 90, 95, 100) on or before today and that year >= 2024.
+    /// Returns 0 if no milestone has been reached yet — meaning not yet eligible.
+    /// </summary>
+    private static int ComputeMilestoneYear(DateTime birthDate)
+    {
+        if (birthDate == default || birthDate == DateTime.MinValue)
+            return 0;
 
+        var today = DateTime.Today;
+
+        foreach (var milestone in new[] { 100, 95, 90, 85, 80 })
+        {
+            int milestoneYear = birthDate.Year + milestone;
+
+            if (milestoneYear < 2024)
+                continue;
+
+            // Already reached if milestone birthday has passed (or is today)
+            bool alreadyReached =
+                milestoneYear < today.Year ||
+                (milestoneYear == today.Year &&
+                 new DateTime(milestoneYear, birthDate.Month, birthDate.Day) <= today);
+
+            if (alreadyReached)
+                return milestoneYear;
+        }
+
+        return 0;
+    }
     private int? GetEffectiveAge()
     {
         if (model.BirthDate == default || model.BirthDate == DateTime.MinValue) return null;

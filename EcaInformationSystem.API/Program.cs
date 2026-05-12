@@ -91,7 +91,8 @@ builder.Services.AddCors(options =>
                 builder.Configuration["Cors:WasmOrigin"] ?? "http://REDACTED_INTERNAL_IP"
             )
             .AllowAnyMethod()
-            .AllowAnyHeader();
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
