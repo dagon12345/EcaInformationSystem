@@ -20,7 +20,6 @@ namespace EcaInformationSystem.Application.Services
         private readonly IBarangayRepository _barangayRepository;
         private readonly ILogRepository _logRepository;
         private readonly IMemoryCache _memoryCache;
-        private const int DefaultRegionCode = 1600000000;
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
             , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
             ILogRepository logRepository, IMemoryCache memoryCache)
@@ -35,7 +34,6 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
-            // AFTER:
             var rawData = await _repo.FilterAsync(filter);
             var data = rawData
                 .DistinctBy(x => x.Id)
@@ -65,6 +63,7 @@ namespace EcaInformationSystem.Application.Services
                 range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             }
+
 
             // Row 1
             AddCenteredTitle(1, CommonConstants.NCSC);
@@ -109,6 +108,17 @@ namespace EcaInformationSystem.Application.Services
             headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
             headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // After AddCenteredTitle(4, ...)
+            PayrollLogos.AddLogos(
+                worksheet,
+                anchorRow: 1,      // anchor to row 1 (title rows are 1-4)
+                leftCol: 1,      // col A — left edge
+                rightCol: 21,     // col U — right edge (your last column)
+                widthPx: 60,
+                heightPx: 60,
+                offsetLeft: 4,
+                offsetRight: 270);
 
             // =========================
             // ✅ DATA (ROW 11+)
@@ -302,7 +312,7 @@ namespace EcaInformationSystem.Application.Services
                 CivilStatus = dto.CivilStatus,
                 Citizenship = dto.Citizenship,
                 Sex = dto.Sex,
-                Region = DefaultRegionCode,
+                Region = CaragaEnum.DefaultRegionCode,
                 Province = dto.PsgcCodeProvince,
                 Municipality = dto.PsgcCodeMunicipality,
                 Barangay = dto.PsgcCodeBarangay,
@@ -354,7 +364,7 @@ namespace EcaInformationSystem.Application.Services
                 IsPersonWithDisability = beneficiary.IsPersonWithDisability,
                 CivilStatus = beneficiary.CivilStatus,
                 Citizenship = beneficiary.Citizenship,
-                PsgcCodeRegion = DefaultRegionCode,
+                PsgcCodeRegion = CaragaEnum.DefaultRegionCode,
                 PsgcCodeProvince = beneficiary.Province,
                 PsgcCodeMunicipality = beneficiary.Municipality,
                 PsgcCodeBarangay = beneficiary.Barangay,
@@ -396,7 +406,7 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
-            filter.PsgcCodeRegion = DefaultRegionCode;
+            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
 
             var cacheKey = BuildSummaryCacheKey(filter);
             if (_memoryCache.TryGetValue(cacheKey, out BeneficiarySummaryResultDto? cachedSummary)
@@ -487,7 +497,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.LastName, dto.FirstName, dto.MiddleName,
                 dto.Extension, dto.BirthDate, dto.PhoneNumber,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
-                dto.CivilStatus, dto.Citizenship, DefaultRegionCode,
+                dto.CivilStatus, dto.Citizenship, CaragaEnum.DefaultRegionCode,
                 dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate,
                 dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
@@ -788,8 +798,17 @@ namespace EcaInformationSystem.Application.Services
 
             ws.Row(11).Height = 11.25;
 
-            PayrollLogos.AddLogos(ws);
-            // =========================================================================
+            // After AddCenteredTitle(4, ...)
+            PayrollLogos.AddLogos(
+              ws,
+              anchorRow: 1,
+              leftCol: 1,
+              rightCol: 19,   // ✅ col 19 (S) — right edge of table
+              widthPx: 95,
+              heightPx: 95,
+              offsetLeft: 4,
+              offsetRight: 251); // ✅ right-aligns logo within col 19
+                  // =========================================================================
             // SECTION 2: COLUMN HEADERS rows 12–14
             // =========================================================================
             ws.Row(12).Height = 14.25;
@@ -1641,7 +1660,7 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     var region = string.IsNullOrWhiteSpace(regionName)
-                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == DefaultRegionCode)
+                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
                         : FindBestNameMatch(regions, x => x.Name, regionName);
 
                     if (region == null)
@@ -2635,7 +2654,7 @@ namespace EcaInformationSystem.Application.Services
         #endregion Payroll Liquidation - End
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
-            filter.PsgcCodeRegion = DefaultRegionCode;
+            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
 
             var cacheKey = BuildPaginatedCacheKey(filter);
 
