@@ -2706,7 +2706,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,
                 filter.PaymentDateFrom?.ToFullDate() ?? CommonConstants.Null,
-                filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null
+                filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
+                filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
@@ -2838,7 +2839,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
                 filter.SpecificBirthday?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
-                filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null
+                filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,
+                filter.PaymentDateFrom?.ToFullDate() ?? CommonConstants.Null,
+                filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
+                filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.

@@ -142,6 +142,9 @@ public class BeneficiaryStateService
             // ✅ Skip sentinel values — don't send -1 or 0 for Sex/PaymentStatus
             if (value is int intVal && intVal < 0) continue;
 
+            // ✅ Skip FindingStatus sentinel (3 = "not selected")
+            if (prop.Name == nameof(BeneficiaryFilterDto.FindingStatus) && value is int fs && fs == 3) continue;
+
             if (value is System.Collections.IEnumerable list && !(value is string))
             {
                 foreach (var item in list)

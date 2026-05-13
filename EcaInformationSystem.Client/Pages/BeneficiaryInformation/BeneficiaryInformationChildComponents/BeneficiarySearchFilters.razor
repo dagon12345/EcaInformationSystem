@@ -128,6 +128,15 @@
                             <input type="text" placeholder="Validator"
                                    @bind="State.Filter.Validator" />
                         </div>
+                        <div class="sf-field">
+                            <label>Findings</label>
+                            <select value="@State.Filter.FindingStatus" @onchange="OnFindingStatusChanged" disabled="@IsLoading">
+                                <option value="3">Select Findings</option>
+                                <option value="0">N/A</option>
+                                <option value="1">Solved</option>
+                                <option value="2">Unresolved</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -272,6 +281,12 @@
         State.Filter.Sex = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
     }
 
+    private void OnFindingStatusChanged(ChangeEventArgs e)
+    {
+        State.Filter.FindingStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : 3;
+    }
+
+
     private void OnPaymentStatusChanged(ChangeEventArgs e)
     {
         State.Filter.PaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
@@ -328,6 +343,7 @@
         State.SelectedBarangayId     = 0;
         State.Filter.Sex             = 0;
         State.Filter.PaymentStatus   = 0;
+        State.Filter.FindingStatus = 3;
         State.Filter.PaymentDate     = null;
         State.FilterMunicipalities   = new();
         State.FilterBarangays        = new();
@@ -360,7 +376,9 @@
         f.PsgcCodeMunicipality  == null &&
         f.PsgcCodeBarangay      == null &&
         f.Sex           == null &&
-        f.PaymentStatus == null;
+        f.PaymentStatus == null &&
+        // ✅ 3 = sentinel "not selected", null = cleared — both mean no filter applied
+        (f.FindingStatus == null || f.FindingStatus == 3);
 
     private async Task LoadMunicipalitiesAsync(int provinceId)
     {

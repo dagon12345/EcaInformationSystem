@@ -225,5 +225,6 @@ namespace EcaInformationSystem.Domain.Common.Enum
         public const string BeneficiarySummary = "beneficiary-summary"; 
         public const string NameAndSignatureOfDisbursingOfficer = "Name and Signature of Disbursing Officer";
         public const string V1= "v1";
+        public const string Status = "Status";
     }
 }

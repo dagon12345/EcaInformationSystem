@@ -27,6 +27,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IPendingUserRegistrationRepository, PendingUserRegistrationRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
             return services;
         }
     }

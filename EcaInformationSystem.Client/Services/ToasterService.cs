@@ -7,6 +7,9 @@
         public void ShowSuccess(string message, string title = "Success")
             => OnShow?.Invoke(title, message, true);
 
+        public void ShowWarning(string message, string title = "Warning")
+            => OnShow?.Invoke(title, message, false);
+
         public void ShowError(string message, string title = "Error")
             => OnShow?.Invoke(title, message, false);
     }

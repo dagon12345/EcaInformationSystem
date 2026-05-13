@@ -180,6 +180,7 @@
                                     <th>Payment</th>
                                     <th>Eligible</th>
                                     <th>Compliant</th>
+                                    <th>Findings</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -224,6 +225,22 @@
                                                 @(item.IsCompliant ? "Yes" : "No")
                                             </span>
                                         </td>
+                                            <td>
+                                                @{
+                                                    var badge = GetFindingBadgeClass(item.FindingStatus);
+                                                    var label = GetFindingStatusText(item.FindingStatus);
+                                                }
+                                                <span class="tbl-badge @badge" title="@item.FindingRemarks">
+                                                    @label
+                                                </span>
+                                                @if (item.FindingStatus == 2 && !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                                {
+                                                    <br />
+                                                    <small class="text-muted" style="font-size:10px; max-width:120px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                        @item.FindingRemarks
+                                                    </small>
+                                                }
+                                            </td>
                                         <td>
                                             <button class="btn-details"
                                                     @onclick="() => OpenDetailsPanel(item)"
@@ -238,7 +255,7 @@
                                 @if (!FilteredBeneficiaries.Any())
                                 {
                                     <tr class="filler-row">
-                                        <td colspan="15">
+                                        <td colspan="16">
                                             @if (!State.IsLoading)
                                             {
                                                 <span>No records found.</span>
@@ -452,7 +469,7 @@
 
             <!-- Deceased -->
             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
-            <div class="row g-2">
+            <div class="row g-2 mb-4">
                 <div class="col-6">
                     <small class="text-muted d-block">Is Deceased</small>
                     <span>@(selectedDetails.IsDeceased ? "Yes" : "No")</span>
@@ -465,6 +482,25 @@
                     <small class="text-muted d-block">Date Added</small>
                     <span>@selectedDetails.DateAdded.ToString("MMMM dd, yyyy")</span>
                 </div>
+            </div>
+            <!-- Findings -->
+            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
+                <i class="bi bi-exclamation-triangle me-1"></i>Findings
+            </h6>
+            <div class="row g-2 mb-4">
+                <div class="col-6">
+                    <small class="text-muted d-block">With Findings</small>
+                    <span class="tbl-badge @GetFindingBadgeClass(selectedDetails.FindingStatus)">
+                        @GetFindingStatusText(selectedDetails.FindingStatus)
+                    </span>
+                </div>
+                @if (selectedDetails.FindingStatus == 2 && !string.IsNullOrWhiteSpace(selectedDetails.FindingRemarks))
+                {
+                    <div class="col-12">
+                        <small class="text-muted d-block">Finding Remarks</small>
+                        <span>@selectedDetails.FindingRemarks</span>
+                    </div>
+                }
             </div>
         }
     </BodyTemplate>
@@ -607,7 +643,7 @@
     private string pendingAction = string.Empty; //"add", "edit", "delete"
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
-    private string? successMessage;
+    private string? successMessage = string.Empty;
     private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? State.Beneficiaries
            : State.Beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
     // Add this computed property
@@ -854,36 +890,21 @@
 
         return age;
     }
-    // private string GetAgeBadgeClass(DateTime birthDate)
-    // {
-    //     var age = GetAge(birthDate);
+    private string GetFindingStatusText(int? status) => status switch
+    {
+        0 => "N/A",
+        1 => "Solved",
+        2 => "Unresolved",
+        _ => "N/A"        // null = no finding record yet
+    };
 
-    //     if (age == null || age < 80) return "bg-danger"; not eligible
-
-    //     int currentYear = DateTime.Today.Year;
-    //     int windowStart = Math.Max(2024, currentYear - 2);
-    //     int windowEnd = currentYear;
-
-    //     Find the highest milestone already reached since program start 2024
-    //     int[] milestones = new[] { 100, 95, 90, 85, 80 }; highest first
-    //     int milestoneYear = 0;
-    //     foreach (var m in milestones)
-    //     {
-    //         int my = birthDate.Year + m;
-    //         if (my <= currentYear && my >= 2024)
-    //         {
-    //             milestoneYear = my;
-    //             break;
-    //         }
-    //     }
-
-    //     if (milestoneYear == 0) return "bg-warning text-dark"; eligible age but no milestone since 2024 yet
-
-    //     if (milestoneYear >= windowStart && milestoneYear <= windowEnd)
-    //         return "bg-success";           🟢 within active window
-
-    //     return "bg-secondary";             ⚫ milestone hit before the rolling window
-    // }
+    private string GetFindingBadgeClass(int? status) => status switch
+    {
+        0 => "no-g",     // grey  — N/A
+        1 => "yes-g",    // green — Solved
+        2 => "unpaid",   // red   — Unresolved
+        _ => "no-g"      // grey  — not yet set
+    };
     private string GetAgeBadgeClass(DateTime birthDate)
 {
     var age = GetAge(birthDate);

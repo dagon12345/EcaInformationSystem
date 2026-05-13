@@ -58,6 +58,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
+        //For Beneficiary Findings
+        public int? FindingStatus { get; set; }
+        public string? FindingRemarks { get; set; }
 
         // Add these helper properties so your UI code doesn't have to change
         public string RegionName => GetJsonString(Region);

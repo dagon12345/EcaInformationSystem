@@ -1,5 +1,6 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
 
 <div class="sidebar-brand">
        <NavLink href="" Match="NavLinkMatch.All">
@@ -47,7 +48,7 @@
     <div class="user-card">
         <div class="avatar">@GetInitials(UserName)</div>
         <div class="user-info">
-            <div class="user-name">@UserName</div>
+            <div class="user-name">@DisplayName</div>
             <div class="user-role">Welcome</div>
         </div>
     </div>
@@ -61,6 +62,22 @@
     [Parameter] public EventCallback OnToggle { get; set; }
     [Parameter] public bool Collapsed { get; set; }
     [Parameter] public string UserName { get; set; } = "User";
+
+    // ✅ Resolved display name — FullName claim first, fallback to UserName parameter
+    private string DisplayName = "User";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // ✅ Same claim key you use in LiquidationModal
+        var fullName = user.FindFirst("FullName")?.Value;
+
+        DisplayName = !string.IsNullOrWhiteSpace(fullName)
+            ? fullName
+            : UserName; // fallback to whatever the parent passed
+    }
 
     private string GetInitials(string name)
     {

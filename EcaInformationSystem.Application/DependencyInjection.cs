@@ -17,6 +17,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IBarangayService, BarangayService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<TokenService>();
+            services.AddScoped<IBeneficiaryFindingService, BeneficiaryFindingService>();
             return services;
         }
     }

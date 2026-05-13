@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
@@ -412,6 +413,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
+                    //Beneficiary Finding here:
+                join finding in _context.BeneficiaryFindings
+                on b.Id equals finding.BeneficiaryInformationId into findingJoin
+                from finding in findingJoin.DefaultIfEmpty()
+
                 where !b.IsDeleted
                 select new BeneficiaryQueryModel
                 {
@@ -419,7 +425,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Region = region != null ? region.Name : null,
                     Province = province != null ? province.Name : null,
                     Municipality = municipality != null ? municipality.Name : null,
-                    Barangay = barangay != null ? barangay.Name : null
+                    Barangay = barangay != null ? barangay.Name : null,
+                    FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
+                    FindingRemarks = finding != null ? finding.FindingRemarks : null,
+
                 };
 
             // ── Location ─────────────────────────────────────────────────────────
@@ -436,7 +445,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeBarangay != null)
                 query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay);
 
+            // ✅ Fix — N/A (0) also includes records with no finding row at all
+            if (filter.FindingStatus.HasValue && filter.FindingStatus.Value != 3)
+            {
+                var status = filter.FindingStatus.Value;
 
+                if (status == 0)
+                {
+                    // N/A = explicitly set to 0 OR no finding record exists yet (null from left join)
+                    query = query.Where(x =>
+                        x.FindingStatus == null ||
+                        x.FindingStatus == 0);
+                }
+                else
+                {
+                    // Solved (1) or Unresolved (2) — only exact matches
+                    query = query.Where(x => x.FindingStatus == status);
+                }
+            }
             // ── Name ──────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.LastName))
                 query = query.Where(x =>
@@ -598,6 +624,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     ProvinceName = x.Province,
                     MunicipalityName = x.Municipality,
                     BarangayName = x.Barangay,
+                    FindingStatus = x.FindingStatus,
+                    FindingRemarks = x.FindingRemarks
                 });
         }
 
@@ -651,6 +679,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             DateAdded = x.DateAdded,
             Remarks = x.Remarks,
             IsDeleted = x.IsDeleted,
+            FindingStatus = x.FindingStatus,
+            FindingRemarks = x.FindingRemarks
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -823,6 +853,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? Province { get; set; }
             public string? Municipality { get; set; }
             public string? Barangay { get; set; }
+
+            public int? FindingStatus { get; set; }
+            public string? FindingRemarks { get; set; }
         }
         private sealed class BeneficiaryRawDto
         {
@@ -866,6 +899,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public DateTime DateAdded { get; set; }
             public string? Remarks { get; set; }
             public bool IsDeleted { get; set; }
+            public int? FindingStatus { get; set; }
+            public string? FindingRemarks { get; set; }
         }
 
     }

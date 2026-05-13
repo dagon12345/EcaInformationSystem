@@ -14,9 +14,26 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<Barangay> Barangays => Set<Barangay>();
         public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
         public DbSet<Log> Logs => Set<Log>();
+        public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<BeneficiaryFinding>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                // One-to-one: one beneficiary has at most one finding record
+                entity.HasOne(x => x.BeneficiaryInformation)
+                      .WithOne(x => x.Finding)
+                      .HasForeignKey<BeneficiaryFinding>(x => x.BeneficiaryInformationId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => x.BeneficiaryInformationId).IsUnique();
+
+                // Useful for filtering "all unresolved" across the system
+                entity.HasIndex(x => x.FindingStatus);
+            });
 
             //Indexing
             modelBuilder.Entity<BeneficiaryInformation>(entity =>
