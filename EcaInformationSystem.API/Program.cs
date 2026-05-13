@@ -88,7 +88,11 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                builder.Configuration["Cors:WasmOrigin"] ?? "http://192.168.0.247"
+                builder.Configuration["Cors:WasmOrigin"] ?? "https://192.168.0.247",
+                "https://192.168.0.247",   // ✅ explicit HTTPS
+                "http://192.168.0.247",    // ✅ keep HTTP as fallback
+                "https://localhost:5002",  // ✅ local dev HTTPS
+                "http://localhost:5002"    // ✅ local dev HTTP
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -134,6 +138,9 @@ else
     app.UseHsts();
 }
 
+// ✅ Add this back
+app.UseHttpsRedirection();
+
 // ─── Global Exception Handler ────────────────────────────────────────────────
 app.UseExceptionHandler(errorApp =>
 {
@@ -142,8 +149,8 @@ app.UseExceptionHandler(errorApp =>
         var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
         var exception = exceptionFeature?.Error;
 
-        // Always include CORS header so Blazor can read the error response
-        var wasmOrigin = builder.Configuration["Cors:WasmOrigin"] ?? "http://192.168.0.247";
+        // ✅ Update to include both HTTP and HTTPS origins
+        var wasmOrigin = builder.Configuration["Cors:WasmOrigin"] ?? "https://192.168.0.247";
         context.Response.Headers.Append("Access-Control-Allow-Origin", wasmOrigin);
         context.Response.ContentType = "application/json";
 
