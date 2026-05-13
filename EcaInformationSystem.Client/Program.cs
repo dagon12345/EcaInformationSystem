@@ -15,7 +15,7 @@ builder.Services.AddScoped<AuthorizedHttpHandler>();
 
 // Register HttpClient WITH the auth handler
 builder.Services.AddHttpClient("AuthorizedClient",
-    client => client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://REDACTED_INTERNAL_IP:8080/"))
+    client => client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/"))
     .AddHttpMessageHandler<AuthorizedHttpHandler>();
 
 // Make the named client available as the default HttpClient
