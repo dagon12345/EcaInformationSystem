@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject AuthService AuthService
 @inject BeneficiaryStateService State;
+@inject BeneficiaryFindingClientService FindingService
 
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
     <DataAnnotationsValidator />
@@ -322,7 +323,66 @@
             </div>
         </div>
     </div>
+    @* ── Findings (Edit Mode only) ── *@
+    @if (IsEditMode)
+    {
+        <div class="form-section mb-3">
+            <div class="form-section-header">
+                <i class="bi bi-exclamation-triangle me-2"></i>Findings
+            </div>
+            <div class="form-section-body">
+                @if (isLoadingFinding)
+                {
+                    <div class="text-center py-2">
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                        <span class="ms-2 text-muted">Loading finding...</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-grid">
+                        <div class="ff">
+                            <label class="ff-label">With Findings</label>
+                            <select class="ff-input"
+                                    @bind="findingStatusInput"
+                                    disabled="@IsLoading">
+                                <option value="0">N/A</option>
+                                <option value="1">Solved</option>
+                                <option value="2">Unresolved</option>
+                            </select>
+                        </div>
 
+                        @if (findingStatusInput == 2)
+                        {
+                            <div class="ff" style="grid-column: 1 / -1;">
+                                <label class="ff-label">
+                                    Finding Remarks <span class="req">*</span>
+                                </label>
+                                <InputTextArea class="ff-input"
+                                               @bind-Value="findingRemarksInput"
+                                               rows="3"
+                                               placeholder="Describe the unresolved finding..."
+                                               disabled="@IsLoading" />
+                            </div>
+                        }
+
+                        @* ✅ No separate save button — saved together with Update Record *@
+                        @if (currentFinding is not null)
+                        {
+                            <div class="ff">
+                                <small class="text-muted">
+                                    Last updated:
+                                    @((currentFinding.UpdatedAt ?? currentFinding.CreatedAt)
+                                        .ToLocalTime()
+                                        .ToString("MMM dd, yyyy hh:mm tt"))
+                                </small>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
     @* ── Actions ── *@
     <div class="d-flex justify-content-end gap-2 mt-2">
         <button type="button" class="sys-btn sys-btn-cancel"
@@ -373,8 +433,8 @@
     private string pendingAction = string.Empty;
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
-    private string? successMessage;
-    private string? errorMessage;
+    private string? successMessage = string.Empty;
+    private string? errorMessage = string.Empty;
     private HxModal confirmModal = default!;
     private ElementReference batchCodeInput;
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
@@ -384,6 +444,12 @@
     private List<MunicipalityLookupDto> municipalities = new();
     private List<BarangayLookupDto> barangays = new();
     private bool _isLoadingRecord = false;
+    // ── Finding state (edit mode only) ───────────────────────────────────────────
+    private BeneficiaryFindingDto? currentFinding;
+    private int findingStatusInput = 0;
+    private string? findingRemarksInput;
+    private bool isLoadingFinding;
+    private bool isSavingFinding = false;
 
     #region Address
     private async Task OnProvinceChangedHandled()
@@ -396,7 +462,27 @@
         if (model.PsgcCodeProvince > 0)
             await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
     }
+    private async Task LoadFindingAsync(Guid beneficiaryId)
+    {
+        try
+        {
+            isLoadingFinding = true;
+            StateHasChanged();
 
+            currentFinding = await FindingService.GetByBeneficiaryIdAsync(beneficiaryId);
+
+            if (currentFinding is not null)
+            {
+                findingStatusInput = currentFinding.FindingStatus;
+                findingRemarksInput = currentFinding.FindingRemarks;
+            }
+        }
+        finally
+        {
+            isLoadingFinding = false;
+            StateHasChanged();
+        }
+    }
     private async Task OnMunicipalityChangedHandled()
     {
         if (_isLoadingRecord) return;
@@ -479,6 +565,8 @@
             if (model.PsgcCodeProvince > 0) await LoadMunicipalitiesAsync(model.PsgcCodeProvince);
             if (model.PsgcCodeMunicipality > 0) await LoadBarangaysAsync(model.PsgcCodeMunicipality);
             ApplyEligibilityRules();
+            // ✅ Load finding alongside the record
+            await LoadFindingAsync(id);
         }
         finally { _isLoadingRecord = false; IsLoading = false; StateHasChanged(); }
     }
@@ -616,20 +704,48 @@
         IsLoading = true;
         try
         {
-            var response = await Http.PutAsJsonAsync($"api/Beneficiary/{model.Id}", model);
-            if (response.IsSuccessStatusCode)
+            // ── Validate finding before sending anything ──────────────────────
+            if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
             {
-                toast.ShowSuccess("Record updated successfully.");
-                State.Invalidate();
-                Navigation.NavigateTo("/beneficiary-records");
+                toast.ShowError("Finding Remarks are required when finding is Unresolved.");
+                return;
             }
-            else
+
+            // ── 1. Update beneficiary record ──────────────────────────────────
+            var response = await Http.PutAsJsonAsync($"api/Beneficiary/{model.Id}", model);
+            if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
                 toast.ShowError($"Update failed: {error}");
+                return;
             }
+
+            // ── 2. Save finding alongside the update ──────────────────────────
+            var findingDto = new UpsertBeneficiaryFindingDto
+            {
+                FindingStatus = findingStatusInput,
+                FindingRemarks = findingStatusInput == 2 ? findingRemarksInput : null
+            };
+
+            var (success, findingError) = await FindingService.UpsertAsync(model.Id, findingDto);
+            if (!success)
+            {
+                // Beneficiary was saved but finding failed — warn but still navigate
+                toast.ShowWarning($"Record updated but finding could not be saved: {findingError}");
+            }
+            else
+            {
+                toast.ShowSuccess("Record and findings updated successfully.");
+            }
+
+            // ── 3. Invalidate cache and navigate back — same as your original ─
+            State.Invalidate();
+            Navigation.NavigateTo("/beneficiary-records");
         }
-        finally { IsLoading = false; }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     private async Task AddBeneficiaryAsync()

@@ -220,8 +220,8 @@
 @code {
     private bool isDownloadingTemplate;
     private IBrowserFile? selectedFile;
-    private string? errorMessage;
-    private string? successMessage;
+    private string? errorMessage = string.Empty;
+    private string? successMessage = string.Empty;
     private BeneficiaryImportResultDto? importResult;
     private List<string> excelSheetNames = new();
     private string? selectedSheetName;

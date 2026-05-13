@@ -31,5 +31,7 @@
         public DateTime? PaymentDateFrom { get; set; }
         public DateTime? PaymentDateTo { get; set; }
 
+        public int? FindingStatus { get; set; }
+
     }
 }

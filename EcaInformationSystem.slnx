@@ -5,7 +5,6 @@
   <Project Path="EcaInformationService.Shared/EcaInformationSystem.Shared.csproj" Id="db1922b6-627c-4b2d-b500-3e1d7a1fd401" />
   <Project Path="EcaInformationSystem.Api/EcaInformationSystem.Api.csproj" Id="aa6938dd-d248-43be-9cd2-e03c2c56fcb6" />
   <Project Path="EcaInformationSystem.Application/EcaInformationSystem.Application.csproj" />
-  <Project Path="EcaInformationSystem.BlazorServer/EcaInformationSystem.BlazorServer.csproj" />
   <Project Path="EcaInformationSystem.Client/EcaInformationSystem.Client.csproj" Id="b11fcddc-9182-4647-93b9-114d33b427f4" />
   <Project Path="EcaInformationSystem.Domain/EcaInformationSystem.Domain.csproj" />
   <Project Path="EcaInformationSystem.Infrastructure/EcaInformationSystem.Infrastructure.csproj" />

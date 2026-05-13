@@ -7,6 +7,7 @@
 	  <!-- ✅ Add these two for .NET 10 -->
 	  <PublishTrimmed>false</PublishTrimmed>
 	  <RunAOTCompilation>false</RunAOTCompilation>
+        <WasmBuildNative>true</WasmBuildNative>  <!-- ✅ Add this -->
 	  <BlazorWebAssemblyPreserveCollationData>false</BlazorWebAssemblyPreserveCollationData>
 	  <PublishIISAssets>true</PublishIISAssets>
 	  <!-- ✅ ADD THIS — forces generation of blazor.webassembly.js -->
