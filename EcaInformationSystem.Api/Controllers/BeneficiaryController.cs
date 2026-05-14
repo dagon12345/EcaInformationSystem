@@ -158,6 +158,20 @@ namespace EcaInformationSystem.Api.Controllers
             var result = await _service.GetLogSummaryAsync(Id);
             return Ok(result);
         }
+        /// <summary>
+        /// Returns full beneficiary data for a given list of IDs.
+        /// Used by the payroll modal to load records selected across multiple pages.
+        /// </summary>
+        [HttpPost("by-ids")]
+        public async Task<IActionResult> GetByIds([FromBody] List<Guid> ids)
+        {
+            if (ids == null || ids.Count == 0)
+                return Ok(new List<BeneficiaryInformationDto>());
+
+            var results = await _service.GetByIdsAsync(ids.Distinct().ToList());
+            return Ok(results);
+        }
+
         [HttpPost("bulk-payment-status")]
         public async Task<IActionResult> BulkUpdatePaymentStatus([FromBody] BulkUpdatePaymentStatusRequestDto request)
         {
