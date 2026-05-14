@@ -134,24 +134,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ECAReS Caraga API v1");
-    });
-}
-else
-{
-    app.UseHsts();
-}
-
-// ✅ Add this back
-app.UseHttpsRedirection();
 
 // ─── Global Exception Handler ────────────────────────────────────────────────
+// Must be first so it wraps all subsequent middleware
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -210,11 +195,21 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-// ❌ REMOVED: app.UseHttpsRedirection()
-// ❌ REMOVED: app.UseBlazorFrameworkFiles()
-// ❌ REMOVED: app.MapStaticAssets()
-// ❌ REMOVED: app.MapFallbackToFile(...)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ECAReS Caraga API v1");
+    });
+}
+else
+{
+    app.UseHsts();
+}
 
+app.UseHttpsRedirection();
 app.UseCors("WasmPolicy");        // ← Must be BEFORE Auth
 app.UseAuthentication();
 app.UseAuthorization();
