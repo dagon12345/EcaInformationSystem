@@ -1,4 +1,5 @@
 using EcaInformationSystem.Application;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -121,6 +122,15 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
+}
+
+// ─── PSGC Geography Seed ─────────────────────────────────────────────────────
+// Inserts missing regions/provinces/municipalities/barangays from psgc.gitlab.io.
+// Existing records (including custom spellings) are never overwritten.
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<IPsgcSeederService>();
+    await seeder.SeedAsync();
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
