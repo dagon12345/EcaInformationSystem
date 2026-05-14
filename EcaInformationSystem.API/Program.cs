@@ -134,69 +134,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
-
-// ─── Global Exception Handler ────────────────────────────────────────────────
-// Must be first so it wraps all subsequent middleware
-app.UseExceptionHandler(errorApp =>
-{
-    errorApp.Run(async context =>
-    {
-        var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
-        var exception = exceptionFeature?.Error;
-
-        // ✅ Update to include both HTTP and HTTPS origins
-        var wasmOrigin = builder.Configuration["Cors:WasmOrigin"] ?? "https://REDACTED_INTERNAL_IP";
-        context.Response.Headers.Append("Access-Control-Allow-Origin", wasmOrigin);
-        context.Response.ContentType = "application/json";
-
-        // Map exception types to appropriate status codes and messages
-        var (statusCode, message) = exception switch
-        {
-            SqlException { Number: -2 } or
-            Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: SqlException { Number: -2 } }
-                => (StatusCodes.Status504GatewayTimeout,
-                    "The request took too long to complete. Please try again or refine your search filters."),
-
-            SqlException
-                => (StatusCodes.Status503ServiceUnavailable,
-                    "A database error occurred. Please contact your system administrator."),
-
-            UnauthorizedAccessException
-                => (StatusCodes.Status401Unauthorized,
-                    "You are not authorized to perform this action."),
-
-            KeyNotFoundException
-                => (StatusCodes.Status404NotFound,
-                    "The requested record was not found."),
-
-            OperationCanceledException
-                => (StatusCodes.Status499ClientClosedRequest,
-                    "The request was cancelled."),
-
-            _ => (StatusCodes.Status500InternalServerError,
-                    "An unexpected error occurred. Please try again later.")
-        };
-
-        context.Response.StatusCode = statusCode;
-
-        // In development, include the real exception message for debugging
-        var detail = app.Environment.IsDevelopment()
-            ? exception?.ToString()
-            : null;
-
-        var response = new
-        {
-            status = statusCode,
-            message,
-            detail
-        };
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
-    });
-});
-
 if (app.Environment.IsDevelopment())
 {
+    // In development: show full exception details and expose Swagger
     app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -206,7 +146,50 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
+    // In production: HSTS + JSON error handler (CORS-aware)
     app.UseHsts();
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
+            var exception = exceptionFeature?.Error;
+
+            var wasmOrigin = builder.Configuration["Cors:WasmOrigin"] ?? "https://REDACTED_INTERNAL_IP";
+            context.Response.Headers.Append("Access-Control-Allow-Origin", wasmOrigin);
+            context.Response.ContentType = "application/json";
+
+            var (statusCode, message) = exception switch
+            {
+                SqlException { Number: -2 } or
+                Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: SqlException { Number: -2 } }
+                    => (StatusCodes.Status504GatewayTimeout,
+                        "The request took too long to complete. Please try again or refine your search filters."),
+
+                SqlException
+                    => (StatusCodes.Status503ServiceUnavailable,
+                        "A database error occurred. Please contact your system administrator."),
+
+                UnauthorizedAccessException
+                    => (StatusCodes.Status401Unauthorized,
+                        "You are not authorized to perform this action."),
+
+                KeyNotFoundException
+                    => (StatusCodes.Status404NotFound,
+                        "The requested record was not found."),
+
+                OperationCanceledException
+                    => (StatusCodes.Status499ClientClosedRequest,
+                        "The request was cancelled."),
+
+                _ => (StatusCodes.Status500InternalServerError,
+                        "An unexpected error occurred. Please try again later.")
+            };
+
+            context.Response.StatusCode = statusCode;
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new { status = statusCode, message }));
+        });
+    });
 }
 
 app.UseHttpsRedirection();
