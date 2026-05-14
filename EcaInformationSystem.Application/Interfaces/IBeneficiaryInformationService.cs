@@ -21,6 +21,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
+        Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
         Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings);
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
