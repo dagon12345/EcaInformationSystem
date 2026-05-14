@@ -31,11 +31,33 @@
                 <div>
                     <div class="sf-section-label"><i class="bi bi-geo-alt me-1"></i>Location</div>
                     <div class="sf-grid">
+
+                        @* Region *@
+                        <div class="sf-field">
+                            <label>Region</label>
+                            <select value="@State.SelectedRegionId"
+                                    @onchange="OnRegionChanged"
+                                    disabled="@(IsLoading || IsFilterRegionLoading)">
+                                <option value="0">All Regions</option>
+                                @foreach (var r in State.FilterRegions)
+                                {
+                                    <option value="@r.PsgcCodeRegion">@r.Name</option>
+                                }
+                            </select>
+                            @if (IsFilterRegionLoading)
+                            {
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
+                            }
+                        </div>
+
+                        @* Province *@
                         <div class="sf-field">
                             <label>Province</label>
                             <select value="@State.SelectedProvinceId"
                                     @onchange="OnProvinceChanged"
-                                    disabled="@(IsLoading || IsFilterProvinceLoading)">
+                                    disabled="@(IsLoading || IsFilterProvinceLoading || State.SelectedRegionId == 0)">
                                 <option value="0">Select Province</option>
                                 @foreach (var p in State.FilterProvinces)
                                 {
@@ -50,6 +72,7 @@
                             }
                         </div>
 
+                        @* Municipality *@
                         <div class="sf-field">
                             <label>Municipality</label>
                             <select value="@State.SelectedMunicipalityId"
@@ -69,6 +92,7 @@
                             }
                         </div>
 
+                        @* Barangay *@
                         <div class="sf-field">
                             <label>Barangay</label>
                             <select value="@State.SelectedBarangayId"
@@ -87,6 +111,7 @@
                                 </span>
                             }
                         </div>
+
                     </div>
                 </div>
 
@@ -223,8 +248,8 @@
 </div>
 
 @code {
-    private const int DefaultRegionCode = 1600000000;
     private bool IsLoading = false;
+    private bool IsFilterRegionLoading = false;
     private bool IsFilterProvinceLoading = false;
     private bool IsFilterMunicipalityLoading = false;
     private bool IsFilterBarangayLoading = false;
@@ -242,13 +267,33 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadFilterProvincesAsync();
+        await LoadFilterRegionsAsync();
+
+        // Restore cascade if selections were persisted (e.g. back-navigation)
+        if (State.SelectedRegionId > 0 && !State.FilterProvinces.Any())
+            await LoadFilterProvincesAsync(State.SelectedRegionId);
 
         if (State.SelectedProvinceId > 0 && !State.FilterMunicipalities.Any())
             await LoadMunicipalitiesAsync(State.SelectedProvinceId);
 
         if (State.SelectedMunicipalityId > 0 && !State.FilterBarangays.Any())
             await LoadBarangaysAsync(State.SelectedMunicipalityId);
+    }
+
+    private async Task OnRegionChanged(ChangeEventArgs e)
+    {
+        State.SelectedRegionId     = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedProvinceId   = 0;
+        State.SelectedMunicipalityId = 0;
+        State.SelectedBarangayId   = 0;
+        State.FilterProvinces      = new();
+        State.FilterMunicipalities = new();
+        State.FilterBarangays      = new();
+        filterMunicipalityCache.Clear();
+        filterBarangayCache.Clear();
+
+        if (State.SelectedRegionId > 0)
+            await LoadFilterProvincesAsync(State.SelectedRegionId);
     }
 
     private async Task OnProvinceChanged(ChangeEventArgs e)
@@ -292,16 +337,26 @@
         State.Filter.PaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
     }
 
-    private async Task LoadFilterProvincesAsync()
+    private async Task LoadFilterRegionsAsync()
     {
-        if (State.FilterProvinces.Any()) return;
+        if (State.FilterRegions.Any()) return;
+        try
+        {
+            IsFilterRegionLoading = true;
+            State.FilterRegions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
+        }
+        finally { IsFilterRegionLoading = false; StateHasChanged(); }
+    }
+
+    private async Task LoadFilterProvincesAsync(int regionCode)
+    {
         try
         {
             IsFilterProvinceLoading = true;
             State.FilterProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
-                $"api/Province/by-region/{DefaultRegionCode}") ?? new();
+                $"api/Province/by-region/{regionCode}") ?? new();
         }
-        finally { IsFilterProvinceLoading = false; }
+        finally { IsFilterProvinceLoading = false; StateHasChanged(); }
     }
 
     private async Task ApplyFiltersAsync()
@@ -312,11 +367,12 @@
 
         try
         {
-            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
-            State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
-            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
+            State.Filter.PsgcCodeRegion       = State.SelectedRegionId       > 0 ? State.SelectedRegionId       : null;
+            State.Filter.PsgcCodeProvince      = State.SelectedProvinceId     > 0 ? State.SelectedProvinceId     : null;
+            State.Filter.PsgcCodeMunicipality  = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
+            State.Filter.PsgcCodeBarangay      = State.SelectedBarangayId     > 0 ? State.SelectedBarangayId     : null;
             State.Filter.PageNumber = 1;
-            State.Filter.PageSize = 10; // ✅ reset page size on every new search
+            State.Filter.PageSize = 10;
 
             if (IsFilterEmpty(State.Filter))
             {
@@ -326,7 +382,6 @@
 
             await State.LoadAsync();
 
-            // Show toast only if error occurred
             if (State.ErrorMessage is not null)
                 toast.ShowError(State.ErrorMessage);
         }
@@ -338,16 +393,13 @@
 
     private async Task ClearFilterAsync()
     {
+        State.SelectedRegionId       = 0;
         State.SelectedProvinceId     = 0;
         State.SelectedMunicipalityId = 0;
         State.SelectedBarangayId     = 0;
-        State.Filter.Sex             = 0;
-        State.Filter.PaymentStatus   = 0;
-        State.Filter.FindingStatus = 3;
-        State.Filter.PaymentDate     = null;
+        State.FilterProvinces        = new();
         State.FilterMunicipalities   = new();
         State.FilterBarangays        = new();
-        State.Filter = new() { PageNumber = 1, PageSize = 10 };
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
@@ -355,8 +407,9 @@
         barangaySelectKey++;
         State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
         State.ClearData();
-        State.FilterProvinces.Clear();
-        await LoadFilterProvincesAsync();
+        // Reload the region list (already cached in State.FilterRegions — just re-show)
+        if (!State.FilterRegions.Any())
+            await LoadFilterRegionsAsync();
         StateHasChanged();
     }
 
@@ -372,12 +425,13 @@
         f.BirthdayTo       == null &&
         f.MilestoneYear    == null &&
         f.PaymentDate      == null &&
+        f.PsgcCodeRegion        == null &&
         f.PsgcCodeProvince      == null &&
         f.PsgcCodeMunicipality  == null &&
         f.PsgcCodeBarangay      == null &&
         f.Sex           == null &&
         f.PaymentStatus == null &&
-        // ✅ 3 = sentinel "not selected", null = cleared — both mean no filter applied
+        // 3 = sentinel "not selected", null = cleared — both mean no filter applied
         (f.FindingStatus == null || f.FindingStatus == 3);
 
     private async Task LoadMunicipalitiesAsync(int provinceId)
