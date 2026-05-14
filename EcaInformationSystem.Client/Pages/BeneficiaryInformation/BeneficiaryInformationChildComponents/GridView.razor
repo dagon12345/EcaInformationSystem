@@ -631,6 +631,7 @@
     private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
     private string? fullNameFilter;
+    private CancellationTokenSource? _nameCts;
     private BeneficiaryInformationDto? selectedDetails;
     private HxOffcanvas detailsOffcanvas = default!;
     private const int DefaultRegionCode = 1600000000;
@@ -644,12 +645,10 @@
     private string confirmationTitle = "Confirm Action";
     private string confirmationMessage = string.Empty;
     private string? successMessage = string.Empty;
-    private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => string.IsNullOrWhiteSpace(fullNameFilter) ? State.Beneficiaries
-           : State.Beneficiaries.Where(x => GetFullName(x).Contains(fullNameFilter, StringComparison.OrdinalIgnoreCase));
-    // Add this computed property
-    private int DisplayCount => string.IsNullOrWhiteSpace(fullNameFilter)
-        ? State.TotalCount
-        : FilteredBeneficiaries.Count();
+    // Server handles all filtering — State.Beneficiaries is already the filtered+paged result.
+    // The column search box triggers a server-side reload (see OnFullNameFilterInput below).
+    private IEnumerable<BeneficiaryInformationDto> FilteredBeneficiaries => State.Beneficiaries;
+    private int DisplayCount => State.TotalCount;
 
     private async Task OpenDetailsPanel(BeneficiaryInformationDto item)
     {
@@ -951,10 +950,27 @@ private string GetPaymentBadgeClass(int status) => status switch
         var check = State.Beneficiaries.Any() && State.Beneficiaries.All(x => checkedIds.Contains(x.Id));
         return check;
     }
-    private void OnFullNameFilterInput(ChangeEventArgs e)
+    private async Task OnFullNameFilterInput(ChangeEventArgs e)
     {
         fullNameFilter = e.Value?.ToString();
-        StateHasChanged(); // ✅ re-renders the grid with filtered results
+
+        // Cancel any in-flight debounce
+        _nameCts?.Cancel();
+        _nameCts?.Dispose();
+        _nameCts = new CancellationTokenSource();
+
+        try
+        {
+            // Wait 400 ms — if another keystroke arrives it cancels this one
+            await Task.Delay(400, _nameCts.Token);
+
+            // Push the value into the shared filter and reload from the server.
+            // This searches ALL pages, not just the current 10 rows.
+            State.Filter.FullName = string.IsNullOrWhiteSpace(fullNameFilter) ? null : fullNameFilter.Trim();
+            State.Filter.PageNumber = 1;
+            await State.LoadAsync();
+        }
+        catch (TaskCanceledException) { /* debounced away — ignore */ }
     }
     private async Task OpenBulkUpdateModal()
     {
