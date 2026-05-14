@@ -685,7 +685,7 @@
             pendingAction = "generate-payroll";
             IsGeneratingPayroll = true;
             StateHasChanged();
-            await _payrollModal.ShowAsync(checkedIds.ToList(), State.Beneficiaries.ToList());
+            await _payrollModal.ShowAsync(checkedIds.ToList());
         }
         catch (Exception ex)
         {

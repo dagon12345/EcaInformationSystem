@@ -659,20 +659,32 @@
         return $"CGP No.: {_settings.RegionCode}-{yearStr}{_settings.Month}-{_settings.FixedSegment}-{_settings.ShortenYear}-{pageNum:D4}";
     }
 
-    public async Task ShowAsync(
-        List<Guid> selectedIds,
-        List<BeneficiaryInformationDto> allBeneficiaries)
+    public async Task ShowAsync(List<Guid> selectedIds)
     {
-        // Deduplicate IDs and beneficiaries
-        var distinctIds = selectedIds.Distinct().ToHashSet();
+        var distinctIds = selectedIds.Distinct().ToList();
 
-        var distinctBeneficiaries = allBeneficiaries
-            .GroupBy(x => x.Id)
-            .Select(g => g.First())
-            .ToList();
+        // Fetch the full beneficiary records for ALL selected IDs from the server.
+        // This is necessary because State.Beneficiaries only holds the current page —
+        // selections made on other pages would otherwise be silently missing.
+        List<BeneficiaryInformationDto> fetched;
+        try
+        {
+            fetched = await Http.PostAsJsonAsync("api/beneficiary/by-ids", distinctIds)
+                          .ContinueWith(async t =>
+                          {
+                              var resp = await t;
+                              resp.EnsureSuccessStatusCode();
+                              return await resp.Content.ReadFromJsonAsync<List<BeneficiaryInformationDto>>()
+                                     ?? new List<BeneficiaryInformationDto>();
+                          }).Unwrap();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load selected records: {ex.Message}");
+            return;
+        }
 
-        _previewData = distinctBeneficiaries
-            .Where(x => distinctIds.Contains(x.Id))
+        _previewData = fetched
             .OrderBy(x => x.ProvinceName)
             .ThenBy(x => x.MunicipalityName)
             .ThenBy(x => x.BatchCode)
@@ -694,7 +706,7 @@
 
         _settings = new PayrollSettingsDto
         {
-            Ids = distinctIds.ToList(),
+            Ids = distinctIds,
             Month = DateTime.Today.ToString("MM"),
             RecordsPerPage = 15,
         };

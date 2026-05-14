@@ -403,6 +403,9 @@ namespace EcaInformationSystem.Application.Services
             return getById;
         }
 
+        public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)
+            => await _repo.GetByIdsAsync(ids);
+
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
