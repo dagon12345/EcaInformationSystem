@@ -15,7 +15,15 @@ public class AddressController(IAddressSearchService addressSearchService) : Con
         if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
             return Ok(Array.Empty<object>());
 
-        var results = await addressSearchService.SearchAsync(q, cancellationToken);
-        return Ok(results);
+        try
+        {
+            var results = await addressSearchService.SearchAsync(q, cancellationToken);
+            return Ok(results);
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected (debounce cancelled the request) — not an error
+            return StatusCode(499);
+        }
     }
 }
