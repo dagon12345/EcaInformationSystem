@@ -808,8 +808,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 }
             ).AsNoTracking().ToListAsync();
 
-            // Step 2: Map to DTO in-memory (safe to use JsonSerializer here)
-            var result = raw.Select(x => new BeneficiaryInformationDto
+            // Step 2: Deduplicate raw rows by beneficiary Id before mapping.
+            // The LEFT JOINs on Provinces/Municipalities/Barangays can produce multiple
+            // rows per beneficiary when the lookup table contains duplicate codes
+            // (e.g. legacy DB codes co-existing with PSGC-seeded codes for the same province).
+            // Keeping the first occurrence is safe because all duplicate rows carry the same
+            // beneficiary fields; only the joined name columns might differ, and they're
+            // the same value (same province name for the same code).
+            var deduped = raw
+                .GroupBy(x => x.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            // Step 3: Map to DTO in-memory (safe to use JsonSerializer here)
+            var result = deduped.Select(x => new BeneficiaryInformationDto
             {
                 Id = x.Id,
                 DateApplied = x.DateApplied,
