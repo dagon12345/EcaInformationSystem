@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<TokenService>();
             services.AddScoped<IBeneficiaryFindingService, BeneficiaryFindingService>();
+            services.AddScoped<IAddressSearchService, AddressSearchService>();
             return services;
         }
     }
