@@ -1,6 +1,7 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Infrastructure.Services;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Infrastructure.Repositories;
 using EcaInformationSystem.Infrastructure.Services;
@@ -18,6 +19,13 @@ namespace EcaInformationSystem.Infrastructure
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"),
                 sqlOptions => sqlOptions.CommandTimeout(180))); //3 minutes command timeout for long-running operations like bulk imports
 
+            services.AddHttpClient("PsgcApi", c =>
+            {
+                c.BaseAddress = new Uri("https://psgc.gitlab.io/");
+                c.Timeout = TimeSpan.FromMinutes(10);
+            });
+            services.AddScoped<IPsgcSeederService, PsgcSeederService>();
+
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<IBeneficiaryInformationRepository, BeneficiaryInformationRepository>();
             services.AddScoped<IRegionRepository, RegionRepository>();
@@ -28,6 +36,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<ILogRepository, LogRepository>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
+            services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();
             return services;
         }
     }
