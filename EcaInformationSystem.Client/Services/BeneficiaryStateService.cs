@@ -10,6 +10,7 @@ public class BeneficiaryStateService
     public bool HasActiveFilter { get; private set; } = false;
 
     // ✅ Persist filter UI selections across navigation
+    public int SelectedRegionId { get; set; } = 0;
     public int SelectedProvinceId { get; set; } = 0;
     public int SelectedMunicipalityId { get; set; } = 0;
     public int SelectedBarangayId { get; set; } = 0;

@@ -17,7 +17,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<IEnumerable<Province>> GetAllAsync(int psgcCodeRegion)
         {
-            return await _context.Provinces
+            var all = await _context.Provinces
                 .Where(x => x.PsgcCodeRegion == psgcCodeRegion)
                 .Select(x => new Province
                 {
@@ -26,8 +26,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PsgcCodeProvince = x.PsgcCodeProvince,
                     Name = x.Name
                 })
+                .OrderBy(x => x.Name)
                 .AsNoTracking()
                 .ToListAsync();
+
+            // Deduplicate by name — guards against legacy records that share a name
+            // with PSGC-seeded entries that have a different PsgcCodeProvince.
+            return all.DistinctBy(x => x.Name!.Trim().ToUpperInvariant());
         }
 
         public async Task<IEnumerable<Province>> GetAllProvinceAsync()
