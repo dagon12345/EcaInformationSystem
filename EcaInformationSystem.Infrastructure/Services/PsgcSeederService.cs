@@ -23,9 +23,20 @@ public sealed class PsgcSeederService(
 {
     private const string BaseUrl = "https://psgc.gitlab.io/api";
 
+    // Philippines has ~42,000 barangays. If we already have 40,000+ the data is fully seeded.
+    private const int MinExpectedBarangays = 40_000;
+
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         var http = httpFactory.CreateClient("PsgcApi");
+
+        // Fast early-exit: if we already have a full dataset, skip all external API calls.
+        var barangayCount = await db.Barangays.CountAsync(cancellationToken);
+        if (barangayCount >= MinExpectedBarangays)
+        {
+            logger.LogInformation("PSGC data already fully seeded ({Count} barangays). Skipping.", barangayCount);
+            return;
+        }
 
         // Load all existing PSGC codes into memory upfront to avoid N+1 DB queries.
         // This also ensures we never overwrite existing records (custom spellings preserved).
