@@ -32,7 +32,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             // Deduplicate by name — guards against legacy records that share a name
             // with PSGC-seeded entries that have a different PsgcCodeProvince.
-            return all.DistinctBy(x => x.Name!.Trim().ToUpperInvariant());
+            // Prefer the ORIGINAL entry (lowest Id) because beneficiary records
+            // were created before PSGC seeding and reference that code.
+            return all
+                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .OrderBy(x => x.Name);
         }
 
         public async Task<IEnumerable<Province>> GetAllProvinceAsync()
