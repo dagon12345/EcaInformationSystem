@@ -1370,10 +1370,8 @@ namespace EcaInformationSystem.Application.Services
             const int firstDataRowNumber = 11;
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
 
-            var regions = await _regionRepository.GetAllAsync();
-            var provinces = await _provinceRepository.GetAllProvinceAsync();
-            var municipalities = await _municipalityRepository.GetAllMunicipalityAsync();
-            var barangays = await _barangayRepository.GetBarangaysAsync();
+            // UpdateExcelAsync only updates BatchCode, IsEligible, DateOfDeath, ValidationDate.
+            // Address fields are not re-resolved on update, so address lookup tables are not needed here.
 
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
@@ -1473,9 +1471,20 @@ namespace EcaInformationSystem.Application.Services
             var beneficiariesToImport = new List<BeneficiaryInformation>();
 
             var regions = await _regionRepository.GetAllAsync();
-            var provinces = await _provinceRepository.GetAllProvinceAsync();
-            var municipalities = await _municipalityRepository.GetAllMunicipalityAsync();
-            var barangays = await _barangayRepository.GetBarangaysAsync();
+
+            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
+            // The PSGC seeder can add a second row for the same province with a different
+            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
+            // non-deterministically, risking a PSGC code being saved while existing
+            // beneficiary records carry the legacy code.
+            var provinces = (await _provinceRepository.GetAllProvinceAsync())
+                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .ToList();
+
+            // Load municipalities and barangays once; they are scoped per-row below.
+            var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
+            var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
 
             using var workbook = new XLWorkbook(fileStream);
 
@@ -1701,10 +1710,17 @@ namespace EcaInformationSystem.Application.Services
                     }
 
 
-                    var municipality = FindBestNameMatch(municipalities, x => x.Name, municipalityName);
+                    // Scope municipality search to the matched province.
+                    // Without scoping, common names like "San Jose" or "Barobo" would match
+                    // the wrong municipality in a different province.
+                    var municipalitiesInProvince = province != null
+                        ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
+                        : municipalities; // province not found — fall back to all so we can still suggest
+
+                    var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
                     if (municipality == null)
                     {
-                        var suggestion = GetSuggestedName(municipalities, x => x.Name, municipalityName);
+                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
 
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
@@ -1719,10 +1735,17 @@ namespace EcaInformationSystem.Application.Services
                         rowHasError = true;
                     }
 
-                    var barangay = FindBestNameMatch(barangays, x => x.Name, barangayName);
+                    // Scope barangay search to the matched municipality.
+                    // "Poblacion" alone exists in virtually every municipality — without
+                    // scoping the match would be random across 42,000+ barangays.
+                    var barangaysInMunicipality = municipality != null
+                        ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
+                        : barangays; // municipality not found — fall back to all
+
+                    var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
                     if (barangay == null)
                     {
-                        var suggestion = GetSuggestedName(barangays, x => x.Name, barangayName);
+                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
 
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
