@@ -432,15 +432,38 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 };
 
             // ── Location ─────────────────────────────────────────────────────────
+            // NOTE: Province/Region codes are expanded by name to handle the case where
+            // legacy DB entries and PSGC-seeded entries share the same name but have
+            // different numeric codes. Beneficiary records may reference the old code
+            // while the filter UI sends the PSGC-seeded code — the subquery ensures
+            // both resolve to a match.
+
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
-                query = query.Where(x => x.Beneficiary.Region == filter.PsgcCodeRegion.Value);
+            {
+                var allRegionCodesForName = _context.Regions
+                    .Where(r => _context.Regions
+                        .Where(r2 => r2.PsgcCodeRegion == filter.PsgcCodeRegion.Value)
+                        .Select(r2 => r2.Name)
+                        .Contains(r.Name))
+                    .Select(r => r.PsgcCodeRegion);
+
+                query = query.Where(x => allRegionCodesForName.Contains(x.Beneficiary.Region));
+            }
 
             if (filter.PsgcCodeProvince != null)
-                query = query.Where(x => x.Beneficiary.Province == filter.PsgcCodeProvince);
+            {
+                var allProvinceCodesForName = _context.Provinces
+                    .Where(p => _context.Provinces
+                        .Where(p2 => p2.PsgcCodeProvince == filter.PsgcCodeProvince.Value)
+                        .Select(p2 => p2.Name)
+                        .Contains(p.Name))
+                    .Select(p => p.PsgcCodeProvince);
+
+                query = query.Where(x => allProvinceCodesForName.Contains(x.Beneficiary.Province));
+            }
 
             if (filter.PsgcCodeMunicipality != null)
                 query = query.Where(x => x.Beneficiary.Municipality == filter.PsgcCodeMunicipality);
-
 
             if (filter.PsgcCodeBarangay != null)
                 query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay);
