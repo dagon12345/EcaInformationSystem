@@ -9,6 +9,7 @@
 @inject BeneficiaryFindingClientService FindingService
 
 <style>
+    /* ── Address search ──────────────────────────────────────────────────── */
     .address-search-container { position: relative; }
 
     .address-input-wrapper { position: relative; }
@@ -18,19 +19,29 @@
         transform: translateY(-50%); pointer-events: none;
     }
 
+    /* Bust out of any parent overflow:hidden so the dropdown is never clipped */
+    .address-section-body { overflow: visible !important; }
+
     .address-suggestions-dropdown {
-        position: absolute; z-index: 1000; width: 100%;
+        position: absolute; z-index: 9999;
+        left: 0; right: 0;          /* span full container width */
+        min-width: 280px;           /* never collapse to nothing */
         background: #fff; border: 1px solid #c8d3e0;
-        border-radius: 0.375rem; box-shadow: 0 4px 12px rgba(0,0,0,.12);
-        max-height: 240px; overflow-y: auto; margin-top: 2px;
+        border-radius: 0.375rem; box-shadow: 0 6px 20px rgba(0,0,0,.15);
+        max-height: 300px; overflow-y: auto; margin-top: 3px;
     }
     .address-suggestion-item {
-        padding: 0.5rem 0.75rem; cursor: pointer;
+        padding: 0.55rem 0.8rem; cursor: pointer;
         font-size: 0.875rem; border-bottom: 1px solid #f0f3f7;
-        display: flex; align-items: baseline; gap: 0.25rem;
+        /* allow text to wrap — barangay + municipality + province can be long */
+        display: block; white-space: normal; word-break: break-word;
+        line-height: 1.35;
     }
     .address-suggestion-item:last-child { border-bottom: none; }
     .address-suggestion-item:hover { background: #eef2f8; }
+    .address-suggestion-item .suggestion-location {
+        color: #6c757d; font-size: 0.8rem; margin-top: 1px; display: block;
+    }
 
     .address-selected-chip {
         display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
@@ -203,7 +214,7 @@
         <div class="form-section-header">
             <i class="bi bi-geo-alt me-2"></i>Address Information
         </div>
-        <div class="form-section-body">
+        <div class="form-section-body address-section-body">
             <div class="ff address-search-container">
                 <label class="ff-label">Address (Barangay) <span class="req">*</span></label>
                 @if (selectedAddress is not null)
@@ -245,11 +256,10 @@
                             @foreach (var item in addressSuggestions)
                             {
                                 <div class="address-suggestion-item" @onmousedown="() => SelectAddress(item)">
-                                    <i class="bi bi-geo-alt me-1 text-muted"></i>
-                                    <span>
-                                        <strong>@item.BarangayName</strong>,
-                                        @item.MunicipalityName,
-                                        @item.ProvinceName
+                                    <i class="bi bi-geo-alt-fill me-1 text-primary" style="font-size:0.75rem;"></i>
+                                    <strong>@item.BarangayName</strong>
+                                    <span class="suggestion-location">
+                                        @item.MunicipalityName, @item.ProvinceName &nbsp;·&nbsp; @item.RegionName
                                     </span>
                                 </div>
                             }
