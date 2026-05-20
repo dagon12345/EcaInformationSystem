@@ -144,8 +144,11 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // In production: HSTS + JSON error handler (CORS-aware)
-    app.UseHsts();
+    // In production: JSON error handler (CORS-aware).
+    // NOTE: UseHsts() is intentionally omitted — this API runs over plain HTTP on the
+    // LAN (IIS port 8080).  Sending an HSTS header would instruct browsers to refuse
+    // all future HTTP connections to this origin, which would permanently break the
+    // app until the HSTS max-age expires.
     app.UseExceptionHandler(errorApp =>
     {
         errorApp.Run(async context =>
@@ -190,11 +193,18 @@ else
     });
 }
 
-// CORS must be the very first middleware so that preflight OPTIONS responses
-// always carry Access-Control-Allow-Origin — even if UseHttpsRedirection would
-// otherwise redirect them first (which strips CORS headers and blocks the request).
+// CORS must come before any redirect middleware so that preflight OPTIONS responses
+// always carry Access-Control-Allow-Origin headers.
 app.UseCors("WasmPolicy");
-app.UseHttpsRedirection();
+
+// Only redirect to HTTPS in local development (Kestrel with a dev cert).
+// In production the API is hosted by IIS on a plain-HTTP port (8080); issuing an
+// HTTPS redirect there would send every request to a non-existent HTTPS endpoint
+// and cause HTTP 307 / 500 errors for all API calls from the Blazor client.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
