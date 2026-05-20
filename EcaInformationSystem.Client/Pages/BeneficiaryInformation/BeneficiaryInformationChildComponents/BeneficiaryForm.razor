@@ -8,61 +8,6 @@
 @inject BeneficiaryStateService State;
 @inject BeneficiaryFindingClientService FindingService
 
-<style>
-    /* ── Address search ──────────────────────────────────────────────────── */
-    .address-search-container { position: relative; }
-
-    .address-input-wrapper { position: relative; }
-    .address-input-wrapper .ff-input { padding-right: 2rem; }
-    .address-input-spinner {
-        position: absolute; right: 0.6rem; top: 50%;
-        transform: translateY(-50%); pointer-events: none;
-    }
-
-    /*
-     * .form-section has overflow:hidden in app.css so it can clip the header
-     * into its rounded corners. That also clips our absolute dropdown.
-     * Fix: override overflow on this specific section, then give the header
-     * explicit border-radius so it still looks rounded without the clip.
-     */
-    .form-section-address { overflow: visible !important; }
-    .form-section-address .form-section-header { border-radius: 9px 9px 0 0; }
-
-    .address-suggestions-dropdown {
-        position: absolute; z-index: 9999;
-        left: 0; right: 0;
-        min-width: 280px;
-        background: #fff; border: 1px solid #c8d3e0;
-        border-radius: 0.375rem; box-shadow: 0 6px 20px rgba(0,0,0,.15);
-        max-height: 300px; overflow-y: auto; margin-top: 3px;
-    }
-    .address-suggestion-item {
-        padding: 0.55rem 0.8rem; cursor: pointer;
-        font-size: 0.875rem; border-bottom: 1px solid #f0f3f7;
-        /* allow text to wrap — barangay + municipality + province can be long */
-        display: block; white-space: normal; word-break: break-word;
-        line-height: 1.35;
-    }
-    .address-suggestion-item:last-child { border-bottom: none; }
-    .address-suggestion-item:hover { background: #eef2f8; }
-    .address-suggestion-item .suggestion-location {
-        color: #6c757d; font-size: 0.8rem; margin-top: 1px; display: block;
-    }
-
-    .address-selected-chip {
-        display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-        padding: 0.45rem 0.75rem; border: 1px solid #5a7fbf;
-        border-radius: 0.375rem; background: #eef3fc;
-        font-size: 0.875rem; min-height: 2.25rem;
-    }
-    .address-chip-text { flex: 1; }
-    .address-chip-region { font-size: 0.78rem; }
-    .address-chip-clear {
-        background: none; border: none; padding: 0 0.2rem;
-        color: #666; cursor: pointer; line-height: 1; margin-left: auto;
-    }
-    .address-chip-clear:hover { color: #c0392b; }
-</style>
 
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
     <DataAnnotationsValidator />
@@ -216,7 +161,7 @@
     </div>
 
     @* ── Address ── *@
-    <div class="form-section form-section-address mb-3">
+    <div class="form-section mb-3">
         <div class="form-section-header">
             <i class="bi bi-geo-alt me-2"></i>Address Information
         </div>
@@ -251,28 +196,63 @@
                                autocomplete="off" />
                         @if (isAddressSearching)
                         {
-                            <span class="address-input-spinner">
-                                <span class="spinner-border spinner-border-sm text-secondary"></span>
-                            </span>
+                            <option value="@r.PsgcCodeRegion">@r.Name</option>
                         }
-                    </div>
-                    @if (showAddressSuggestions && addressSuggestions.Any())
-                    {
-                        <div class="address-suggestions-dropdown">
-                            @foreach (var item in addressSuggestions)
-                            {
-                                <div class="address-suggestion-item" @onmousedown="() => SelectAddress(item)">
-                                    <i class="bi bi-geo-alt-fill me-1 text-primary" style="font-size:0.75rem;"></i>
-                                    <strong>@item.BarangayName, @item.MunicipalityName</strong>
-                                    <span class="suggestion-location">
-                                        @item.ProvinceName &nbsp;·&nbsp; @item.RegionName
-                                    </span>
-                                </div>
-                            }
-                        </div>
-                    }
-                }
-                <ValidationMessage For="@(() => model.PsgcCodeBarangay)" class="ff-err" />
+                    </select>
+                </div>
+
+                @* Province *@
+                <div class="ff">
+                    <label class="ff-label">Province <span class="req">*</span></label>
+                    <select class="ff-input"
+                            value="@model.PsgcCodeProvince"
+                            @onchange="OnFormProvinceChanged"
+                            disabled="@(model.PsgcCodeRegion == 0 || _isFormProvinceLoading || IsLoading)">
+                        <option value="0">
+                            @(_isFormProvinceLoading ? "Loading..." : "Select Province")
+                        </option>
+                        @foreach (var p in _formProvinces)
+                        {
+                            <option value="@p.PsgcCodeProvince">@p.Name</option>
+                        }
+                    </select>
+                </div>
+
+                @* Municipality *@
+                <div class="ff">
+                    <label class="ff-label">Municipality / City <span class="req">*</span></label>
+                    <select class="ff-input"
+                            value="@model.PsgcCodeMunicipality"
+                            @onchange="OnFormMunicipalityChanged"
+                            disabled="@(model.PsgcCodeProvince == 0 || _isFormMunicipalityLoading || IsLoading)">
+                        <option value="0">
+                            @(_isFormMunicipalityLoading ? "Loading..." : "Select Municipality")
+                        </option>
+                        @foreach (var m in _formMunicipalities)
+                        {
+                            <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                        }
+                    </select>
+                </div>
+
+                @* Barangay *@
+                <div class="ff">
+                    <label class="ff-label">Barangay <span class="req">*</span></label>
+                    <select class="ff-input"
+                            value="@model.PsgcCodeBarangay"
+                            @onchange="OnFormBarangayChanged"
+                            disabled="@(model.PsgcCodeMunicipality == 0 || _isFormBarangayLoading || IsLoading)">
+                        <option value="0">
+                            @(_isFormBarangayLoading ? "Loading..." : "Select Barangay")
+                        </option>
+                        @foreach (var b in _formBarangays)
+                        {
+                            <option value="@b.PsgcCodeBarangay">@b.Name</option>
+                        }
+                    </select>
+                    <ValidationMessage For="@(() => model.PsgcCodeBarangay)" class="ff-err" />
+                </div>
+
             </div>
         </div>
     </div>
@@ -473,7 +453,6 @@
     {
         BirthDate = DateTime.UtcNow.AddYears(-80),
         ValidationDate = DateTime.UtcNow,
-        PsgcCodeRegion = DefaultRegionCode,
     };
 
     private bool IsLoading;
@@ -485,16 +464,17 @@
     private HxModal confirmModal = default!;
     private ElementReference batchCodeInput;
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
-    private const int DefaultRegionCode = 1600000000;
-    private const string DefaultRegionName = "Region XIII (Caraga)";
-    // Address search
-    private string addressSearchQuery = string.Empty;
-    private List<AddressSearchResultDto> addressSuggestions = new();
-    private AddressSearchResultDto? selectedAddress;
-    private bool isAddressSearching;
-    private bool showAddressSuggestions;
-    private CancellationTokenSource? _searchCts;
     private bool _isLoadingRecord = false;
+
+    // ── Address cascade dropdowns ────────────────────────────────────────────
+    private List<RegionLookupDto> _formRegions = new();
+    private List<ProvinceLookupDto> _formProvinces = new();
+    private List<MunicipalityLookupDto> _formMunicipalities = new();
+    private List<BarangayLookupDto> _formBarangays = new();
+    private bool _isFormRegionLoading;
+    private bool _isFormProvinceLoading;
+    private bool _isFormMunicipalityLoading;
+    private bool _isFormBarangayLoading;
     // ── Finding state (edit mode only) ───────────────────────────────────────────
     private BeneficiaryFindingDto? currentFinding;
     private int findingStatusInput = 0;
@@ -502,85 +482,93 @@
     private bool isLoadingFinding;
     private bool isSavingFinding = false;
 
-    #region Address
-    private async Task OnAddressSearchInput(ChangeEventArgs e)
+    #region Address cascade
+    private async Task LoadFormRegionsAsync()
     {
-        addressSearchQuery = e.Value?.ToString() ?? string.Empty;
-        selectedAddress = null;
-        ClearAddressCodes();
-
-        _searchCts?.Cancel();
-        _searchCts?.Dispose();
-        _searchCts = new CancellationTokenSource();
-
-        if (addressSearchQuery.Length < 2)
-        {
-            addressSuggestions = new();
-            showAddressSuggestions = false;
-            return;
-        }
-
         try
         {
-            await Task.Delay(300, _searchCts.Token);
-            isAddressSearching = true;
-            StateHasChanged();
-
-            addressSuggestions = await Http.GetFromJsonAsync<List<AddressSearchResultDto>>(
-                $"api/Address/search?q={Uri.EscapeDataString(addressSearchQuery)}",
-                _searchCts.Token) ?? new();
-
-            showAddressSuggestions = addressSuggestions.Any();
+            _isFormRegionLoading = true;
+            _formRegions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
         }
-        catch (TaskCanceledException) { /* debounced away — ignore */ }
-        catch { addressSuggestions = new(); }
-        finally { isAddressSearching = false; StateHasChanged(); }
+        finally { _isFormRegionLoading = false; StateHasChanged(); }
     }
 
-    private void SelectAddress(AddressSearchResultDto address)
+    private async Task LoadFormProvincesAsync(int regionCode)
     {
-        selectedAddress = address;
-        addressSearchQuery = string.Empty;
-        showAddressSuggestions = false;
-        addressSuggestions = new();
-        model.PsgcCodeRegion       = address.PsgcCodeRegion;
-        model.PsgcCodeProvince     = address.PsgcCodeProvince;
-        model.PsgcCodeMunicipality = address.PsgcCodeMunicipality;
-        model.PsgcCodeBarangay     = address.PsgcCodeBarangay;
+        _formProvinces = new(); _formMunicipalities = new(); _formBarangays = new();
+        try
+        {
+            _isFormProvinceLoading = true;
+            _formProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{regionCode}") ?? new();
+        }
+        finally { _isFormProvinceLoading = false; StateHasChanged(); }
     }
 
-    private void ClearAddressSelection()
+    private async Task LoadFormMunicipalitiesAsync(int provinceCode)
     {
-        selectedAddress = null;
-        addressSearchQuery = string.Empty;
-        addressSuggestions = new();
-        showAddressSuggestions = false;
-        ClearAddressCodes();
+        _formMunicipalities = new(); _formBarangays = new();
+        try
+        {
+            _isFormMunicipalityLoading = true;
+            _formMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{provinceCode}") ?? new();
+        }
+        finally { _isFormMunicipalityLoading = false; StateHasChanged(); }
     }
 
-    private void ClearAddressCodes()
+    private async Task LoadFormBarangaysAsync(int municipalityCode)
     {
-        model.PsgcCodeRegion       = DefaultRegionCode;
+        _formBarangays = new();
+        try
+        {
+            _isFormBarangayLoading = true;
+            var response = await Http.PostAsJsonAsync(
+                "api/Barangay/by-municipalities",
+                new LookupMultiRequestDto { Ids = new List<int> { municipalityCode } });
+            if (response.IsSuccessStatusCode)
+                _formBarangays = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+        }
+        finally { _isFormBarangayLoading = false; StateHasChanged(); }
+    }
+
+    private async Task OnFormRegionChanged(ChangeEventArgs e)
+    {
+        model.PsgcCodeRegion       = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
         model.PsgcCodeProvince     = 0;
         model.PsgcCodeMunicipality = 0;
         model.PsgcCodeBarangay     = 0;
+        _formProvinces = new(); _formMunicipalities = new(); _formBarangays = new();
+        if (model.PsgcCodeRegion > 0)
+            await LoadFormProvincesAsync(model.PsgcCodeRegion);
     }
 
-    private void OnAddressInputFocusIn()
+    private async Task OnFormProvinceChanged(ChangeEventArgs e)
     {
-        if (addressSuggestions.Any()) showAddressSuggestions = true;
+        model.PsgcCodeProvince     = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        model.PsgcCodeMunicipality = 0;
+        model.PsgcCodeBarangay     = 0;
+        _formMunicipalities = new(); _formBarangays = new();
+        if (model.PsgcCodeProvince > 0)
+            await LoadFormMunicipalitiesAsync(model.PsgcCodeProvince);
     }
 
-    private void OnAddressInputBlur()
+    private async Task OnFormMunicipalityChanged(ChangeEventArgs e)
     {
-        // Delay lets onmousedown on a suggestion item fire before the list hides
-        Task.Delay(150).ContinueWith(_ => InvokeAsync(() =>
-        {
-            showAddressSuggestions = false;
-            StateHasChanged();
-        }));
+        model.PsgcCodeMunicipality = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        model.PsgcCodeBarangay     = 0;
+        _formBarangays = new();
+        if (model.PsgcCodeMunicipality > 0)
+            await LoadFormBarangaysAsync(model.PsgcCodeMunicipality);
     }
 
+    private void OnFormBarangayChanged(ChangeEventArgs e)
+    {
+        model.PsgcCodeBarangay = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+    }
+    #endregion
+
+    #region Finding
     private async Task LoadFindingAsync(Guid beneficiaryId)
     {
         try
@@ -608,7 +596,7 @@
     #region Lifecycle
     protected override async Task OnInitializedAsync()
     {
-        model.PsgcCodeRegion = DefaultRegionCode;
+        await LoadFormRegionsAsync();
         if (IsEditMode && EditId.HasValue)
             await LoadExistingRecordAsync(EditId.Value);
     }
@@ -622,21 +610,13 @@
             model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{id}") ?? model;
             model.BirthDate = model.BirthDate.Date;
 
-            // Pre-populate the address chip from the loaded record's name fields
-            if (model.PsgcCodeBarangay > 0)
-            {
-                selectedAddress = new AddressSearchResultDto
-                {
-                    PsgcCodeBarangay     = model.PsgcCodeBarangay,
-                    BarangayName         = model.BarangayName,
-                    PsgcCodeMunicipality = model.PsgcCodeMunicipality,
-                    MunicipalityName     = model.MunicipalityName,
-                    PsgcCodeProvince     = model.PsgcCodeProvince,
-                    ProvinceName         = model.ProvinceName,
-                    PsgcCodeRegion       = model.PsgcCodeRegion,
-                    RegionName           = model.RegionName
-                };
-            }
+            // Pre-populate cascade dropdowns from the loaded record's PSGC codes
+            if (model.PsgcCodeRegion > 0)
+                await LoadFormProvincesAsync(model.PsgcCodeRegion);
+            if (model.PsgcCodeProvince > 0)
+                await LoadFormMunicipalitiesAsync(model.PsgcCodeProvince);
+            if (model.PsgcCodeMunicipality > 0)
+                await LoadFormBarangaysAsync(model.PsgcCodeMunicipality);
 
             ApplyEligibilityRules();
             await LoadFindingAsync(id);
@@ -654,12 +634,10 @@
         {
             BirthDate = DateTime.UtcNow.AddYears(-80),
             ValidationDate = DateTime.UtcNow,
-            PsgcCodeRegion = DefaultRegionCode,
         };
-        selectedAddress = null;
-        addressSearchQuery = string.Empty;
-        addressSuggestions = new();
-        showAddressSuggestions = false;
+        _formProvinces     = new();
+        _formMunicipalities = new();
+        _formBarangays     = new();
     }
 
     private void ApplyEligibilityRules()
