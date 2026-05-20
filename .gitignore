@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# IIS stdout logs (written by ANCM when stdoutLogEnabled=true)
+**/logs/stdout*.log
+
 # User-specific files
 *.rsuser
 *.suo
