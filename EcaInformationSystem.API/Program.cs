@@ -1,5 +1,5 @@
+using EcaInformationSystem.Api.BackgroundServices;
 using EcaInformationSystem.Application;
-using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -8,7 +8,6 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Net;
 using System.Text;
 using System.Text.Json;
 
@@ -111,6 +110,12 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// ─── PSGC Background Seeder ──────────────────────────────────────────────────
+// Runs geography seeding AFTER the web server has started (not during startup).
+// This prevents IIS from killing the process for exceeding startupTimeLimit
+// when the database is empty on first deployment.
+builder.Services.AddHostedService<PsgcSeederBackgroundService>();
+
 // ════════════════════════════════════════════════════════════════════════════
 var app = builder.Build();
 // ════════════════════════════════════════════════════════════════════════════
@@ -124,16 +129,9 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate();
 }
 
-// ─── PSGC Geography Seed ─────────────────────────────────────────────────────
-// Inserts missing regions/provinces/municipalities/barangays from psgc.gitlab.io.
-// Existing records (including custom spellings) are never overwritten.
-using (var scope = app.Services.CreateScope())
-{
-    var seeder = scope.ServiceProvider.GetRequiredService<IPsgcSeederService>();
-    await seeder.SeedAsync();
-}
-
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
+// Note: PSGC geography seeding is handled by PsgcSeederBackgroundService
+// which runs AFTER the server starts — see BackgroundServices/ folder.
 if (app.Environment.IsDevelopment())
 {
     // In development: show full exception details and expose Swagger
