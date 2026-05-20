@@ -166,19 +166,35 @@
             <i class="bi bi-geo-alt me-2"></i>Address Information
         </div>
         <div class="form-section-body">
-            <div class="form-grid">
-
-                @* Region *@
-                <div class="ff">
-                    <label class="ff-label">Region <span class="req">*</span></label>
-                    <select class="ff-input"
-                            value="@model.PsgcCodeRegion"
-                            @onchange="OnFormRegionChanged"
-                            disabled="@(_isFormRegionLoading || IsLoading)">
-                        <option value="0">
-                            @(_isFormRegionLoading ? "Loading..." : "Select Region")
-                        </option>
-                        @foreach (var r in _formRegions)
+            <div class="ff address-search-container">
+                <label class="ff-label">Address (Municipality) <span class="req">*</span></label>
+                @if (selectedAddress is not null)
+                {
+                    <div class="address-selected-chip">
+                        <i class="bi bi-geo-alt-fill text-success"></i>
+                        <span class="address-chip-text">
+                            <strong>@selectedAddress.BarangayName</strong>,
+                            @selectedAddress.MunicipalityName,
+                            @selectedAddress.ProvinceName
+                        </span>
+                        <small class="address-chip-region text-muted">(@selectedAddress.RegionName)</small>
+                        <button type="button" class="address-chip-clear" @onclick="ClearAddressSelection" title="Change address">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="address-input-wrapper">
+                        <input class="ff-input"
+                               type="text"
+                               placeholder="Type barangay or municipality name..."
+                               value="@addressSearchQuery"
+                               @oninput="OnAddressSearchInput"
+                               @onfocusin="OnAddressInputFocusIn"
+                               @onfocusout="OnAddressInputBlur"
+                               autocomplete="off" />
+                        @if (isAddressSearching)
                         {
                             <option value="@r.PsgcCodeRegion">@r.Name</option>
                         }

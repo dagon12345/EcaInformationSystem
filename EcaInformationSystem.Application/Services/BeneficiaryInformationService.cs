@@ -2753,7 +2753,9 @@ namespace EcaInformationSystem.Application.Services
             return value?.Trim().ToUpper() switch
             {
                 CommonConstants.Compliant => true,
+                CommonConstants.Compliance => true,
                 CommonConstants.Yes => true,
+                CommonConstants.NonCompliant => false,
                 _ => false
             };
         }
