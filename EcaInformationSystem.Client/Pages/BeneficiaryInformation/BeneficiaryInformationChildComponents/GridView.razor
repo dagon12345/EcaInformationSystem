@@ -905,27 +905,62 @@
         _ => "no-g"      // grey  — not yet set
     };
     private string GetAgeBadgeClass(DateTime birthDate)
-{
-    var age = GetAge(birthDate);
-    if (age == null || age < 80) return "unpaid";   // red
-
-    int currentYear = DateTime.Today.Year;
-    int[] milestones = new[] { 100, 95, 90, 85, 80 };
-    int milestoneYear = 0;
-    foreach (var m in milestones)
     {
-        int my = birthDate.Year + m;
-        if (my <= currentYear && my >= 2024) { milestoneYear = my; break; }
+        var age = GetAge(birthDate);
+        if (age == null) return "unpaid"; // red
+
+        int currentYear = DateTime.Today.Year;
+        int[] milestones = new[] { 80, 85, 90, 95, 100 };
+
+        // ✅ Find the nearest milestone year for this person (>= 2024)
+        int nearestMilestoneYear = 0;
+        int nearestMilestoneAge = 0;
+
+        // Check already-reached first
+        foreach (var m in milestones)
+        {
+            int my = birthDate.Year + m;
+            if (my >= 2024 && my <= currentYear)
+            {
+                nearestMilestoneYear = my;
+                nearestMilestoneAge = m;
+                break;
+            }
+        }
+
+        // If not yet reached, find next upcoming
+        if (nearestMilestoneYear == 0)
+        {
+            foreach (var m in milestones)
+            {
+                int my = birthDate.Year + m;
+                if (my >= 2024 && my > currentYear)
+                {
+                    nearestMilestoneYear = my;
+                    nearestMilestoneAge = m;
+                    break;
+                }
+            }
+        }
+
+        // ✅ Truly no program milestone (born before 1924)
+        if (nearestMilestoneYear == 0)
+            return "unpaid"; // red — pre-program
+
+        // ✅ Not yet at their milestone age → red (e.g. age 81, 82, 83, 84 before hitting 85)
+        if (age.Value < nearestMilestoneAge)
+            return "unpaid"; // red — hasn't reached milestone yet
+
+        // ✅ Exactly at milestone age — check the active window
+        int windowStart = Math.Max(2024, currentYear - 2);
+        if (nearestMilestoneYear >= windowStart && nearestMilestoneYear <= currentYear)
+            return "yes-g";  // green — active milestone window
+
+        if (nearestMilestoneYear > currentYear)
+            return "pending"; // grey — future milestone
+
+        return "no-g"; // grey — past window
     }
-
-    if (milestoneYear == 0) return "pending";
-
-    int windowStart = Math.Max(2024, currentYear - 2);
-    if (milestoneYear >= windowStart && milestoneYear <= currentYear)
-        return "yes-g";      // green — active window
-
-    return "no-g";           // grey — past window
-}
 
 private string GetPaymentBadgeClass(int status) => status switch
 {

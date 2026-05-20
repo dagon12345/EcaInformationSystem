@@ -413,9 +413,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
-                    //Beneficiary Finding here:
                 join finding in _context.BeneficiaryFindings
-                on b.Id equals finding.BeneficiaryInformationId into findingJoin
+                    on b.Id equals finding.BeneficiaryInformationId into findingJoin
                 from finding in findingJoin.DefaultIfEmpty()
 
                 where !b.IsDeleted
@@ -428,16 +427,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Barangay = barangay != null ? barangay.Name : null,
                     FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
                     FindingRemarks = finding != null ? finding.FindingRemarks : null,
-
                 };
 
             // ── Location ─────────────────────────────────────────────────────────
-            // NOTE: Province/Region codes are expanded by name to handle the case where
-            // legacy DB entries and PSGC-seeded entries share the same name but have
-            // different numeric codes. Beneficiary records may reference the old code
-            // while the filter UI sends the PSGC-seeded code — the subquery ensures
-            // both resolve to a match.
-
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
             {
                 var allRegionCodesForName = _context.Regions
@@ -468,24 +460,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeBarangay != null)
                 query = query.Where(x => x.Beneficiary.Barangay == filter.PsgcCodeBarangay);
 
-            // ✅ Fix — N/A (0) also includes records with no finding row at all
+            // ── Finding Status ────────────────────────────────────────────────────
             if (filter.FindingStatus.HasValue && filter.FindingStatus.Value != 3)
             {
                 var status = filter.FindingStatus.Value;
 
                 if (status == 0)
                 {
-                    // N/A = explicitly set to 0 OR no finding record exists yet (null from left join)
                     query = query.Where(x =>
                         x.FindingStatus == null ||
                         x.FindingStatus == 0);
                 }
                 else
                 {
-                    // Solved (1) or Unresolved (2) — only exact matches
                     query = query.Where(x => x.FindingStatus == status);
                 }
             }
+
             // ── Name ──────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.LastName))
                 query = query.Where(x =>
@@ -508,10 +499,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                      x.Beneficiary.LastName).ToLower().Contains(name));
             }
 
-
-
-            // ── Age — computed directly from BirthDate ────────────────────────────
-            // ✅ Moved from BuildBeneficiaryDtoQuery — now part of the single query
+            // ── Age ───────────────────────────────────────────────────────────────
             if (filter.SpecificAge.HasValue)
             {
                 var cutoffEnd = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
@@ -521,50 +509,113 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.BirthDate <= cutoffEnd);
             }
 
-            //// ── Birthday ──────────────────────────────────────────────────────────
+            // ── Birthday (month + day only, year ignored) ─────────────────────────
             if (filter.SpecificBirthday.HasValue)
             {
-                var start = filter.SpecificBirthday.Value.Date;
-                var end = start.AddDays(1);
+                var month = filter.SpecificBirthday.Value.Month;
+                var day = filter.SpecificBirthday.Value.Day;
                 query = query.Where(x =>
-                    x.Beneficiary.BirthDate >= start &&
-                    x.Beneficiary.BirthDate < end);
+                    x.Beneficiary.BirthDate.Month == month &&
+                    x.Beneficiary.BirthDate.Day == day);
             }
             else
             {
-                if (filter.BirthdayFrom.HasValue)
+                bool hasFrom = filter.BirthdayFrom.HasValue;
+                bool hasTo = filter.BirthdayTo.HasValue;
+
+                if (hasFrom && hasTo)
                 {
-                    var from = filter.BirthdayFrom.Value.Date;
-                    query = query.Where(x => x.Beneficiary.BirthDate >= from);
+                    var fromMonth = filter.BirthdayFrom!.Value.Month;
+                    var fromDay = filter.BirthdayFrom!.Value.Day;
+                    var toMonth = filter.BirthdayTo!.Value.Month;
+                    var toDay = filter.BirthdayTo!.Value.Day;
+
+                    // MMDD integer for easy comparison e.g. March 5 = 305
+                    int fromMD = fromMonth * 100 + fromDay;
+                    int toMD = toMonth * 100 + toDay;
+
+                    bool isWrap = fromMD > toMD; // e.g. Nov(1101) → Feb(228)
+
+                    if (!isWrap)
+                    {
+                        // Normal range e.g. March 1 → August 31
+                        query = query.Where(x =>
+                            (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) >= fromMD &&
+                            (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) <= toMD);
+                    }
+                    else
+                    {
+                        // Wrap range e.g. Nov 1 → Feb 28
+                        query = query.Where(x =>
+                            (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) >= fromMD ||
+                            (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) <= toMD);
+                    }
                 }
-                if (filter.BirthdayTo.HasValue)
+                else if (hasFrom)
                 {
-                    var to = filter.BirthdayTo.Value.Date.AddDays(1);
-                    query = query.Where(x => x.Beneficiary.BirthDate < to);
+                    var fromMonth = filter.BirthdayFrom!.Value.Month;
+                    var fromDay = filter.BirthdayFrom!.Value.Day;
+                    int fromMD = fromMonth * 100 + fromDay;
+
+                    query = query.Where(x =>
+                        (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) >= fromMD);
+                }
+                else if (hasTo)
+                {
+                    var toMonth = filter.BirthdayTo!.Value.Month;
+                    var toDay = filter.BirthdayTo!.Value.Day;
+                    int toMD = toMonth * 100 + toDay;
+
+                    query = query.Where(x =>
+                        (x.Beneficiary.BirthDate.Month * 100 + x.Beneficiary.BirthDate.Day) <= toMD);
                 }
             }
 
-            // ── Milestone Year — computed from BirthDate ──────────────────────────
-            // ✅ Moved from BuildBeneficiaryDtoQuery — translated directly to SQL
+            // ── Milestone Year ────────────────────────────────────────────────────
             if (filter.MilestoneYear.HasValue)
             {
                 var milestoneYear = filter.MilestoneYear.Value;
                 var milestones = new[] { 80, 85, 90, 95, 100 };
+                var today = DateTime.Today;
 
-                query = query.Where(x => milestones.Any(m =>
-                    x.Beneficiary.BirthDate.Year + m == milestoneYear));
+                if (milestoneYear == 0)
+                {
+                    // ✅ Mirror exact same logic as ComputeMilestoneYear returning 0:
+                    // No milestone satisfies: >= 2024 AND
+                    // (year < today.Year OR (year == today.Year AND dayOfYear <= today.DayOfYear))
+                    query = query.Where(x =>
+                        !milestones.Any(m =>
+                            (x.Beneficiary.BirthDate.Year + m) >= 2024 &&
+                            (
+                                (x.Beneficiary.BirthDate.Year + m) < today.Year ||
+                                (
+                                    (x.Beneficiary.BirthDate.Year + m) == today.Year &&
+                                    x.Beneficiary.BirthDate.DayOfYear <= today.DayOfYear
+                                )
+                            )
+                        )
+                    );
+                }
+                else
+                {
+                    // ✅ Specific milestone year — must match AND be >= 2024
+                    query = query.Where(x =>
+                        milestones.Any(m =>
+                            x.Beneficiary.BirthDate.Year + m == milestoneYear &&
+                            x.Beneficiary.BirthDate.Year + m >= 2024));
+                }
             }
 
-            // ✅ Sex — only filter when a real selection was made (1=Male, 2=Female)
+            // ── Sex ───────────────────────────────────────────────────────────────
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
 
-            // ✅ PaymentStatus — only filter when a real selection was made (0=N/A, 1=Unpaid, 2=Paid)
-            // -1 means "not selected" — exclude it
+            // ── Payment Status ────────────────────────────────────────────────────
             if (filter.PaymentStatus.HasValue && filter.PaymentStatus.Value >= 0)
                 query = query.Where(x => x.Beneficiary.PaymentStatus == filter.PaymentStatus.Value);
 
-            if (filter.PaymentDate.HasValue) // ✅ && instead of &
+            // ── Payment Date (exact) ──────────────────────────────────────────────
+            if (filter.PaymentDate.HasValue)
             {
                 var paymentStart = filter.PaymentDate.Value.Date;
                 var paymentEnd = paymentStart.AddDays(1);
@@ -573,7 +624,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.PaymentDate < paymentEnd);
             }
 
-            // ✅ Add payment date range support
+            // ── Payment Date Range ────────────────────────────────────────────────
             if (filter.PaymentDateFrom.HasValue)
             {
                 var from = filter.PaymentDateFrom.Value.Date;
@@ -586,7 +637,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x => x.Beneficiary.PaymentDate < to);
             }
 
-            //// ── Other ─────────────────────────────────────────────────────────────
+            // ── Other ─────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x =>
                     x.Beneficiary.Validator != null &&
@@ -596,6 +647,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x =>
                     x.Beneficiary.BatchCode != null &&
                     x.Beneficiary.BatchCode.Contains(filter.BatchCode));
+
             Console.WriteLine(query);
             return query.AsNoTracking();
         }
@@ -712,12 +764,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             foreach (var m in new[] { 100, 95, 90, 85, 80 })
             {
                 int y = birthDate.Year + m;
-                if (y >= 2024 && (y < today.Year || (y == today.Year && birthDate.DayOfYear <= today.DayOfYear)))
+                if (y >= 2024 &&
+                    (y < today.Year ||
+                    (y == today.Year && birthDate.DayOfYear <= today.DayOfYear)))
                     return y;
             }
+            // ✅ Returns 0 when:
+            // - No milestone year >= 2024 has been reached yet (birthday hasn't come)
+            // - e.g. age 84 born May 1941 → 85th milestone is 2026, birthday not yet passed → 0
+            // - e.g. age 104 born 1922 → 100th was 2022, before 2024 program window → 0
+            // - e.g. age 81 born 1944 → 85th is 2029, not reached → 0
             return 0;
         }
-
 
         public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn)
         {

@@ -199,25 +199,102 @@
                         <div class="sf-field">
                             <label>Milestone Year</label>
                             <select @bind="State.Filter.MilestoneYear">
-                                <option value="">Select Milestone Year</option>
+                                <option value="">-- Select --</option>
+                                <option value="0">No Milestone (0)</option>
                                 @for (int y = DateTime.Now.Year; y >= 2024; y--)
                                 {
                                     <option value="@y">@y</option>
                                 }
                             </select>
                         </div>
+
+                        @* Specific Birthday — Month + Day only *@
                         <div class="sf-field">
                             <label>Specific Birthday</label>
-                            <input type="date" @bind="State.Filter.SpecificBirthday" />
+                            <div class="sf-inline">
+                                <select @bind="_specificBirthdayMonth"
+                                        disabled="@IsLoading"
+                                        class="@(_specificBirthdayMonth > 0 && _specificBirthdayDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Month</option>
+                                    @foreach (var m in _months)
+                                    {
+                                        <option value="@m.Value">@m.Label</option>
+                                    }
+                                </select>
+                                <select @bind="_specificBirthdayDay"
+                                        disabled="@(IsLoading || _specificBirthdayMonth == 0)"
+                                        class="@(_specificBirthdayMonth > 0 && _specificBirthdayDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Day</option>
+                                    @foreach (var d in GetDaysForMonth(_specificBirthdayMonth))
+                                    {
+                                        <option value="@d">@d</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (_specificBirthdayMonth > 0 && _specificBirthdayDay == 0)
+                            {
+                                <span class="sf-field-error">Please select a day.</span>
+                            }
                         </div>
+
+                        @* Birthday From — Month + Day only *@
                         <div class="sf-field">
                             <label>Birthday From</label>
-                            <input type="date" @bind="State.Filter.BirthdayFrom" />
+                            <div class="sf-inline">
+                                <select @bind="_birthdayFromMonth"
+                                        disabled="@IsLoading"
+                                        class="@(_birthdayFromMonth > 0 && _birthdayFromDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Month</option>
+                                    @foreach (var m in _months)
+                                    {
+                                        <option value="@m.Value">@m.Label</option>
+                                    }
+                                </select>
+                                <select @bind="_birthdayFromDay"
+                                        disabled="@(IsLoading || _birthdayFromMonth == 0)"
+                                        class="@(_birthdayFromMonth > 0 && _birthdayFromDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Day</option>
+                                    @foreach (var d in GetDaysForMonth(_birthdayFromMonth))
+                                    {
+                                        <option value="@d">@d</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (_birthdayFromMonth > 0 && _birthdayFromDay == 0)
+                            {
+                                <span class="sf-field-error">Please select a day.</span>
+                            }
                         </div>
+
+                        @* Birthday To — Month + Day only *@
                         <div class="sf-field">
                             <label>Birthday To</label>
-                            <input type="date" @bind="State.Filter.BirthdayTo" />
+                            <div class="sf-inline">
+                                <select @bind="_birthdayToMonth"
+                                        disabled="@IsLoading"
+                                        class="@(_birthdayToMonth > 0 && _birthdayToDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Month</option>
+                                    @foreach (var m in _months)
+                                    {
+                                        <option value="@m.Value">@m.Label</option>
+                                    }
+                                </select>
+                                <select @bind="_birthdayToDay"
+                                        disabled="@(IsLoading || _birthdayToMonth == 0)"
+                                        class="@(_birthdayToMonth > 0 && _birthdayToDay == 0 ? "sf-select-error" : "")">
+                                    <option value="0">Day</option>
+                                    @foreach (var d in GetDaysForMonth(_birthdayToMonth))
+                                    {
+                                        <option value="@d">@d</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (_birthdayToMonth > 0 && _birthdayToDay == 0)
+                            {
+                                <span class="sf-field-error">Please select a day.</span>
+                            }
                         </div>
+
                     </div>
                 </div>
 
@@ -248,6 +325,46 @@
 </div>
 
 @code {
+
+    // ── Birthday state ────────────────────────────────────────────────
+    private int _specificBirthdayMonth = 0;
+    private int _specificBirthdayDay = 0;
+    private int _birthdayFromMonth = 0;
+    private int _birthdayFromDay = 0;
+    private int _birthdayToMonth = 0;
+    private int _birthdayToDay = 0;
+    private record MonthItem(int Value, string Label);
+    private readonly List<MonthItem> _months = new()
+    {
+        new(1,  "January"),
+        new(2,  "February"),
+        new(3,  "March"),
+        new(4,  "April"),
+        new(5,  "May"),
+        new(6,  "June"),
+        new(7,  "July"),
+        new(8,  "August"),
+        new(9,  "September"),
+        new(10, "October"),
+        new(11, "November"),
+        new(12, "December"),
+    };
+
+    // Use a fixed leap year (2000) so February always shows up to day 29
+    private static IEnumerable<int> GetDaysForMonth(int month)
+    {
+        if (month == 0) return Enumerable.Empty<int>();
+        var days = DateTime.DaysInMonth(2000, month); // 2000 is a leap year
+        return Enumerable.Range(1, days);
+    }
+
+    // Build a nullable DateTime from month+day inputs using a fixed year
+    private static DateTime? BuildMonthDay(int month, int day)
+    {
+        if (month == 0 || day == 0) return null;
+        return new DateTime(2000, month, day); // year is ignored by the filter
+    }
+
     private bool IsLoading = false;
     private bool IsFilterRegionLoading = false;
     private bool IsFilterProvinceLoading = false;
@@ -367,10 +484,57 @@
 
         try
         {
-            State.Filter.PsgcCodeRegion       = State.SelectedRegionId       > 0 ? State.SelectedRegionId       : null;
-            State.Filter.PsgcCodeProvince      = State.SelectedProvinceId     > 0 ? State.SelectedProvinceId     : null;
-            State.Filter.PsgcCodeMunicipality  = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
-            State.Filter.PsgcCodeBarangay      = State.SelectedBarangayId     > 0 ? State.SelectedBarangayId     : null;
+            // ── Validate month+day pairs before applying ───────────────────
+            if (_specificBirthdayMonth > 0 && _specificBirthdayDay == 0)
+            {
+                toast.ShowError("Please select a day for Specific Birthday.");
+                return;
+            }
+
+            if (_birthdayFromMonth > 0 && _birthdayFromDay == 0)
+            {
+                toast.ShowError("Please select a day for Birthday From.");
+                return;
+            }
+
+            if (_birthdayToMonth > 0 && _birthdayToDay == 0)
+            {
+                toast.ShowError("Please select a day for Birthday To.");
+                return;
+            }
+
+            // ── Validate that From is not the same as To ───────────────────
+            if (_birthdayFromMonth > 0 && _birthdayFromDay > 0 &&
+                _birthdayToMonth > 0 && _birthdayToDay > 0)
+            {
+                int fromMD = _birthdayFromMonth * 100 + _birthdayFromDay;
+                int toMD = _birthdayToMonth * 100 + _birthdayToDay;
+
+                if (fromMD == toMD)
+                {
+                    toast.ShowError("Birthday From and Birthday To cannot be the same date. Use Specific Birthday instead.");
+                    return;
+                }
+            }
+
+            // ── Validate Specific Birthday is not also set alongside From/To ──
+            if (_specificBirthdayMonth > 0 && _specificBirthdayDay > 0 &&
+                (_birthdayFromMonth > 0 || _birthdayToMonth > 0))
+            {
+                toast.ShowError("Cannot use Specific Birthday together with Birthday From or Birthday To.");
+                return;
+            }
+
+            State.Filter.PsgcCodeRegion = State.SelectedRegionId > 0 ? State.SelectedRegionId : null;
+            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
+            State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
+            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
+
+            // ── Map month+day selectors → filter DateTime fields ──────────
+            State.Filter.SpecificBirthday = BuildMonthDay(_specificBirthdayMonth, _specificBirthdayDay);
+            State.Filter.BirthdayFrom = BuildMonthDay(_birthdayFromMonth, _birthdayFromDay);
+            State.Filter.BirthdayTo = BuildMonthDay(_birthdayToMonth, _birthdayToDay);
+
             State.Filter.PageNumber = 1;
             State.Filter.PageSize = 10;
 
@@ -393,46 +557,56 @@
 
     private async Task ClearFilterAsync()
     {
-        State.SelectedRegionId       = 0;
-        State.SelectedProvinceId     = 0;
+        State.SelectedRegionId = 0;
+        State.SelectedProvinceId = 0;
         State.SelectedMunicipalityId = 0;
-        State.SelectedBarangayId     = 0;
-        State.FilterProvinces        = new();
-        State.FilterMunicipalities   = new();
-        State.FilterBarangays        = new();
+        State.SelectedBarangayId = 0;
+        State.FilterProvinces = new();
+        State.FilterMunicipalities = new();
+        State.FilterBarangays = new();
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
         municipalitySelectKey++;
         barangaySelectKey++;
+
+        // ── Reset birthday selectors ──────────────────────────────────
+        _specificBirthdayMonth = 0;
+        _specificBirthdayDay = 0;
+        _birthdayFromMonth = 0;
+        _birthdayFromDay = 0;
+        _birthdayToMonth = 0;
+        _birthdayToDay = 0;
+
         State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
         State.ClearData();
-        // Reload the region list (already cached in State.FilterRegions — just re-show)
+
         if (!State.FilterRegions.Any())
             await LoadFilterRegionsAsync();
+
         StateHasChanged();
     }
 
     private bool IsFilterEmpty(BeneficiaryFilterDto f) =>
-        string.IsNullOrWhiteSpace(f.FullName)     &&
-        string.IsNullOrWhiteSpace(f.LastName)     &&
-        string.IsNullOrWhiteSpace(f.FirstName)    &&
-        string.IsNullOrWhiteSpace(f.Validator)    &&
-        string.IsNullOrWhiteSpace(f.BatchCode)    &&
-        f.SpecificAge      == null &&
-        f.SpecificBirthday == null &&
-        f.BirthdayFrom     == null &&
-        f.BirthdayTo       == null &&
-        f.MilestoneYear    == null &&
-        f.PaymentDate      == null &&
-        f.PsgcCodeRegion        == null &&
-        f.PsgcCodeProvince      == null &&
-        f.PsgcCodeMunicipality  == null &&
-        f.PsgcCodeBarangay      == null &&
-        f.Sex           == null &&
-        f.PaymentStatus == null &&
-        // 3 = sentinel "not selected", null = cleared — both mean no filter applied
-        (f.FindingStatus == null || f.FindingStatus == 3);
+    string.IsNullOrWhiteSpace(f.FullName) &&
+    string.IsNullOrWhiteSpace(f.LastName) &&
+    string.IsNullOrWhiteSpace(f.FirstName) &&
+    string.IsNullOrWhiteSpace(f.Validator) &&
+    string.IsNullOrWhiteSpace(f.BatchCode) &&
+    f.SpecificAge == null &&
+    // ✅ null means "not selected"; 0 means "filter for no milestone" — both are valid states
+    f.MilestoneYear == null &&
+    f.PaymentDate == null &&
+    f.PsgcCodeRegion == null &&
+    f.PsgcCodeProvince == null &&
+    f.PsgcCodeMunicipality == null &&
+    f.PsgcCodeBarangay == null &&
+    f.Sex == null &&
+    f.PaymentStatus == null &&
+    (f.FindingStatus == null || f.FindingStatus == 3) &&
+    _specificBirthdayMonth == 0 &&
+    _birthdayFromMonth == 0 &&
+    _birthdayToMonth == 0;
 
     private async Task LoadMunicipalitiesAsync(int provinceId)
     {
