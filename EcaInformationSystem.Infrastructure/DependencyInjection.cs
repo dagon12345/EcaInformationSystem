@@ -17,7 +17,19 @@ namespace EcaInformationSystem.Infrastructure
         {
             services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"),
-                sqlOptions => sqlOptions.CommandTimeout(180))); //3 minutes command timeout for long-running operations like bulk imports
+                sqlOptions =>
+                {
+                    // 3 minutes for long-running operations like bulk imports
+                    sqlOptions.CommandTimeout(180);
+
+                    // Automatically retry transient SQL errors (error 19 "Physical connection
+                    // is not usable", error -2 timeout, etc.) before surfacing a failure.
+                    // 5 retries with exponential back-off up to 30 s between attempts.
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null);   // null = use the default transient-error list
+                }));
 
             services.AddHttpClient("PsgcApi", c =>
             {
