@@ -474,6 +474,7 @@
             _isFormRegionLoading = true;
             _formRegions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
         }
+        catch (Exception ex) { toast.ShowError($"Failed to load regions: {ex.Message}"); }
         finally { _isFormRegionLoading = false; StateHasChanged(); }
     }
 
@@ -486,6 +487,7 @@
             _formProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 $"api/Province/by-region/{regionCode}") ?? new();
         }
+        catch (Exception ex) { toast.ShowError($"Failed to load provinces: {ex.Message}"); }
         finally { _isFormProvinceLoading = false; StateHasChanged(); }
     }
 
@@ -498,6 +500,7 @@
             _formMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
                 $"api/Municipality/by-province/{provinceCode}") ?? new();
         }
+        catch (Exception ex) { toast.ShowError($"Failed to load municipalities: {ex.Message}"); }
         finally { _isFormMunicipalityLoading = false; StateHasChanged(); }
     }
 
@@ -512,7 +515,10 @@
                 new LookupMultiRequestDto { Ids = new List<int> { municipalityCode } });
             if (response.IsSuccessStatusCode)
                 _formBarangays = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+            else
+                toast.ShowError($"Failed to load barangays (HTTP {(int)response.StatusCode}).");
         }
+        catch (Exception ex) { toast.ShowError($"Failed to load barangays: {ex.Message}"); }
         finally { _isFormBarangayLoading = false; StateHasChanged(); }
     }
 

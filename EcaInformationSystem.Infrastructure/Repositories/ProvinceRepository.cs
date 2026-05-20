@@ -34,8 +34,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // with PSGC-seeded entries that have a different PsgcCodeProvince.
             // Prefer the ORIGINAL entry (lowest Id) because beneficiary records
             // were created before PSGC seeding and reference that code.
+            // Null names are kept as-is (legacy records); they group under an empty key.
             return all
-                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .GroupBy(x => (x.Name ?? string.Empty).Trim().ToUpperInvariant())
                 .Select(g => g.OrderBy(x => x.Id).First())
                 .OrderBy(x => x.Name);
         }
