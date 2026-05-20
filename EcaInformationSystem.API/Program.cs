@@ -192,8 +192,11 @@ else
     });
 }
 
+// CORS must be the very first middleware so that preflight OPTIONS responses
+// always carry Access-Control-Allow-Origin — even if UseHttpsRedirection would
+// otherwise redirect them first (which strips CORS headers and blocks the request).
+app.UseCors("WasmPolicy");
 app.UseHttpsRedirection();
-app.UseCors("WasmPolicy");        // ← Must be BEFORE Auth
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
