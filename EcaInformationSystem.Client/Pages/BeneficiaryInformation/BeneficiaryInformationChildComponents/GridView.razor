@@ -432,7 +432,7 @@
                     </div>
                     <div class="col-6">
                         <small class="text-muted d-block">Payment Status</small>
-                        <span class="badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
+                        <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
                             @GetPaymentStatusText(selectedDetails.PaymentStatus)
                         </span>
                     </div>
@@ -996,7 +996,7 @@
     {
         1 => "unpaid", // red
         2 => "paid", // green
-        3 => "unpaid", // red
+        3 => "pending", // yellow
         _ => "no-g"       // grey
     };
     private string GetFullName(BeneficiaryInformationDto item)
@@ -1211,18 +1211,12 @@
         2 => "Female",
         _ => "N/A"
     };
-    // private string GetPaymentBadgeClass(int status) => status switch
-    // {
-    // 1 => "bg-warning text-dark",
-    // 2 => "bg-success",
-    // 3 => "bg-danger",
-    // _ => "bg-secondary"
-    // };
     private string GetPaymentStatusText(int status) => status switch
     {
         0 => "N/A",
         1 => "Unpaid",
         2 => "Paid",
+        3 => "Pending",
         _ => "Unknown"
     };
 

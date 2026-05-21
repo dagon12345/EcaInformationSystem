@@ -83,6 +83,7 @@ namespace EcaInformationSystem.Domain.Common.Enum
 
         public const string Paid = "Paid";
         public const string Unpaid = "Unpaid";
+        public const string Pending = "Pending";
         public const string BulkPaymentStatusUpdatedTo = "Bulk payment status updated to:";
         public const string UpdatedBeneficiaryChanges = "Updated beneficiary record with changes:";
         public const string NoneOfTheRecordsFound = "None of the selected records were found.";

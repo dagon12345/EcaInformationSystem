@@ -312,7 +312,7 @@ namespace EcaInformationSystem.Application.Services
                 CivilStatus = dto.CivilStatus,
                 Citizenship = dto.Citizenship,
                 Sex = dto.Sex,
-                Region = CaragaEnum.DefaultRegionCode,
+                Region = dto.PsgcCodeRegion,
                 Province = dto.PsgcCodeProvince,
                 Municipality = dto.PsgcCodeMunicipality,
                 Barangay = dto.PsgcCodeBarangay,
@@ -364,7 +364,7 @@ namespace EcaInformationSystem.Application.Services
                 IsPersonWithDisability = beneficiary.IsPersonWithDisability,
                 CivilStatus = beneficiary.CivilStatus,
                 Citizenship = beneficiary.Citizenship,
-                PsgcCodeRegion = CaragaEnum.DefaultRegionCode,
+                PsgcCodeRegion = beneficiary.Region,
                 PsgcCodeProvince = beneficiary.Province,
                 PsgcCodeMunicipality = beneficiary.Municipality,
                 PsgcCodeBarangay = beneficiary.Barangay,
@@ -500,7 +500,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.LastName, dto.FirstName, dto.MiddleName,
                 dto.Extension, dto.BirthDate, dto.PhoneNumber,
                 dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
-                dto.CivilStatus, dto.Citizenship, CaragaEnum.DefaultRegionCode,
+                dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
                 dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate,
                 dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
@@ -3228,6 +3228,7 @@ namespace EcaInformationSystem.Application.Services
             0 => CommonConstants.None,
             1 => CommonConstants.Unpaid,
             2 => CommonConstants.Paid,
+            3 => CommonConstants.Pending,
             _ => CommonConstants.Unknown
         };
 

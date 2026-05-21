@@ -296,6 +296,7 @@
                         <option value="0">N/A</option>
                         <option value="1">Unpaid</option>
                         <option value="2">Paid</option>
+                        <option value="3">Pending</option>
                     </InputSelect>
                 </div>
                 <div class="ff">
@@ -724,7 +725,6 @@
     {
         if (int.TryParse(e.Value?.ToString(), out var v)) { model.Citizenship = v; ApplyEligibilityRules(); }
     }
-
     private void OnDateOfDeathChanged(ChangeEventArgs e)
     {
         if (DateTime.TryParse(e.Value?.ToString(), out var d)) { model.DateOfDeath = d; model.IsDeceased = true; }
