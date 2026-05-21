@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/EcaInformationSystem.Api/bin/Debug/net10.0/EcaInformationSystem.Api.dll",
+      "cwd": "${workspaceFolder}/EcaInformationSystem.Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Debug Blazor WASM",
+      "type": "blazorwasm",
+      "request": "launch",
+      "preLaunchTask": "build-client",
+      "cwd": "${workspaceFolder}/EcaInformationSystem.Client",
+      "browser": "edge"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "API + Blazor WASM",
+      "configurations": ["Debug API", "Debug Blazor WASM"]
+    }
+  ]
+}

@@ -21,6 +21,42 @@
     --badge-r: 6px;
     --input-ht: 32px;
 }
+/* -Sortable header base---------- */
+.sortable-th{
+    cursor:pointer;
+    user-select:none;
+    white-space:nowrap;
+    transition: background-color 0.15s ease;
+}
+/* Disabled state */
+.sort-disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+}
+.sort-header {
+    display: flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.sort-icon-wrap{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease;
+}
+.sort-icon-active{
+    font-size: 0.8rem;
+    color: #ffffff;
+    filter:drop-shadow(0 0 3px rgba(255, 255, 255, 0.55));
+}
+.sort-icon-hidden{
+    visibility: hidden;
+}
 /* ── Page header bar ─────────────────────────────────────────── */
 .page-header-bar {
     display: flex;

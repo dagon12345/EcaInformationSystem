@@ -68,12 +68,13 @@ public class BeneficiaryStateService
 
     public async Task LoadAsync()
     {
+        IsLoading = true;
         ErrorMessage = null; // ← clear previous error
+        NotifyStateChanged();
 
         try
         {
-            IsLoading = true;
-            NotifyStateChanged();
+
 
             var query = GetQueryString(Filter);
             var response = await _http.GetAsync($"api/beneficiary/paged?{query}");

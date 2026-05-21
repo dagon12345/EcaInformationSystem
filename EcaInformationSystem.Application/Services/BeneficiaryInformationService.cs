@@ -2680,8 +2680,6 @@ namespace EcaInformationSystem.Application.Services
         #endregion Payroll Liquidation - End
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
-            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
-
             var cacheKey = BuildPaginatedCacheKey(filter);
 
             if (_memoryCache.TryGetValue(cacheKey, out PagedResultDto<BeneficiaryInformationDto>? cached)
@@ -2700,7 +2698,7 @@ namespace EcaInformationSystem.Application.Services
 
             _memoryCache.Set(cacheKey, pagedResult, cacheOptions);
 
-            return pagedResult;
+             return pagedResult;
         }
 
 
@@ -2733,7 +2731,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,
                 filter.PaymentDateFrom?.ToFullDate() ?? CommonConstants.Null,
                 filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
-                filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null
+                filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null,
+                //Sort params added
+                filter.SortColumn ?? "default",
+                filter.SortAscending.ToString()
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)

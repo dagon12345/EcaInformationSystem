@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-api",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/EcaInformationSystem.Api/EcaInformationSystem.Api.csproj"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-client",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/EcaInformationSystem.Client/EcaInformationSystem.Client.csproj"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

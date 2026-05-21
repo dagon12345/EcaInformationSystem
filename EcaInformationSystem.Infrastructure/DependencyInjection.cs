@@ -4,7 +4,6 @@ using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Infrastructure.Services;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Infrastructure.Repositories;
-using EcaInformationSystem.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

@@ -578,7 +578,15 @@
         _birthdayToMonth = 0;
         _birthdayToDay = 0;
 
-        State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
+        State.Filter = new BeneficiaryFilterDto
+        { 
+          PageNumber = 1,
+          PageSize = 10,
+          // Sort reset to default on clear
+          SortColumn = null,
+          SortAscending = true  
+
+        };
         State.ClearData();
 
         if (!State.FilterRegions.Any())

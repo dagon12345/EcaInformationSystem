@@ -363,22 +363,42 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var query = BuildBeneficiaryRawQuery(filter);
 
-            // ✅ Count distinct IDs only — EF Core CAN translate this
+            // ✅ Count distinct IDs only
             var totalCount = await query
                 .Select(x => x.Id)
                 .Distinct()
                 .CountAsync();
 
-            // ✅ Fetch the page — deduplicate in memory after ToList
-            var items = await query
-                .OrderBy(x => x.LastName)
-                .ThenBy(x => x.FirstName)
-                .ThenBy(x => x.MiddleName)
+            // ✅ Dynamic sort
+            string sortColumn = filter.SortColumn?.ToLower() ?? "default";
+            bool isAscending = filter.SortAscending;
+
+            IQueryable<BeneficiaryRawDto> sorted;
+
+            switch (sortColumn)
+            {
+                case "birthdate":
+                    sorted = isAscending
+                        ? query.OrderBy(x => x.BirthDate)
+                               .ThenBy(x => x.LastName)
+                               .ThenBy(x => x.FirstName)
+                        : query.OrderByDescending(x => x.BirthDate)
+                               .ThenBy(x => x.LastName)
+                               .ThenBy(x => x.FirstName);
+                    break;
+                default:
+                    sorted = query.OrderBy(x => x.LastName)
+                                  .ThenBy(x => x.FirstName)
+                                  .ThenBy(x => x.MiddleName);
+                    break;
+            }
+
+            // ✅ Use sorted — not query
+            var items = await sorted
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
-            // ✅ Deduplicate in memory, then page
             var deduped = items
                 .DistinctBy(x => x.Id)
                 .Select(MapToDto)
