@@ -69,16 +69,18 @@
                             <span class="sel-count">@checkedIds.Count selected</span>
 
                             <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
-                                <option value="0">-- Set Payment Status --</option>
+                                <option value="">-- Set Payment Status --</option>
+                                <option value="0">N/A</option>
                                 <option value="1">Unpaid</option>
                                 <option value="2">Paid</option>
+                                <option value="3">Pending</option>
                             </select>
 
                             <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
                                        @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
 
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
-                                    disabled="@(!checkedIds.Any() || bulkPaymentStatus == 0 || (bulkPaymentStatus == 2 && bulkPaymentDate == null) || IsBulkUpdating)">
+                                    disabled="@(!checkedIds.Any() || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null) || IsBulkUpdating)">
                                 @if (IsBulkUpdating)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -184,7 +186,7 @@
                                             <th>Payment</th>
                                             <th>Eligible</th>
                                             <th>Compliant</th>
-                                            <th>Findings</th>
+                                            <th>CO Findings</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -626,7 +628,7 @@
     private bool IsLogsLoading;
     private bool IsSaving;
     private HashSet<Guid> checkedIds = new();
-    private int bulkPaymentStatus = 0;
+    private int? bulkPaymentStatus = null;
     private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
     private string? fullNameFilter;
@@ -1038,7 +1040,7 @@
     }
     private async Task OpenBulkUpdateModal()
     {
-        if (bulkPaymentStatus == 0 || !checkedIds.Any() || bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
+        if (bulkPaymentStatus == null || !checkedIds.Any() || bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
         await bulkUpdateModal.ShowAsync();
     }
     // ✅ AFTER — selects only visible filtered rows
@@ -1053,7 +1055,7 @@
     private void ClearSelection()
     {
         checkedIds.Clear();
-        bulkPaymentStatus = 0;
+        bulkPaymentStatus = null;
         bulkPaymentDate = null;
     }
     private void GoToDashboardSummary()
@@ -1215,7 +1217,7 @@
         2 => "Female",
         _ => "N/A"
     };
-    private string GetPaymentStatusText(int status) => status switch
+    private string GetPaymentStatusText(int? status) => status switch
     {
         0 => "N/A",
         1 => "Unpaid",

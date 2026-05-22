@@ -5,7 +5,6 @@
       "name": "Debug API",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-api",
       "program": "${workspaceFolder}/EcaInformationSystem.Api/bin/Debug/net10.0/EcaInformationSystem.Api.dll",
       "cwd": "${workspaceFolder}/EcaInformationSystem.Api",
       "env": {

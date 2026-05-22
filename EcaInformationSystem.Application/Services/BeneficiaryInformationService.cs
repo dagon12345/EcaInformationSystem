@@ -460,7 +460,7 @@ namespace EcaInformationSystem.Application.Services
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
 
-            if (paymentStatus != 1 && paymentStatus != 2)
+            if (paymentStatus != 1 && paymentStatus != 2 && paymentStatus != 3 && paymentStatus != 0)
                 throw new Exception(CommonConstants.InvalidPaymentStatus);
 
             // ✅ Paid requires a date
