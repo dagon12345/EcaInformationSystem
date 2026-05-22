@@ -2738,8 +2738,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
                 filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null,
                 //Sort params added
-                filter.SortColumn ?? "default",
-                filter.SortAscending.ToString()
+                filter.SortColumn ?? CommonConstants.Default,
+                filter.SortAscending.ToString(),
+                filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)

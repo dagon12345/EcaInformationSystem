@@ -162,6 +162,14 @@
                                 <option value="2">Unresolved</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Compliance</label>
+                            <select value="@_complianceValue" @onchange="OnComplianceChanged" disabled="@IsLoading">
+                                <option value="">Select Compliance</option>
+                                <option value="true">Compliant</option>
+                                <option value="false">Non-Compliant</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -380,6 +388,7 @@
     private int provinceSelectKey = 0;
     private int municipalitySelectKey = 0;
     private int barangaySelectKey = 0;
+    private string _complianceValue = string.Empty;
 
     private void ToggleCollapse() => _collapsed = !_collapsed;
 
@@ -398,6 +407,17 @@
             await LoadBarangaysAsync(State.SelectedMunicipalityId);
     }
 
+    private void OnComplianceChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _complianceValue = val ?? string.Empty;
+        State.Filter.IsCompliant = val switch
+        {
+            "true" => true,
+            "false" => false,
+            _ => null
+        };
+    }
     private async Task OnRegionChanged(ChangeEventArgs e)
     {
         State.SelectedRegionId     = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
@@ -578,6 +598,8 @@
         _birthdayFromDay = 0;
         _birthdayToMonth = 0;
         _birthdayToDay = 0;
+        //reset compliance selector
+        _complianceValue = string.Empty;
 
         State.Filter = new BeneficiaryFilterDto
         { 
@@ -612,6 +634,7 @@
     f.PsgcCodeBarangay == null &&
     f.Sex == null &&
     f.PaymentStatus == null &&
+    f.IsCompliant == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&

@@ -47,6 +47,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.IsDeleted, x.Barangay });
                 entity.HasIndex(x => new { x.IsDeleted, x.BirthDate });
                 entity.HasIndex(x => new { x.IsDeleted, x.Sex });
+                entity.HasIndex(x => new { x.IsDeleted, x.IsCompliant });
                 // Optional: sorting support for paged queries
                 entity.HasIndex(x => new { x.IsDeleted, x.LastName, x.FirstName, x.MiddleName });
                 // Duplicate detection support

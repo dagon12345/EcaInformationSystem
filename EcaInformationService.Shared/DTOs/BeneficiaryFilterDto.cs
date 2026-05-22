@@ -37,5 +37,7 @@
         public string? SortColumn { get; set; } //Birthdate and MilestoneYear
         public bool SortAscending { get; set; } = true;
 
+        public bool? IsCompliant { get; set; }
+
     }
 }
