@@ -171,14 +171,14 @@ else if (State.HasActiveFilter && !State.IsLoading)
                 Province     = g.Key.Province,
                 MilestoneYear = g.Key.MilestoneYear,
                 Count        = g.Count(),
-                TotalAmount  = g.Sum(x => x.Age >= 100 ? 100_000m : 10_000m)
+                TotalAmount  = g.Sum(x => PayrollSettingsDto.CalculateCashGiftAmount(x.Age))
             })
             .OrderBy(x => x.PaymentDate)
             .ThenBy(x => x.Municipality)
             .ThenBy(x => x.MilestoneYear)
             .ToList();
     }
-
+    
     private sealed class CdrPreviewGroup
     {
         public DateTime PaymentDate  { get; set; }

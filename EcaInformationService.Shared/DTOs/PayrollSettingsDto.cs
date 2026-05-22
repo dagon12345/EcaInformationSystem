@@ -46,8 +46,9 @@ namespace EcaInformationSystem.Shared.DTOs
         // ── Records per page ──────────────────────────────────────────────────
         /// <summary>How many beneficiary rows fit on one legal-landscape page (default 15)</summary>
         public int RecordsPerPage { get; set; } = 15;
-
-        // ── Cash gift amount ──────────────────────────────────────────────────
-        public decimal CashGiftAmount { get; set; } = 10_000m;
+        /// <summary>
+        /// Returns the cash gift amount based on age: 100,000 if age >= 100; otherwise 10,000.
+        /// </summary>
+        public static decimal CalculateCashGiftAmount(int age) => age >= 100 ? 100_000m : 10_000m;
     }
 }

@@ -102,11 +102,6 @@
                                            @bind:after="StateHasChanged"
                                            maxlength="2" placeholder="26" />
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small fw-semibold">Cash Gift Amount (₱)</label>
-                                    <input type="number" class="form-control form-control-sm"
-                                           @bind="_settings.CashGiftAmount" min="0" step="500" />
-                                </div>
                             </div>
 
                             @* Live CGP Preview *@
@@ -444,8 +439,8 @@
                                             </tr>
                                         }
                                         prevMuni = rec?.MunicipalityName;
-
-                                        total += _settings.CashGiftAmount;
+                                        decimal newTotal = PayrollSettingsDto.CalculateCashGiftAmount(rec?.Age ?? 0);   
+                                        total += newTotal;
 
                                         @* ✅ Deceased rows highlighted *@
                                         bool isDeceased = rec?.IsDeceased == true;
@@ -485,7 +480,7 @@
                                                 @rec?.BarangayName?.ToUpperInvariant()
                                             </td>
                                             <td style="border:1px solid #ccc; padding:2px; text-align:right;">
-                                                @_settings.CashGiftAmount.ToString("N2")
+                                                @PayrollSettingsDto.CalculateCashGiftAmount(rec?.Age ?? 0).ToString("N2")
                                             </td>
                                             <td style="border:1px solid #ccc; padding:2px;"></td>
                                             <td style="border:1px solid #ccc; padding:2px;"></td>

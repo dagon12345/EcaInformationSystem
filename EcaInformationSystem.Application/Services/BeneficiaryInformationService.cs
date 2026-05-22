@@ -868,7 +868,7 @@ namespace EcaInformationSystem.Application.Services
                 foreach (var rec in pageRecs)
                 {
                     int dr = currentRow;
-
+                    decimal cashGiftAmount = PayrollSettingsDto.CalculateCashGiftAmount(rec.Age);
                     // Page 1: dynamic height so the footer never overflows.
                     // Page 2+: fixed taller height for comfortable reading/signing.
                     ws.Row(dr).Height = isFirstPage ? page1RowHeight : PAGE_TWO_PLUS_HT;
@@ -884,7 +884,7 @@ namespace EcaInformationSystem.Application.Services
                     DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female,
                                      XLAlignmentHorizontalValues.Center);
                     DataCell(dr, 11, rec.BarangayName.ToUpperInvariant(), XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 12, s.CashGiftAmount, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 12, cashGiftAmount, XLAlignmentHorizontalValues.Center); //If age >= 100, 100k; else 10k
                     ws.Cell(dr, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
 
                     if (rec.IsDeceased && rec.DateOfDeath.HasValue)
