@@ -31,16 +31,30 @@
                                 Dashboard Summary
                             </button>
 
-                            <button class="btn btn-success" @onclick="ExportExcel" disabled="@IsExporting">
+                            <button class="btn btn-sm btn-warning" @onclick="OpenPayrollModal"
+                                    disabled="@(!checkedIds.Any() || IsGeneratingPayroll)">
+                                @if (IsGeneratingPayroll)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                    <span>Opening...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-file-earmark-excel me-1"></i>
+                                    <span>Generate Payroll</span>
+                                }
+                            </button>
+
+                            <button class="btn btn-success" @onclick="ExportExcel" disabled="@(!checkedIds.Any() || IsExporting)">
 
                                 @if (IsExporting)
                                 {
-                                    <span class="spinner-border spinner-border-sm"></span>
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
                                     <span>Exporting...</span>
                                 }
                                 else
                                 {
-                                    <span class="bi bi-file-earmark-excel">Export Excel</span>
+                                    <span class="bi bi-file-earmark-excel me-1">Export Excel</span>
                                 }
                             </button>
                         </div>
@@ -75,21 +89,6 @@
                                     <span>Apply to Selected</span>
                                 }
                             </button>
-
-                            <button class="btn btn-sm btn-warning" @onclick="OpenPayrollModal"
-                                    disabled="@(!checkedIds.Any() || IsGeneratingPayroll)">
-                                @if (IsGeneratingPayroll)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    <span>Opening...</span>
-                                }
-                                else
-                                {
-                                    <i class="bi bi-file-earmark-excel me-1"></i>
-                                    <span>Generate Payroll</span>
-                                }
-                            </button>
-
                             <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection"
                                     disabled="@(!checkedIds.Any())">
                                 Clear Selection
@@ -652,9 +651,9 @@
     private async Task SortBy(string column)
     {
         //Guard - do nothing if no records are currently displayed (e.g. after filtering to zero results)
-        if(!State.Beneficiaries.Any())
+        if (!State.Beneficiaries.Any())
             return;
-            
+
         if (_sortColumn == column)
             _sortAscending = !_sortAscending;
         else
@@ -1115,18 +1114,23 @@
     // ✅ FIX
     private async Task ExportExcel()
     {
-        if (!State.Beneficiaries.Any())
+        if (!checkedIds.Any())
         {
-            toast.ShowError("No records to export. Apply filters first.");
+            toast.ShowError("No records to export. Please check at least one record.");
             return;
         }
+
 
         try
         {
             IsExporting = true;
             StateHasChanged(); // ← make spinner appear immediately
+            var request = new
+            {
+                Ids = checkedIds.ToList()
+            };
 
-            var response = await Http.PostAsJsonAsync("api/beneficiary/export", State.Filter);
+            var response = await Http.PostAsJsonAsync("api/beneficiary/export", request);
 
             if (!response.IsSuccessStatusCode)
             {

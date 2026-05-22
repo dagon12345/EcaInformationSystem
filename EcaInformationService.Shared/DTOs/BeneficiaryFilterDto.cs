@@ -2,6 +2,7 @@
 {
     public class BeneficiaryFilterDto
     {
+        public List<Guid> Ids { get; set; } = new();
         public int? PsgcCodeRegion { get; set; }
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }

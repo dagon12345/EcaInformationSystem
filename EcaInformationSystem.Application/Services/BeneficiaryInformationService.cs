@@ -34,20 +34,29 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
-            var rawData = await _repo.FilterAsync(filter);
-            var data = rawData
-                .DistinctBy(x => x.Id)
-                .OrderBy(x => x.LastName)
-                .ThenBy(x => x.FirstName)
-                .ThenBy(x => x.MiddleName)
-                .ToList();
+            var allData = (await _repo.GetByIdsAsync(filter.Ids))
+                    .DistinctBy(x => x.Id)
+                    .ToList();
+
+            var data = allData
+             .OrderBy(x => x.LastName)
+             .ThenBy(x => x.FirstName)
+             .ThenBy(x => x.MiddleName)
+             .ToList();
 
             if (data == null || !data.Any())
                 throw new InvalidOperationException(CommonConstants.NoDataAvailableToExport);
 
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add(CommonConstants.Grantees);
+            BuildExportTemplateSheet(worksheet, data);
 
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
+        }
+        private void BuildExportTemplateSheet(IXLWorksheet ws, List<BeneficiaryInformationDto> records)
+        {
             // =========================
             // ✅ TITLE HEADER (ROW 1–9)
             // =========================
@@ -56,7 +65,7 @@ namespace EcaInformationSystem.Application.Services
 
             void AddCenteredTitle(int row, string text)
             {
-                var range = worksheet.Range(row, 1, row, colCount);
+                var range = ws.Range(row, 1, row, colCount);
                 range.Merge();
                 range.Value = text;
                 range.Style.Font.Bold = true;
@@ -97,11 +106,11 @@ namespace EcaInformationSystem.Application.Services
 
             for (int col = 1; col <= headers.Length; col++)
             {
-                worksheet.Cell(headerRow, col).Value = headers[col - 1];
+                ws.Cell(headerRow, col).Value = headers[col - 1];
             }
 
             // STYLE HEADER
-            var headerRange = worksheet.Range(headerRow, 1, headerRow, 21);
+            var headerRange = ws.Range(headerRow, 1, headerRow, 21);
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Font.FontColor = XLColor.White;
             headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
@@ -111,7 +120,7 @@ namespace EcaInformationSystem.Application.Services
 
             // After AddCenteredTitle(4, ...)
             PayrollLogos.AddLogos(
-                worksheet,
+                ws,
                 anchorRow: 1,      // anchor to row 1 (title rows are 1-4)
                 leftCol: 1,      // col A — left edge
                 rightCol: 21,     // col U — right edge (your last column)
@@ -126,62 +135,62 @@ namespace EcaInformationSystem.Application.Services
             int row = 11;
             int counter = 1;
 
-            foreach (var item in data)
+            foreach (var item in records)
             {
-                worksheet.Cell(row, 1).Value = item.BatchCode?.ToUpperInvariant();
-                worksheet.Cell(row, 2).Value = counter++;
+                ws.Cell(row, 1).Value = item.BatchCode?.ToUpperInvariant();
+                ws.Cell(row, 2).Value = counter++;
 
-                worksheet.Cell(row, 3).Value = item.OscaIdNumber?.ToUpperInvariant();
-                worksheet.Cell(row, 4).Value = item.NcscRrn;
+                ws.Cell(row, 3).Value = item.OscaIdNumber?.ToUpperInvariant();
+                ws.Cell(row, 4).Value = item.NcscRrn;
 
-                worksheet.Cell(row, 5).Value = item.LastName?.ToUpperInvariant();
-                worksheet.Cell(row, 6).Value = item.FirstName?.ToUpperInvariant();
-                worksheet.Cell(row, 7).Value = item.MiddleName?.ToUpperInvariant();
-                worksheet.Cell(row, 8).Value = item.Extension?.ToUpperInvariant();
+                ws.Cell(row, 5).Value = item.LastName?.ToUpperInvariant();
+                ws.Cell(row, 6).Value = item.FirstName?.ToUpperInvariant();
+                ws.Cell(row, 7).Value = item.MiddleName?.ToUpperInvariant();
+                ws.Cell(row, 8).Value = item.Extension?.ToUpperInvariant();
 
                 // MONTH AS TEXT
-                worksheet.Cell(row, 9).Value = GetMonthName(item.BirthDate.Month);
-                worksheet.Cell(row, 10).Value = item.BirthDate.Day.ToPaddedDay();
-                worksheet.Cell(row, 11).Value = item.BirthDate.Year;
+                ws.Cell(row, 9).Value = GetMonthName(item.BirthDate.Month);
+                ws.Cell(row, 10).Value = item.BirthDate.Day.ToPaddedDay();
+                ws.Cell(row, 11).Value = item.BirthDate.Year;
 
                 // AGE (NEW COLUMN)
-                worksheet.Cell(row, 12).Value = GetAge(item.BirthDate);
+                ws.Cell(row, 12).Value = GetAge(item.BirthDate);
 
-                worksheet.Cell(row, 13).Value = item.Sex == 1 ? CommonConstants.Male : CommonConstants.Female;
+                ws.Cell(row, 13).Value = item.Sex == 1 ? CommonConstants.Male : CommonConstants.Female;
 
-                worksheet.Cell(row, 14).Value = item.Region?.ToString().ToUpperInvariant();
-                worksheet.Cell(row, 15).Value = item.Province?.ToString().ToUpperInvariant();
-                worksheet.Cell(row, 16).Value = item.Municipality?.ToString().ToUpperInvariant();
-                worksheet.Cell(row, 17).Value = item.Barangay?.ToString().ToUpperInvariant();
+                ws.Cell(row, 14).Value = item.Region?.ToString().ToUpperInvariant();
+                ws.Cell(row, 15).Value = item.Province?.ToString().ToUpperInvariant();
+                ws.Cell(row, 16).Value = item.Municipality?.ToString().ToUpperInvariant();
+                ws.Cell(row, 17).Value = item.Barangay?.ToString().ToUpperInvariant();
 
                 // COMPLIANCE MAPPING
-                worksheet.Cell(row, 18).Value = item.IsCompliant
+                ws.Cell(row, 18).Value = item.IsCompliant
                     ? CommonConstants.Compliant
                     : CommonConstants.NonCompliant;
 
-                worksheet.Cell(row, 19).Value = item.Validator?.ToUpperInvariant();
-                worksheet.Cell(row, 20).Value = item.ValidationDate.ToDefaultFormat();
-                worksheet.Cell(row, 21).Value = item.Remarks?.ToUpperInvariant();
+                ws.Cell(row, 19).Value = item.Validator?.ToUpperInvariant();
+                ws.Cell(row, 20).Value = item.ValidationDate.ToDefaultFormat();
+                ws.Cell(row, 21).Value = item.Remarks?.ToUpperInvariant();
 
-                worksheet.Range(row, 1, row, 21)
+                ws.Range(row, 1, row, 21)
                     .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
                 row++;
             }
             // ✅ ADD HERE — border entire used range
-            worksheet.Range(11, 1, row - 1, 21).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            worksheet.Range(11, 1, row - 1, 21).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            ws.Range(11, 1, row - 1, 21).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            ws.Range(11, 1, row - 1, 21).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             // =========================
             // ✅ AUTO FORMAT
             // =========================
-            worksheet.Columns().AdjustToContents();
+            ws.Columns().AdjustToContents();
 
             // Freeze header
-            worksheet.SheetView.FreezeRows(10);
+            ws.SheetView.FreezeRows(10);
 
             // Auto filter
-            worksheet.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
+            ws.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
             // =========================
             // ✅ SIGNATURE BLOCK
             // =========================
@@ -192,27 +201,27 @@ namespace EcaInformationSystem.Application.Services
             void AddSignatureBlock(int labelCol, int blockStartCol, int blockEndCol, int nameStartCol, int nameEndCol, string role)
             {
                 // Role label — flush left
-                worksheet.Cell(signatureStartRow, labelCol).Value = role;
-                worksheet.Cell(signatureStartRow, labelCol).Style.Font.Bold = true;
+                ws.Cell(signatureStartRow, labelCol).Value = role;
+                ws.Cell(signatureStartRow, labelCol).Style.Font.Bold = true;
 
                 int nameRow = signatureStartRow + 3;
 
                 // Name — italic placeholder, flush left, with underline
-                var nameRange = worksheet.Range(nameRow, nameStartCol, nameRow, nameEndCol);
+                var nameRange = ws.Range(nameRow, nameStartCol, nameRow, nameEndCol);
                 nameRange.Merge();
                 nameRange.Value = CommonConstants.EnterName;
                 nameRange.Style.Font.Italic = true;
                 nameRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
                 // Position — italic placeholder, flush left, with underline
-                var posRange = worksheet.Range(nameRow + 1, nameStartCol, nameRow + 1, nameEndCol);
+                var posRange = ws.Range(nameRow + 1, nameStartCol, nameRow + 1, nameEndCol);
                 posRange.Merge();
                 posRange.Value = CommonConstants.EnterPosition;
                 posRange.Style.Font.Italic = true;
                 posRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
                 // "Signature over printed name" — flush left, no center
-                var sigRange = worksheet.Range(nameRow + 2, blockStartCol, nameRow + 2, blockEndCol);
+                var sigRange = ws.Range(nameRow + 2, blockStartCol, nameRow + 2, blockEndCol);
                 sigRange.Merge();
                 sigRange.Value = CommonConstants.SignatureOverPrintedName;
                 sigRange.Style.Font.Italic = true;
@@ -220,7 +229,7 @@ namespace EcaInformationSystem.Application.Services
                 sigRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
 
                 // Date — flush left, no center
-                var dateRange = worksheet.Range(nameRow + 3, blockStartCol, nameRow + 3, blockEndCol);
+                var dateRange = ws.Range(nameRow + 3, blockStartCol, nameRow + 3, blockEndCol);
                 dateRange.Merge();
                 dateRange.Value = today;
                 dateRange.Style.Font.FontSize = 9;
@@ -252,32 +261,28 @@ namespace EcaInformationSystem.Application.Services
             // =========================
 
             // Legal paper size (5 = Legal in ClosedXML)
-            worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
+            ws.PageSetup.PaperSize = XLPaperSize.LegalPaper;
 
             // Landscape orientation
-            worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
 
             // Fit all columns on one page (scale to width), unlimited rows
-            worksheet.PageSetup.FitToPages(1, 0);
+            ws.PageSetup.FitToPages(1, 0);
 
             // Repeat ONLY the column header row (row 10) on every printed page
             // This excludes rows 1-9 (the main title header)
-            worksheet.PageSetup.SetRowsToRepeatAtTop(10, 10);
+            ws.PageSetup.SetRowsToRepeatAtTop(10, 10);
 
             // Page numbering — "Page 1 of 12" format
             // Center footer
-            worksheet.PageSetup.Footer.Center.AddText(CommonConstants.Page);
-            worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
-            worksheet.PageSetup.Footer.Center.AddText(CommonConstants.Of);
-            worksheet.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
+            ws.PageSetup.Footer.Center.AddText(CommonConstants.Page);
+            ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
+            ws.PageSetup.Footer.Center.AddText(CommonConstants.Of);
+            ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
             // Push footer below content area
-            worksheet.PageSetup.Margins.Bottom = 0.7; // inches — gives footer room
-            worksheet.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
-            // =========================
+            ws.PageSetup.Margins.Bottom = 0.7; // inches — gives footer room
+            ws.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
 
-            using var stream = new MemoryStream();
-            workbook.SaveAs(stream);
-            return stream.ToArray();
         }
         public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
@@ -811,9 +816,9 @@ namespace EcaInformationSystem.Application.Services
               heightPx: 95,
               offsetLeft: 4,
               offsetRight: 251); // ✅ right-aligns logo within col 19
-                  // =========================================================================
-            // SECTION 2: COLUMN HEADERS rows 12–14
-            // =========================================================================
+                                 // =========================================================================
+                                 // SECTION 2: COLUMN HEADERS rows 12–14
+                                 // =========================================================================
             ws.Row(12).Height = 14.25;
             ws.Row(13).Height = 24.75;
             ws.Row(14).Height = 108.75;
@@ -2698,7 +2703,7 @@ namespace EcaInformationSystem.Application.Services
 
             _memoryCache.Set(cacheKey, pagedResult, cacheOptions);
 
-             return pagedResult;
+            return pagedResult;
         }
 
 
@@ -3255,7 +3260,7 @@ namespace EcaInformationSystem.Application.Services
             11 => CommonConstants.NoShow,
             12 => CommonConstants.DoubleApplicationWithDifferentSurnameUsed,
             13 => CommonConstants.ForCGDIslandMunicipality,
-            _ =>  CommonConstants.None
+            _ => CommonConstants.None
         };
 
         #endregion

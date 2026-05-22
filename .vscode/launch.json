@@ -18,7 +18,7 @@
       "request": "launch",
       "preLaunchTask": "build-client",
       "cwd": "${workspaceFolder}/EcaInformationSystem.Client",
-      "browser": "edge"
+      "browser": "chrome"
     }
   ],
   "compounds": [
