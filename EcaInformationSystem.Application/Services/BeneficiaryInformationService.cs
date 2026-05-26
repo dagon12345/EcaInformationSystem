@@ -454,6 +454,29 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+
+        public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception(CommonConstants.NoRecordsSelected);
+
+            if (!isEligible.HasValue && batchCode == null)
+                throw new Exception("Nothing to update. Select at least one field to change.");
+
+            await _repo.BulkUpdateEligibilityAndBatchCodeAsync(ids, isEligible, batchCode);
+            var parts = new List<string>();
+            if (isEligible.HasValue)
+                parts.Add($"Eligibility -> {(isEligible.Value ? "Eligible" : "Ineligible")}");
+            if (batchCode != null)
+                parts.Add($"Batch Code -> '{batchCode}'");
+
+            foreach(var id in ids)
+                await AddLogAsync(id, $"Bulk update: {string.Join(", ", parts)}", userName);
+                
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+
+        }
         public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName)
         {
             if (ids == null || !ids.Any())
@@ -1470,7 +1493,7 @@ namespace EcaInformationSystem.Application.Services
 
             //preview was declared
             var preview = new BeneficiaryPreviewResultDto();
-            
+
             var regions = await _regionRepository.GetAllAsync();
 
             // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
@@ -1709,13 +1732,13 @@ namespace EcaInformationSystem.Application.Services
                     #endregion Mappers end
 
                     //Stop here if hard errors exist - no point soft checking
-                    if(rowHasHardError)
-                    continue;
+                    if (rowHasHardError)
+                        continue;
 
                     //--Exact duplicate in db (hard block, same as before)
                     var isExactDuplicate = await _repo.ExistsDuplicateAsync(lastName, firstName, middleName, birthDate);
 
-                    if(isExactDuplicate)
+                    if (isExactDuplicate)
                     {
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
@@ -1730,7 +1753,7 @@ namespace EcaInformationSystem.Application.Services
                     var softMatches = await _repo.FindSoftDuplicatesAsync(
                         firstName, lastName, birthDate);
 
-                    foreach(var match in softMatches)
+                    foreach (var match in softMatches)
                     {
                         //preview is in scope here- this is waht was missing before
                         preview.SoftDuplicates.Add(new SoftDuplicateCandidateDto
@@ -1771,7 +1794,7 @@ namespace EcaInformationSystem.Application.Services
             return preview;
         }
         //Confirm import
-                public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows)
+        public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -1832,7 +1855,7 @@ namespace EcaInformationSystem.Application.Services
 
                 result.TotalRows++;
                 //skip rows the user chose to skip from the soft duplicate modal
-                if(skipRows.Contains(rowNumber))
+                if (skipRows.Contains(rowNumber))
                 {
                     result.SkippedDuplicateCount++;
                     continue;

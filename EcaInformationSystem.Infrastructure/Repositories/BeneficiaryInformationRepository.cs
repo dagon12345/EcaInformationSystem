@@ -417,6 +417,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context.BeneficiaryInformations.Update(beneficiaryInformation);
             return Task.CompletedTask;
         }
+
+        public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+            .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+            .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                if (isEligible.HasValue)
+                    b.IsEligible = isEligible.Value;
+
+                if (batchCode != null) // null meanse don't touch, empty string means clear it.
+                    b.BatchCode = string.IsNullOrWhiteSpace(batchCode) ? null : batchCode.Trim();
+            }
+            await _context.SaveChangesAsync();
+        }
         public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate)
         {
             var beneficiaries = await _context.BeneficiaryInformations

@@ -45,7 +45,8 @@
                                 }
                             </button>
 
-                            <button class="btn btn-success" @onclick="ExportExcel" disabled="@(!checkedIds.Any() || IsExporting)">
+                            <button class="btn btn-success" @onclick="ExportExcel"
+                                    disabled="@(!checkedIds.Any() || IsExporting)">
 
                                 @if (IsExporting)
                                 {
@@ -68,29 +69,80 @@
                         <div class="bulk-bar">
                             <span class="sel-count">@checkedIds.Count selected</span>
 
-                            <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
-                                <option value="">-- Set Payment Status --</option>
-                                <option value="0">N/A</option>
-                                <option value="1">Unpaid</option>
-                                <option value="2">Paid</option>
-                                <option value="3">Pending</option>
-                            </select>
+                            @* ── Tab switcher ── *@
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button"
+                                        class="btn @(activeBulkTab == "payment" ? "btn-primary" : "btn-outline-secondary")"
+                                        @onclick='() => activeBulkTab = "payment"'>
+                                    <i class="bi bi-cash-coin me-1"></i>Payment
+                                </button>
+                                <button type="button"
+                                        class="btn @(activeBulkTab == "other" ? "btn-primary" : "btn-outline-secondary")"
+                                        @onclick='() => activeBulkTab = "other"'>
+                                    <i class="bi bi-pencil-square me-1"></i>Eligibility / Batch
+                                </button>
+                            </div>
 
-                            <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
-                                       @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
+                            @* ── Payment tab ── *@
+                            @if (activeBulkTab == "payment")
+                            {
+                                <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
+                                    <option value="">-- Set Payment Status --</option>
+                                    <option value="0">N/A</option>
+                                    <option value="1">Unpaid</option>
+                                    <option value="2">Paid</option>
+                                    <option value="3">Pending</option>
+                                </select>
 
-                            <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
-                                    disabled="@(!checkedIds.Any() || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null) || IsBulkUpdating)">
-                                @if (IsBulkUpdating)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    <span>Updating...</span>
-                                }
-                                else
-                                {
-                                    <span>Apply to Selected</span>
-                                }
-                            </button>
+                                <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
+                                           @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
+
+                                <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
+                                        disabled="@(!checkedIds.Any()
+                                                                                                                                                                                                                            || bulkPaymentStatus == null
+                                                                                                                                                                                                                            || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                            || IsBulkUpdating)">
+                                    @if (IsBulkUpdating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Updating...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Apply Payment</span>
+                                    }
+                                </button>
+                            }
+
+                            @* ── Eligibility / Batch Code tab ── *@
+                            @if (activeBulkTab == "other")
+                            {
+                                <select class="form-select form-select-sm w-auto" @bind="bulkIsEligible">
+                                    <option value="">-- Eligibility (no change) --</option>
+                                    <option value="true">Eligible</option>
+                                    <option value="false">Ineligible</option>
+                                </select>
+
+                                <input class="form-control form-control-sm" style="max-width:160px;"
+                                       placeholder="Batch Code (leave blank = no change)" @bind="bulkBatchCode"
+                                       @bind:event="oninput" />
+
+                                <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
+                                        disabled="@(!checkedIds.Any()
+                                                                                                                                                                                                                            || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                            || IsBulkUpdatingOther)">
+                                    @if (IsBulkUpdatingOther)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Updating...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Apply Changes</span>
+                                    }
+                                </button>
+                            }
+
                             <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection"
                                     disabled="@(!checkedIds.Any())">
                                 Clear Selection
@@ -167,11 +219,13 @@
                                                     <span class="sort-icon-wrap">
                                                         @if (_sortColumn == "birthdate")
                                                         {
-                                                            <i class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
+                                                            <i
+                                                            class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
                                                         }
                                                         else
                                                         {
-                                                            <i class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
+                                                            <i
+                                                            class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
                                                         }
                                                     </span>
                                                 </div>
@@ -302,6 +356,45 @@
                 else
                 {
 
+                    <span>Yes, Update</span>
+                }
+            </HxButton>
+        </FooterTemplate>
+    </HxModal>
+    <HxModal @ref="bulkOtherUpdateModal">
+        <HeaderTemplate>
+            <h5 class="modal-title">Confirm Bulk Update</h5>
+        </HeaderTemplate>
+        <BodyTemplate>
+            <p>
+                You are about to update <strong>@checkedIds.Count</strong> record(s):
+            </p>
+            <ul class="mb-0">
+                @if (!string.IsNullOrWhiteSpace(bulkIsEligible))
+                {
+                    <li>
+                        Eligibility →
+                        <strong>@(bulkIsEligible == "true" ? "Eligible" : "Ineligible")</strong>
+                    </li>
+                }
+                @if (!string.IsNullOrWhiteSpace(bulkBatchCode))
+                {
+                    <li>Batch Code → <strong>@bulkBatchCode</strong></li>
+                }
+            </ul>
+            <p class="mt-2 mb-0 text-muted small">This action cannot be undone easily.</p>
+        </BodyTemplate>
+        <FooterTemplate>
+            <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkOtherUpdateModal.HideAsync()">
+                Cancel
+            </HxButton>
+            <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkOtherUpdateAsync" Disabled="@IsBulkUpdatingOther">
+                @if (IsBulkUpdatingOther)
+                {
+                    <span>Updating...</span>
+                }
+                else
+                {
                     <span>Yes, Update</span>
                 }
             </HxButton>
@@ -650,6 +743,88 @@
     private string _sortColumn = string.Empty;
     private bool _sortAscending = true;
 
+    // ── New bulk state ─────────────────────────────────────────────────────
+    private string activeBulkTab = "payment"; // "payment" | "other"
+    private string bulkIsEligible = string.Empty; // "true", "false", or "" = no change
+    private string? bulkBatchCode; // null / "" = no change
+    private bool IsBulkUpdatingOther;
+    private HxModal bulkOtherUpdateModal = default!;
+
+    // ── Open modal ────────────────────────────────────────────────────────
+    private async Task OpenBulkOtherUpdateModal()
+    {
+        if (!checkedIds.Any()) return;
+        if (string.IsNullOrWhiteSpace(bulkIsEligible) &&
+            string.IsNullOrWhiteSpace(bulkBatchCode)) return;
+
+        await bulkOtherUpdateModal.ShowAsync();
+    }
+    // ── Execute ───────────────────────────────────────────────────────────
+    private async Task ExecuteBulkOtherUpdateAsync()
+    {
+        try
+        {
+            IsBulkUpdatingOther = true;
+
+            // Parse eligibility — null means "don't touch"
+            bool? parsedEligible = bulkIsEligible switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => null
+            };
+
+            // null = don't touch; whitespace normalized to null inside service
+            string? parsedBatchCode = string.IsNullOrWhiteSpace(bulkBatchCode)
+                ? null
+                : bulkBatchCode.Trim();
+
+            var request = new
+            {
+                Ids = checkedIds.ToList(),
+                IsEligible = parsedEligible,
+                BatchCode = parsedBatchCode
+            };
+
+            var response = await Http.PostAsJsonAsync(
+                "api/beneficiary/bulk-eligibility-batchcode", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var parts = new List<string>();
+                if (parsedEligible.HasValue)
+                    parts.Add($"eligibility → {(parsedEligible.Value ? "Eligible" : "Ineligible")}");
+                if (parsedBatchCode != null)
+                    parts.Add($"batch code → '{parsedBatchCode}'");
+
+                toast.ShowSuccess(
+                    $"Updated {checkedIds.Count} record(s): {string.Join(", ", parts)}.");
+
+                // Reset fields
+                bulkIsEligible = string.Empty;
+                bulkBatchCode = null;
+                ClearSelection();
+
+                await bulkOtherUpdateModal.HideAsync();
+
+                State.Invalidate();
+                await State.LoadAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"Bulk update failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            IsBulkUpdatingOther = false;
+        }
+    }
     private async Task SortBy(string column)
     {
         //Guard - do nothing if no records are currently displayed (e.g. after filtering to zero results)

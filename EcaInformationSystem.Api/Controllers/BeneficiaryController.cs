@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -204,6 +205,23 @@ namespace EcaInformationSystem.Api.Controllers
 
                 await _service.BulkUpdatePaymentStatusAsync(request.Ids, request.PaymentStatus, request.PaymentDate, userName);
 
+                return Ok(new { message = "Bulk update successful" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        [HttpPost("bulk-eligibility-batchcode")]
+        public async Task<IActionResult> BulkUpdateEligibilityAndBatchCode([FromBody] BulkUpdateEligibilityBatchCodeRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkUpdateEligibilityAndBatchCodeAsync(request.Ids,
+                request.IsEligible,
+                request.BatchCode,
+                userName);
                 return Ok(new { message = "Bulk update successful" });
             }
             catch (Exception ex)
