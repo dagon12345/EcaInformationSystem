@@ -1,4 +1,5 @@
 ﻿using ClosedXML.Excel;
+using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Domain.Common.Enum;
@@ -291,9 +292,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.LastName,
                 dto.FirstName,
                 dto.MiddleName,
-                dto.BirthDate,
-                dto.OscaIdNumber,
-                dto.NcscRrn);
+                dto.BirthDate);
             if (isDuplicate)
                 throw new Exception(CommonConstants.DuplicateFound);
 
@@ -493,8 +492,6 @@ namespace EcaInformationSystem.Application.Services
                   dto.FirstName,
                   dto.MiddleName,
                   dto.BirthDate,
-                  dto.OscaIdNumber,
-                  dto.NcscRrn,
                   Id);
 
 
@@ -1459,6 +1456,773 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
             return result;
         }
+        public async Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName)
+        {
+            if (fileStream == null || !fileStream.CanRead)
+                throw new Exception(CommonConstants.InvalidExcelUploaded);
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception(CommonConstants.InvalidExcelFile);
+
+            var extension = Path.GetExtension(fileName);
+            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
+
+            //preview was declared
+            var preview = new BeneficiaryPreviewResultDto();
+            
+            var regions = await _regionRepository.GetAllAsync();
+
+            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
+            // The PSGC seeder can add a second row for the same province with a different
+            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
+            // non-deterministically, risking a PSGC code being saved while existing
+            // beneficiary records carry the legacy code.
+            var provinces = (await _provinceRepository.GetAllProvinceAsync())
+                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .ToList();
+
+            // Load municipalities and barangays once; they are scoped per-row below.
+            var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
+            var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
+
+            using var workbook = new XLWorkbook(fileStream);
+
+
+            if (string.IsNullOrWhiteSpace(sheetName))
+                throw new Exception(CommonConstants.PleaseSelectAWorksheet);
+
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
+
+            if (worksheet == null)
+                throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
+
+            const int firstDataRowNumber = 11;
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+            if (lastRow < firstDataRowNumber)
+                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
+
+            //Track duplicated inside the upload file itself
+            var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
+            {
+                var row = worksheet.Row(rowNumber);
+
+                // Skip blank rows
+                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    continue;
+
+                preview.TotalRows++;
+
+                try
+                {
+                    var batchCode = row.Cell(1).GetFormattedString().Trim();
+                    // row.Cell(2) = No. (ignored)
+                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
+                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
+                    var lastName = row.Cell(5).GetFormattedString().Trim();
+                    var firstName = row.Cell(6).GetFormattedString().Trim();
+                    var middleName = row.Cell(7).GetFormattedString().Trim();
+                    var extensionName = row.Cell(8).GetFormattedString().Trim();
+
+                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
+                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
+                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
+
+                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
+                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
+                    var regionName = row.Cell(14).GetFormattedString().Trim();
+                    var provinceName = row.Cell(15).GetFormattedString().Trim();
+                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
+                    var barangayName = row.Cell(17).GetFormattedString().Trim();
+                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
+                    var validator = row.Cell(19).GetFormattedString().Trim();
+                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
+
+                    //Newly added column for importing.
+                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
+                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
+                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
+                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
+                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
+                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
+                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
+                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
+
+                    bool rowHasHardError = false;
+
+                    if (string.IsNullOrWhiteSpace(firstName))
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.FirstName.ToTitleCase(),
+                            Message = CommonConstants.FirstNameRequired,
+                            RawValue = firstName
+
+                        });
+                        rowHasHardError = true;
+                    }
+
+                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
+                    if (!TryParseExcelDate(birthDateRaw, out var birthDate))
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.BirthDate.ToTitleCase(),
+                            Message = CommonConstants.InvalidBirthDate,
+                            RawValue = birthDateRaw
+
+                        });
+                        rowHasHardError = true;
+                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
+                    }
+                    int? ncscRrn = null;
+                    if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
+                    {
+                        if (int.TryParse(ncscRrnRaw, out var parsedRrn))
+                        {
+                            ncscRrn = parsedRrn;
+                        }
+                        else
+                        {
+                            preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = CommonConstants.NcscRrn,
+                                Message = CommonConstants.InvalidRrn,
+                                RawValue = ncscRrnRaw,
+                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName
+                            });
+
+                            rowHasHardError = true;
+                        }
+                    }
+
+                    var region = string.IsNullOrWhiteSpace(regionName)
+                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
+                        : FindBestNameMatch(regions, x => x.Name, regionName);
+
+                    if (region == null)
+                    {
+                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
+
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = CommonConstants.RegionNotFound,
+                            RawValue = regionName,
+                            Suggestion = suggestion != null
+                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            : CommonConstants.CheckSpelling
+                        });
+                        rowHasHardError = true;
+                    }
+                    var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
+                    if (province == null)
+                    {
+                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
+
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Province.ToTitleCase(),
+                            Message = CommonConstants.ProvinceNotFound,
+                            RawValue = provinceName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasHardError = true;
+                    }
+
+
+                    // Scope municipality search to the matched province.
+                    // Without scoping, common names like "San Jose" or "Barobo" would match
+                    // the wrong municipality in a different province.
+                    var municipalitiesInProvince = province != null
+                        ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
+                        : municipalities; // province not found — fall back to all so we can still suggest
+
+                    var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
+                    if (municipality == null)
+                    {
+                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
+
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Municipality,
+                            Message = CommonConstants.MunicipalityNotFound,
+                            RawValue = municipalityName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasHardError = true;
+                    }
+
+                    // Scope barangay search to the matched municipality.
+                    // "Poblacion" alone exists in virtually every municipality — without
+                    // scoping the match would be random across 42,000+ barangays.
+                    var barangaysInMunicipality = municipality != null
+                        ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
+                        : barangays; // municipality not found — fall back to all
+
+                    var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
+                    if (barangay == null)
+                    {
+                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
+
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Barangay.ToTitleCase(),
+                            Message = CommonConstants.BarangayNotFound,
+                            RawValue = barangayName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasHardError = true;
+                    }
+                    #region Mappers
+                    //Mapped NCSC Assessment Eligible/InEligible
+                    var mappedEligibility = MapEligibility(isEligibleRaw);
+                    if (mappedEligibility == null)
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.NcscAssessment.ToTitleCase(),
+                            Message = CommonConstants.NcscAssessmentNotFound,
+                            RawValue = isEligibleRaw
+
+                        });
+                        rowHasHardError = true;
+                    }
+                    #endregion Mappers end
+
+                    //Stop here if hard errors exist - no point soft checking
+                    if(rowHasHardError)
+                    continue;
+
+                    //--Exact duplicate in db (hard block, same as before)
+                    var isExactDuplicate = await _repo.ExistsDuplicateAsync(lastName, firstName, middleName, birthDate);
+
+                    if(isExactDuplicate)
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Duplicate,
+                            Message = CommonConstants.DuplicateRecordExistInDatabase,
+                            RawValue = $"{lastName}, {firstName}"
+                        });
+                        continue; // still a hard block
+                    }
+                    //soft duplicate check - only rows that passed everything
+                    var softMatches = await _repo.FindSoftDuplicatesAsync(
+                        firstName, lastName, birthDate);
+
+                    foreach(var match in softMatches)
+                    {
+                        //preview is in scope here- this is waht was missing before
+                        preview.SoftDuplicates.Add(new SoftDuplicateCandidateDto
+                        {
+                            RowNumber = rowNumber,
+                            ImportedName = $"{lastName}, {firstName} {middleName}",
+                            ImportedMiddleName = middleName?.Trim() ?? string.Empty,
+                            ImportedBirthDate = birthDate,
+                            ImportedProvince = province?.Name ?? string.Empty,
+                            ImportedMunicipality = municipality?.Name ?? string.Empty,
+                            ImportedBarangay = barangay?.Name ?? string.Empty,
+
+                            ExistingId = match.ExistingId,
+                            ExistingFullName = match.ExistingFullName,
+                            ExistingMiddleName = match.ExistingMiddleName,
+                            ExistingBirthDate = match.ExistingBirthDate,
+                            ExistingOscaId = match.ExistingOscaId,
+                            ExistingProvince = match.ExistingProvince,
+                            ExistingMunicipality = match.ExistingMunicipality,
+                            ExistingBarangay = match.ExistingBarangay,
+
+                            MatchScore = match.MatchScore
+                        });
+                    }
+                    preview.CleanRows++;
+                }
+                catch (Exception ex)
+                {
+                    preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                    {
+                        RowNumber = rowNumber,
+                        Field = CommonConstants.General,
+                        Message = ex.Message,
+                        RawValue = null
+                    });
+                }
+            }
+            return preview;
+        }
+        //Confirm import
+                public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows)
+        {
+            if (fileStream == null || !fileStream.CanRead)
+                throw new Exception(CommonConstants.InvalidExcelUploaded);
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception(CommonConstants.InvalidExcelFile);
+
+            var extension = Path.GetExtension(fileName);
+            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
+
+            var result = new BeneficiaryImportResultDto();
+            var beneficiariesToImport = new List<BeneficiaryInformation>();
+
+            var regions = await _regionRepository.GetAllAsync();
+
+            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
+            // The PSGC seeder can add a second row for the same province with a different
+            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
+            // non-deterministically, risking a PSGC code being saved while existing
+            // beneficiary records carry the legacy code.
+            var provinces = (await _provinceRepository.GetAllProvinceAsync())
+                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .ToList();
+
+            // Load municipalities and barangays once; they are scoped per-row below.
+            var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
+            var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
+
+            using var workbook = new XLWorkbook(fileStream);
+
+
+            if (string.IsNullOrWhiteSpace(sheetName))
+                throw new Exception(CommonConstants.PleaseSelectAWorksheet);
+
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
+
+            if (worksheet == null)
+                throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
+
+            const int firstDataRowNumber = 11;
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+            if (lastRow < firstDataRowNumber)
+                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
+
+            //Track duplicated inside the upload file itself
+            var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
+            {
+                var row = worksheet.Row(rowNumber);
+
+                // Skip blank rows
+                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    continue;
+
+                result.TotalRows++;
+                //skip rows the user chose to skip from the soft duplicate modal
+                if(skipRows.Contains(rowNumber))
+                {
+                    result.SkippedDuplicateCount++;
+                    continue;
+                }
+
+                try
+                {
+                    var batchCode = row.Cell(1).GetFormattedString().Trim();
+                    // row.Cell(2) = No. (ignored)
+                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
+                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
+                    var lastName = row.Cell(5).GetFormattedString().Trim();
+                    var firstName = row.Cell(6).GetFormattedString().Trim();
+                    var middleName = row.Cell(7).GetFormattedString().Trim();
+                    var extensionName = row.Cell(8).GetFormattedString().Trim();
+
+                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
+                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
+                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
+
+                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
+                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
+                    var regionName = row.Cell(14).GetFormattedString().Trim();
+                    var provinceName = row.Cell(15).GetFormattedString().Trim();
+                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
+                    var barangayName = row.Cell(17).GetFormattedString().Trim();
+                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
+                    var validator = row.Cell(19).GetFormattedString().Trim();
+                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
+
+                    //Newly added column for importing.
+                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
+                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
+                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
+                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
+                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
+                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
+                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
+                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
+
+                    bool rowHasError = false;
+
+                    if (string.IsNullOrWhiteSpace(firstName))
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.FirstName.ToTitleCase(),
+                            Message = CommonConstants.FirstNameRequired,
+                            RawValue = firstName
+
+                        });
+                        rowHasError = true;
+                    }
+
+                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
+                    if (!TryParseExcelDate(birthDateRaw, out var birthDate))
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.BirthDate.ToTitleCase(),
+                            Message = CommonConstants.InvalidBirthDate,
+                            RawValue = birthDateRaw
+
+                        });
+                        rowHasError = true;
+                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
+                    }
+
+
+                    #region Parsed Dates
+                    //Osca Id Date Issued
+                    var parsedOscaIdDateIssued = ParseFlexibleDate(oscaIdDateIssued);
+
+                    if (!string.IsNullOrWhiteSpace(oscaIdDateIssued) && parsedOscaIdDateIssued == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.OscaIdDateIssued.ToTitleCase(),
+                            Message = CommonConstants.InvalidDateFormat,
+                            RawValue = oscaIdDateIssued
+                        });
+
+                        rowHasError = true;
+                    }
+
+                    //Date Endorsed
+                    var parsedDateEndorsed = ParseFlexibleDate(dateEndorsed);
+
+                    if (!string.IsNullOrWhiteSpace(dateEndorsed) && parsedDateEndorsed == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.DateEndorsed.ToTitleCase(),
+                            Message = CommonConstants.InvalidDateFormat,
+                            RawValue = dateEndorsed
+                        });
+
+                        rowHasError = true;
+                    }
+
+                    // Date of Application
+                    var parsedDateApplied = ParseFlexibleDate(dateApplied);
+
+                    if (!string.IsNullOrWhiteSpace(dateApplied) && parsedDateApplied == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.DateOfApplication,
+                            Message = CommonConstants.InvalidDateFormat,
+                            RawValue = dateApplied
+                        });
+
+                        rowHasError = true;
+                    }
+
+
+                    //Date of Death
+                    var parsedDateofDeath = ParseFlexibleDate(dateOfDeath);
+                    if (!string.IsNullOrWhiteSpace(dateOfDeath) && parsedDateofDeath == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.DateOfDeath,
+                            Message = CommonConstants.InvalidDateFormat,
+                            RawValue = dateOfDeath
+                        });
+
+                        rowHasError = true;
+                    }
+
+                    #endregion Parsed Dates end
+
+                    int? ncscRrn = null;
+                    if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
+                    {
+                        if (int.TryParse(ncscRrnRaw, out var parsedRrn))
+                        {
+                            ncscRrn = parsedRrn;
+                        }
+                        else
+                        {
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = CommonConstants.NcscRrn,
+                                Message = CommonConstants.InvalidRrn,
+                                RawValue = ncscRrnRaw,
+                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName
+                            });
+
+                            rowHasError = true;
+                        }
+                    }
+
+                    var region = string.IsNullOrWhiteSpace(regionName)
+                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
+                        : FindBestNameMatch(regions, x => x.Name, regionName);
+
+                    if (region == null)
+                    {
+                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = CommonConstants.RegionNotFound,
+                            RawValue = regionName,
+                            Suggestion = suggestion != null
+                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            : CommonConstants.CheckSpelling
+                        });
+                        rowHasError = true;
+                    }
+                    var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
+                    if (province == null)
+                    {
+                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Province.ToTitleCase(),
+                            Message = CommonConstants.ProvinceNotFound,
+                            RawValue = provinceName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasError = true;
+                    }
+
+
+                    // Scope municipality search to the matched province.
+                    // Without scoping, common names like "San Jose" or "Barobo" would match
+                    // the wrong municipality in a different province.
+                    var municipalitiesInProvince = province != null
+                        ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
+                        : municipalities; // province not found — fall back to all so we can still suggest
+
+                    var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
+                    if (municipality == null)
+                    {
+                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Municipality,
+                            Message = CommonConstants.MunicipalityNotFound,
+                            RawValue = municipalityName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasError = true;
+                    }
+
+                    // Scope barangay search to the matched municipality.
+                    // "Poblacion" alone exists in virtually every municipality — without
+                    // scoping the match would be random across 42,000+ barangays.
+                    var barangaysInMunicipality = municipality != null
+                        ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
+                        : barangays; // municipality not found — fall back to all
+
+                    var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
+                    if (barangay == null)
+                    {
+                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
+
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Barangay.ToTitleCase(),
+                            Message = CommonConstants.BarangayNotFound,
+                            RawValue = barangayName,
+                            Suggestion = suggestion != null
+                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasError = true;
+                    }
+                    #region Mappers
+                    //Mapped NCSC Assessment Eligible/InEligible
+                    var mappedEligibility = MapEligibility(isEligibleRaw);
+                    if (mappedEligibility == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.NcscAssessment.ToTitleCase(),
+                            Message = CommonConstants.NcscAssessmentNotFound,
+                            RawValue = isEligibleRaw
+
+                        });
+                        rowHasError = true;
+                    }
+                    //Mapped IP
+                    var mappedIsIndigenousPeople = MapIndigenousPeople(isIndigenousPeopleRaw);
+                    //Mapped PWD
+                    var mappedIsPersonWithDisability = MapIsPersonWithDisability(isPersonWithDisabilityRaw);
+                    #endregion Mappers end
+
+
+                    var duplicateKey = string.Join("|",
+                 (lastName ?? string.Empty).Trim().ToLower(),
+                 (firstName ?? string.Empty).Trim().ToLower(),
+                 (middleName ?? string.Empty).Trim().ToLower(),
+                 birthDate == DateTime.MinValue ? "" : birthDate.ToFullDate());
+
+                    if (!string.IsNullOrWhiteSpace(firstName) && birthDate != DateTime.MinValue)
+                    {
+                        if (!uploadedRowKeys.Add(duplicateKey))
+                        {
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = CommonConstants.Duplicate,
+                                Message = CommonConstants.DuplicateRecordFound,
+                                RawValue = $"{lastName}, {firstName}"
+                            });
+                            rowHasError = true;
+                        }
+                    }
+                    if (!rowHasError)
+                    {
+                        var isDuplicateInDatabase = await _repo.ExistsDuplicateAsync(
+                            lastName,
+                            firstName,
+                            middleName,
+                            birthDate);
+                        if (isDuplicateInDatabase)
+                        {
+                            result.Errors.Add(new BeneficiaryImportErrorDto
+                            {
+                                RowNumber = rowNumber,
+                                Field = CommonConstants.Duplicate,
+                                Message = CommonConstants.DuplicateRecordExistInDatabase,
+                                RawValue = $"{lastName}, {firstName}"
+                            });
+                            rowHasError = true;
+                        }
+                    }
+                    if (rowHasError)
+                        continue;
+
+                    beneficiariesToImport.Add(new BeneficiaryInformation
+                    {
+                        Id = Guid.NewGuid(),
+                        DateApplied = parsedDateApplied,
+                        DateEndorsed = parsedDateEndorsed,
+                        BatchCode = NullIfEmpty(batchCode),
+                        OscaIdNumber = NullIfEmpty(oscaIdNumber),
+                        OscaIdDateIssued = parsedOscaIdDateIssued,
+                        NcscRrn = ncscRrn,
+                        LastName = NullIfEmpty(lastName),
+                        FirstName = firstName!.Trim(),
+                        MiddleName = NullIfEmpty(middleName),
+                        Extension = NullIfEmpty(extensionName),
+                        BirthDate = birthDate,
+                        PhoneNumber = contactNumber,
+                        Sex = MapSex(sexRaw),
+                        IsIndigenousPeople = mappedIsIndigenousPeople,
+                        IsPersonWithDisability = mappedIsPersonWithDisability,
+                        CivilStatus = null,
+                        Citizenship = null,
+                        Region = region!.PsgcCodeRegion,
+                        Province = province!.PsgcCodeProvince,
+                        Municipality = municipality!.PsgcCodeMunicipality,
+                        Barangay = barangay!.PsgcCodeBarangay,
+                        IsCompliant = MapCompliance(complianceRaw),
+                        Validator = string.IsNullOrWhiteSpace(validator) ? CommonConstants.None : validator.Trim(),
+                        ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
+                        PaymentStatus = 0,
+                        ModeOfPayment = 0,
+                        PaymentDate = null,
+                        DateOfDeath = parsedDateofDeath,
+                        IsDeceased = parsedDateofDeath.HasValue, // true if date exists, false if null
+                        IsEligible = mappedEligibility!.Value,
+                        AssessmentRemarks = null,
+                        RemarkCategory = null,
+                        Remarks = null,
+                        DateAdded = DateTime.UtcNow,
+                        IsDeleted = false
+                    });
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add(new BeneficiaryImportErrorDto
+                    {
+                        RowNumber = rowNumber,
+                        Field = CommonConstants.General,
+                        Message = ex.Message,
+                        RawValue = null
+                    });
+                }
+            }
+            result.ErrorCount = result.Errors.Count;
+            result.ValidRows = beneficiariesToImport.Count;
+
+            //If there are any errors, do not save anything
+            if (result.ErrorCount > 0)
+            {
+                result.ImportedCount = 0;
+                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == CommonConstants.Duplicate);
+                return result;
+            }
+            foreach (var beneficiary in beneficiariesToImport)
+            {
+                await _repo.AddAsync(beneficiary);
+                await AddLogAsync(
+                    beneficiary.Id,
+                    $"{CommonConstants.ImportedBeneficiaryFromExcel} {beneficiary.LastName}, {beneficiary.FirstName}",
+                    userName);
+            }
+
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+
+            result.ImportedCount = beneficiariesToImport.Count;
+
+            return result;
+        }
 
         public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
         {
@@ -1814,9 +2578,7 @@ namespace EcaInformationSystem.Application.Services
                             lastName,
                             firstName,
                             middleName,
-                            birthDate,
-                            oscaIdNumber,
-                            ncscRrn);
+                            birthDate);
                         if (isDuplicateInDatabase)
                         {
                             result.Errors.Add(new BeneficiaryImportErrorDto

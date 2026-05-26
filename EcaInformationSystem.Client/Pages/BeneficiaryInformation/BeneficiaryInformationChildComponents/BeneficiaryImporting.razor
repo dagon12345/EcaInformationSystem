@@ -1,4 +1,4 @@
-﻿@* BeneficiaryImporting.razor — redesigned to match navy #1F3864 design system *@
+﻿@* BeneficiaryImporting.razor — with advanced duplicate detection modal *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @inject HttpClient Http
@@ -14,9 +14,7 @@
             <i class="bi bi-info-circle me-1"></i>
             Download the official template, fill it out, then upload below.
         </span>
-        <button class="sys-btn sys-btn-outline"
-                @onclick="DownloadTemplateAsync"
-                disabled="@isDownloadingTemplate">
+        <button class="sys-btn sys-btn-outline" @onclick="DownloadTemplateAsync" disabled="@isDownloadingTemplate">
             @if (isDownloadingTemplate)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -72,10 +70,9 @@
 
     @* ── Action buttons *@
     <div class="d-flex gap-2 mt-2 flex-wrap">
-        <button class="sys-btn sys-btn-save"
-                @onclick="UploadExcelAsync"
-                disabled="@(isUploading || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
-            @if (isUploading)
+        <button class="sys-btn sys-btn-save" @onclick="RunPreviewAsync"
+                disabled="@(isUploading || isPreviewing || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
+            @if (isPreviewing)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
                 <span>Validating...</span>
@@ -87,10 +84,10 @@
             }
         </button>
 
-        <HxTooltip Text="Matches existing records by Name, Birth Date, OSCA ID, and NCSC RRN. Only updates: Batch Code, Eligibility, Date of Death, and Validation Date."
-                   Placement="TooltipPlacement.Top">
-            <button class="sys-btn sys-btn-warn"
-                    @onclick="UpdateExcelAsync"
+        <HxTooltip
+            Text="Matches existing records by Name, Birth Date, OSCA ID, and NCSC RRN. Only updates: Batch Code, Eligibility, Date of Death, and Validation Date."
+            Placement="TooltipPlacement.Top">
+            <button class="sys-btn sys-btn-warn" @onclick="UpdateExcelAsync"
                     disabled="@(isUpdating || uploadedExcelBytes == null || !excelSheetNames.Any() || string.IsNullOrWhiteSpace(selectedSheetName))">
                 @if (isUpdating)
                 {
@@ -156,6 +153,12 @@
                 <div class="import-result-banner import-result-banner--ok">
                     <i class="bi bi-check-circle-fill me-2"></i>
                     Import successful — <strong>@importResult.ImportedCount</strong> record(s) saved.
+                    @if (importResult.SkippedDuplicateCount > 0)
+                    {
+                        <span class="ms-2 text-muted">
+                            (@importResult.SkippedDuplicateCount skipped as duplicates)
+                        </span>
+                    }
                 </div>
             }
         </div>
@@ -216,8 +219,203 @@
     }
 </div>
 
-@* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL ── *@
+@* ══════════════════════════════════════════════════════════
+   SOFT DUPLICATE REVIEW MODAL
+   ══════════════════════════════════════════════════════════ *@
+<HxModal @ref="duplicateModal" Size="ModalSize.Large" Scrollable="true">
+    <HeaderTemplate>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+            <h5 class="mb-0">Possible Duplicate Records Found</h5>
+            <span class="badge bg-warning text-dark ms-1">
+                @(previewResult?.SoftDuplicates.Count ?? 0) flagged
+            </span>
+        </div>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (previewResult != null)
+        {
+            @* Summary strip *@
+            <div class="dup-modal-summary mb-3">
+                <div class="dup-modal-summary-item text-success">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div>
+                        <div class="fw-bold">@previewResult.CleanRows</div>
+                        <div class="small">Clean Rows</div>
+                    </div>
+                </div>
+                <div class="dup-modal-summary-item text-warning">
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                    <div>
+                        <div class="fw-bold">@previewResult.SoftDuplicates.Count</div>
+                        <div class="small">Flagged</div>
+                    </div>
+                </div>
+                <div class="dup-modal-summary-item text-muted">
+                    <i class="bi bi-list-ol"></i>
+                    <div>
+                        <div class="fw-bold">@previewResult.TotalRows</div>
+                        <div class="small">Total Rows</div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-muted small mb-2">
+                <i class="bi bi-info-circle me-1"></i>
+                These rows closely match existing records. By default all flagged rows are set to
+                <strong>Skip</strong>. Toggle each row or use the bulk actions below.
+            </p>
+
+            @* Bulk actions *@
+            <div class="d-flex gap-2 mb-3 flex-wrap">
+                <button class="btn btn-sm btn-outline-warning" @onclick="SkipAll">
+                    <i class="bi bi-skip-forward me-1"></i>Skip All
+                </button>
+                <button class="btn btn-sm btn-outline-success" @onclick="ImportAll">
+                    <i class="bi bi-check-all me-1"></i>Import All Anyway
+                </button>
+                <span class="ms-auto text-muted small align-self-center">
+                    <strong>@skipRows.Count</strong> skipped &bull;
+                    <strong>@(previewResult.SoftDuplicates.Count - skipRows.Count)</strong> will import
+                </span>
+            </div>
+
+            @* Duplicate rows table *@
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:55px;">Row</th>
+                            <th>Importing</th>
+                            <th>Existing Match</th>
+                            <th style="width:100px;" class="text-center">Match %</th>
+                            <th style="width:150px;" class="text-center">Decision</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var dup in previewResult.SoftDuplicates)
+                        {
+                            var key = DupKey(dup.RowNumber, dup.ExistingId);
+                            var isSkipped = skipRows.Contains(key);
+                            var pct = (int)(dup.MatchScore * 100);
+                            var badgeCss = pct >= 90 ? "bg-danger"
+                                           : pct >= 75 ? "bg-warning text-dark"
+                                           : "bg-secondary";
+                            var likelihood = pct >= 90 ? "Very likely"
+                                           : pct >= 75 ? "Possible"
+                                           : "Low";
+
+                            <tr class="@(isSkipped ? "table-warning" : "")">
+
+                                <td class="text-center fw-semibold">@dup.RowNumber</td>
+
+                                @* ── Importing ── *@
+                                <td>
+                                    <div class="fw-semibold">@dup.ImportedName</div>
+                                    <div class="text-muted small">
+                                        <i class="bi bi-calendar2 me-1"></i>
+                                        @dup.ImportedBirthDate.ToString("MMM dd, yyyy")
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(dup.ImportedProvince))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-map me-1"></i>@dup.ImportedProvince
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(dup.ImportedMunicipality))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-geo-alt me-1"></i>@dup.ImportedMunicipality
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(dup.ImportedBarangay))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-house me-1"></i>@dup.ImportedBarangay
+                                        </div>
+                                    }
+                                </td>
+
+                                @* ── Existing Match ── *@
+                                <td>
+                                    <div class="fw-semibold">@dup.ExistingFullName</div>
+                                    <div class="text-muted small">
+                                        <i class="bi bi-calendar2 me-1"></i>
+                                        @dup.ExistingBirthDate.ToString("MMM dd, yyyy")
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(dup.ExistingProvince))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-map me-1"></i>@dup.ExistingProvince
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(dup.ExistingMunicipality))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-geo-alt me-1"></i>@dup.ExistingMunicipality
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(dup.ExistingBarangay))
+                                    {
+                                        <div class="text-muted small">
+                                            <i class="bi bi-house me-1"></i>@dup.ExistingBarangay
+                                        </div>
+                                    }
+                                </td>
+
+                                @* ── Match score ── *@
+                                <td class="text-center">
+                                    <span class="badge @badgeCss">@pct%</span>
+                                    <div class="text-muted small mt-1">@likelihood</div>
+                                </td>
+
+                                @* ── Decision toggle ── *@
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm w-100">
+                                        <button class="btn @(isSkipped ? "btn-warning" : "btn-outline-warning")"
+                                                @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)">
+                                            <i class="bi bi-skip-forward me-1"></i>Skip
+                                        </button>
+                                        <button class="btn @(!isSkipped ? "btn-success" : "btn-outline-success")"
+                                                @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)">
+                                            <i class="bi bi-check me-1"></i>Import
+                                        </button>
+                                    </div>
+                                </td>
+
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <div class="d-flex w-100 align-items-center gap-2">
+            <span class="text-muted small me-auto">
+                @WillBeImported of @(previewResult?.TotalRows ?? 0) rows will be imported
+            </span>
+            <HxButton Color="ThemeColor.Secondary" @onclick="CloseDuplicateModal" Enabled="@(!isUploading)">
+                Cancel
+            </HxButton>
+            <HxButton Color="ThemeColor.Primary" @onclick="RunConfirmImportAsync" Enabled="@(!isUploading)">
+                @if (isUploading)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    <span>Importing...</span>
+                }
+                else
+                {
+                    <i class="bi bi-cloud-upload me-1"></i>
+                    <span>Confirm &amp; Import (@WillBeImported rows)</span>
+                }
+            </HxButton>
+        </div>
+    </FooterTemplate>
+</HxModal>
+
 @code {
+    // ── Existing state (unchanged) ────────────────────────────────────────────
     private bool isDownloadingTemplate;
     private IBrowserFile? selectedFile;
     private string? errorMessage = string.Empty;
@@ -232,6 +430,39 @@
     private bool isUpdating;
     private BeneficiaryImportResultDto? updateResult;
 
+    // ── New state for preview + soft duplicate modal ──────────────────────────
+    private bool isPreviewing;
+    private EcaInformationService.Shared.DTOs.BeneficiaryPreviewResultDto? previewResult;
+    private HashSet<string> skipRows = new();
+    // ── Unique key helper ──
+    private static string DupKey(int rowNumber, Guid existingId)
+        => $"{rowNumber}_{existingId}";
+    private HxModal duplicateModal = default!;
+
+    // ── Computed ──────────────────────────────────────────────────────────────
+    // A row is fully skipped only when ALL its candidates are skipped
+    private int WillBeImported
+    {
+        get
+        {
+            if (previewResult == null) return 0;
+
+            // Group candidates by row number
+            var rowGroups = previewResult.SoftDuplicates
+                .GroupBy(x => x.RowNumber);
+
+            // Count rows where at least one candidate is NOT skipped
+            // meaning the row will still be imported
+            int importingRows = rowGroups
+                .Count(g => g.Any(c => !skipRows.Contains(DupKey(c.RowNumber, c.ExistingId))));
+
+            // Rows with no soft duplicate candidates at all are always imported
+            int cleanRows = previewResult.CleanRows - rowGroups.Count();
+
+            return Math.Max(0, cleanRows + importingRows);
+        }
+    }
+    // ── Existing methods (unchanged) ──────────────────────────────────────────
     private async Task DownloadTemplateAsync()
     {
         try
@@ -267,8 +498,10 @@
             if (response.IsSuccessStatusCode)
             {
                 updateResult = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
-                if (updateResult?.HasErrors == true) toast.ShowError($"Update finished with {updateResult.ErrorCount} error(s).");
-                else toast.ShowSuccess($"Update completed. {updateResult?.ImportedCount ?? 0} record(s) updated.");
+                if (updateResult?.HasErrors == true)
+                    toast.ShowError($"Update finished with {updateResult.ErrorCount} error(s).");
+                else
+                    toast.ShowSuccess($"Update completed. {updateResult?.ImportedCount ?? 0} record(s) updated.");
             }
             else throw new Exception(await response.Content.ReadAsStringAsync());
         }
@@ -276,38 +509,15 @@
         finally { isUpdating = false; StateHasChanged(); }
     }
 
-    private async Task UploadExcelAsync()
-    {
-        errorMessage = null; successMessage = null; importResult = null;
-        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
-        { toast.ShowError("Please select an Excel file first."); return; }
-        if (string.IsNullOrWhiteSpace(selectedSheetName))
-        { toast.ShowError("Please select a worksheet first."); return; }
-
-        try
-        {
-            isUploading = true;
-            using var content = new MultipartFormDataContent();
-            content.Add(new ByteArrayContent(uploadedExcelBytes), "File", uploadedExcelFileName);
-            content.Add(new StringContent(selectedSheetName), "SheetName");
-            var response = await Http.PostAsync("api/beneficiary/import", content);
-            if (response.IsSuccessStatusCode)
-            {
-                importResult = await response.Content.ReadFromJsonAsync<BeneficiaryImportResultDto>();
-                if (importResult?.HasErrors == true) toast.ShowError($"Validation failed. {importResult.ErrorCount} error(s).");
-                else toast.ShowSuccess($"Import completed. {importResult?.ImportedCount ?? 0} record(s) saved.");
-            }
-            else throw new Exception(await response.Content.ReadAsStringAsync());
-        }
-        catch (Exception ex) { toast.ShowError($"Import failed: {ex.Message}"); }
-        finally { isUploading = false; StateHasChanged(); }
-    }
-
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
-        selectedFile = e.File; errorMessage = null; successMessage = null;
-        importResult = null; excelSheetNames.Clear(); selectedSheetName = null;
+        selectedFile = e.File;
+        errorMessage = null; successMessage = null;
+        importResult = null; updateResult = null;
+        previewResult = null; skipRows = new();
+        excelSheetNames.Clear(); selectedSheetName = null;
         uploadedExcelBytes = null; uploadedExcelFileName = null;
+
         if (selectedFile == null) return;
         try
         {
@@ -317,6 +527,7 @@
             await uploadStream.CopyToAsync(ms);
             uploadedExcelBytes = ms.ToArray();
             uploadedExcelFileName = selectedFile.Name;
+
             using var content = new MultipartFormDataContent();
             content.Add(new ByteArrayContent(uploadedExcelBytes), "file", uploadedExcelFileName);
             var response = await Http.PostAsync("api/beneficiary/import/sheets", content);
@@ -329,5 +540,164 @@
         }
         catch (Exception ex) { toast.ShowError($"Failed to read Excel sheets: {ex.Message}"); }
         finally { isLoadingSheets = false; StateHasChanged(); }
+    }
+
+    // ── New methods ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Phase 1: Validate the file and detect soft duplicates.
+    /// If hard errors exist → show them inline (same as before).
+    /// If soft duplicates exist → open the review modal.
+    /// If everything is clean → go straight to confirm import.
+    /// </summary>
+    private async Task RunPreviewAsync()
+    {
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
+        { toast.ShowError("Please select an Excel file first."); return; }
+        if (string.IsNullOrWhiteSpace(selectedSheetName))
+        { toast.ShowError("Please select a worksheet first."); return; }
+
+        importResult = null;
+        updateResult = null;
+        previewResult = null;
+        skipRows = new();
+
+        try
+        {
+            isPreviewing = true;
+            StateHasChanged();
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(uploadedExcelBytes), "File", uploadedExcelFileName);
+            content.Add(new StringContent(selectedSheetName), "SheetName");
+
+            var response = await Http.PostAsync("api/beneficiary/import/preview", content);
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception(await response.Content.ReadAsStringAsync());
+
+            previewResult = await response.Content
+                .ReadFromJsonAsync<EcaInformationService.Shared.DTOs.BeneficiaryPreviewResultDto>();
+
+            if (previewResult == null)
+            { toast.ShowError("Unexpected empty response from server."); return; }
+
+            // ── Hard errors → surface them inline, do not open modal ──────────
+            if (previewResult.HardErrors.Any())
+            {
+                // Re-use importResult to show the existing error table UI
+                importResult = new BeneficiaryImportResultDto
+                {
+                    TotalRows = previewResult.TotalRows,
+                    ValidRows = previewResult.CleanRows,
+                    ErrorCount = previewResult.HardErrors.Count,
+                    Errors = previewResult.HardErrors
+                };
+                toast.ShowError($"Validation failed. {previewResult.HardErrors.Count} error(s) found.");
+                return;
+            }
+
+            // ── Soft duplicates → open review modal ───────────────────────────
+            if (previewResult.SoftDuplicates.Any())
+            {
+                // ── New ──
+                skipRows = new HashSet<string>(
+                    previewResult.SoftDuplicates
+                        .Select(x => DupKey(x.RowNumber, x.ExistingId)));
+                await duplicateModal.ShowAsync();
+                return;
+            }
+
+            // ── Fully clean → import immediately without modal ────────────────
+            await RunConfirmImportAsync();
+        }
+        catch (Exception ex) { toast.ShowError($"Preview failed: {ex.Message}"); }
+        finally { isPreviewing = false; StateHasChanged(); }
+    }
+
+    /// <summary>
+    /// Phase 2: Send confirmed import with the user's skip decisions.
+    /// Called either directly (no soft duplicates) or from the modal footer.
+    /// </summary>
+    private async Task RunConfirmImportAsync()
+    {
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
+        { toast.ShowError("File data is missing. Please re-select the file."); return; }
+
+        try
+        {
+            isUploading = true;
+            StateHasChanged();
+
+            // Build the set of row numbers where ALL candidates are skipped
+            var rowNumbersToSkip = previewResult!.SoftDuplicates
+                .GroupBy(x => x.RowNumber)
+                .Where(g => g.All(c => skipRows.Contains(DupKey(c.RowNumber, c.ExistingId))))
+                .Select(g => g.Key)
+                .ToHashSet();
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(uploadedExcelBytes), "File", uploadedExcelFileName);
+            content.Add(new StringContent(selectedSheetName!), "SheetName");
+            content.Add(
+                new StringContent(
+                    System.Text.Json.JsonSerializer.Serialize(rowNumbersToSkip)),
+                "SkipRowsJson");
+
+            var response = await Http.PostAsync("api/beneficiary/import/confirm", content);
+
+            // Close modal regardless of outcome
+            await CloseDuplicateModal();
+
+            if (response.IsSuccessStatusCode)
+            {
+                importResult = await response.Content
+                    .ReadFromJsonAsync<BeneficiaryImportResultDto>();
+
+                if (importResult?.HasErrors == true)
+                    toast.ShowError($"Validation failed. {importResult.ErrorCount} error(s).");
+                else
+                    toast.ShowSuccess(
+                        $"Import completed. {importResult?.ImportedCount ?? 0} record(s) saved." +
+                        (importResult?.SkippedDuplicateCount > 0
+                            ? $" {importResult.SkippedDuplicateCount} skipped."
+                            : string.Empty));
+            }
+            else
+            {
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex) { toast.ShowError($"Import failed: {ex.Message}"); }
+        finally { isUploading = false; StateHasChanged(); }
+    }
+
+    // ── Skip row helpers ──────────────────────────────────────────────────────
+    private void ToggleSkip(int rowNumber, Guid existingId)
+    {
+        var key = DupKey(rowNumber, existingId);
+        if (!skipRows.Remove(key))
+            skipRows.Add(key);
+        StateHasChanged();
+    }
+
+    private void SkipAll()
+    {
+        if (previewResult == null) return;
+        foreach (var dup in previewResult.SoftDuplicates)
+            skipRows.Add(DupKey(dup.RowNumber, dup.ExistingId));
+        StateHasChanged();
+    }
+
+    private void ImportAll()
+    {
+        skipRows.Clear();
+        StateHasChanged();
+    }
+
+    private async Task CloseDuplicateModal()
+    {
+        try { await duplicateModal.HideAsync(); }
+        catch { /* modal may already be closed */ }
     }
 }

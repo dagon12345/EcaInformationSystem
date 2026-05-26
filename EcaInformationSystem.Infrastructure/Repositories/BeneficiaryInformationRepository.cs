@@ -1,9 +1,11 @@
-﻿using EcaInformationSystem.Application.Interfaces;
+﻿using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace EcaInformationSystem.Infrastructure.Repositories
@@ -22,12 +24,90 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             await _context.BeneficiaryInformations.AddAsync(beneficiaryInformation);
         }
 
-        public async Task<bool> ExistsDuplicateAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn, Guid? excludeId = null)
+        public async Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(
+      string? firstName,
+      string? lastName,
+      DateTime birthDate,
+      int birthdateToleranceDays = 365)
+        {
+            // ✅ Guard: if either name is missing there is nothing meaningful to compare
+            if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
+                return new List<SoftDuplicateCandidateDto>();
+
+            var candidates = await _context.BeneficiaryInformations
+                .Where(b => !b.IsDeleted
+                    && b.BirthDate >= birthDate.AddDays(-birthdateToleranceDays)
+                    && b.BirthDate <= birthDate.AddDays(birthdateToleranceDays))
+                .Select(b => new
+                {
+                    b.Id,
+                    b.FirstName,
+                    b.LastName,
+                    b.MiddleName,
+                    b.BirthDate,
+                    b.OscaIdNumber,
+                    ProvinceName = _context.Provinces.Where(p => p.PsgcCodeProvince == b.Province)
+                    .Select(p => p.Name)
+                    .FirstOrDefault(),
+                    MunicipalityName = _context.Municipalities.Where(m => m.PsgcCodeMunicipality == b.Municipality)
+                    .Select(m => m.Name)
+                    .FirstOrDefault(),
+                    BarangayName = _context.Barangays.Where(br => br.PsgcCodeBarangay == b.Barangay)
+                    .Select(br => br.Name)
+                    .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            // ✅ After — no stray spaces
+            var incomingFullName = string.Join(" ",
+                new[] { firstName?.Trim(), lastName?.Trim() }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            return candidates
+                .Select(b =>
+                {
+                    // ✅ Same for each candidate inside .Select()
+                    var existingFullName = string.Join(" ",
+                        new[] { b.FirstName?.Trim(), b.LastName?.Trim() }
+                        .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+                    // ✅ If existing record has no name at all, score zero — skip it
+                    if (string.IsNullOrWhiteSpace(existingFullName))
+                        return new { Record = b, Score = 0.0 };
+
+                    return new
+                    {
+                        Record = b,
+                        Score = ComputeNameSimilarity(incomingFullName, existingFullName)
+                    };
+                })
+                .Where(x => x.Score >= 0.75)
+                .Select(x => new SoftDuplicateCandidateDto
+                {
+                    ExistingId = x.Record.Id,
+                    ExistingFullName = string.Join(", ",
+                        new[] { x.Record.LastName?.Trim(), x.Record.FirstName?.Trim() }
+                        .Where(s => !string.IsNullOrWhiteSpace(s))) +
+                        (string.IsNullOrWhiteSpace(x.Record.MiddleName)
+                            ? string.Empty
+                            : $" {x.Record.MiddleName.Trim()}"),
+                    ExistingMiddleName = x.Record.MiddleName?.Trim() ?? string.Empty,
+                    ExistingBirthDate = x.Record.BirthDate,
+                    ExistingOscaId = x.Record.OscaIdNumber ?? string.Empty,
+                    ExistingProvince = x.Record.ProvinceName ?? string.Empty,
+                    ExistingMunicipality = x.Record.MunicipalityName ?? string.Empty,
+                    ExistingBarangay = x.Record.BarangayName ?? string.Empty,
+                    MatchScore = x.Score
+                })
+                .OrderByDescending(x => x.MatchScore)
+                .ToList();
+        }
+
+        public async Task<bool> ExistsDuplicateAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, Guid? excludeId = null)
         {
             var normalizedLastName = (lastName ?? string.Empty).Trim().ToLower();
             var normalizedFirstName = (firstName ?? string.Empty).Trim().ToLower();
             var normalizedMiddleName = (middleName ?? string.Empty).Trim().ToLower();
-            var normalizedOscaIdNumber = (oscaIdNumber ?? string.Empty).Trim().ToLower();
             var normalizedBirthDate = birthDate.Date;
 
             var query = _context.BeneficiaryInformations
@@ -41,10 +121,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 (x.LastName ?? string.Empty).Trim().ToLower() == normalizedLastName &&
                 (x.FirstName ?? string.Empty).Trim().ToLower() == normalizedFirstName &&
                 (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
-                x.BirthDate.Date == normalizedBirthDate &&
-                (x.OscaIdNumber ?? string.Empty).Trim().ToLower() == normalizedOscaIdNumber &&
-                x.NcscRrn == ncscRrn
-            );
+                x.BirthDate.Date == normalizedBirthDate);
         }
 
         public async Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id)
@@ -497,7 +574,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 }
             }
             //IsCompliant Filter
-            if(filter.IsCompliant.HasValue)
+            if (filter.IsCompliant.HasValue)
             {
                 query = query.Where(x => x.Beneficiary.IsCompliant == filter.IsCompliant.Value);
             }
@@ -964,6 +1041,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return result;
         }
+
+        #region Private functions
         private sealed class BeneficiaryQueryModel
         {
             public BeneficiaryInformation Beneficiary { get; set; } = default!;
@@ -1020,6 +1099,66 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public int? FindingStatus { get; set; }
             public string? FindingRemarks { get; set; }
         }
+
+        //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)
+        private static double ComputeNameSimilarity(string? a, string? b)
+        {
+            // ✅ Sanitize fully before any length check or comparison
+            a = (a ?? string.Empty).Trim().ToUpperInvariant();
+            b = (b ?? string.Empty).Trim().ToUpperInvariant();
+
+            // ✅ Remove any double spaces that came from null-interpolation like "John  Smith"
+            while (a.Contains("  ")) a = a.Replace("  ", " ");
+            while (b.Contains("  ")) b = b.Replace("  ", " ");
+
+            if (a.Length == 0 || b.Length == 0) return 0.0;
+            if (a == b) return 1.0;
+
+            int dist = LevenshteinDistance(a, b);
+            return 1.0 - (double)dist / Math.Max(a.Length, b.Length);
+        }
+        private static int LevenshteinDistance(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
+            if (string.IsNullOrEmpty(b)) return a.Length;
+
+            // ✅ Use a flat 1D array instead of 2D to avoid dimension miscalculation
+            int aLen = a.Length;
+            int bLen = b.Length;
+
+            var prev = new int[bLen + 1];
+            var curr = new int[bLen + 1];
+
+            // Initialize first row: cost of deleting all chars from b
+            for (int j = 0; j <= bLen; j++)
+                prev[j] = j;
+
+            for (int i = 1; i <= aLen; i++)
+            {
+                curr[0] = i; // cost of deleting i chars from a
+
+                for (int j = 1; j <= bLen; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+
+                    curr[j] = Math.Min(
+                        Math.Min(
+                            prev[j] + 1,      // deletion
+                            curr[j - 1] + 1), // insertion
+                            prev[j - 1] + cost // substitution
+                    );
+                }
+
+                // Swap rows
+                var temp = prev;
+                prev = curr;
+                curr = temp;
+            }
+
+            return prev[bLen];
+        }
+        #endregion Private functions - End
+
 
     }
 }

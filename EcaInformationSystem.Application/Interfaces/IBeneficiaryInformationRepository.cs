@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Domain.Entities;
+﻿using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces
@@ -18,8 +19,6 @@ namespace EcaInformationSystem.Application.Interfaces
             string? firstName,
             string? middleName,
             DateTime birthDate,
-            string? oscaIdNumber,
-            int? ncscRrn,
             Guid? excludeId = null);
 
         Task<int?> GetRegionCodeByNameAsync(string regionName);
@@ -30,5 +29,6 @@ namespace EcaInformationSystem.Application.Interfaces
 
         Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate);
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
+        Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
     }
 }

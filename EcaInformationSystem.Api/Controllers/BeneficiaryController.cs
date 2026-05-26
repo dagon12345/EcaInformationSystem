@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces;
+﻿using System.Text.Json;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -71,6 +72,27 @@ namespace EcaInformationSystem.Api.Controllers
             return File(bytes,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
+        [HttpPost("import/preview")]
+        public async Task<IActionResult> PreviewImport(
+     IFormFile file, [FromForm] string sheetName)
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _service.PreviewImportAsync(stream, file.FileName, sheetName);
+            return Ok(result);
+        }
+        [HttpPost("import/confirm")]
+        public async Task<IActionResult> ConfirmImport(
+         IFormFile file,
+         [FromForm] string sheetName,
+         [FromForm] string skipRowsJson)
+        {
+            var skipRows = JsonSerializer.Deserialize<HashSet<int>>(skipRowsJson) ?? new();
+            var userName = User.Identity?.Name ?? "System"; // ✅ from auth, not form
+            using var stream = file.OpenReadStream();
+            var result = await _service.ConfirmImportAsync(
+                stream, file.FileName, sheetName, userName, skipRows);
+            return Ok(result);
         }
 
         [HttpPost("import")]

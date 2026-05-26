@@ -758,7 +758,23 @@ textarea.ff-input {
         background: #fef3c7;
         color: #92400e;
     }
+/* Duplication preview modal */
+ .dup-modal-summary {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
 
+    .dup-modal-summary-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        min-width: 110px;
+        font-size: .9rem;
+    }
 /* details button */
 .btn-details {
     display: inline-flex;

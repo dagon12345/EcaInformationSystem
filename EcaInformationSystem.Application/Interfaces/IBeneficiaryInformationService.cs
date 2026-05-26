@@ -1,5 +1,6 @@
 ﻿
 
+using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces
@@ -25,5 +26,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings);
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
+        Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
+        Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows);
     }
 }
