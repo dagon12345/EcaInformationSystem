@@ -745,10 +745,34 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.Beneficiary.Validator != null &&
                     x.Beneficiary.Validator.Contains(filter.Validator));
 
+            // ── New ──
             if (!string.IsNullOrWhiteSpace(filter.BatchCode))
-                query = query.Where(x =>
-                    x.Beneficiary.BatchCode != null &&
-                    x.Beneficiary.BatchCode.Contains(filter.BatchCode));
+            {
+                // Split by comma, trim each entry, remove empties
+                var batchCodes = filter.BatchCode
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(b => b.Trim())
+                    .Where(b => !string.IsNullOrWhiteSpace(b))
+                    .ToList();
+
+                if (batchCodes.Count == 1)
+                {
+                    // Single entry — use Contains for partial match
+                    // e.g. "123" matches "123-45" and "123-99"
+                    var single = batchCodes[0];
+                    query = query.Where(x =>
+                        x.Beneficiary.BatchCode != null &&
+                        x.Beneficiary.BatchCode.Contains(single));
+                }
+                else
+                {
+                    // Multiple entries — exact match against the list
+                    // e.g. "123-45, 678-90" matches only those exact codes
+                    query = query.Where(x =>
+                        x.Beneficiary.BatchCode != null &&
+                        batchCodes.Contains(x.Beneficiary.BatchCode));
+                }
+            }
 
             Console.WriteLine(query);
             return query.AsNoTracking();
