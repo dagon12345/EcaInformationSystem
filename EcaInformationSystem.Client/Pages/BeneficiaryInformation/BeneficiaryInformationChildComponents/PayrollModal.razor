@@ -397,10 +397,9 @@
 
                                 var provinceRecords = provinceGroup
                                     .OrderBy(x => x?.MunicipalityName)
-                                    .ThenBy(x => x?.BatchCode)
-                                    .ThenBy(x => x?.BarangayName)
                                     .ThenBy(x => x?.LastName)
                                     .ThenBy(x => x?.FirstName)
+                                    .ThenBy(x => x?.MiddleName)
                                     .ToList();
 
                                 while (done < provinceRecords.Count)
@@ -682,10 +681,9 @@
         _previewData = fetched
             .OrderBy(x => x.ProvinceName)
             .ThenBy(x => x.MunicipalityName)
-            .ThenBy(x => x.BatchCode)
-            .ThenBy(x => x.BarangayName)
             .ThenBy(x => x.LastName)
             .ThenBy(x => x.FirstName)
+            .ThenBy(x => x.MiddleName)
             .Cast<BeneficiaryInformationDto?>()
             .ToList();
 

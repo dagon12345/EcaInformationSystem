@@ -606,9 +606,9 @@ namespace EcaInformationSystem.Application.Services
                                 string municipality = muniGroup.Key;
 
                                 var records = muniGroup
-                                    .OrderBy(x => x.BarangayName)
-                                    .ThenBy(x => x.LastName)
+                                    .OrderBy(x => x.LastName)
                                     .ThenBy(x => x.FirstName)
+                                    .ThenBy(x => x.MiddleName)
                                     .ToList();
 
                                 var sheetName = SanitizeSheetName(municipality);

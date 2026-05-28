@@ -480,6 +480,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                                .ThenBy(x => x.LastName)
                                .ThenBy(x => x.FirstName);
                     break;
+                case "batchcode":
+                    sorted = isAscending
+                        ? query.OrderBy(x => x.BatchCode)
+                               .ThenBy(x => x.LastName)
+                               .ThenBy(x => x.FirstName)
+                        : query.OrderByDescending(x => x.BatchCode)
+                               .ThenBy(x => x.LastName)
+                               .ThenBy(x => x.FirstName);
+                    break;
                 default:
                     sorted = query.OrderBy(x => x.LastName)
                                   .ThenBy(x => x.FirstName)

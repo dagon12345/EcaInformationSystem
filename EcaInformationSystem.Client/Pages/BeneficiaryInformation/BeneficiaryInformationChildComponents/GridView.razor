@@ -99,9 +99,9 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                            || bulkPaymentStatus == null
-                                                                                                                                                                                                                            || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                            || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
+                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -129,8 +129,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                            || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                            || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -203,7 +203,27 @@
                                                 <input type="checkbox" class="form-check-input" checked="@AreAllChecked()"
                                                        @onchange="ToggleSelectAll" />
                                             </th>
-                                            <th>Batch Code</th>
+
+                                            @* -- Sortable Batch code -- *@
+                                            <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
+                                                @onclick='() => SortBy("batchcode")'>
+                                                <div class="sort-header">
+                                                    <span>Batch Code</span>
+                                                    <span class="sort-icon-wrap">
+                                                        @if (_sortColumn == "batchcode")
+                                                        {
+                                                            <i
+                                                            class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i
+                                                            class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
+                                                        }
+                                                    </span>
+                                                </div>
+                                            </th>
+
                                             <th>Phone</th>
                                             <th>
                                                 Full Name
