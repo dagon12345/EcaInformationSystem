@@ -99,9 +99,9 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
-                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
+                                                                                                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -129,8 +129,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -300,9 +300,24 @@
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span class="tbl-badge @(item.IsCompliant ? "yes-b" : "no-b")">
-                                                        @(item.IsCompliant ? "Yes" : "No")
+                                                    @{
+                                                        var compBadge = GetComplianceBadgeClass(item.IsCompliant,
+                                                                                            item.AssessmentRemarks);
+                                                        var compLabel = GetComplianceLabel(item.IsCompliant,
+                                                                                            item.AssessmentRemarks);
+                                                    }
+                                                    <span class="tbl-badge @compBadge" title="@item.AssessmentRemarks">
+                                                        @compLabel
                                                     </span>
+                                                    @if (item.IsCompliant && !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
+                                                    {
+                                                        <br />
+                                                        <small class="text-muted"
+                                                               style="font-size:10px; max-width:120px; display:inline-block;
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            @item.AssessmentRemarks
+                                                        </small>
+                                                    }
                                                 </td>
                                                 <td>
                                                     @{
@@ -313,7 +328,7 @@
                                                         @label
                                                     </span>
                                                     @if (item.FindingStatus == 2 &&
-                                                !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                            !string.IsNullOrWhiteSpace(item.FindingRemarks))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
@@ -1115,6 +1130,15 @@
 
         return age;
     }
+    private string GetComplianceLabel(bool isCompliant, string? assessmentRemarks) =>
+    isCompliant && !string.IsNullOrWhiteSpace(assessmentRemarks)
+        ? "Yes (w/ Minor Findings)"
+        : isCompliant ? "Yes" : "No";
+
+    private string GetComplianceBadgeClass(bool isCompliant, string? assessmentRemarks) =>
+        isCompliant && !string.IsNullOrWhiteSpace(assessmentRemarks)
+            ? "pending"   // yellow — compliant but has remarks
+            : isCompliant ? "yes-b" : "no-b";
     private string GetFindingStatusText(int? status) => status switch
     {
         0 => "N/A",

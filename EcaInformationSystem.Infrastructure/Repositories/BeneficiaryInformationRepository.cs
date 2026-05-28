@@ -599,9 +599,31 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     query = query.Where(x => x.FindingStatus == status);
                 }
             }
-            //IsCompliant Filter
-            if (filter.IsCompliant.HasValue)
+            // ── Compliance Filter ─────────────────────────────────────────────────────
+            // ComplianceMode replaces IsCompliant for richer filtering
+            // Keep IsCompliant as fallback for backward compatibility
+            if (!string.IsNullOrWhiteSpace(filter.ComplianceMode))
             {
+                switch (filter.ComplianceMode)
+                {
+                    case "compliant":
+                        query = query.Where(x => x.Beneficiary.IsCompliant == true);
+                        break;
+                    case "noncompliant":
+                        query = query.Where(x => x.Beneficiary.IsCompliant == false);
+                        break;
+                    case "withfindings":
+                        // ✅ Compliant but has assessment remarks
+                        query = query.Where(x =>
+                            x.Beneficiary.IsCompliant == true &&
+                            x.Beneficiary.AssessmentRemarks != null &&
+                            x.Beneficiary.AssessmentRemarks != string.Empty);
+                        break;
+                }
+            }
+            else if (filter.IsCompliant.HasValue)
+            {
+                // ✅ Fallback for old callers that still use bool?
                 query = query.Where(x => x.Beneficiary.IsCompliant == filter.IsCompliant.Value);
             }
 

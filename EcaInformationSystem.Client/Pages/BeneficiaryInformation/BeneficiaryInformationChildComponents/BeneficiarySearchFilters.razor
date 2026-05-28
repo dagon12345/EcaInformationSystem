@@ -158,8 +158,9 @@
                             <label>Compliance</label>
                             <select value="@_complianceValue" @onchange="OnComplianceChanged" disabled="@IsLoading">
                                 <option value="">Select Compliance</option>
-                                <option value="true">Compliant</option>
-                                <option value="false">Non-Compliant</option>
+                                <option value="compliant">Compliant</option>
+                                <option value="noncompliant">Non-Compliant</option>
+                                <option value="withfindings">Compliant w/ Minor Findings</option>
                             </select>
                         </div>
                         <div class="sf-field">
@@ -415,12 +416,27 @@
     {
         var val = e.Value?.ToString();
         _complianceValue = val ?? string.Empty;
-        State.Filter.IsCompliant = val switch
+
+        // ✅ Map to both fields so backward compat is preserved
+        switch (val)
         {
-            "true" => true,
-            "false" => false,
-            _ => null
-        };
+            case "compliant":
+                State.Filter.IsCompliant = true;
+                State.Filter.ComplianceMode = "compliant";
+                break;
+            case "noncompliant":
+                State.Filter.IsCompliant = false;
+                State.Filter.ComplianceMode = "noncompliant";
+                break;
+            case "withfindings":
+                State.Filter.IsCompliant = true; // still compliant
+                State.Filter.ComplianceMode = "withfindings";
+                break;
+            default:
+                State.Filter.IsCompliant = null;
+                State.Filter.ComplianceMode = null;
+                break;
+        }
     }
     private async Task OnRegionChanged(ChangeEventArgs e)
     {
@@ -604,6 +620,9 @@
         _birthdayToDay = 0;
         //reset compliance selector
         _complianceValue = string.Empty;
+        _complianceValue = string.Empty;
+        State.Filter.IsCompliant = null;
+        State.Filter.ComplianceMode = null; // ✅ add this
         _eligibilityValue = string.Empty; // ✅ add this
 
         State.Filter = new BeneficiaryFilterDto
@@ -640,6 +659,9 @@
     f.Sex == null &&
     f.PaymentStatus == null &&
     f.IsCompliant == null &&
+    f.IsEligible == null &&
+    f.IsCompliant == null &&
+    string.IsNullOrWhiteSpace(f.ComplianceMode) && // ✅ add this
     f.IsEligible == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     _specificBirthdayMonth == 0 &&

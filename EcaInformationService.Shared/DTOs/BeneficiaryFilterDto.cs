@@ -40,5 +40,7 @@
         public bool? IsCompliant { get; set; }
         public bool? IsEligible { get; set; }
 
+        public string? ComplianceMode { get; set; }
+
     }
 }
