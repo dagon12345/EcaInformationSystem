@@ -920,12 +920,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return 0;
         }
 
-        public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate, string? oscaIdNumber, int? ncscRrn)
+        public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate)
         {
             var normalizedLastName = (lastName ?? string.Empty).Trim().ToLower();
             var normalizedFirstName = (firstName ?? string.Empty).Trim().ToLower();
             var normalizedMiddleName = (middleName ?? string.Empty).Trim().ToLower();
-            var normalizedOscaIdNumber = (oscaIdNumber ?? string.Empty).Trim().ToLower();
             var normalizedBirthDate = birthDate.Date;
 
             return await _context.BeneficiaryInformations
@@ -934,10 +933,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (x.LastName ?? string.Empty).Trim().ToLower() == normalizedLastName &&
                     (x.FirstName ?? string.Empty).Trim().ToLower() == normalizedFirstName &&
                     (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
-                    x.BirthDate.Date == normalizedBirthDate &&
-                    (x.OscaIdNumber ?? string.Empty).Trim().ToLower() == normalizedOscaIdNumber &&
-                    x.NcscRrn == ncscRrn
-                );
+                    x.BirthDate.Date == normalizedBirthDate);
         }
 
         public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)

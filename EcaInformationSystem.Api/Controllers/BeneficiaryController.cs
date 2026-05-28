@@ -95,18 +95,6 @@ namespace EcaInformationSystem.Api.Controllers
                 stream, file.FileName, sheetName, userName, skipRows);
             return Ok(result);
         }
-
-        [HttpPost("import")]
-        [Consumes("multipart/form-data")]
-        [ProducesResponseType(typeof(BeneficiaryImportResultDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> Import([FromForm] ImportBeneficiaryExcelRequestDto request)
-        {
-            using var stream = request.File.OpenReadStream();
-            var result = await _service.ImportExcelAsync(
-                stream, request.File.FileName, request.SheetName, User.Identity?.Name ?? "System");
-            return Ok(result);
-        }
         [HttpPost("import/sheets")]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]

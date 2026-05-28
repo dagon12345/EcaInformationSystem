@@ -470,9 +470,9 @@ namespace EcaInformationSystem.Application.Services
             if (batchCode != null)
                 parts.Add($"Batch Code -> '{batchCode}'");
 
-            foreach(var id in ids)
+            foreach (var id in ids)
                 await AddLogAsync(id, $"Bulk update: {string.Join(", ", parts)}", userName);
-                
+
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
 
@@ -1153,284 +1153,353 @@ namespace EcaInformationSystem.Application.Services
             var clean = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
             return clean.Length > 31 ? clean[..31] : clean;
         }
-        //Template Generation method
         public byte[] GenerateImportTemplate()
         {
             using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add(CommonConstants.Grantees);
+            var worksheet = workbook.Worksheets.Add("HARD COPY OFFICIAL");
 
-            int colCount = 28;
+            int totalCols = 30;
 
-            // =========================
-            // TITLE HEADER (ROW 1–4)
-            // =========================
-            void AddCenteredTitle(int row, string text)
-            {
-                var range = worksheet.Range(row, 1, row, colCount);
-                range.Merge();
-                range.Value = text;
-                range.Style.Font.Bold = true;
-                range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                range.Style.Font.FontSize = 11;
-            }
+            // ── Row heights ──────────────────────────────────────────────────────────
+            worksheet.Row(1).Height = 15.5;
+            worksheet.Row(2).Height = 15.5;
+            worksheet.Row(3).Height = 15.5;
+            worksheet.Row(4).Height = 15.5;
+            worksheet.Row(5).Height = 15.5;
+            worksheet.Row(6).Height = 15.5;
+            worksheet.Row(8).Height = 20.5;
+            worksheet.Row(9).Height = 20.5;
+            worksheet.Row(10).Height = 20.5;
+            worksheet.Row(11).Height = 70.0;
 
-            AddCenteredTitle(1, CommonConstants.NCSC);
-            AddCenteredTitle(2, CommonConstants.Act);
-            AddCenteredTitle(3, CommonConstants.RegionalOfficeCaraga);
-            AddCenteredTitle(4, $"({CommonConstants.ImportTemplateForFy} {DateTime.UtcNow.Year})");
+            // ── Column widths (exact from template) ──────────────────────────────────
+            worksheet.Column(1).Width = 18.54; // B  DATE ENDORSED
+            worksheet.Column(2).Width = 18.18; // C  BATCH CODE
+            worksheet.Column(3).Width = 4.45;  // D  NO.
+            worksheet.Column(4).Width = 14.54; // E  OSCA ID NUMBER
+            worksheet.Column(5).Width = 17.63; // F  OSCA ID DATE ISSUED
+            worksheet.Column(6).Width = 14.54; // G  NCSC RRN
+            worksheet.Column(7).Width = 19.45; // H  LAST NAME
+            worksheet.Column(8).Width = 21.45; // I  FIRST NAME
+            worksheet.Column(9).Width = 19.18; // J  MIDDLE NAME
+            worksheet.Column(10).Width = 12.63; // K  EXTENSION
+            worksheet.Column(11).Width = 13.82; // L  MONTH
+            worksheet.Column(12).Width = 6.54;  // M  DAY
+            worksheet.Column(13).Width = 10.18; // N  YEAR
+            worksheet.Column(14).Width = 6.54;  // O  AGE
+            worksheet.Column(15).Width = 12.54; // P  SEX
+            worksheet.Column(16).Width = 13.63; // Q  CITIZENSHIP
+            worksheet.Column(17).Width = 11.18; // R  REGION
+            worksheet.Column(18).Width = 22.82; // S  PROVINCE
+            worksheet.Column(19).Width = 18.82; // T  MUNICIPALITY/CITY
+            worksheet.Column(20).Width = 25.0;  // U  BARANGAY
+            worksheet.Column(21).Width = 25.0;  // V  CONTACT NUMBER
+            worksheet.Column(22).Width = 18.54; // W  DATE OF DEATH
+            worksheet.Column(23).Width = 19.18; // X  DATE APPLIED
+            worksheet.Column(24).Width = 14.54; // Y  INDIGENOUS PERSON
+            worksheet.Column(25).Width = 14.54; // Z  PERSON WITH DISABILITY
+            worksheet.Column(26).Width = 22.0;  // AA COMPLIANCE (FOR NCSC)
+            worksheet.Column(27).Width = 18.54; // AB NAME OF VALIDATOR (FOR NCSC)
+            worksheet.Column(28).Width = 18.54; // AC VALIDATION DATE (FOR NCSC)
+            worksheet.Column(29).Width = 25.63; // AE NCSC ASSESSMENT (FOR NCSC)
+            worksheet.Column(30).Width = 19.82; // AF PAYMENT STATUS (FOR NCSC)
 
-            // Rows 5–9: blank (data starts at row 11, header at row 10)
-            for (int r = 5; r <= 9; r++)
-            {
-                var blankRange = worksheet.Range(r, 1, r, colCount);
-                blankRange.Merge();
-                blankRange.Value = string.Empty;
-            }
+            // ── Title block rows 2–4 (G2:AC merged) ─────────────────────────────────
+            var title2 = worksheet.Range(2, 7, 2, 29);
+            title2.Merge();
+            title2.Value = "REPUBLIC OF THE PHILIPPINES";
+            title2.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            title2.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            title2.Style.Font.FontName = "Arial";
+            title2.Style.Font.FontSize = 11;
 
-            // =========================
-            // HEADER ROW (ROW 10)
-            // =========================
-            int headerRow = 10;
+            var title3 = worksheet.Range(3, 7, 3, 29);
+            title3.Merge();
+            title3.Value = "PROVINCE OF__________________________";
+            title3.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            title3.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            title3.Style.Font.FontName = "Arial";
+            title3.Style.Font.FontSize = 11;
 
-            string[] headers = new[]
-            {
-        // Col 1–8: Identity
-        CommonConstants.BatchCode,
-        CommonConstants.Number.ToUpperInvariant(),
-        CommonConstants.OscaIdNumber,
-        CommonConstants.NcscRrn,
-        CommonConstants.LastName,
-        CommonConstants.FirstName,        // required
-        CommonConstants.MiddleName,
-        CommonConstants.Extension,
-        // Col 9–12: Birth date (split)
-        CommonConstants.BirthMonth,       // e.g. JANUARY
-        CommonConstants.BirthDay,         // e.g. 01
-        CommonConstants.BirthYear,        // e.g. 1926
-        CommonConstants.Age,               // auto-computed, leave blank
-        // Col 13–18: Demographics & location
-        CommonConstants.Sex,               // MALE or FEMALE
-        CommonConstants.Region,            // e.g. REGION XIII (CARAGA) — leave blank to default
-        CommonConstants.Province,
-        CommonConstants.Municipality,
-        CommonConstants.Barangay,
-        CommonConstants.ComplianceToDocumentaryRequirements, // COMPLIANT or NON-COMPLIANT
-        // Col 19–20: Validation
-        CommonConstants.NameOfValidator,
-        CommonConstants.ValidationDate,   // e.g. March 17, 2026
-        // Col 21–28: Newly added columns
-        CommonConstants.ContactNumber,
-        CommonConstants.DateOfDeath.ToUpperInvariant(),     // e.g. March 17, 2026
-        CommonConstants.DateApplied,      // e.g. March 17, 2026
-        CommonConstants.DateEndorsed,     // e.g. March 17, 2026
-        CommonConstants.OscaIdDateIssued,
-        CommonConstants.IP, // YES or NO
-        CommonConstants.PWD, // YES or NO
-        CommonConstants.NcscAssessment    // ELIGIBLE or INELIGIBLE
-    };
+            var title4 = worksheet.Range(4, 7, 4, 29);
+            title4.Merge();
+            title4.Value = "CITY / MUNICIPALITY OF _____________________";
+            title4.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            title4.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            title4.Style.Font.FontName = "Arial";
+            title4.Style.Font.FontSize = 11;
 
-            for (int col = 1; col <= headers.Length; col++)
-            {
-                worksheet.Cell(headerRow, col).Value = headers[col - 1];
-            }
+            // ── Endorsement text row 8 (A8:AF8 merged) ───────────────────────────────
+            var endorseRange = worksheet.Range(8, 1, 8, totalCols);
+            endorseRange.Merge();
+            endorseRange.Value =
+                "This is to endorse to the office of National Commission of Senior Citizens, " +
+                "Cluster 8 Region XIII, the herein _____ applicants identified and eligible to avail " +
+                "the RA 11982 or the Expanded Centenarian Act, to wit:";
+            endorseRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            endorseRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            endorseRange.Style.Alignment.WrapText = true;
+            endorseRange.Style.Font.FontName = "Arial";
+            endorseRange.Style.Font.FontSize = 11;
 
-            // Style header
-            var headerRange = worksheet.Range(headerRow, 1, headerRow, colCount);
-            headerRange.Style.Font.Bold = true;
-            headerRange.Style.Font.FontColor = XLColor.White;
-            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            headerRange.Style.Alignment.WrapText = true;
-            headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
-            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            // ── Row 10: group headers ────────────────────────────────────────────────
+            // "FULL NAME" spanning H10:K10  (cols 8–11)
+            var fullNameRange = worksheet.Range(10, 8, 10, 11);
+            fullNameRange.Merge();
+            fullNameRange.Value = "FULL NAME";
+            fullNameRange.Style.Font.Bold = true;
+            fullNameRange.Style.Font.FontName = "Arial";
+            fullNameRange.Style.Font.FontSize = 11;
+            fullNameRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            fullNameRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
-            // =========================
-            // SAMPLE ROW (ROW 11) — so users know the format
-            // =========================
-            var sampleRow = new object[]
-            {
-        "BC-2026",       // 1  BATCH CODE
-        1,               // 2  NO.
-        "OSCA-00001",    // 3  OSCA ID
-        12345,           // 4  NCSC RRN
-        "DELA CRUZ",     // 5  LAST NAME
-        "JUAN",          // 6  FIRST NAME
-        "SANTOS",        // 7  MIDDLE NAME
-        "",              // 8  EXTENSION (Jr., Sr., II, III...)
-        "JANUARY",       // 9  BIRTH MONTH
-        "01",            // 10 BIRTH DAY
-        "1926",          // 11 BIRTH YEAR
-        "",              // 12 AGE (leave blank)
-        "MALE",          // 13 SEX
-        "REGION XIII (CARAGA)", // 14 REGION (or leave blank)
-        "AGUSAN DEL NORTE",     // 15 PROVINCE
-        "BUTUAN CITY",          // 16 MUNICIPALITY
-        "AMBAGO",               // 17 BARANGAY
-        "COMPLIANT",            // 18 COMPLIANCE
-        "JANE DOE",             // 19 VALIDATOR
-        "March 17, 2026",       // 20 VALIDATION DATE
-        "09171234567",          // 21 CONTACT NUMBER
-        "",                     // 22 DATE OF DEATH (leave blank if alive)
-        "January 5, 2026",      // 23 DATE APPLIED
-        "February 1, 2026",     // 24 DATE ENDORSED
-        "March 1, 2020",        // 25 OSCA ID DATE ISSUED
-        "NO",                   // 26 INDIGENOUS PEOPLE
-        "NO",                   // 27 PWD
-        "ELIGIBLE"              // 28 NCSC ASSESSMENT
-            };
+            // "BIRTHDAY" spanning L10:N10  (cols 12–14)
+            var birthdayRange = worksheet.Range(10, 12, 10, 14);
+            birthdayRange.Merge();
+            birthdayRange.Value = "BIRTHDAY";
+            birthdayRange.Style.Font.Bold = true;
+            birthdayRange.Style.Font.FontName = "Arial";
+            birthdayRange.Style.Font.FontSize = 11;
+            birthdayRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            birthdayRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
-            for (int col = 1; col <= sampleRow.Length; col++)
+            // ── Row 11: column headers ───────────────────────────────────────────────
+            // Dark navy = #1E4E79 for "FOR NCSC" cols: 1,2,3 and 27–32
+            // White background for LGU-filled cols: 4–26
+
+            var navyBlue = XLColor.FromHtml("#1E4E79");
+            var lightBlue = XLColor.FromHtml("#9DC3E6"); // lighter shade for LGU cols
+            var white = XLColor.White;
+
+            // Helper: apply header style to a single cell
+            void HeaderCell(int col, string text, bool isNcsc)
             {
                 var cell = worksheet.Cell(11, col);
-                cell.Value = sampleRow[col - 1] is string s
-                    ? XLCellValue.FromObject(s)
-                    : XLCellValue.FromObject(sampleRow[col - 1]);
+                cell.Value = text;
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.FontName = "Arial";
+                cell.Style.Font.FontSize = 11;
+                cell.Style.Font.FontColor = white;
+                cell.Style.Fill.PatternType = XLFillPatternValues.Solid;
+                cell.Style.Fill.BackgroundColor = isNcsc ? navyBlue : lightBlue;
+                cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                cell.Style.Alignment.WrapText = true;
+                cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                cell.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             }
 
-            // Style the sample row so users can see it's just an example
-            var sampleRange = worksheet.Range(11, 1, 11, colCount);
+            // FOR NCSC columns (dark navy)
+            HeaderCell(1, "DATE ENDORSED\n(MMMM dd, yyyy)", true);
+            HeaderCell(2, "BATCH CODE\n(FOR NCSC)", true);
+            // LGU columns (light blue)
+            HeaderCell(3, "NO.", false);
+            HeaderCell(4, "OSCA ID NUMBER", false);
+            HeaderCell(5, "OSCA ID DATE ISSUED\n(MMMM dd, yyyy)", false);
+            HeaderCell(6, "NCSC RRN", false);
+            HeaderCell(7, "LAST NAME", false);
+            HeaderCell(8, "FIRST NAME", false);
+            HeaderCell(9, "MIDDLE NAME", false);
+            HeaderCell(10, "EXTENSION", false);
+            HeaderCell(11, "MONTH\n(IN WORDS)", false);
+            HeaderCell(12, "DAY", false);
+            HeaderCell(13, "YEAR", false);
+            HeaderCell(14, "AGE", false);
+            HeaderCell(15, "SEX\n(MALE OR FEMALE)", false);
+            HeaderCell(16, "CITIZENSHIP", false);
+            HeaderCell(17, "REGION", false);
+            HeaderCell(18, "PROVINCE", false);
+            HeaderCell(19, "MUNICIPALITY/\nCITY", false);
+            HeaderCell(20, "BARANGAY", false);
+            HeaderCell(21, "CONTACT NUMBER", false);
+            HeaderCell(22, "DATE OF DEATH\n(If deceased)", false);
+            HeaderCell(23, "DATE APPLIED\n(MMMM dd, yyyy)", false);
+            HeaderCell(24, "INDIGENOUS PERSON\n(YES/NO)", false);
+            HeaderCell(25, "PERSON WITH DISABILITY\n(YES/NO)", false);
+            // FOR NCSC columns (dark navy)
+            HeaderCell(26, "COMPLIANCE TO DOCUMENTARY\nREQUIREMENTS\n(FOR NCSC)", true);
+            HeaderCell(27, "NAME OF VALIDATOR\n(FOR NCSC)", true);
+            HeaderCell(28, "VALIDATION DATE\n(MMMM dd, yyyy)", true);
+            HeaderCell(29, "NCSC ASSESSMENT\n(FOR NCSC)\n(ELIGIBLE/INELIGIBLE)", true);
+            HeaderCell(30, "PAYMENT STATUS\n(FOR NCSC)", true);
+
+            // ── Sample data row 12 ───────────────────────────────────────────────────
+            var sampleData = new object[]
+            {
+        "February 01, 2026",  // 1  DATE ENDORSED
+        "BC-2026",            // 2  BATCH CODE
+        1,                    // 3  NO.
+        "OSCA-00001",         // 4  OSCA ID NUMBER
+        "February 01, 2026",  // 5  OSCA ID DATE ISSUED
+        12345,                // 6  NCSC RRN
+        "DELA CRUZ",          // 7  LAST NAME
+        "JUAN",               // 8  FIRST NAME
+        "SANTOS",             // 9 MIDDLE NAME
+        "",                   // 10 EXTENSION
+        "JANUARY",            // 11 BIRTH MONTH
+        "01",                 // 12 BIRTH DAY
+        "1926",               // 13 BIRTH YEAR
+        "",                   // 14 AGE (auto)
+        "MALE",               // 15 SEX
+        "FILIPINO",           // 16 CITIZENSHIP
+        "CARAGA",             // 17 REGION
+        "AGUSAN DEL NORTE",   // 18 PROVINCE
+        "CITY OF BUTUAN",        // 19 MUNICIPALITY
+        "AMBAGO",             // 20 BARANGAY
+        "09171234567",        // 21 CONTACT NUMBER
+        "",                   // 22 DATE OF DEATH
+        "January 26, 2026",   // 23 DATE APPLIED
+        "NO",                 // 24 INDIGENOUS PERSON
+        "NO",                 // 25 PERSON WITH DISABILITY
+        "COMPLIANT",          // 26 COMPLIANCE (FOR NCSC)
+        "JANE DOE",           // 27 NAME OF VALIDATOR (FOR NCSC)
+        "February 01, 2026",  // 28 VALIDATION DATE (FOR NCSC)
+        "ELIGIBLE",           // 29 NCSC ASSESSMENT (FOR NCSC)
+        "PENDING",                   // 30 PAYMENT STATUS (FOR NCSC)
+            };
+
+            for (int col = 1; col <= sampleData.Length; col++)
+            {
+                var cell = worksheet.Cell(12, col);
+                cell.Value = sampleData[col - 1] is string s
+                    ? XLCellValue.FromObject(s)
+                    : XLCellValue.FromObject(sampleData[col - 1]);
+            }
+
+            var sampleRange = worksheet.Range(12, 1, 12, totalCols);
+            sampleRange.Style.Fill.PatternType = XLFillPatternValues.Solid;
             sampleRange.Style.Fill.BackgroundColor = XLColor.LightYellow;
             sampleRange.Style.Font.Italic = true;
             sampleRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             sampleRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
-            // =========================
-            // INSTRUCTIONS SHEET
-            // =========================
-            var instructions = workbook.Worksheets.Add(CommonConstants.Instructions);
+            // ── Instructions sheet ───────────────────────────────────────────────────
+            var instructions = workbook.Worksheets.Add("Instructions");
 
             var instrHeaders = new[] { "COLUMN", "REQUIRED", "ACCEPTED VALUES / FORMAT", "EXAMPLE" };
             for (int col = 1; col <= instrHeaders.Length; col++)
-            {
                 instructions.Cell(1, col).Value = instrHeaders[col - 1];
-            }
+
             var instrHeaderRange = instructions.Range(1, 1, 1, 4);
             instrHeaderRange.Style.Font.Bold = true;
-            instrHeaderRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
+            instrHeaderRange.Style.Fill.PatternType = XLFillPatternValues.Solid;
+            instrHeaderRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E4E79");
             instrHeaderRange.Style.Font.FontColor = XLColor.White;
             instrHeaderRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             instrHeaderRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             var instrData = new[]
             {
-        new[] { CommonConstants.BatchCode,                      CommonConstants.No,  "Any text",                             "BC-2026" },
-        new[] { CommonConstants.Number.ToUpperInvariant(),      CommonConstants.No,  "Number (auto if left blank)",           "1" },
-        new[] { CommonConstants.OscaIdNumber,                   CommonConstants.No,  "Any text",                             "OSCA-00001" },
-        new[] { CommonConstants.NcscRrn,                        CommonConstants.No,  "Numbers only, no special characters",  "12345" },
-        new[] { CommonConstants.LastName,                       CommonConstants.No,  "Any text",                             "DELA CRUZ" },
-        new[] { CommonConstants.FirstName,                      CommonConstants.Yes, "Any text",                             "JUAN" },
-        new[] { CommonConstants.MiddleName,                     CommonConstants.No,  "Any text",                             "SANTOS" },
-        new[] { CommonConstants.Extension,                      CommonConstants.No,  "Jr. / Sr. / II / III / IV / V",        "Jr." },
-        new[] { CommonConstants.BirthMonth,                     CommonConstants.Yes, "Full month name in CAPS",              "JANUARY" },
-        new[] { CommonConstants.BirthDay,                       CommonConstants.Yes, "Two-digit day",                        "01" },
-        new[] { CommonConstants.BirthYear,                      CommonConstants.Yes, "Four-digit year",                      "1926" },
-        new[] { CommonConstants.Age,                            CommonConstants.No,  "Leave blank — auto-computed",          "" },
-        new[] { CommonConstants.Sex,                            CommonConstants.No,  "MALE or FEMALE",                       "MALE" },
-        new[] { CommonConstants.Region,                         CommonConstants.No,  "Leave blank to default to Caraga",     "REGION XIII (CARAGA)" },
-        new[] { CommonConstants.Province,                       CommonConstants.Yes, "Full province name",                   "AGUSAN DEL NORTE" },
-        new[] { CommonConstants.Municipality,                   CommonConstants.Yes, "Full municipality or city name",       "BUTUAN CITY" },
-        new[] { CommonConstants.Barangay,                       CommonConstants.Yes, "Full barangay name",                   "AMBAGO" },
-        new[] { CommonConstants.Compliance,                     CommonConstants.No,  "COMPLIANT or NON-COMPLIANT",           "COMPLIANT" },
-        new[] { CommonConstants.NameOfValidator,                CommonConstants.No,  "Any text",                             "JANE DOE" },
-        new[] { CommonConstants.ValidationDate,                 CommonConstants.No,  "Month DD, YYYY",                       "March 17, 2026" },
-        new[] { CommonConstants.ContactNumber,                  CommonConstants.No,  "Any text",                             "09171234567" },
-        new[] { CommonConstants.DateOfDeath,                    CommonConstants.No,  "Month DD, YYYY — leave blank if alive","" },
-        new[] { CommonConstants.DateApplied,                    CommonConstants.No,  "Month DD, YYYY",                       "January 5, 2026" },
-        new[] { CommonConstants.DateEndorsed,                   CommonConstants.No,  "Month DD, YYYY",                       "February 1, 2026" },
-        new[] { CommonConstants.OscaIdDateIssued,               CommonConstants.No,  "Month DD, YYYY",                       "March 1, 2020" },
-        new[] { CommonConstants.IP,                             CommonConstants.No,  "YES or NO",                            "NO" },
-        new[] { CommonConstants.PWD,                            CommonConstants.No,  "YES or NO",                            "NO" },
-        new[] { CommonConstants.NcscAssessment,                 CommonConstants.Yes, "ELIGIBLE or INELIGIBLE",               "ELIGIBLE" },
+        new[] { "DATE ENDORSED",                        "No",  "Month DD, YYYY",                        "February 01, 2026" },
+        new[] { "BATCH CODE (FOR NCSC)",                "No",  "Any text",                              "BC-2026" },
+        new[] { "NO.",                                  "No",  "Number",                                "1" },
+        new[] { "OSCA ID NUMBER",                       "No",  "Any text",                              "OSCA-00001" },
+        new[] { "OSCA ID DATE ISSUED",                  "No",  "Month DD, YYYY",                        "February 01, 2026" },
+        new[] { "NCSC RRN",                             "No",  "Numbers only, no special characters",   "12345" },
+        new[] { "LAST NAME",                            "No",  "Any text",                              "DELA CRUZ" },
+        new[] { "FIRST NAME",                           "Yes", "Any text",                              "JUAN" },
+        new[] { "MIDDLE NAME",                          "No",  "Any text",                              "SANTOS" },
+        new[] { "EXTENSION",                            "No",  "Jr. / Sr. / II / III / IV / V",         "Jr." },
+        new[] { "BIRTH MONTH",                          "Yes", "Full month name in CAPS",               "JANUARY" },
+        new[] { "BIRTH DAY",                            "Yes", "Two-digit day",                         "01" },
+        new[] { "BIRTH YEAR",                           "Yes", "Four-digit year",                       "1926" },
+        new[] { "AGE",                                  "No",  "Leave blank — auto-computed",           "" },
+        new[] { "SEX",                                  "No",  "MALE or FEMALE",                        "MALE" },
+        new[] { "CITIZENSHIP",                          "No",  "FILIPINO or DUAL CITIZENSHIP",          "FILIPINO" },
+        new[] { "REGION",                               "No",  "Leave blank to default to Caraga",      "CARAGA" },
+        new[] { "PROVINCE",                             "Yes", "Full province name",                    "AGUSAN DEL NORTE" },
+        new[] { "MUNICIPALITY / CITY",                  "Yes", "Full municipality or city name",        "CITY OF BUTUAN" },
+        new[] { "BARANGAY",                             "Yes", "Full barangay name",                    "AMBAGO" },
+        new[] { "CONTACT NUMBER",                       "No",  "Any text",                              "09171234567" },
+        new[] { "DATE OF DEATH",                        "No",  "Month DD, YYYY — leave blank if alive", "" },
+        new[] { "DATE APPLIED",                         "No",  "Month DD, YYYY",                        "February 01, 2026" },
+        new[] { "INDIGENOUS PERSON",                    "No",  "YES or NO",                             "NO" },
+        new[] { "PERSON WITH DISABILITY",               "No",  "YES or NO",                             "NO" },
+        new[] { "COMPLIANCE (FOR NCSC)",                "No",  "COMPLIANT or NON-COMPLIANT",            "COMPLIANT" },
+        new[] { "NAME OF VALIDATOR (FOR NCSC)",         "No",  "Any text",                              "JANE DOE" },
+        new[] { "VALIDATION DATE (FOR NCSC)",           "No",  "Month DD, YYYY",                        "February 01, 2026" },
+        new[] { "NCSC ASSESSMENT (FOR NCSC)",           "Yes", "ELIGIBLE or INELIGIBLE",                "ELIGIBLE" },
+        new[] { "PAYMENT STATUS (FOR NCSC)",            "Yes",  "Pending, Paid, or Unpaid",                     "PENDING" },
     };
 
             for (int i = 0; i < instrData.Length; i++)
             {
                 var rowData = instrData[i];
                 for (int col = 1; col <= rowData.Length; col++)
-                {
                     instructions.Cell(i + 2, col).Value = rowData[col - 1];
-                }
-                // Highlight required rows
-                if (rowData[1] == CommonConstants.Yes)
+
+                if (rowData[1] == "Yes")
                 {
-                    instructions.Range(i + 2, 1, i + 2, 4)
-                        .Style.Fill.BackgroundColor = XLColor.FromHtml(CommonConstants.AmberYellow);
+                    instructions.Range(i + 2, 1, i + 2, 4).Style.Fill.PatternType = XLFillPatternValues.Solid;
+                    instructions.Range(i + 2, 1, i + 2, 4).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFD966");
                 }
-                instructions.Range(i + 2, 1, i + 2, 4)
-                    .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                instructions.Range(i + 2, 1, i + 2, 4)
-                    .Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                instructions.Range(i + 2, 1, i + 2, 4).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                instructions.Range(i + 2, 1, i + 2, 4).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             }
 
             instructions.Columns().AdjustToContents();
 
-            // =========================
-            // FORMAT THE MAIN SHEET
-            // =========================
-            worksheet.Row(headerRow).Height = 40;
-            worksheet.Columns().AdjustToContents();
-            worksheet.SheetView.FreezeRows(10);
-            worksheet.Range(headerRow, 1, headerRow, colCount).SetAutoFilter();
-
+            // ── Freeze, filter, page setup ───────────────────────────────────────────
+            worksheet.SheetView.FreezeRows(11);
+            worksheet.Range(11, 1, 11, totalCols).SetAutoFilter();
             worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
             worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
             worksheet.PageSetup.FitToPages(1, 0);
-            worksheet.PageSetup.SetRowsToRepeatAtTop(10, 10);
+            worksheet.PageSetup.SetRowsToRepeatAtTop(11, 11);
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
-            stream.Position = 0;      // 👈 Crucial: Reset pointer to start
+            stream.Position = 0;
             return stream.ToArray();
         }
-        public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
+        public async Task<BeneficiaryImportResultDto> UpdateExcelAsync(
+            Stream fileStream, string fileName, string sheetName, string userName)
         {
             var result = new BeneficiaryImportResultDto();
 
             using var workbook = new XLWorkbook(fileStream);
-
             var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName)
                 ?? throw new Exception($"{CommonConstants.WorksheetNotFound} '{sheetName}'.");
 
-            const int firstDataRowNumber = 11;
+            // ── New template: data starts row 12 ─────────────────────────────────
+            const int firstDataRowNumber = 12;
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
-
-            // UpdateExcelAsync only updates BatchCode, IsEligible, DateOfDeath, ValidationDate.
-            // Address fields are not re-resolved on update, so address lookup tables are not needed here.
 
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
 
-                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                if (row.Cells(1, 30).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
                     continue;
 
                 result.TotalRows++;
 
                 try
                 {
-                    var lastName = row.Cell(5).GetFormattedString().Trim();
-                    var firstName = row.Cell(6).GetFormattedString().Trim();
-                    var middleName = row.Cell(7).GetFormattedString().Trim();
-                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
-                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
-
+                    // ── NEW COLUMN MAP (col 30 = NCSC Assessment, col 31 = Payment Status) ──
+                    var batchCode = row.Cell(2).GetFormattedString().Trim();  // col 2
+                    var lastName = row.Cell(7).GetFormattedString().Trim();  // col 7
+                    var firstName = row.Cell(8).GetFormattedString().Trim();  // col 8
+                    var middleName = row.Cell(9).GetFormattedString().Trim(); // col 9
                     var birthDate = ParseFlexibleDate(
-                        $"{row.Cell(9).GetFormattedString()} {row.Cell(10).GetFormattedString()} {row.Cell(11).GetFormattedString()}"
+                        $"{row.Cell(11).GetFormattedString().Trim()} " +
+                        $"{row.Cell(12).GetFormattedString().Trim()} " +
+                        $"{row.Cell(13).GetFormattedString().Trim()}"
                     ) ?? DateTime.MinValue;
 
-                    var ncscRrn = int.TryParse(ncscRrnRaw, out var r) ? r : (int?)null;
+                    var dateOfDeath = ParseFlexibleDate(row.Cell(22).GetFormattedString()); // col 22
+                    var validationDateRaw = row.Cell(28).GetFormattedString().Trim(); // VALIDATION DATE
+                    var isEligibleRaw = row.Cell(29).GetFormattedString().Trim(); // NCSC ASSESSMENT // col 29 ✅ was 30
 
-                    // 🔥 FIND EXISTING RECORD
+                    // ── Parse validation date safely ──────────────────────────────
+                    // ✅ Use GetFormattedString() + ParseFlexibleDate instead of .Value
+                    // .Value returns XLCellValue struct which cannot be cast to DateTime directly
+                    var parsedValidationDate = ParseFlexibleDate(validationDateRaw);
+                    var isEligible = MapEligibility(isEligibleRaw);
+
                     var existing = await FindExistingAsync(
-                        lastName,
-                        firstName,
-                        middleName,
-                        birthDate,
-                        oscaIdNumber,
-                        ncscRrn);
+                        lastName, firstName, middleName, birthDate);
 
-                    // ❌ NOT FOUND → ERROR (NO INSERT)
                     if (existing == null)
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
@@ -1440,22 +1509,17 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.RecordNotFoundInDatabase,
                             RawValue = $"{lastName}, {firstName}"
                         });
-
                         continue;
                     }
 
-                    // 🔥 MAP FIELDS
-                    var batchCode = row.Cell(1).GetFormattedString().Trim();
-                    var isEligible = MapEligibility(row.Cell(28).GetFormattedString());
-                    var dateOfDeath = ParseFlexibleDate(row.Cell(22).GetFormattedString());
-                    var validationDate = row.Cell(20).Value;
-
-                    // 🔥 UPDATE ONLY
                     existing.BatchCode = batchCode;
-                    existing.IsEligible = isEligible.HasValue ? isEligible.Value : false;
+                    existing.IsEligible = isEligible ?? false;
                     existing.DateOfDeath = dateOfDeath;
-                    existing.ValidationDate = validationDate;
+                    existing.IsDeceased = dateOfDeath.HasValue;  // ✅ keep in sync
 
+                    // ✅ Only update ValidationDate if a valid date was parsed — never overwrite with null
+                    if (parsedValidationDate.HasValue)
+                        existing.ValidationDate = parsedValidationDate.Value;
 
                     await AddLogAsync(
                         existing.Id,
@@ -1491,92 +1555,81 @@ namespace EcaInformationSystem.Application.Services
             if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
                 throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
 
-            //preview was declared
             var preview = new BeneficiaryPreviewResultDto();
 
             var regions = await _regionRepository.GetAllAsync();
-
-            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
-            // The PSGC seeder can add a second row for the same province with a different
-            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
-            // non-deterministically, risking a PSGC code being saved while existing
-            // beneficiary records carry the legacy code.
             var provinces = (await _provinceRepository.GetAllProvinceAsync())
                 .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
                 .Select(g => g.OrderBy(x => x.Id).First())
                 .ToList();
-
-            // Load municipalities and barangays once; they are scoped per-row below.
             var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
             var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
 
             using var workbook = new XLWorkbook(fileStream);
 
-
             if (string.IsNullOrWhiteSpace(sheetName))
                 throw new Exception(CommonConstants.PleaseSelectAWorksheet);
 
             var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
-
             if (worksheet == null)
                 throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
 
-            const int firstDataRowNumber = 11;
+            // ── New template: header row 11, data starts row 12 ──────────────────
+            const int firstDataRowNumber = 12;
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             if (lastRow < firstDataRowNumber)
                 throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
 
-            //Track duplicated inside the upload file itself
             var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
 
-                // Skip blank rows
-                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                // ── New template has 31 columns ───────────────────────────────────
+                if (row.Cells(1, 30).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
                     continue;
 
                 preview.TotalRows++;
 
                 try
                 {
-                    var batchCode = row.Cell(1).GetFormattedString().Trim();
-                    // row.Cell(2) = No. (ignored)
-                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
-                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
-                    var lastName = row.Cell(5).GetFormattedString().Trim();
-                    var firstName = row.Cell(6).GetFormattedString().Trim();
-                    var middleName = row.Cell(7).GetFormattedString().Trim();
-                    var extensionName = row.Cell(8).GetFormattedString().Trim();
-
-                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
-                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
-                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
-
-                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
-                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
-                    var regionName = row.Cell(14).GetFormattedString().Trim();
-                    var provinceName = row.Cell(15).GetFormattedString().Trim();
-                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
-                    var barangayName = row.Cell(17).GetFormattedString().Trim();
-                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
-                    var validator = row.Cell(19).GetFormattedString().Trim();
-                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
-
-                    //Newly added column for importing.
-                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
-                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
-                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
-                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
-                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
-                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
-                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
-                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
+                    // ── NEW COLUMN MAP ────────────────────────────────────────────
+                    var dateEndorsed = row.Cell(1).GetFormattedString().Trim();  // DATE ENDORSED
+                    var batchCode = row.Cell(2).GetFormattedString().Trim();  // BATCH CODE (FOR NCSC)
+                                                                              // col 3 = NO. (ignored)
+                    var oscaIdNumber = row.Cell(4).GetFormattedString().Trim();  // OSCA ID NUMBER
+                    var oscaIdDateIssued = row.Cell(5).GetFormattedString().Trim();  // OSCA ID DATE ISSUED
+                    var ncscRrnRaw = row.Cell(6).GetFormattedString().Trim();  // NCSC RRN
+                    var lastName = row.Cell(7).GetFormattedString().Trim();  // LAST NAME
+                    var firstName = row.Cell(8).GetFormattedString().Trim();  // FIRST NAME
+                    var middleName = row.Cell(9).GetFormattedString().Trim(); // MIDDLE NAME
+                    var extensionName = row.Cell(10).GetFormattedString().Trim(); // EXTENSION
+                    var birthMonthRaw = row.Cell(11).GetFormattedString().Trim(); // BIRTH MONTH
+                    var birthDayRaw = row.Cell(12).GetFormattedString().Trim(); // BIRTH DAY
+                    var birthYearRaw = row.Cell(13).GetFormattedString().Trim(); // BIRTH YEAR
+                                                                                 // col 14 = AGE (ignored — computed)
+                    var sexRaw = row.Cell(15).GetFormattedString().Trim(); // SEX
+                    var citizenshipRaw = row.Cell(16).GetFormattedString().Trim(); // CITIZENSHIP
+                    var regionName = row.Cell(17).GetFormattedString().Trim(); // REGION
+                    var provinceName = row.Cell(18).GetFormattedString().Trim(); // PROVINCE
+                    var municipalityName = row.Cell(19).GetFormattedString().Trim(); // MUNICIPALITY/CITY
+                    var barangayName = row.Cell(20).GetFormattedString().Trim(); // BARANGAY
+                    var contactNumber = row.Cell(21).GetFormattedString().Trim(); // CONTACT NUMBER
+                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim(); // DATE OF DEATH
+                    var dateApplied = row.Cell(23).GetFormattedString().Trim(); // DATE APPLIED
+                    var isIndigenousPeopleRaw = row.Cell(24).GetFormattedString().Trim(); // INDIGENOUS PERSON
+                    var isPersonWithDisabilityRaw = row.Cell(25).GetFormattedString().Trim(); // PERSON WITH DISABILITY
+                    var complianceRaw = row.Cell(26).GetFormattedString().Trim(); // COMPLIANCE (FOR NCSC)
+                    var validator = row.Cell(27).GetFormattedString().Trim(); // NAME OF VALIDATOR (FOR NCSC)
+                    var validationDateRaw = row.Cell(28).GetFormattedString().Trim(); // VALIDATION DATE (FOR NCSC)
+                    var isEligibleRaw = row.Cell(29).GetFormattedString().Trim(); // IsEligible 
+                    var paymentStatus = row.Cell(30).GetFormattedString().Trim();  // col 30 = PAYMENT STATUS FOR NCSC —  Paid, Unpaid, Pending
 
                     bool rowHasHardError = false;
 
+                    // ── First Name required ───────────────────────────────────────
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
@@ -1585,11 +1638,11 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.FirstName.ToTitleCase(),
                             Message = CommonConstants.FirstNameRequired,
                             RawValue = firstName
-
                         });
                         rowHasHardError = true;
                     }
 
+                    // ── Birth Date ───────────────────────────────────────────────
                     var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
@@ -1599,18 +1652,17 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.BirthDate.ToTitleCase(),
                             Message = CommonConstants.InvalidBirthDate,
                             RawValue = birthDateRaw
-
                         });
                         rowHasHardError = true;
-                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
+                        birthDate = DateTime.MinValue;
                     }
+
+                    // ── NCSC RRN ─────────────────────────────────────────────────
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
                     {
                         if (int.TryParse(ncscRrnRaw, out var parsedRrn))
-                        {
                             ncscRrn = parsedRrn;
-                        }
                         else
                         {
                             preview.HardErrors.Add(new BeneficiaryImportErrorDto
@@ -1621,101 +1673,105 @@ namespace EcaInformationSystem.Application.Services
                                 RawValue = ncscRrnRaw,
                                 Suggestion = CommonConstants.RemoveSpecialCharactersFromName
                             });
-
                             rowHasHardError = true;
                         }
                     }
 
+                    // ── Citizenship guard ────────────────────────────────────────
+                    var mappedCitizenship = MapCitizenship(citizenshipRaw);
+                    if (!string.IsNullOrWhiteSpace(citizenshipRaw) && mappedCitizenship == null)
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Citizenship.ToTitleCase(),
+                            Message = "Invalid citizenship value. Accepted: FILIPINO or DUAL CITIZENSHIP.",
+                            RawValue = citizenshipRaw,
+                            Suggestion = "Use FILIPINO or DUAL CITIZENSHIP"
+                        });
+                        rowHasHardError = true;
+                    }
+
+                    // ── Region ───────────────────────────────────────────────────
                     var region = string.IsNullOrWhiteSpace(regionName)
                         ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
                         : FindBestNameMatch(regions, x => x.Name, regionName);
 
                     if (region == null)
                     {
-                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
-
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Region,
                             Message = CommonConstants.RegionNotFound,
                             RawValue = regionName,
-                            Suggestion = suggestion != null
-                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                            : CommonConstants.CheckSpelling
+                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
+                                ? $"{CommonConstants.PossibleMatch} '{sr}'"
+                                : CommonConstants.CheckSpelling
                         });
                         rowHasHardError = true;
                     }
+
+                    // ── Province ─────────────────────────────────────────────────
                     var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
                     if (province == null)
                     {
-                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
-
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Province.ToTitleCase(),
                             Message = CommonConstants.ProvinceNotFound,
                             RawValue = provinceName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(provinces, x => x.Name, provinceName) is { } sp
+                                ? $"{CommonConstants.PossibleMatch} '{sp}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasHardError = true;
                     }
 
-
-                    // Scope municipality search to the matched province.
-                    // Without scoping, common names like "San Jose" or "Barobo" would match
-                    // the wrong municipality in a different province.
+                    // ── Municipality ──────────────────────────────────────────────
                     var municipalitiesInProvince = province != null
                         ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
-                        : municipalities; // province not found — fall back to all so we can still suggest
+                        : municipalities;
 
                     var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
                     if (municipality == null)
                     {
-                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
-
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Municipality,
                             Message = CommonConstants.MunicipalityNotFound,
                             RawValue = municipalityName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName) is { } sm
+                                ? $"{CommonConstants.PossibleMatch} '{sm}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasHardError = true;
                     }
 
-                    // Scope barangay search to the matched municipality.
-                    // "Poblacion" alone exists in virtually every municipality — without
-                    // scoping the match would be random across 42,000+ barangays.
+                    // ── Barangay ──────────────────────────────────────────────────
                     var barangaysInMunicipality = municipality != null
                         ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
-                        : barangays; // municipality not found — fall back to all
+                        : barangays;
 
                     var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
                     if (barangay == null)
                     {
-                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
-
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Barangay.ToTitleCase(),
                             Message = CommonConstants.BarangayNotFound,
                             RawValue = barangayName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName) is { } sb
+                                ? $"{CommonConstants.PossibleMatch} '{sb}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasHardError = true;
                     }
-                    #region Mappers
-                    //Mapped NCSC Assessment Eligible/InEligible
+
+                    // ── NCSC Assessment ───────────────────────────────────────────
                     var mappedEligibility = MapEligibility(isEligibleRaw);
                     if (mappedEligibility == null)
                     {
@@ -1725,18 +1781,16 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.NcscAssessment.ToTitleCase(),
                             Message = CommonConstants.NcscAssessmentNotFound,
                             RawValue = isEligibleRaw
-
                         });
                         rowHasHardError = true;
                     }
-                    #endregion Mappers end
 
-                    //Stop here if hard errors exist - no point soft checking
                     if (rowHasHardError)
                         continue;
 
-                    //--Exact duplicate in db (hard block, same as before)
-                    var isExactDuplicate = await _repo.ExistsDuplicateAsync(lastName, firstName, middleName, birthDate);
+                    // ── Exact duplicate in DB ─────────────────────────────────────
+                    var isExactDuplicate = await _repo.ExistsDuplicateAsync(
+                        lastName, firstName, middleName, birthDate);
 
                     if (isExactDuplicate)
                     {
@@ -1747,25 +1801,23 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.DuplicateRecordExistInDatabase,
                             RawValue = $"{lastName}, {firstName}"
                         });
-                        continue; // still a hard block
+                        continue;
                     }
-                    //soft duplicate check - only rows that passed everything
-                    var softMatches = await _repo.FindSoftDuplicatesAsync(
-                        firstName, lastName, birthDate);
+
+                    // ── Soft duplicate check ──────────────────────────────────────
+                    var softMatches = await _repo.FindSoftDuplicatesAsync(firstName, lastName, birthDate);
 
                     foreach (var match in softMatches)
                     {
-                        //preview is in scope here- this is waht was missing before
                         preview.SoftDuplicates.Add(new SoftDuplicateCandidateDto
                         {
                             RowNumber = rowNumber,
-                            ImportedName = $"{lastName}, {firstName} {middleName}",
+                            ImportedName = $"{lastName}, {firstName}",
                             ImportedMiddleName = middleName?.Trim() ?? string.Empty,
                             ImportedBirthDate = birthDate,
                             ImportedProvince = province?.Name ?? string.Empty,
                             ImportedMunicipality = municipality?.Name ?? string.Empty,
                             ImportedBarangay = barangay?.Name ?? string.Empty,
-
                             ExistingId = match.ExistingId,
                             ExistingFullName = match.ExistingFullName,
                             ExistingMiddleName = match.ExistingMiddleName,
@@ -1774,10 +1826,10 @@ namespace EcaInformationSystem.Application.Services
                             ExistingProvince = match.ExistingProvince,
                             ExistingMunicipality = match.ExistingMunicipality,
                             ExistingBarangay = match.ExistingBarangay,
-
                             MatchScore = match.MatchScore
                         });
                     }
+
                     preview.CleanRows++;
                 }
                 catch (Exception ex)
@@ -1791,10 +1843,16 @@ namespace EcaInformationSystem.Application.Services
                     });
                 }
             }
+
             return preview;
         }
         //Confirm import
-        public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows)
+        public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(
+            Stream fileStream,
+            string fileName,
+            string sheetName,
+            string userName,
+            HashSet<int> skipRows)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -1810,51 +1868,40 @@ namespace EcaInformationSystem.Application.Services
             var beneficiariesToImport = new List<BeneficiaryInformation>();
 
             var regions = await _regionRepository.GetAllAsync();
-
-            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
-            // The PSGC seeder can add a second row for the same province with a different
-            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
-            // non-deterministically, risking a PSGC code being saved while existing
-            // beneficiary records carry the legacy code.
             var provinces = (await _provinceRepository.GetAllProvinceAsync())
                 .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
                 .Select(g => g.OrderBy(x => x.Id).First())
                 .ToList();
-
-            // Load municipalities and barangays once; they are scoped per-row below.
             var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
             var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
 
             using var workbook = new XLWorkbook(fileStream);
 
-
             if (string.IsNullOrWhiteSpace(sheetName))
                 throw new Exception(CommonConstants.PleaseSelectAWorksheet);
 
             var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
-
             if (worksheet == null)
                 throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
 
-            const int firstDataRowNumber = 11;
+            const int firstDataRowNumber = 12;
 
             var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
             if (lastRow < firstDataRowNumber)
                 throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
 
-            //Track duplicated inside the upload file itself
             var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
 
-                // Skip blank rows
-                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                if (row.Cells(1, 30).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
                     continue;
 
                 result.TotalRows++;
-                //skip rows the user chose to skip from the soft duplicate modal
+
+                // ── Skip rows user chose to skip from soft duplicate modal ────────
                 if (skipRows.Contains(rowNumber))
                 {
                     result.SkippedDuplicateCount++;
@@ -1863,41 +1910,41 @@ namespace EcaInformationSystem.Application.Services
 
                 try
                 {
-                    var batchCode = row.Cell(1).GetFormattedString().Trim();
-                    // row.Cell(2) = No. (ignored)
-                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
-                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
-                    var lastName = row.Cell(5).GetFormattedString().Trim();
-                    var firstName = row.Cell(6).GetFormattedString().Trim();
-                    var middleName = row.Cell(7).GetFormattedString().Trim();
-                    var extensionName = row.Cell(8).GetFormattedString().Trim();
-
-                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
-                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
-                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
-
-                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
-                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
-                    var regionName = row.Cell(14).GetFormattedString().Trim();
-                    var provinceName = row.Cell(15).GetFormattedString().Trim();
-                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
-                    var barangayName = row.Cell(17).GetFormattedString().Trim();
-                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
-                    var validator = row.Cell(19).GetFormattedString().Trim();
-                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
-
-                    //Newly added column for importing.
-                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
-                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
-                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
-                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
-                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
-                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
-                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
-                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
+                    // ── NEW COLUMN MAP ────────────────────────────────────────────
+                    var dateEndorsed = row.Cell(1).GetFormattedString().Trim();
+                    var batchCode = row.Cell(2).GetFormattedString().Trim();
+                    // col 3 = NO. (ignored)
+                    var oscaIdNumber = row.Cell(4).GetFormattedString().Trim();
+                    var oscaIdDateIssued = row.Cell(5).GetFormattedString().Trim();
+                    var ncscRrnRaw = row.Cell(6).GetFormattedString().Trim();
+                    var lastName = row.Cell(7).GetFormattedString().Trim();
+                    var firstName = row.Cell(8).GetFormattedString().Trim();
+                    var middleName = row.Cell(9).GetFormattedString().Trim();
+                    var extensionName = row.Cell(10).GetFormattedString().Trim();
+                    var birthMonthRaw = row.Cell(11).GetFormattedString().Trim();
+                    var birthDayRaw = row.Cell(12).GetFormattedString().Trim();
+                    var birthYearRaw = row.Cell(13).GetFormattedString().Trim();
+                    // col 14 = AGE (ignored)
+                    var sexRaw = row.Cell(15).GetFormattedString().Trim();
+                    var citizenshipRaw = row.Cell(16).GetFormattedString().Trim();
+                    var regionName = row.Cell(17).GetFormattedString().Trim();
+                    var provinceName = row.Cell(18).GetFormattedString().Trim();
+                    var municipalityName = row.Cell(19).GetFormattedString().Trim();
+                    var barangayName = row.Cell(20).GetFormattedString().Trim();
+                    var contactNumber = row.Cell(21).GetFormattedString().Trim();
+                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();
+                    var dateApplied = row.Cell(23).GetFormattedString().Trim();
+                    var isIndigenousPeopleRaw = row.Cell(24).GetFormattedString().Trim();
+                    var isPersonWithDisabilityRaw = row.Cell(25).GetFormattedString().Trim();
+                    var complianceRaw = row.Cell(26).GetFormattedString().Trim();
+                    var validator = row.Cell(27).GetFormattedString().Trim();
+                    var validationDateRaw = row.Cell(28).GetFormattedString().Trim();
+                    var isEligibleRaw = row.Cell(29).GetFormattedString().Trim();
+                    var paymentStatusRaw = row.Cell(30).GetFormattedString().Trim();
 
                     bool rowHasError = false;
 
+                    // ── First Name ────────────────────────────────────────────────
                     if (string.IsNullOrWhiteSpace(firstName))
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
@@ -1906,11 +1953,11 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.FirstName.ToTitleCase(),
                             Message = CommonConstants.FirstNameRequired,
                             RawValue = firstName
-
                         });
                         rowHasError = true;
                     }
 
+                    // ── Birth Date ────────────────────────────────────────────────
                     var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
@@ -1920,17 +1967,14 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.BirthDate.ToTitleCase(),
                             Message = CommonConstants.InvalidBirthDate,
                             RawValue = birthDateRaw
-
                         });
                         rowHasError = true;
-                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
+                        birthDate = DateTime.MinValue;
                     }
 
-
                     #region Parsed Dates
-                    //Osca Id Date Issued
-                    var parsedOscaIdDateIssued = ParseFlexibleDate(oscaIdDateIssued);
 
+                    var parsedOscaIdDateIssued = ParseFlexibleDate(oscaIdDateIssued);
                     if (!string.IsNullOrWhiteSpace(oscaIdDateIssued) && parsedOscaIdDateIssued == null)
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
@@ -1940,13 +1984,10 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.InvalidDateFormat,
                             RawValue = oscaIdDateIssued
                         });
-
                         rowHasError = true;
                     }
 
-                    //Date Endorsed
                     var parsedDateEndorsed = ParseFlexibleDate(dateEndorsed);
-
                     if (!string.IsNullOrWhiteSpace(dateEndorsed) && parsedDateEndorsed == null)
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
@@ -1956,13 +1997,10 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateEndorsed
                         });
-
                         rowHasError = true;
                     }
 
-                    // Date of Application
                     var parsedDateApplied = ParseFlexibleDate(dateApplied);
-
                     if (!string.IsNullOrWhiteSpace(dateApplied) && parsedDateApplied == null)
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto
@@ -1972,12 +2010,22 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateApplied
                         });
-
                         rowHasError = true;
                     }
 
+                    var parsedDateAppliedFromCol23 = ParseFlexibleDate(dateApplied);
+                    if (!string.IsNullOrWhiteSpace(dateApplied) && parsedDateAppliedFromCol23 == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = "Date Applied (col 24)",
+                            Message = CommonConstants.InvalidDateFormat,
+                            RawValue = dateApplied
+                        });
+                        rowHasError = true;
+                    }
 
-                    //Date of Death
                     var parsedDateofDeath = ParseFlexibleDate(dateOfDeath);
                     if (!string.IsNullOrWhiteSpace(dateOfDeath) && parsedDateofDeath == null)
                     {
@@ -1988,19 +2036,17 @@ namespace EcaInformationSystem.Application.Services
                             Message = CommonConstants.InvalidDateFormat,
                             RawValue = dateOfDeath
                         });
-
                         rowHasError = true;
                     }
 
-                    #endregion Parsed Dates end
+                    #endregion
 
+                    // ── NCSC RRN ──────────────────────────────────────────────────
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
                     {
                         if (int.TryParse(ncscRrnRaw, out var parsedRrn))
-                        {
                             ncscRrn = parsedRrn;
-                        }
                         else
                         {
                             result.Errors.Add(new BeneficiaryImportErrorDto
@@ -2011,101 +2057,119 @@ namespace EcaInformationSystem.Application.Services
                                 RawValue = ncscRrnRaw,
                                 Suggestion = CommonConstants.RemoveSpecialCharactersFromName
                             });
-
                             rowHasError = true;
                         }
                     }
 
+                    // ── Citizenship guard ─────────────────────────────────────────
+                    var mappedCitizenship = MapCitizenship(citizenshipRaw);
+                    if (!string.IsNullOrWhiteSpace(citizenshipRaw) && mappedCitizenship == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Citizenship.ToTitleCase(),
+                            Message = "Invalid citizenship value. Accepted: FILIPINO or DUAL CITIZENSHIP.",
+                            RawValue = citizenshipRaw,
+                            Suggestion = "Use FILIPINO or DUAL CITIZENSHIP"
+                        });
+                        rowHasError = true;
+                    }
+                    // ── Payment Status guard (col 31) ─────────────────────────────────────
+                    var mappedPaymentStatus = MapPaymentStatus(paymentStatusRaw);
+                    if (!string.IsNullOrWhiteSpace(paymentStatusRaw) && mappedPaymentStatus == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.PaymentStatus.ToTitleCase(),
+                            Message = "Invalid payment status. Accepted: PAID, UNPAID, PENDING, or N/A.",
+                            RawValue = paymentStatusRaw,
+                            Suggestion = "Use PAID, UNPAID, PENDING, or leave blank"
+                        });
+                        rowHasError = true;
+                    }
+
+                    // ── Region ────────────────────────────────────────────────────
                     var region = string.IsNullOrWhiteSpace(regionName)
                         ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
                         : FindBestNameMatch(regions, x => x.Name, regionName);
 
                     if (region == null)
                     {
-                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
-
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Region,
                             Message = CommonConstants.RegionNotFound,
                             RawValue = regionName,
-                            Suggestion = suggestion != null
-                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                            : CommonConstants.CheckSpelling
+                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
+                                ? $"{CommonConstants.PossibleMatch} '{sr}'"
+                                : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
+
+                    // ── Province ──────────────────────────────────────────────────
                     var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
                     if (province == null)
                     {
-                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
-
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Province.ToTitleCase(),
                             Message = CommonConstants.ProvinceNotFound,
                             RawValue = provinceName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(provinces, x => x.Name, provinceName) is { } sp
+                                ? $"{CommonConstants.PossibleMatch} '{sp}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
 
-
-                    // Scope municipality search to the matched province.
-                    // Without scoping, common names like "San Jose" or "Barobo" would match
-                    // the wrong municipality in a different province.
+                    // ── Municipality ──────────────────────────────────────────────
                     var municipalitiesInProvince = province != null
                         ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
-                        : municipalities; // province not found — fall back to all so we can still suggest
+                        : municipalities;
 
                     var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
                     if (municipality == null)
                     {
-                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
-
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Municipality,
                             Message = CommonConstants.MunicipalityNotFound,
                             RawValue = municipalityName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName) is { } sm
+                                ? $"{CommonConstants.PossibleMatch} '{sm}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
 
-                    // Scope barangay search to the matched municipality.
-                    // "Poblacion" alone exists in virtually every municipality — without
-                    // scoping the match would be random across 42,000+ barangays.
+                    // ── Barangay ──────────────────────────────────────────────────
                     var barangaysInMunicipality = municipality != null
                         ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
-                        : barangays; // municipality not found — fall back to all
+                        : barangays;
 
                     var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
                     if (barangay == null)
                     {
-                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
-
                         result.Errors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Barangay.ToTitleCase(),
                             Message = CommonConstants.BarangayNotFound,
                             RawValue = barangayName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
+                            Suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName) is { } sb
+                                ? $"{CommonConstants.PossibleMatch} '{sb}'"
                                 : CommonConstants.CheckSpelling
                         });
                         rowHasError = true;
                     }
-                    #region Mappers
-                    //Mapped NCSC Assessment Eligible/InEligible
+
+                    // ── NCSC Assessment ───────────────────────────────────────────
                     var mappedEligibility = MapEligibility(isEligibleRaw);
                     if (mappedEligibility == null)
                     {
@@ -2115,22 +2179,20 @@ namespace EcaInformationSystem.Application.Services
                             Field = CommonConstants.NcscAssessment.ToTitleCase(),
                             Message = CommonConstants.NcscAssessmentNotFound,
                             RawValue = isEligibleRaw
-
                         });
                         rowHasError = true;
                     }
-                    //Mapped IP
+
+                    // ── Mapped fields ─────────────────────────────────────────────
                     var mappedIsIndigenousPeople = MapIndigenousPeople(isIndigenousPeopleRaw);
-                    //Mapped PWD
                     var mappedIsPersonWithDisability = MapIsPersonWithDisability(isPersonWithDisabilityRaw);
-                    #endregion Mappers end
 
-
+                    // ── In-file duplicate check ───────────────────────────────────
                     var duplicateKey = string.Join("|",
-                 (lastName ?? string.Empty).Trim().ToLower(),
-                 (firstName ?? string.Empty).Trim().ToLower(),
-                 (middleName ?? string.Empty).Trim().ToLower(),
-                 birthDate == DateTime.MinValue ? "" : birthDate.ToFullDate());
+                        (lastName ?? string.Empty).Trim().ToLower(),
+                        (firstName ?? string.Empty).Trim().ToLower(),
+                        (middleName ?? string.Empty).Trim().ToLower(),
+                        birthDate == DateTime.MinValue ? "" : birthDate.ToFullDate());
 
                     if (!string.IsNullOrWhiteSpace(firstName) && birthDate != DateTime.MinValue)
                     {
@@ -2146,13 +2208,13 @@ namespace EcaInformationSystem.Application.Services
                             rowHasError = true;
                         }
                     }
+
+                    // ── Exact DB duplicate check ──────────────────────────────────
                     if (!rowHasError)
                     {
                         var isDuplicateInDatabase = await _repo.ExistsDuplicateAsync(
-                            lastName,
-                            firstName,
-                            middleName,
-                            birthDate);
+                            lastName, firstName, middleName, birthDate);
+
                         if (isDuplicateInDatabase)
                         {
                             result.Errors.Add(new BeneficiaryImportErrorDto
@@ -2165,13 +2227,19 @@ namespace EcaInformationSystem.Application.Services
                             rowHasError = true;
                         }
                     }
+
                     if (rowHasError)
                         continue;
+
+                    // ── Build entity ──────────────────────────────────────────────
+                    // Use col 24 (Date of Application) as the primary DateApplied;
+                    // fall back to col 1 (Date Applied) if col 24 is empty.
+                    var effectiveDateApplied = parsedDateAppliedFromCol23 ?? parsedDateApplied;
 
                     beneficiariesToImport.Add(new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
-                        DateApplied = parsedDateApplied,
+                        DateApplied = effectiveDateApplied, //This is our column 23 
                         DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),
                         OscaIdNumber = NullIfEmpty(oscaIdNumber),
@@ -2182,24 +2250,26 @@ namespace EcaInformationSystem.Application.Services
                         MiddleName = NullIfEmpty(middleName),
                         Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
-                        PhoneNumber = contactNumber,
+                        PhoneNumber = NullIfEmpty(contactNumber),
                         Sex = MapSex(sexRaw),
                         IsIndigenousPeople = mappedIsIndigenousPeople,
                         IsPersonWithDisability = mappedIsPersonWithDisability,
                         CivilStatus = null,
-                        Citizenship = null,
+                        Citizenship = mappedCitizenship,  // ✅ mapped from col 17
                         Region = region!.PsgcCodeRegion,
                         Province = province!.PsgcCodeProvince,
                         Municipality = municipality!.PsgcCodeMunicipality,
                         Barangay = barangay!.PsgcCodeBarangay,
                         IsCompliant = MapCompliance(complianceRaw),
-                        Validator = string.IsNullOrWhiteSpace(validator) ? CommonConstants.None : validator.Trim(),
+                        Validator = string.IsNullOrWhiteSpace(validator)
+                                                    ? CommonConstants.None
+                                                    : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = 0,
+                        PaymentStatus = mappedPaymentStatus ?? 3,   // set default to 3 (pending) if emtpy.
                         ModeOfPayment = 0,
                         PaymentDate = null,
                         DateOfDeath = parsedDateofDeath,
-                        IsDeceased = parsedDateofDeath.HasValue, // true if date exists, false if null
+                        IsDeceased = parsedDateofDeath.HasValue,
                         IsEligible = mappedEligibility!.Value,
                         AssessmentRemarks = null,
                         RemarkCategory = null,
@@ -2219,16 +2289,17 @@ namespace EcaInformationSystem.Application.Services
                     });
                 }
             }
+
             result.ErrorCount = result.Errors.Count;
             result.ValidRows = beneficiariesToImport.Count;
 
-            //If there are any errors, do not save anything
             if (result.ErrorCount > 0)
             {
                 result.ImportedCount = 0;
-                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == CommonConstants.Duplicate);
+                result.SkippedDuplicateCount += result.Errors.Count(x => x.Field == CommonConstants.Duplicate);
                 return result;
             }
+
             foreach (var beneficiary in beneficiariesToImport)
             {
                 await _repo.AddAsync(beneficiary);
@@ -2238,465 +2309,12 @@ namespace EcaInformationSystem.Application.Services
                     userName);
             }
 
-
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
 
             result.ImportedCount = beneficiariesToImport.Count;
-
             return result;
         }
-
-        public async Task<BeneficiaryImportResultDto> ImportExcelAsync(Stream fileStream, string fileName, string sheetName, string userName)
-        {
-            if (fileStream == null || !fileStream.CanRead)
-                throw new Exception(CommonConstants.InvalidExcelUploaded);
-
-            if (string.IsNullOrWhiteSpace(fileName))
-                throw new Exception(CommonConstants.InvalidExcelFile);
-
-            var extension = Path.GetExtension(fileName);
-            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
-                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
-
-            var result = new BeneficiaryImportResultDto();
-            var beneficiariesToImport = new List<BeneficiaryInformation>();
-
-            var regions = await _regionRepository.GetAllAsync();
-
-            // Deduplicate provinces by name and prefer the original/legacy entry (lowest Id).
-            // The PSGC seeder can add a second row for the same province with a different
-            // PsgcCodeProvince. Without deduplication, FindBestNameMatch picks one
-            // non-deterministically, risking a PSGC code being saved while existing
-            // beneficiary records carry the legacy code.
-            var provinces = (await _provinceRepository.GetAllProvinceAsync())
-                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
-                .Select(g => g.OrderBy(x => x.Id).First())
-                .ToList();
-
-            // Load municipalities and barangays once; they are scoped per-row below.
-            var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
-            var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
-
-            using var workbook = new XLWorkbook(fileStream);
-
-
-            if (string.IsNullOrWhiteSpace(sheetName))
-                throw new Exception(CommonConstants.PleaseSelectAWorksheet);
-
-            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
-
-            if (worksheet == null)
-                throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
-
-            const int firstDataRowNumber = 11;
-
-            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
-            if (lastRow < firstDataRowNumber)
-                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
-
-            //Track duplicated inside the upload file itself
-            var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
-            {
-                var row = worksheet.Row(rowNumber);
-
-                // Skip blank rows
-                if (row.Cells(1, 21).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
-                    continue;
-
-                result.TotalRows++;
-
-                try
-                {
-                    var batchCode = row.Cell(1).GetFormattedString().Trim();
-                    // row.Cell(2) = No. (ignored)
-                    var oscaIdNumber = row.Cell(3).GetFormattedString().Trim();
-                    var ncscRrnRaw = row.Cell(4).GetFormattedString().Trim();
-                    var lastName = row.Cell(5).GetFormattedString().Trim();
-                    var firstName = row.Cell(6).GetFormattedString().Trim();
-                    var middleName = row.Cell(7).GetFormattedString().Trim();
-                    var extensionName = row.Cell(8).GetFormattedString().Trim();
-
-                    var birthMonthRaw = row.Cell(9).GetFormattedString().Trim();
-                    var birthDayRaw = row.Cell(10).GetFormattedString().Trim();
-                    var birthYearRaw = row.Cell(11).GetFormattedString().Trim();
-
-                    // row.Cell(12) = Age (ignored, computed from BirthDate instead)
-                    var sexRaw = row.Cell(13).GetFormattedString().Trim();
-                    var regionName = row.Cell(14).GetFormattedString().Trim();
-                    var provinceName = row.Cell(15).GetFormattedString().Trim();
-                    var municipalityName = row.Cell(16).GetFormattedString().Trim();
-                    var barangayName = row.Cell(17).GetFormattedString().Trim();
-                    var complianceRaw = row.Cell(18).GetFormattedString().Trim();
-                    var validator = row.Cell(19).GetFormattedString().Trim();
-                    var validationDateRaw = row.Cell(20).GetFormattedString().Trim();
-
-                    //Newly added column for importing.
-                    var contactNumber = row.Cell(21).GetFormattedString().Trim();//21 -Contact Number
-                    var dateOfDeath = row.Cell(22).GetFormattedString().Trim();//22 - Date of Death
-                    var dateApplied = row.Cell(23).GetFormattedString().Trim();//23 - Date Applied/Date of Application
-                    var dateEndorsed = row.Cell(24).GetFormattedString().Trim();//24 - Date Enorsed
-                    var oscaIdDateIssued = row.Cell(25).GetFormattedString().Trim();//25 - OSCA ID Date Issued
-                    var isIndigenousPeopleRaw = row.Cell(26).GetFormattedString().Trim();//26 - IP
-                    var isPersonWithDisabilityRaw = row.Cell(27).GetFormattedString().Trim();//27 - PWD
-                    var isEligibleRaw = row.Cell(28).GetFormattedString().Trim(); // NCSC Assessment 
-
-                    bool rowHasError = false;
-
-                    if (string.IsNullOrWhiteSpace(firstName))
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.FirstName.ToTitleCase(),
-                            Message = CommonConstants.FirstNameRequired,
-                            RawValue = firstName
-
-                        });
-                        rowHasError = true;
-                    }
-
-                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
-                    if (!TryParseExcelDate(birthDateRaw, out var birthDate))
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.BirthDate.ToTitleCase(),
-                            Message = CommonConstants.InvalidBirthDate,
-                            RawValue = birthDateRaw
-
-                        });
-                        rowHasError = true;
-                        birthDate = DateTime.MinValue; // Assign a default value to avoid uninitialized variable error
-                    }
-
-
-                    #region Parsed Dates
-                    //Osca Id Date Issued
-                    var parsedOscaIdDateIssued = ParseFlexibleDate(oscaIdDateIssued);
-
-                    if (!string.IsNullOrWhiteSpace(oscaIdDateIssued) && parsedOscaIdDateIssued == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.OscaIdDateIssued.ToTitleCase(),
-                            Message = CommonConstants.InvalidDateFormat,
-                            RawValue = oscaIdDateIssued
-                        });
-
-                        rowHasError = true;
-                    }
-
-                    //Date Endorsed
-                    var parsedDateEndorsed = ParseFlexibleDate(dateEndorsed);
-
-                    if (!string.IsNullOrWhiteSpace(dateEndorsed) && parsedDateEndorsed == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.DateEndorsed.ToTitleCase(),
-                            Message = CommonConstants.InvalidDateFormat,
-                            RawValue = dateEndorsed
-                        });
-
-                        rowHasError = true;
-                    }
-
-                    // Date of Application
-                    var parsedDateApplied = ParseFlexibleDate(dateApplied);
-
-                    if (!string.IsNullOrWhiteSpace(dateApplied) && parsedDateApplied == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.DateOfApplication,
-                            Message = CommonConstants.InvalidDateFormat,
-                            RawValue = dateApplied
-                        });
-
-                        rowHasError = true;
-                    }
-
-
-                    //Date of Death
-                    var parsedDateofDeath = ParseFlexibleDate(dateOfDeath);
-                    if (!string.IsNullOrWhiteSpace(dateOfDeath) && parsedDateofDeath == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.DateOfDeath,
-                            Message = CommonConstants.InvalidDateFormat,
-                            RawValue = dateOfDeath
-                        });
-
-                        rowHasError = true;
-                    }
-
-                    #endregion Parsed Dates end
-
-                    int? ncscRrn = null;
-                    if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
-                    {
-                        if (int.TryParse(ncscRrnRaw, out var parsedRrn))
-                        {
-                            ncscRrn = parsedRrn;
-                        }
-                        else
-                        {
-                            result.Errors.Add(new BeneficiaryImportErrorDto
-                            {
-                                RowNumber = rowNumber,
-                                Field = CommonConstants.NcscRrn,
-                                Message = CommonConstants.InvalidRrn,
-                                RawValue = ncscRrnRaw,
-                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName
-                            });
-
-                            rowHasError = true;
-                        }
-                    }
-
-                    var region = string.IsNullOrWhiteSpace(regionName)
-                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
-                        : FindBestNameMatch(regions, x => x.Name, regionName);
-
-                    if (region == null)
-                    {
-                        var suggestion = GetSuggestedName(regions, x => x.Name, regionName);
-
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.Region,
-                            Message = CommonConstants.RegionNotFound,
-                            RawValue = regionName,
-                            Suggestion = suggestion != null
-                            ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                            : CommonConstants.CheckSpelling
-                        });
-                        rowHasError = true;
-                    }
-                    var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
-                    if (province == null)
-                    {
-                        var suggestion = GetSuggestedName(provinces, x => x.Name, provinceName);
-
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.Province.ToTitleCase(),
-                            Message = CommonConstants.ProvinceNotFound,
-                            RawValue = provinceName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                                : CommonConstants.CheckSpelling
-                        });
-                        rowHasError = true;
-                    }
-
-
-                    // Scope municipality search to the matched province.
-                    // Without scoping, common names like "San Jose" or "Barobo" would match
-                    // the wrong municipality in a different province.
-                    var municipalitiesInProvince = province != null
-                        ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
-                        : municipalities; // province not found — fall back to all so we can still suggest
-
-                    var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
-                    if (municipality == null)
-                    {
-                        var suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
-
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.Municipality,
-                            Message = CommonConstants.MunicipalityNotFound,
-                            RawValue = municipalityName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                                : CommonConstants.CheckSpelling
-                        });
-                        rowHasError = true;
-                    }
-
-                    // Scope barangay search to the matched municipality.
-                    // "Poblacion" alone exists in virtually every municipality — without
-                    // scoping the match would be random across 42,000+ barangays.
-                    var barangaysInMunicipality = municipality != null
-                        ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
-                        : barangays; // municipality not found — fall back to all
-
-                    var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
-                    if (barangay == null)
-                    {
-                        var suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
-
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.Barangay.ToTitleCase(),
-                            Message = CommonConstants.BarangayNotFound,
-                            RawValue = barangayName,
-                            Suggestion = suggestion != null
-                                ? $"{CommonConstants.PossibleMatch} '{suggestion}'"
-                                : CommonConstants.CheckSpelling
-                        });
-                        rowHasError = true;
-                    }
-                    #region Mappers
-                    //Mapped NCSC Assessment Eligible/InEligible
-                    var mappedEligibility = MapEligibility(isEligibleRaw);
-                    if (mappedEligibility == null)
-                    {
-                        result.Errors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.NcscAssessment.ToTitleCase(),
-                            Message = CommonConstants.NcscAssessmentNotFound,
-                            RawValue = isEligibleRaw
-
-                        });
-                        rowHasError = true;
-                    }
-                    //Mapped IP
-                    var mappedIsIndigenousPeople = MapIndigenousPeople(isIndigenousPeopleRaw);
-                    //Mapped PWD
-                    var mappedIsPersonWithDisability = MapIsPersonWithDisability(isPersonWithDisabilityRaw);
-                    #endregion Mappers end
-
-
-                    var duplicateKey = string.Join("|",
-                 (lastName ?? string.Empty).Trim().ToLower(),
-                 (firstName ?? string.Empty).Trim().ToLower(),
-                 (middleName ?? string.Empty).Trim().ToLower(),
-                 birthDate == DateTime.MinValue ? "" : birthDate.ToFullDate(),
-                 (oscaIdNumber ?? string.Empty).Trim().ToLower(),
-                 ncscRrn?.ToString() ?? "");
-
-                    if (!string.IsNullOrWhiteSpace(firstName) && birthDate != DateTime.MinValue)
-                    {
-                        if (!uploadedRowKeys.Add(duplicateKey))
-                        {
-                            result.Errors.Add(new BeneficiaryImportErrorDto
-                            {
-                                RowNumber = rowNumber,
-                                Field = CommonConstants.Duplicate,
-                                Message = CommonConstants.DuplicateRecordFound,
-                                RawValue = $"{lastName}, {firstName}"
-                            });
-                            rowHasError = true;
-                        }
-                    }
-                    if (!rowHasError)
-                    {
-                        var isDuplicateInDatabase = await _repo.ExistsDuplicateAsync(
-                            lastName,
-                            firstName,
-                            middleName,
-                            birthDate);
-                        if (isDuplicateInDatabase)
-                        {
-                            result.Errors.Add(new BeneficiaryImportErrorDto
-                            {
-                                RowNumber = rowNumber,
-                                Field = CommonConstants.Duplicate,
-                                Message = CommonConstants.DuplicateRecordExistInDatabase,
-                                RawValue = $"{lastName}, {firstName}"
-                            });
-                            rowHasError = true;
-                        }
-                    }
-                    if (rowHasError)
-                        continue;
-
-                    beneficiariesToImport.Add(new BeneficiaryInformation
-                    {
-                        Id = Guid.NewGuid(),
-                        DateApplied = parsedDateApplied,
-                        DateEndorsed = parsedDateEndorsed,
-                        BatchCode = NullIfEmpty(batchCode),
-                        OscaIdNumber = NullIfEmpty(oscaIdNumber),
-                        OscaIdDateIssued = parsedOscaIdDateIssued,
-                        NcscRrn = ncscRrn,
-                        LastName = NullIfEmpty(lastName),
-                        FirstName = firstName!.Trim(),
-                        MiddleName = NullIfEmpty(middleName),
-                        Extension = NullIfEmpty(extensionName),
-                        BirthDate = birthDate,
-                        PhoneNumber = contactNumber,
-                        Sex = MapSex(sexRaw),
-                        IsIndigenousPeople = mappedIsIndigenousPeople,
-                        IsPersonWithDisability = mappedIsPersonWithDisability,
-                        CivilStatus = null,
-                        Citizenship = null,
-                        Region = region!.PsgcCodeRegion,
-                        Province = province!.PsgcCodeProvince,
-                        Municipality = municipality!.PsgcCodeMunicipality,
-                        Barangay = barangay!.PsgcCodeBarangay,
-                        IsCompliant = MapCompliance(complianceRaw),
-                        Validator = string.IsNullOrWhiteSpace(validator) ? CommonConstants.None : validator.Trim(),
-                        ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = 0,
-                        ModeOfPayment = 0,
-                        PaymentDate = null,
-                        DateOfDeath = parsedDateofDeath,
-                        IsDeceased = parsedDateofDeath.HasValue, // true if date exists, false if null
-                        IsEligible = mappedEligibility!.Value,
-                        AssessmentRemarks = null,
-                        RemarkCategory = null,
-                        Remarks = null,
-                        DateAdded = DateTime.UtcNow,
-                        IsDeleted = false
-                    });
-                }
-                catch (Exception ex)
-                {
-                    result.Errors.Add(new BeneficiaryImportErrorDto
-                    {
-                        RowNumber = rowNumber,
-                        Field = CommonConstants.General,
-                        Message = ex.Message,
-                        RawValue = null
-                    });
-                }
-            }
-            result.ErrorCount = result.Errors.Count;
-            result.ValidRows = beneficiariesToImport.Count;
-
-            //If there are any errors, do not save anything
-            if (result.ErrorCount > 0)
-            {
-                result.ImportedCount = 0;
-                result.SkippedDuplicateCount = result.Errors.Count(x => x.Field == CommonConstants.Duplicate);
-                return result;
-            }
-            foreach (var beneficiary in beneficiariesToImport)
-            {
-                await _repo.AddAsync(beneficiary);
-                await AddLogAsync(
-                    beneficiary.Id,
-                    $"{CommonConstants.ImportedBeneficiaryFromExcel} {beneficiary.LastName}, {beneficiary.FirstName}",
-                    userName);
-            }
-
-
-            await _repo.SaveChangesAsync();
-            InvalidateSummaryCache();
-
-            result.ImportedCount = beneficiariesToImport.Count;
-            result.SkippedDuplicateCount = 0;
-
-            return result;
-        }
-
         public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
         {
             if (fileStream == null || !fileStream.CanRead)
@@ -3493,6 +3111,35 @@ namespace EcaInformationSystem.Application.Services
 
 
         #region Private helpers
+        // ── Map Payment Status from col 31 ───────────────────────────────────────
+        private static int? MapPaymentStatus(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null; // blank = not provided, default to 0 (N/A)
+
+            return value.Trim().ToUpperInvariant() switch
+            {
+                "PAID" => 2,
+                "UNPAID" => 1,
+                "PENDING" => 3,
+                "N/A" => 0,
+                _ => null  // null = invalid — caller adds error
+            };
+        }
+        // ── Map Citizenship from col 17 ───────────────────────────────────────────
+        private static int? MapCitizenship(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null; // null = not provided — leave as null in DB, no error
+
+            return value.Trim().ToUpperInvariant() switch
+            {
+                "FILIPINO" => 1,
+                "DUAL CITIZENSHIP" => 2,
+                "DUAL" => 2, // common shorthand
+                _ => null              // ✅ null = invalid — caller will add error
+            };
+        }
         private string BuildPaginatedCacheKey(BeneficiaryFilterDto filter)
         {
             var version = GetCurrentSummaryCacheVersion();
@@ -3528,15 +3175,13 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null
             );
         }
-        private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate, string oscaIdNumber, int? ncscRrn)
+        private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
         {
             return await _repo.FindExistingAsync(
                 lastName,
                 firstName,
                 middleName,
-                birthDate,
-                oscaIdNumber,
-                ncscRrn);
+                birthDate);
         }
         #region Mapping method
         //Compliance of documentary requirements
