@@ -35,8 +35,7 @@
                         @* Region *@
                         <div class="sf-field">
                             <label>Region</label>
-                            <select value="@State.SelectedRegionId"
-                                    @onchange="OnRegionChanged"
+                            <select value="@State.SelectedRegionId" @onchange="OnRegionChanged"
                                     disabled="@(IsLoading || IsFilterRegionLoading)">
                                 <option value="0">All Regions</option>
                                 @foreach (var r in State.FilterRegions)
@@ -55,8 +54,7 @@
                         @* Province *@
                         <div class="sf-field">
                             <label>Province</label>
-                            <select value="@State.SelectedProvinceId"
-                                    @onchange="OnProvinceChanged"
+                            <select value="@State.SelectedProvinceId" @onchange="OnProvinceChanged"
                                     disabled="@(IsLoading || IsFilterProvinceLoading || State.SelectedRegionId == 0)">
                                 <option value="0">Select Province</option>
                                 @foreach (var p in State.FilterProvinces)
@@ -75,8 +73,7 @@
                         @* Municipality *@
                         <div class="sf-field">
                             <label>Municipality</label>
-                            <select value="@State.SelectedMunicipalityId"
-                                    @onchange="OnMunicipalityChanged"
+                            <select value="@State.SelectedMunicipalityId" @onchange="OnMunicipalityChanged"
                                     disabled="@(IsLoading || State.SelectedProvinceId == 0 || IsFilterMunicipalityLoading)">
                                 <option value="0">Select Municipality</option>
                                 @foreach (var m in State.FilterMunicipalities)
@@ -95,8 +92,7 @@
                         @* Barangay *@
                         <div class="sf-field">
                             <label>Barangay</label>
-                            <select value="@State.SelectedBarangayId"
-                                    @onchange="OnBarangayChanged"
+                            <select value="@State.SelectedBarangayId" @onchange="OnBarangayChanged"
                                     disabled="@(IsLoading || State.SelectedMunicipalityId == 0 || IsFilterBarangayLoading)">
                                 <option value="0">Select Barangay</option>
                                 @foreach (var b in State.FilterBarangays)
@@ -121,19 +117,16 @@
                     <div class="sf-grid">
                         <div class="sf-field">
                             <label>Full Name</label>
-                            <input type="text" placeholder="Search by name..."
-                                   @bind="State.Filter.FullName"
+                            <input type="text" placeholder="Search by name..." @bind="State.Filter.FullName"
                                    @bind:event="oninput" />
                         </div>
                         <div class="sf-field">
                             <label>Last Name</label>
-                            <input type="text" placeholder="Last name"
-                                   @bind="State.Filter.LastName" />
+                            <input type="text" placeholder="Last name" @bind="State.Filter.LastName" />
                         </div>
                         <div class="sf-field">
                             <label>First Name</label>
-                            <input type="text" placeholder="First name"
-                                   @bind="State.Filter.FirstName" />
+                            <input type="text" placeholder="First name" @bind="State.Filter.FirstName" />
                         </div>
                         <div class="sf-field">
                             <label>Sex</label>
@@ -145,17 +138,16 @@
                         </div>
                         <div class="sf-field">
                             <label>Batch Code</label>
-                            <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90"
-                                   @bind="State.Filter.BatchCode" />
+                            <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90" @bind="State.Filter.BatchCode" />
                         </div>
                         <div class="sf-field">
                             <label>Validator</label>
-                            <input type="text" placeholder="Validator"
-                                   @bind="State.Filter.Validator" />
+                            <input type="text" placeholder="Validator" @bind="State.Filter.Validator" />
                         </div>
                         <div class="sf-field">
                             <label>Findings</label>
-                            <select value="@State.Filter.FindingStatus" @onchange="OnFindingStatusChanged" disabled="@IsLoading">
+                            <select value="@State.Filter.FindingStatus" @onchange="OnFindingStatusChanged"
+                                    disabled="@IsLoading">
                                 <option value="3">Select Findings</option>
                                 <option value="0">N/A</option>
                                 <option value="1">Solved</option>
@@ -170,6 +162,14 @@
                                 <option value="false">Non-Compliant</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Eligibility</label>
+                            <select value="@_eligibilityValue" @onchange="OnEligibilityChanged" disabled="@IsLoading">
+                                <option value="">Select Eligibility</option>
+                                <option value="true">Eligible</option>
+                                <option value="false">Ineligible</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -179,8 +179,7 @@
                     <div class="sf-grid">
                         <div class="sf-field">
                             <label>Payment Status</label>
-                            <select value="@State.Filter.PaymentStatus"
-                                    @onchange="OnPaymentStatusChanged"
+                            <select value="@State.Filter.PaymentStatus" @onchange="OnPaymentStatusChanged"
                                     disabled="@IsLoading">
                                 <option value="-1">Select Payment Status</option>
                                 <option value="0">N/A</option>
@@ -202,8 +201,7 @@
                     <div class="sf-grid">
                         <div class="sf-field">
                             <label>Specific Age</label>
-                            <input type="number" placeholder="e.g. 80"
-                                   @bind="State.Filter.SpecificAge" />
+                            <input type="number" placeholder="e.g. 80" @bind="State.Filter.SpecificAge" />
                         </div>
                         <div class="sf-field">
                             <label>Milestone Year</label>
@@ -221,8 +219,7 @@
                         <div class="sf-field">
                             <label>Specific Birthday</label>
                             <div class="sf-inline">
-                                <select @bind="_specificBirthdayMonth"
-                                        disabled="@IsLoading"
+                                <select @bind="_specificBirthdayMonth" disabled="@IsLoading"
                                         class="@(_specificBirthdayMonth > 0 && _specificBirthdayDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Month</option>
                                     @foreach (var m in _months)
@@ -230,8 +227,7 @@
                                         <option value="@m.Value">@m.Label</option>
                                     }
                                 </select>
-                                <select @bind="_specificBirthdayDay"
-                                        disabled="@(IsLoading || _specificBirthdayMonth == 0)"
+                                <select @bind="_specificBirthdayDay" disabled="@(IsLoading || _specificBirthdayMonth == 0)"
                                         class="@(_specificBirthdayMonth > 0 && _specificBirthdayDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Day</option>
                                     @foreach (var d in GetDaysForMonth(_specificBirthdayMonth))
@@ -250,8 +246,7 @@
                         <div class="sf-field">
                             <label>Birthday From</label>
                             <div class="sf-inline">
-                                <select @bind="_birthdayFromMonth"
-                                        disabled="@IsLoading"
+                                <select @bind="_birthdayFromMonth" disabled="@IsLoading"
                                         class="@(_birthdayFromMonth > 0 && _birthdayFromDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Month</option>
                                     @foreach (var m in _months)
@@ -259,8 +254,7 @@
                                         <option value="@m.Value">@m.Label</option>
                                     }
                                 </select>
-                                <select @bind="_birthdayFromDay"
-                                        disabled="@(IsLoading || _birthdayFromMonth == 0)"
+                                <select @bind="_birthdayFromDay" disabled="@(IsLoading || _birthdayFromMonth == 0)"
                                         class="@(_birthdayFromMonth > 0 && _birthdayFromDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Day</option>
                                     @foreach (var d in GetDaysForMonth(_birthdayFromMonth))
@@ -279,8 +273,7 @@
                         <div class="sf-field">
                             <label>Birthday To</label>
                             <div class="sf-inline">
-                                <select @bind="_birthdayToMonth"
-                                        disabled="@IsLoading"
+                                <select @bind="_birthdayToMonth" disabled="@IsLoading"
                                         class="@(_birthdayToMonth > 0 && _birthdayToDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Month</option>
                                     @foreach (var m in _months)
@@ -288,8 +281,7 @@
                                         <option value="@m.Value">@m.Label</option>
                                     }
                                 </select>
-                                <select @bind="_birthdayToDay"
-                                        disabled="@(IsLoading || _birthdayToMonth == 0)"
+                                <select @bind="_birthdayToDay" disabled="@(IsLoading || _birthdayToMonth == 0)"
                                         class="@(_birthdayToMonth > 0 && _birthdayToDay == 0 ? "sf-select-error" : "")">
                                     <option value="0">Day</option>
                                     @foreach (var d in GetDaysForMonth(_birthdayToMonth))
@@ -312,8 +304,7 @@
                     <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
                         <i class="bi bi-x-circle"></i> Clear
                     </button>
-                    <button class="sf-btn sf-btn-apply"
-                            @onclick="ApplyFiltersAsync"
+                    <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync"
                             disabled="@(IsApplyingFilters || IsLoading)">
                         @if (IsApplyingFilters)
                         {
@@ -345,15 +336,15 @@
     private record MonthItem(int Value, string Label);
     private readonly List<MonthItem> _months = new()
     {
-        new(1,  "January"),
-        new(2,  "February"),
-        new(3,  "March"),
-        new(4,  "April"),
-        new(5,  "May"),
-        new(6,  "June"),
-        new(7,  "July"),
-        new(8,  "August"),
-        new(9,  "September"),
+        new(1, "January"),
+        new(2, "February"),
+        new(3, "March"),
+        new(4, "April"),
+        new(5, "May"),
+        new(6, "June"),
+        new(7, "July"),
+        new(8, "August"),
+        new(9, "September"),
         new(10, "October"),
         new(11, "November"),
         new(12, "December"),
@@ -391,6 +382,19 @@
     private string _complianceValue = string.Empty;
 
     private void ToggleCollapse() => _collapsed = !_collapsed;
+    private string _eligibilityValue = string.Empty;
+
+    private void OnEligibilityChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _eligibilityValue = val ?? string.Empty;
+        State.Filter.IsEligible = val switch
+        {
+            "true" => true,
+            "false" => false,
+            _ => null
+        };
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -420,13 +424,13 @@
     }
     private async Task OnRegionChanged(ChangeEventArgs e)
     {
-        State.SelectedRegionId     = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        State.SelectedProvinceId   = 0;
+        State.SelectedRegionId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        State.SelectedProvinceId = 0;
         State.SelectedMunicipalityId = 0;
-        State.SelectedBarangayId   = 0;
-        State.FilterProvinces      = new();
+        State.SelectedBarangayId = 0;
+        State.FilterProvinces = new();
         State.FilterMunicipalities = new();
-        State.FilterBarangays      = new();
+        State.FilterBarangays = new();
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
 
@@ -600,14 +604,15 @@
         _birthdayToDay = 0;
         //reset compliance selector
         _complianceValue = string.Empty;
+        _eligibilityValue = string.Empty; // ✅ add this
 
         State.Filter = new BeneficiaryFilterDto
-        { 
-          PageNumber = 1,
-          PageSize = 10,
-          // Sort reset to default on clear
-          SortColumn = null,
-          SortAscending = true  
+        {
+            PageNumber = 1,
+            PageSize = 10,
+            // Sort reset to default on clear
+            SortColumn = null,
+            SortAscending = true
 
         };
         State.ClearData();
@@ -635,6 +640,7 @@
     f.Sex == null &&
     f.PaymentStatus == null &&
     f.IsCompliant == null &&
+    f.IsEligible == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&

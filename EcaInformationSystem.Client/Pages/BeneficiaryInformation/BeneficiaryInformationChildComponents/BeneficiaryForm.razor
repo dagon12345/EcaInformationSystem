@@ -73,14 +73,13 @@
                 </div>
                 <div class="ff">
                     <label class="ff-label">Birth Date <span class="req">*</span></label>
-                    <input type="date" class="ff-input"
-                           @bind="@model.BirthDate"
-                           @bind:after="ApplyEligibilityRules" />
+                    <input type="date" class="ff-input" @bind="@model.BirthDate" @bind:after="ApplyEligibilityRules" />
                     <ValidationMessage For="@(() => model.BirthDate)" class="ff-err" />
                 </div>
                 <div class="ff">
                     <label class="ff-label">Age (auto)</label>
-                    <input class="ff-input ff-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" readonly />
+                    <input class="ff-input ff-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")"
+                           readonly />
                 </div>
                 <div class="ff">
                     <label class="ff-label">Phone Number</label>
@@ -104,19 +103,14 @@
                 </div>
                 <div class="form-grid">
                     <div class="ff d-flex align-items-center gap-2 pt-3">
-                        <input type="checkbox"
-                               class="sys-check"
-                               checked="@model.IsDeceased"
+                        <input type="checkbox" class="sys-check" checked="@model.IsDeceased"
                                @onchange="OnIsDeceasedChanged" />
                         <label class="ff-label mb-0">Is Deceased</label>
                     </div>
                     <div class="ff">
                         <label class="ff-label">Date of Death</label>
-                        <input type="date" class="ff-input"
-                               value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
-                               max="@TodayDateString"
-                               @onchange="OnDateOfDeathChanged"
-                               disabled="@(!model.IsDeceased)" />
+                        <input type="date" class="ff-input" value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
+                               max="@TodayDateString" @onchange="OnDateOfDeathChanged" disabled="@(!model.IsDeceased)" />
                     </div>
                 </div>
             </div>
@@ -171,9 +165,7 @@
                 @* Region *@
                 <div class="ff">
                     <label class="ff-label">Region <span class="req">*</span></label>
-                    <select class="ff-input"
-                            value="@model.PsgcCodeRegion"
-                            @onchange="OnFormRegionChanged"
+                    <select class="ff-input" value="@model.PsgcCodeRegion" @onchange="OnFormRegionChanged"
                             disabled="@(_isFormRegionLoading || IsLoading)">
                         <option value="0">
                             @(_isFormRegionLoading ? "Loading..." : "Select Region")
@@ -188,9 +180,7 @@
                 @* Province *@
                 <div class="ff">
                     <label class="ff-label">Province <span class="req">*</span></label>
-                    <select class="ff-input"
-                            value="@model.PsgcCodeProvince"
-                            @onchange="OnFormProvinceChanged"
+                    <select class="ff-input" value="@model.PsgcCodeProvince" @onchange="OnFormProvinceChanged"
                             disabled="@(model.PsgcCodeRegion == 0 || _isFormProvinceLoading || IsLoading)">
                         <option value="0">
                             @(_isFormProvinceLoading ? "Loading..." : "Select Province")
@@ -205,9 +195,7 @@
                 @* Municipality *@
                 <div class="ff">
                     <label class="ff-label">Municipality / City <span class="req">*</span></label>
-                    <select class="ff-input"
-                            value="@model.PsgcCodeMunicipality"
-                            @onchange="OnFormMunicipalityChanged"
+                    <select class="ff-input" value="@model.PsgcCodeMunicipality" @onchange="OnFormMunicipalityChanged"
                             disabled="@(model.PsgcCodeProvince == 0 || _isFormMunicipalityLoading || IsLoading)">
                         <option value="0">
                             @(_isFormMunicipalityLoading ? "Loading..." : "Select Municipality")
@@ -222,9 +210,7 @@
                 @* Barangay *@
                 <div class="ff">
                     <label class="ff-label">Barangay <span class="req">*</span></label>
-                    <select class="ff-input"
-                            value="@model.PsgcCodeBarangay"
-                            @onchange="OnFormBarangayChanged"
+                    <select class="ff-input" value="@model.PsgcCodeBarangay" @onchange="OnFormBarangayChanged"
                             disabled="@(model.PsgcCodeMunicipality == 0 || _isFormBarangayLoading || IsLoading)">
                         <option value="0">
                             @(_isFormBarangayLoading ? "Loading..." : "Select Barangay")
@@ -255,7 +241,8 @@
                 </div>
                 <div class="ff">
                     <label class="ff-label">Validation Date <span class="req">*</span></label>
-                    <InputDate class="ff-input" @bind-Value="model.ValidationDate" />
+                    <InputDate class="ff-input" @bind-Value="model.ValidationDate"
+                               @bind-Value:after="ApplyEligibilityRules" />
                     <ValidationMessage For="@(() => model.ValidationDate)" class="ff-err" />
                 </div>
             </div>
@@ -275,8 +262,8 @@
                     </div>
                     <div class="ff" style="grid-column: 1 / -1;">
                         <label class="ff-label">Assessment Remarks</label>
-                        <InputTextArea class="ff-input" @bind-Value="model.AssessmentRemarks"
-                                       rows="2" placeholder="Enter assessment remarks if not eligible..." />
+                        <InputTextArea class="ff-input" @bind-Value="model.AssessmentRemarks" rows="2"
+                                       placeholder="Enter assessment remarks if not eligible..." />
                     </div>
                 </div>
             </div>
@@ -290,14 +277,15 @@
         </div>
         <div class="form-section-body">
             <div class="form-grid">
+                @* ── Payment ── *@
                 <div class="ff">
                     <label class="ff-label">Payment Status</label>
-                    <InputSelect class="ff-input" @bind-Value="model.PaymentStatus">
+                    <select class="ff-input" value="@model.PaymentStatus" @onchange="OnPaymentStatusChangeRequested">
                         <option value="0">N/A</option>
                         <option value="1">Unpaid</option>
                         <option value="2">Paid</option>
                         <option value="3">Pending</option>
-                    </InputSelect>
+                    </select>
                 </div>
                 <div class="ff">
                     <label class="ff-label">Mode of Payment</label>
@@ -308,9 +296,25 @@
                     </InputSelect>
                 </div>
                 <div class="ff">
-                    <label class="ff-label">Payment Date</label>
-                    <InputDate class="ff-input" @bind-Value="model.PaymentDate"
-                               disabled="@(model.PaymentStatus != 2)" />
+                    <label class="ff-label">
+                        Payment Date
+                        @if (model.PaymentStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    @{
+                        var paymentDateClass = model.PaymentStatus == 2 && !model.PaymentDate.HasValue
+                            ? "ff-input ff-input--invalid"
+                            : "ff-input";
+                    }
+                    <input type="date" class="@paymentDateClass"
+                           value="@(model.PaymentDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnPaymentDateChanged"
+                           disabled="@(model.PaymentStatus != 2)" />
+                    @if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
+                    {
+                        <div class="ff-err">Payment Date is required when status is Paid.</div>
+                    }
                 </div>
                 <div class="ff">
                     <label class="ff-label">Remark Category</label>
@@ -358,9 +362,7 @@
                     <div class="form-grid">
                         <div class="ff">
                             <label class="ff-label">With Findings</label>
-                            <select class="ff-input"
-                                    @bind="findingStatusInput"
-                                    disabled="@IsLoading">
+                            <select class="ff-input" @bind="findingStatusInput" disabled="@IsLoading">
                                 <option value="0">N/A</option>
                                 <option value="1">Solved</option>
                                 <option value="2">Unresolved</option>
@@ -373,11 +375,8 @@
                                 <label class="ff-label">
                                     Finding Remarks <span class="req">*</span>
                                 </label>
-                                <InputTextArea class="ff-input"
-                                               @bind-Value="findingRemarksInput"
-                                               rows="3"
-                                               placeholder="Describe the unresolved finding..."
-                                               disabled="@IsLoading" />
+                                <InputTextArea class="ff-input" @bind-Value="findingRemarksInput" rows="3"
+                                               placeholder="Describe the unresolved finding..." disabled="@IsLoading" />
                             </div>
                         }
 
@@ -421,11 +420,44 @@
 
 @* Confirmation modal — unchanged *@
 <HxModal @ref="confirmModal">
-    <HeaderTemplate><h5>@confirmationTitle</h5></HeaderTemplate>
-    <BodyTemplate><p>@confirmationMessage</p></BodyTemplate>
+    <HeaderTemplate>
+        <h5>@confirmationTitle</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>@confirmationMessage</p>
+    </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="CloseConfirmationModal">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="ConfirmActionAsync" Disabled="@IsLoading">Confirm</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+<HxModal @ref="_paymentConfirmModal">
+    <HeaderTemplate>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+            <h5 class="mb-0">Change Payment Status?</h5>
+        </div>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-1">
+            You are changing the payment status from
+            <strong>@PaymentStatusLabel(_originalPaymentStatus)</strong>
+            to
+            <strong class="text-primary">@PaymentStatusLabel(_pendingPaymentStatus)</strong>.
+        </p>
+        <p class="text-muted small mb-0">
+            This change will only be saved when you click
+            <strong>Update Record</strong>.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CancelPaymentStatusChangeAsync">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Warning" @onclick="ConfirmPaymentStatusChangeAsync">
+            <i class="bi bi-check-lg me-1"></i>Yes, Change It
+        </HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -466,7 +498,20 @@
     private string? findingRemarksInput;
     private bool isLoadingFinding;
 
+    private int _originalPaymentStatus = 0;
+    private int _pendingPaymentStatus = 0;
+    private HxModal _paymentConfirmModal = default!;
+
     #region Address cascade
+    private void OnPaymentDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+            model.PaymentDate = d;
+        else
+            model.PaymentDate = null;
+
+        StateHasChanged();
+    }
     private async Task LoadFormRegionsAsync()
     {
         try
@@ -524,10 +569,10 @@
 
     private async Task OnFormRegionChanged(ChangeEventArgs e)
     {
-        model.PsgcCodeRegion       = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
-        model.PsgcCodeProvince     = 0;
+        model.PsgcCodeRegion = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        model.PsgcCodeProvince = 0;
         model.PsgcCodeMunicipality = 0;
-        model.PsgcCodeBarangay     = 0;
+        model.PsgcCodeBarangay = 0;
         _formProvinces = new(); _formMunicipalities = new(); _formBarangays = new();
         if (model.PsgcCodeRegion > 0)
             await LoadFormProvincesAsync(model.PsgcCodeRegion);
@@ -535,9 +580,9 @@
 
     private async Task OnFormProvinceChanged(ChangeEventArgs e)
     {
-        model.PsgcCodeProvince     = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        model.PsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
         model.PsgcCodeMunicipality = 0;
-        model.PsgcCodeBarangay     = 0;
+        model.PsgcCodeBarangay = 0;
         _formMunicipalities = new(); _formBarangays = new();
         if (model.PsgcCodeProvince > 0)
             await LoadFormMunicipalitiesAsync(model.PsgcCodeProvince);
@@ -546,7 +591,7 @@
     private async Task OnFormMunicipalityChanged(ChangeEventArgs e)
     {
         model.PsgcCodeMunicipality = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
-        model.PsgcCodeBarangay     = 0;
+        model.PsgcCodeBarangay = 0;
         _formBarangays = new();
         if (model.PsgcCodeMunicipality > 0)
             await LoadFormBarangaysAsync(model.PsgcCodeMunicipality);
@@ -599,6 +644,7 @@
             _isLoadingRecord = true;
             model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{id}") ?? model;
             model.BirthDate = model.BirthDate.Date;
+            _originalPaymentStatus = model.PaymentStatus;
 
             // Pre-populate cascade dropdowns from the loaded record's PSGC codes
             if (model.PsgcCodeRegion > 0)
@@ -625,14 +671,81 @@
             BirthDate = DateTime.UtcNow.AddYears(-80),
             ValidationDate = DateTime.UtcNow,
         };
-        _formProvinces     = new();
+        _formProvinces = new();
         _formMunicipalities = new();
-        _formBarangays     = new();
+        _formBarangays = new();
+        _originalPaymentStatus = 0; // new record starts at N/A
     }
 
+    private async Task OnPaymentStatusChangeRequested(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var newStatus))
+            return;
+
+        // Clear payment date when switching away from Paid
+        if (newStatus != 2)
+            model.PaymentDate = null;
+
+        // ✅ Always update model.PaymentStatus immediately so the UI reacts
+        // (date field enables/disables, required star shows, etc.)
+        model.PaymentStatus = newStatus;
+        StateHasChanged();
+
+        // No confirmation needed if value didn't change from original or create mode
+        if (!IsEditMode || newStatus == _originalPaymentStatus)
+            return;
+
+        // Store pending and open confirmation modal
+        _pendingPaymentStatus = newStatus;
+        await _paymentConfirmModal.ShowAsync();
+    }
+    private async Task ConfirmPaymentStatusChangeAsync()
+    {
+        //Double-check in case PaymentDate was somehow cleared between steps
+        if (_pendingPaymentStatus == 2 && !model.PaymentDate.HasValue)
+        {
+            toast.ShowError("Payment Date is required for Paid Status.");
+            await _paymentConfirmModal.HideAsync();
+            return;
+        }
+        model.PaymentStatus = _pendingPaymentStatus;
+        _originalPaymentStatus = _pendingPaymentStatus; // update baseline
+        await _paymentConfirmModal.HideAsync();
+        StateHasChanged();
+    }
+
+    private async Task CancelPaymentStatusChangeAsync()
+    {
+        // ✅ Revert model back to original since user cancelled
+        model.PaymentStatus = _originalPaymentStatus;
+        if (_originalPaymentStatus != 2)
+            model.PaymentDate = null;
+
+        _pendingPaymentStatus = 0;
+        await _paymentConfirmModal.HideAsync();
+        StateHasChanged();
+    }
+    private string PaymentStatusLabel(int status) => status switch
+    {
+        0 => "N/A",
+        1 => "Unpaid",
+        2 => "Paid",
+        3 => "Pending",
+        _ => "Unknown"
+    };
     private void ApplyEligibilityRules()
     {
-        var milestoneReached = ComputeMilestoneYear(model.BirthDate) > 0;
+        // ✅ Use ValidationDate as the reference point if it has been set.
+        // This means: "was this person already at milestone age ON the day they were validated?"
+        // Example: BirthDate = May 28, 1946 → 80th birthday = May 28, 2026
+        // ValidationDate = May 26, 2026 → milestone NOT yet reached → IsEligible = false
+        // ValidationDate = May 28, 2026 → milestone reached → IsEligible = true
+        // ValidationDate = May 30, 2026 → milestone already passed → IsEligible = true
+        var referenceDate = model.ValidationDate != default
+            ? model.ValidationDate
+            : (DateTime?)null; // falls back to DateTime.Today inside the method
+
+        var milestoneReached = ComputeMilestoneYear(model.BirthDate, referenceDate) > 0;
         var isFilipino = model.Citizenship == 1;
 
         model.IsEligible = milestoneReached && isFilipino;
@@ -644,10 +757,13 @@
     /// a milestone age (80, 85, 90, 95, 100) on or before today and that year >= 2024.
     /// Returns 0 if no milestone has been reached yet — meaning not yet eligible.
     /// </summary>
-    private static int ComputeMilestoneYear(DateTime birthDate)
+    private static int ComputeMilestoneYear(DateTime birthDate, DateTime? referenceDate)
     {
         if (birthDate == default || birthDate == DateTime.MinValue)
             return 0;
+
+        // ✅ Use referenceDate if provided, otherwise fall back to today
+        var asOf = referenceDate?.Date ?? DateTime.Today;
 
         var today = DateTime.Today;
 
@@ -658,13 +774,11 @@
             if (milestoneYear < 2024)
                 continue;
 
-            // Already reached if milestone birthday has passed (or is today)
-            bool alreadyReached =
-                milestoneYear < today.Year ||
-                (milestoneYear == today.Year &&
-                 new DateTime(milestoneYear, birthDate.Month, birthDate.Day) <= today);
+            // Milestone birthday for this person
+            var milestoneBirthday = new DateTime(milestoneYear, birthDate.Month, birthDate.Day);
 
-            if (alreadyReached)
+            // Already reached if milestone birthday has passed on or before asOf
+            if (milestoneBirthday <= asOf)
                 return milestoneYear;
         }
 
@@ -745,6 +859,17 @@
         IsLoading = true;
         try
         {
+            // ✅ Payment date required if Paid
+            if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
+            {
+                toast.ShowError("Payment Date is required when Payment Status is Paid.");
+                return;
+            }
+
+            // ✅ Clear payment date if not Paid — keep data clean
+            if (model.PaymentStatus != 2)
+                model.PaymentDate = null;
+
             // ── Validate finding before sending anything ──────────────────────
             if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
             {
@@ -794,6 +919,18 @@
         IsLoading = true;
         errorMessage = null;
         successMessage = null;
+
+        // ✅ Payment date required if Paid
+        if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
+        {
+            toast.ShowError("Payment Date is required when Payment Status is Paid.");
+            IsLoading = false;
+            return;
+        }
+
+        // ✅ Clear payment date if not Paid
+        if (model.PaymentStatus != 2)
+            model.PaymentDate = null;
 
         var dto = new CreateBeneficiaryInformationDto
         {

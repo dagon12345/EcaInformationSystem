@@ -605,6 +605,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x => x.Beneficiary.IsCompliant == filter.IsCompliant.Value);
             }
 
+            // ✅ NEW — IsEligible Filter
+            if (filter.IsEligible.HasValue)
+            {
+                query = query.Where(x => x.Beneficiary.IsEligible == filter.IsEligible.Value);
+            }
+
             // ── Name ──────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.LastName))
                 query = query.Where(x =>

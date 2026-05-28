@@ -38,6 +38,7 @@
         public bool SortAscending { get; set; } = true;
 
         public bool? IsCompliant { get; set; }
+        public bool? IsEligible { get; set; }
 
     }
 }
