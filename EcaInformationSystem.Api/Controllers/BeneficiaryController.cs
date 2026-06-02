@@ -41,9 +41,25 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> Create(
             [FromBody] CreateBeneficiaryInformationDto dto)
         {
-            var userName = User.Identity?.Name ?? "System";
-            var result = await _service.CreateAsync(dto, userName);
-            return Ok(result);
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                var result = await _service.CreateAsync(dto, userName);
+
+                //Soft duplicates found - return 409 with the matches so the client can show a modal
+                if (result.RequiresConfirmation)
+                    return Conflict(result);
+
+                return CreatedAtAction(
+                    nameof(GetById),
+                    new { id = result.CreatedBeneficiary!.Id },
+                    result.CreatedBeneficiary
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpPut("{id:guid}")]

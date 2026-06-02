@@ -11,7 +11,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter);
         Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter);
         Task SoftDeleteAsync(Guid Id, string userName);
-        Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName);
+        Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName);
         Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName);
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter);

@@ -285,7 +285,7 @@ namespace EcaInformationSystem.Application.Services
             ws.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
 
         }
-        public async Task<BeneficiaryInformationDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
+        public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
             //Check duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
@@ -295,6 +295,24 @@ namespace EcaInformationSystem.Application.Services
                 dto.BirthDate);
             if (isDuplicate)
                 throw new Exception(CommonConstants.DuplicateFound);
+
+            //Soft duplicate check (fuzzy match, skip if user already confirmed)
+            if (!dto.BypassSoftDuplicateCheck)
+            {
+                var softMatches = await _repo.FindSoftDuplicatesAsync(
+                dto.FirstName,
+                dto.LastName,
+                dto.BirthDate);
+
+                if (softMatches.Any())
+                {
+                    return new CreateBeneficiaryResultDto
+                    {
+                        RequiresConfirmation = true,
+                        SoftDuplicates = softMatches
+                    };
+                }
+            }
 
             var beneficiary = new BeneficiaryInformation
             {
@@ -348,44 +366,49 @@ namespace EcaInformationSystem.Application.Services
 
             InvalidateSummaryCache();
 
-            return new BeneficiaryInformationDto
+            return new CreateBeneficiaryResultDto
             {
-                Id = beneficiary.Id,
-                DateApplied = beneficiary.DateApplied,
-                DateEndorsed = beneficiary.DateEndorsed,
-                BatchCode = beneficiary.BatchCode,
-                OscaIdNumber = beneficiary.OscaIdNumber,
-                OscaIdDateIssued = beneficiary.OscaIdDateIssued,
-                NcscRrn = beneficiary.NcscRrn,
-                LastName = beneficiary.LastName,
-                FirstName = beneficiary.FirstName,
-                MiddleName = beneficiary.MiddleName,
-                Extension = beneficiary.Extension,
-                BirthDate = beneficiary.BirthDate,
-                PhoneNumber = beneficiary.PhoneNumber,
-                Sex = beneficiary.Sex,
-                IsIndigenousPeople = beneficiary.IsIndigenousPeople,
-                IsPersonWithDisability = beneficiary.IsPersonWithDisability,
-                CivilStatus = beneficiary.CivilStatus,
-                Citizenship = beneficiary.Citizenship,
-                PsgcCodeRegion = beneficiary.Region,
-                PsgcCodeProvince = beneficiary.Province,
-                PsgcCodeMunicipality = beneficiary.Municipality,
-                PsgcCodeBarangay = beneficiary.Barangay,
-                IsCompliant = beneficiary.IsCompliant,
-                Validator = beneficiary.Validator,
-                ValidationDate = beneficiary.ValidationDate,
-                PaymentStatus = beneficiary.PaymentStatus,
-                ModeOfPayment = beneficiary.ModeOfPayment,
-                PaymentDate = beneficiary.PaymentDate,
-                IsDeceased = beneficiary.IsDeceased,
-                DateOfDeath = beneficiary.DateOfDeath,
-                IsEligible = beneficiary.IsEligible,
-                AssessmentRemarks = beneficiary.AssessmentRemarks,
-                RemarkCategory = beneficiary.RemarkCategory,
-                Remarks = beneficiary.Remarks,
-                DateAdded = beneficiary.DateAdded,
-                IsDeleted = beneficiary.IsDeleted
+                RequiresConfirmation = false,
+                CreatedBeneficiary = new BeneficiaryInformationDto
+                {
+                    Id = beneficiary.Id,
+                    DateApplied = beneficiary.DateApplied,
+                    DateEndorsed = beneficiary.DateEndorsed,
+                    BatchCode = beneficiary.BatchCode,
+                    OscaIdNumber = beneficiary.OscaIdNumber,
+                    OscaIdDateIssued = beneficiary.OscaIdDateIssued,
+                    NcscRrn = beneficiary.NcscRrn,
+                    LastName = beneficiary.LastName,
+                    FirstName = beneficiary.FirstName,
+                    MiddleName = beneficiary.MiddleName,
+                    Extension = beneficiary.Extension,
+                    BirthDate = beneficiary.BirthDate,
+                    PhoneNumber = beneficiary.PhoneNumber,
+                    Sex = beneficiary.Sex,
+                    IsIndigenousPeople = beneficiary.IsIndigenousPeople,
+                    IsPersonWithDisability = beneficiary.IsPersonWithDisability,
+                    CivilStatus = beneficiary.CivilStatus,
+                    Citizenship = beneficiary.Citizenship,
+                    PsgcCodeRegion = beneficiary.Region,
+                    PsgcCodeProvince = beneficiary.Province,
+                    PsgcCodeMunicipality = beneficiary.Municipality,
+                    PsgcCodeBarangay = beneficiary.Barangay,
+                    IsCompliant = beneficiary.IsCompliant,
+                    Validator = beneficiary.Validator,
+                    ValidationDate = beneficiary.ValidationDate,
+                    PaymentStatus = beneficiary.PaymentStatus,
+                    ModeOfPayment = beneficiary.ModeOfPayment,
+                    PaymentDate = beneficiary.PaymentDate,
+                    IsDeceased = beneficiary.IsDeceased,
+                    DateOfDeath = beneficiary.DateOfDeath,
+                    IsEligible = beneficiary.IsEligible,
+                    AssessmentRemarks = beneficiary.AssessmentRemarks,
+                    RemarkCategory = beneficiary.RemarkCategory,
+                    Remarks = beneficiary.Remarks,
+                    DateAdded = beneficiary.DateAdded,
+                    IsDeleted = beneficiary.IsDeleted
+                }
+
             };
         }
 

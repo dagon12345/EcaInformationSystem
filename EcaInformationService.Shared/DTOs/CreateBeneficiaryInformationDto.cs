@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using EcaInformationService.Shared.DTOs;
 
 namespace EcaInformationSystem.Shared.DTOs
 {
@@ -48,5 +49,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public bool IsDeleted { get; set; }
+        //<summary>
+        //  Set to true when the user has reviewed soft duplicated and confirmed they want to proceed
+        // </summary>
+        public bool  BypassSoftDuplicateCheck { get; set; }
     }
 }

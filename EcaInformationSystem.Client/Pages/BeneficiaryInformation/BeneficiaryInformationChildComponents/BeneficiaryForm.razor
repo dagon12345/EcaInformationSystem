@@ -461,6 +461,74 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── Soft Duplicate Warning Modal ── *@
+<HxModal @ref="_softDuplicateModal" Size="ModalSize.ExtraLarge">
+    <HeaderTemplate>
+        <h5 class="modal-title text-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Possible Duplicate Found
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-3">
+            The record you are about to create closely matches
+            <strong>@_softDuplicates.Count</strong> existing record(s).
+            Please review before proceeding:
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+                <thead class="table-warning">
+                    <tr>
+                        <th>Name</th>
+                        <th>Birth Date</th>
+                        <th>OSCA ID</th>
+                        <th>Municipality</th>
+                        <th>Barangay</th>
+                        <th>Match</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var match in _softDuplicates)
+                    {
+                        <tr>
+                            <td>@match.ExistingFullName</td>
+                            <td>@match.ExistingBirthDate.ToString("MMM dd, yyyy")</td>
+                            <td>@(match.ExistingOscaId ?? "—")</td>
+                            <td>@(match.ExistingMunicipality ?? "—")</td>
+                            <td>@(match.ExistingBarangay ?? "—")</td>
+                            <td>
+                                <span class="badge bg-warning text-dark">
+                                    @((match.MatchScore * 100).ToString("F0"))%
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+            If this is a <strong>different person</strong>, click
+            <strong>Proceed Anyway</strong>.
+            Otherwise click <strong>Cancel</strong> to review your entry.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CancelSoftDuplicateModal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Warning" @onclick="ConfirmCreateDespiteDuplicates" Disabled="@IsLoading">
+            @if (IsLoading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-exclamation-triangle me-1"></i>
+            }
+            Proceed Anyway
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
     [Parameter] public bool IsEditMode { get; set; } = false;
@@ -501,6 +569,12 @@
     private int _originalPaymentStatus = 0;
     private int _pendingPaymentStatus = 0;
     private HxModal _paymentConfirmModal = default!;
+
+    //Soft duplicate state
+    private List<EcaInformationService.Shared.DTOs.SoftDuplicateCandidateDto> _softDuplicates = new();
+    private bool _showSoftDuplicateModal = false;
+    private HxModal _softDuplicateModal = default!;
+    private CreateBeneficiaryInformationDto? _pendingDto;
 
     #region Address cascade
     private void OnPaymentDateChanged(ChangeEventArgs e)
@@ -932,7 +1006,7 @@
         if (model.PaymentStatus != 2)
             model.PaymentDate = null;
 
-        var dto = new CreateBeneficiaryInformationDto
+        _pendingDto = new CreateBeneficiaryInformationDto
         {
             DateApplied = model.DateApplied,
             DateEndorsed = model.DateEndorsed,
@@ -967,27 +1041,72 @@
             IsEligible = model.IsEligible,
             RemarkCategory = model.RemarkCategory,
             Remarks = model.Remarks,
-            IsDeleted = false
+            IsDeleted = false,
+            BypassSoftDuplicateCheck = false //First attempt always false
         };
 
+        await SendCreateRequestAsync(_pendingDto);
+    }
+    private async Task SendCreateRequestAsync(CreateBeneficiaryInformationDto dto)
+    {
         try
         {
-            var client = await AuthService.GetAuthorizedClientAsync();
+            IsLoading = true;
             var response = await Http.PostAsJsonAsync("api/Beneficiary/create", dto);
+
+            // ── Soft duplicates found ─────────────────────────────────────────
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                var conflictResult = await response.Content
+                    .ReadFromJsonAsync<EcaInformationService.Shared.DTOs.CreateBeneficiaryResultDto>();
+
+                _softDuplicates = conflictResult?.SoftDuplicates ?? new();
+                _showSoftDuplicateModal = true;
+                StateHasChanged();
+                await _softDuplicateModal.ShowAsync();
+                return;
+            }
+
+            // ── Success ───────────────────────────────────────────────────────
             if (response.IsSuccessStatusCode)
             {
                 toast.ShowSuccess("Grantee has been registered successfully.");
+                _softDuplicates.Clear();
+                _pendingDto = null;
+                _showSoftDuplicateModal = false;
                 ResetForm();
+                return;
             }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                errorMessage = string.IsNullOrWhiteSpace(error) ? "Something went wrong." : error;
-                toast.ShowError(errorMessage);
-            }
+
+            // ── Other errors ──────────────────────────────────────────────────
+            var error = await response.Content.ReadAsStringAsync();
+            errorMessage = string.IsNullOrWhiteSpace(error) ? "Something went wrong." : error;
+            toast.ShowError(errorMessage);
         }
-        catch (Exception ex) { toast.ShowError($"Unexpected error: {ex.Message}"); }
-        finally { IsLoading = false; }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Unexpected error: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+    private async Task ConfirmCreateDespiteDuplicates()
+    {
+        if (_pendingDto is null) return;
+
+        _pendingDto.BypassSoftDuplicateCheck = true;
+        await _softDuplicateModal.HideAsync();
+        _showSoftDuplicateModal = false;
+        await SendCreateRequestAsync(_pendingDto);
+    }
+    private async Task CancelSoftDuplicateModal()
+    {
+        _softDuplicates.Clear();
+        _pendingDto = null;
+        _showSoftDuplicateModal = false;
+        await _softDuplicateModal.HideAsync();
     }
     #endregion
 }
