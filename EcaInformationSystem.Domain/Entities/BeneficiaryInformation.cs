@@ -34,6 +34,7 @@
         public DateTime? DateOfDeath { get; set; }
         public bool IsEligible { get; set; }
         public string? AssessmentRemarks { get; set; }
+        public string? EligibilityRemarks { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }
@@ -42,7 +43,7 @@
         public void Update(DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
             DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
-            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, int? remarkCategory, string? remarks)
+            DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, string? eligibilityRemarks, int? remarkCategory, string? remarks)
         {
             DateApplied = dateApplied;
             DateEndorsed = dateEndorsed;
@@ -75,6 +76,7 @@
             DateOfDeath = dateOfDeath;
             IsEligible = isEligible;
             AssessmentRemarks = assessmentRemarks;
+            EligibilityRemarks = eligibilityRemarks;
             RemarkCategory = remarkCategory;
             Remarks = remarks;
         }

@@ -251,6 +251,8 @@
                 </div>
             </div>
 
+      
+
             <div class="form-subsection mt-2">
                 <div class="form-subsection-label">
                     <i class="bi bi-clipboard2-check me-1"></i>Assessment
@@ -264,13 +266,36 @@
                         <InputCheckbox class="sys-check" @bind-Value="model.IsCompliant" />
                         <label class="ff-label mb-0">Is Compliant</label>
                     </div>
+
+                    @* ✅ EligibilityRemarks — bound to IsEligible *@
                     <div class="ff" style="grid-column: 1 / -1;">
-                        <label class="ff-label">Assessment Remarks</label>
+                        <label class="ff-label">
+                            Eligibility Remarks
+                            @if (!model.IsEligible)
+                            {
+                                <span class="text-muted small ms-1">(enable Is Eligible first)</span>
+                            }
+                        </label>
+                        <InputTextArea class="ff-input" @bind-Value="model.EligibilityRemarks" rows="2"
+                                       placeholder="Enter eligibility finding notes..." disabled="@(!model.IsEligible)" />
+                    </div>
+
+                    @* ✅ AssessmentRemarks, bound to IsCompliant *@
+                    <div class="ff" style="grid-column: 1 / -1;">
+                        <label class="ff-label">
+                            Compliance Remarks
+                            @if (!model.IsCompliant)
+                            {
+                                <span class="text-muted small ms-1">(enable Is Compliant first)</span>
+                            }
+                        </label>
                         <InputTextArea class="ff-input" @bind-Value="model.AssessmentRemarks" rows="2"
-                                       placeholder="Enter assessment remarks if not eligible..." />
+                                       placeholder="Enter compliance finding notes..." disabled="@(!model.IsCompliant)" />
                     </div>
                 </div>
             </div>
+
+
         </div>
     </div>
 
@@ -849,20 +874,32 @@
         StateHasChanged();
     }
     /// <summary>
-    /// Mirrors BeneficiaryInformationRepository.ComputeMilestoneYear exactly.
-    /// Returns the milestone year (e.g. 2026) if the person has already reached
-    /// a milestone age (80, 85, 90, 95, 100) on or before today and that year >= 2024.
-    /// Returns 0 if no milestone has been reached yet — meaning not yet eligible.
+    /// Returns the milestone year if the person has reached a milestone age
+    /// (80, 85, 90, 95, 100) on or before EITHER:
+    /// - the ValidationDate (if provided), OR
+    /// - today's date
+    /// whichever is LATER.
+    ///
+    /// This ensures that if someone was validated slightly before their birthday
+    /// (e.g. validated March 12, birthday March 13) but their birthday has now
+    /// already passed today (June 2), they are still correctly marked eligible.
+    ///
+    /// Returns 0 if no milestone has been reached yet under either reference date.
     /// </summary>
-    private static int ComputeMilestoneYear(DateTime birthDate, DateTime? referenceDate)
+    private static int ComputeMilestoneYear(DateTime birthDate, DateTime? referenceDate = null)
     {
         if (birthDate == default || birthDate == DateTime.MinValue)
             return 0;
 
-        // ✅ Use referenceDate if provided, otherwise fall back to today
-        var asOf = referenceDate?.Date ?? DateTime.Today;
-
         var today = DateTime.Today;
+
+        // ✅ Use the LATER of ValidationDate and today.
+        // - If ValidationDate is in the future (pre-dating), use it.
+        // - If ValidationDate is in the past (e.g. March 12) but today is later
+        // (June 2) and the birthday has passed in between, today wins.
+        var asOf = referenceDate.HasValue
+            ? (referenceDate.Value.Date > today ? referenceDate.Value.Date : today)
+            : today;
 
         foreach (var milestone in new[] { 100, 95, 90, 85, 80 })
         {
@@ -871,10 +908,9 @@
             if (milestoneYear < 2024)
                 continue;
 
-            // Milestone birthday for this person
             var milestoneBirthday = new DateTime(milestoneYear, birthDate.Month, birthDate.Day);
 
-            // Already reached if milestone birthday has passed on or before asOf
+            // ✅ Milestone reached if birthday has passed on or before asOf
             if (milestoneBirthday <= asOf)
                 return milestoneYear;
         }
@@ -1060,6 +1096,7 @@
             PaymentDate = model.PaymentDate,
             IsDeceased = model.IsDeceased,
             AssessmentRemarks = model.AssessmentRemarks,
+            EligibilityRemarks = model.EligibilityRemarks, // ✅ new
             DateOfDeath = model.DateOfDeath,
             IsEligible = model.IsEligible,
             RemarkCategory = model.RemarkCategory,

@@ -54,6 +54,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? DateOfDeath { get; set; }
         public bool IsEligible { get; set; }
         public string? AssessmentRemarks { get; set; }
+        public string? EligibilityRemarks { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }

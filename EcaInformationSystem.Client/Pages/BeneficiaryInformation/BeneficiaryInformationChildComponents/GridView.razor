@@ -99,9 +99,9 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || bulkPaymentStatus == null
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -129,8 +129,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -329,11 +329,26 @@
                                                     </span>
                                                 </td>
 
-                                                @* Eligible badge *@
+                                                @* ── Eligible ── *@
                                                 <td>
-                                                    <span class="tbl-badge @(item.IsEligible ? "yes-g" : "no-g")">
-                                                        @(item.IsEligible ? "Yes" : "No")
+                                                    @{
+                                                        var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
+                                                                                            item.EligibilityRemarks);
+                                                        var eligLabel = GetEligibilityLabel(item.IsEligible,
+                                                                                            item.EligibilityRemarks);
+                                                    }
+                                                    <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarks">
+                                                        @eligLabel
                                                     </span>
+                                                    @if (item.IsEligible && !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
+                                                    {
+                                                        <br />
+                                                        <small class="text-muted"
+                                                               style="font-size:10px; max-width:120px; display:inline-block;
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            @Highlight(item.EligibilityRemarks)
+                                                        </small>
+                                                    }
                                                 </td>
 
                                                 @* Compliant badge *@
@@ -615,27 +630,55 @@
                         <small class="text-muted d-block">Mode of Payment</small>
                         <span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span>
                     </div>
-                    <div class="col-6">
-                        <small class="text-muted d-block">Is Eligible</small>
-                        <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
-                            @(selectedDetails.IsEligible ? "Yes" : "No")
-                        </span>
-                    </div>
-                    <div class="col-6">
-                        <small class="text-muted d-block">Is Compliant</small>
-                        <span class="badge @(selectedDetails.IsCompliant ? "bg-info" : "bg-warning text-dark")">
-                            @(selectedDetails.IsCompliant ? "Yes" : "No")
-                        </span>
-                    </div>
                 </div>
 
                 <!-- Assessment -->
                 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
                 <div class="row g-2 mb-4">
-                    <div class="col-12">
-                        <small class="text-muted d-block">Assessment Remarks</small>
-                        <span>@(selectedDetails.AssessmentRemarks ?? "—")</span>
+
+                    <div class="col-6">
+                        <small class="text-muted d-block">Is Eligible</small>
+                        @{
+                            var detailEligBadge = GetEligibilityBadgeClass(
+                                selectedDetails!.IsEligible, selectedDetails.EligibilityRemarks);
+                            var detailEligLabel = GetEligibilityLabel(
+                                selectedDetails.IsEligible, selectedDetails.EligibilityRemarks);
+                        }
+                        <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
+                            @detailEligLabel
+                        </span>
                     </div>
+
+                    @if (!string.IsNullOrWhiteSpace(selectedDetails.EligibilityRemarks))
+                    {
+                        <div class="col-12">
+                            <small class="text-muted d-block">Eligibility Remarks</small>
+                            <span>@selectedDetails.EligibilityRemarks</span>
+                        </div>
+                    }
+
+                    <div class="col-6">
+                        <small class="text-muted d-block">Is Compliant</small>
+                        @{
+                            var detailCompBadge = GetComplianceBadgeClass(
+                                selectedDetails.IsCompliant, selectedDetails.AssessmentRemarks);
+                            var detailCompLabel = GetComplianceLabel(
+                                selectedDetails.IsCompliant, selectedDetails.AssessmentRemarks);
+                        }
+                        <span class="badge @(selectedDetails.IsCompliant ? "bg-info" : "bg-warning text-dark")">
+                            @detailCompLabel
+                        </span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(selectedDetails.AssessmentRemarks))
+                    {
+                        <div class="col-12">
+                            <small class="text-muted d-block">Compliance Remarks</small>
+                            <span>@selectedDetails.AssessmentRemarks</span>
+                        </div>
+                    }
+
+                    @* ── Remarks stays as general notes ── *@
                     <div class="col-12">
                         <small class="text-muted d-block">Remarks</small>
                         <span>@(selectedDetails.Remarks ?? "—")</span>
@@ -1206,6 +1249,16 @@
 
         return age;
     }
+    // ── Eligibility ───────────────────────────────────────────────────────────
+    private string GetEligibilityLabel(bool isEligible, string? eligibilityRemarks) =>
+        isEligible && !string.IsNullOrWhiteSpace(eligibilityRemarks)
+            ? "Yes (w/ Findings)"
+            : isEligible ? "Yes" : "No";
+
+    private string GetEligibilityBadgeClass(bool isEligible, string? eligibilityRemarks) =>
+        isEligible && !string.IsNullOrWhiteSpace(eligibilityRemarks)
+            ? "pending"
+            : isEligible ? "yes-g" : "no-g";
     private string GetComplianceLabel(bool isCompliant, string? assessmentRemarks) =>
     isCompliant && !string.IsNullOrWhiteSpace(assessmentRemarks)
         ? "Yes (w/ Minor Findings)"

@@ -348,6 +348,7 @@ namespace EcaInformationSystem.Application.Services
                 DateOfDeath = dto.DateOfDeath,
                 IsEligible = dto.IsEligible,
                 AssessmentRemarks = dto.AssessmentRemarks,
+                EligibilityRemarks = dto.EligibilityRemarks,
                 RemarkCategory = dto.RemarkCategory,
                 Remarks = dto.Remarks,
                 DateAdded = DateTime.UtcNow,
@@ -403,6 +404,7 @@ namespace EcaInformationSystem.Application.Services
                     DateOfDeath = beneficiary.DateOfDeath,
                     IsEligible = beneficiary.IsEligible,
                     AssessmentRemarks = beneficiary.AssessmentRemarks,
+                    EligibilityRemarks = beneficiary.EligibilityRemarks,
                     RemarkCategory = beneficiary.RemarkCategory,
                     Remarks = beneficiary.Remarks,
                     DateAdded = beneficiary.DateAdded,
@@ -553,7 +555,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.IsCompliant, dto.Validator, dto.ValidationDate,
                 dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
-                dto.AssessmentRemarks, dto.RemarkCategory, dto.Remarks);
+                dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks);
 
             await _repo.UpdateAsync(beneficiary);
 
@@ -3195,9 +3197,16 @@ namespace EcaInformationSystem.Application.Services
                 //Sort params added
                 filter.SortColumn ?? CommonConstants.Default,
                 filter.SortAscending.ToString(),
+                //Compliance
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null,
+                filter.ComplianceMode ?? CommonConstants.Null,
+                //Eligibility
                 filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
+                filter.EligibilityMode ?? CommonConstants.Null,
+                //General
                 filter.GeneralSearch ?? string.Empty
+
+
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
@@ -3334,7 +3343,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
                 filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null,
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null,
-                filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null
+                filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
+                filter.ComplianceMode ?? CommonConstants.Null,
+                filter.EligibilityMode ?? CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.

@@ -198,6 +198,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DateOfDeath = b.DateOfDeath,       // ✅ fixes date of death bug
                     IsEligible = b.IsEligible,
                     AssessmentRemarks = b.AssessmentRemarks,
+                    EligibilityRemarks = b.EligibilityRemarks,  // ✅
                     RemarkCategory = b.RemarkCategory,
                     Remarks = b.Remarks,
                     DateAdded = b.DateAdded,
@@ -347,6 +348,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  DateOfDeath = b.DateOfDeath,
                  IsEligible = b.IsEligible,
                  AssessmentRemarks = b.AssessmentRemarks,
+                 EligibilityRemarks = b.EligibilityRemarks,  // ✅
                  RemarkCategory = b.RemarkCategory != null ? b.RemarkCategory : null,
                  DateAdded = b.DateAdded,
                  Remarks = b.Remarks,
@@ -702,6 +704,30 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x => x.Beneficiary.IsCompliant == filter.IsCompliant.Value);
             }
 
+            // ── Eligibility Filter ────────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
+            {
+                switch (filter.EligibilityMode)
+                {
+                    case "eligible":
+                        query = query.Where(x => x.Beneficiary.IsEligible == true);
+                        break;
+                    case "ineligible":
+                        query = query.Where(x => x.Beneficiary.IsEligible == false);
+                        break;
+                    case "withfindings":
+                        query = query.Where(x =>
+                            x.Beneficiary.IsEligible == true &&
+                            x.Beneficiary.EligibilityRemarks != null &&
+                            x.Beneficiary.EligibilityRemarks != string.Empty);
+                        break;
+                }
+            }
+            else if (filter.IsEligible.HasValue)
+            {
+                query = query.Where(x => x.Beneficiary.IsEligible == filter.IsEligible.Value);
+            }
+
             // ✅ NEW — IsEligible Filter
             if (filter.IsEligible.HasValue)
             {
@@ -942,6 +968,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DateOfDeath = x.Beneficiary.DateOfDeath,
                     IsEligible = x.Beneficiary.IsEligible,
                     AssessmentRemarks = x.Beneficiary.AssessmentRemarks,
+                    EligibilityRemarks = x.Beneficiary.EligibilityRemarks,
                     RemarkCategory = x.Beneficiary.RemarkCategory,
                     DateAdded = x.Beneficiary.DateAdded,
                     Remarks = x.Beneficiary.Remarks,
@@ -1005,6 +1032,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             DateOfDeath = x.DateOfDeath,
             IsEligible = x.IsEligible,
             AssessmentRemarks = x.AssessmentRemarks,
+            EligibilityRemarks = x.EligibilityRemarks,
             RemarkCategory = x.RemarkCategory,
             DateAdded = x.DateAdded,
             Remarks = x.Remarks,
@@ -1099,6 +1127,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     b.DateOfDeath,
                     b.IsEligible,
                     b.AssessmentRemarks,
+                    b.EligibilityRemarks,
                     b.RemarkCategory,
                     b.Remarks,
                     b.DateAdded,
@@ -1174,6 +1203,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 DateOfDeath = x.DateOfDeath,
                 IsEligible = x.IsEligible,
                 AssessmentRemarks = x.AssessmentRemarks,
+                EligibilityRemarks = x.EligibilityRemarks,  // ✅
                 RemarkCategory = x.RemarkCategory,
                 Remarks = x.Remarks,
                 DateAdded = x.DateAdded,
@@ -1241,6 +1271,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public DateTime? DateOfDeath { get; set; }
             public bool IsEligible { get; set; }
             public string? AssessmentRemarks { get; set; }
+            public string? EligibilityRemarks { get; set; }
             public int? RemarkCategory { get; set; }
             public DateTime DateAdded { get; set; }
             public string? Remarks { get; set; }

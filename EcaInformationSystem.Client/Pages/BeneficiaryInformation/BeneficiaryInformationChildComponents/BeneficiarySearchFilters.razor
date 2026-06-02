@@ -160,15 +160,17 @@
                                 <option value="">Select Compliance</option>
                                 <option value="compliant">Compliant</option>
                                 <option value="noncompliant">Non-Compliant</option>
-                                <option value="withfindings">Compliant w/ Minor Findings</option>
+                                <option value="withfindings">Compliant w/ Findings</option>
                             </select>
                         </div>
+
                         <div class="sf-field">
                             <label>Eligibility</label>
                             <select value="@_eligibilityValue" @onchange="OnEligibilityChanged" disabled="@IsLoading">
                                 <option value="">Select Eligibility</option>
-                                <option value="true">Eligible</option>
-                                <option value="false">Ineligible</option>
+                                <option value="eligible">Eligible</option>
+                                <option value="ineligible">Ineligible</option>
+                                <option value="withfindings">Eligible w/ Findings</option>
                             </select>
                         </div>
                     </div>
@@ -428,12 +430,25 @@
     {
         var val = e.Value?.ToString();
         _eligibilityValue = val ?? string.Empty;
-        State.Filter.IsEligible = val switch
+        switch (val)
         {
-            "true" => true,
-            "false" => false,
-            _ => null
-        };
+            case "eligible":
+                State.Filter.IsEligible = true;
+                State.Filter.EligibilityMode = "eligible";
+                break;
+            case "ineligible":
+                State.Filter.IsEligible = false;
+                State.Filter.EligibilityMode = "ineligible";
+                break;
+            case "withfindings":
+                State.Filter.IsEligible = true;
+                State.Filter.EligibilityMode = "withfindings";
+                break;
+            default:
+                State.Filter.IsEligible = null;
+                State.Filter.EligibilityMode = null;
+                break;
+        }
     }
 
     protected override async Task OnInitializedAsync()
@@ -659,9 +674,10 @@
         _birthdayToDay = 0;
         //reset compliance selector
         _complianceValue = string.Empty;
-        _complianceValue = string.Empty;
         State.Filter.IsCompliant = null;
         State.Filter.ComplianceMode = null; // ✅ add this
+        State.Filter.IsEligible = null;
+        State.Filter.EligibilityMode = null;
         _eligibilityValue = string.Empty; // ✅ add this
         State.Filter.GeneralSearch = null; // ✅ add this
 
@@ -703,6 +719,7 @@
     f.IsCompliant == null &&
     string.IsNullOrWhiteSpace(f.ComplianceMode) && // ✅ add this
     f.IsEligible == null &&
+      string.IsNullOrWhiteSpace(f.EligibilityMode)    &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
