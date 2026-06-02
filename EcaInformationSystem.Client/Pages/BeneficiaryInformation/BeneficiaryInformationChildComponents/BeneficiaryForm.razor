@@ -1,6 +1,7 @@
 ﻿@* BeneficiaryForm.razor — redesigned to match navy #1F3864 design system *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @inject HttpClient Http
 @inject ToastService toast
 @inject NavigationManager Navigation
@@ -22,11 +23,11 @@
             <div class="form-grid">
                 <div class="ff">
                     <label class="ff-label">Date Applied</label>
-                    <InputDate class="ff-input" @bind-Value="model.DateApplied" />
+                    <UniformDateInput Value="@model.DateApplied" ValueChanged="@(v => model.DateApplied = v)" />
                 </div>
                 <div class="ff">
                     <label class="ff-label">Date Endorsed</label>
-                    <InputDate class="ff-input" @bind-Value="model.DateEndorsed" />
+                    <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
                 </div>
                 <div class="ff">
                     <label class="ff-label">Batch Code</label>
@@ -38,7 +39,8 @@
                 </div>
                 <div class="ff">
                     <label class="ff-label">OSCA ID Date Issued</label>
-                    <InputDate class="ff-input" @bind-Value="model.OscaIdDateIssued" />
+                    <UniformDateInput Value="@model.OscaIdDateIssued"
+                                      ValueChanged="@(v => model.OscaIdDateIssued = v)" />
                 </div>
                 <div class="ff">
                     <label class="ff-label">NCSC RRN</label>
@@ -71,9 +73,10 @@
                         <option value="V">V</option>
                     </InputSelect>
                 </div>
+                @* Birth Date *@
                 <div class="ff">
                     <label class="ff-label">Birth Date <span class="req">*</span></label>
-                    <input type="date" class="ff-input" @bind="@model.BirthDate" @bind:after="ApplyEligibilityRules" />
+                    <UniformDateInput Value="@model.BirthDate" ValueChanged="@OnBirthDateChanged" />
                     <ValidationMessage For="@(() => model.BirthDate)" class="ff-err" />
                 </div>
                 <div class="ff">
@@ -107,10 +110,11 @@
                                @onchange="OnIsDeceasedChanged" />
                         <label class="ff-label mb-0">Is Deceased</label>
                     </div>
+                    @* Date of Death *@
                     <div class="ff">
                         <label class="ff-label">Date of Death</label>
-                        <input type="date" class="ff-input" value="@(model.DateOfDeath?.ToString("yyyy-MM-dd"))"
-                               max="@TodayDateString" @onchange="OnDateOfDeathChanged" disabled="@(!model.IsDeceased)" />
+                        <UniformDateInput Value="@model.DateOfDeath" ValueChanged="@OnDateOfDeathChanged"
+                                          MaxDate="@DateTime.Today" Disabled="@(!model.IsDeceased)" />
                     </div>
                 </div>
             </div>
@@ -239,10 +243,10 @@
                     <InputText class="ff-input" @bind-Value="model.Validator" />
                     <ValidationMessage For="@(() => model.Validator)" class="ff-err" />
                 </div>
+                @* Validation Date *@
                 <div class="ff">
                     <label class="ff-label">Validation Date <span class="req">*</span></label>
-                    <InputDate class="ff-input" @bind-Value="model.ValidationDate"
-                               @bind-Value:after="ApplyEligibilityRules" />
+                    <UniformDateInput Value="@model.ValidationDate" ValueChanged="@OnValidationDateChanged" />
                     <ValidationMessage For="@(() => model.ValidationDate)" class="ff-err" />
                 </div>
             </div>
@@ -295,6 +299,7 @@
                         <option value="2">Bank Transfer</option>
                     </InputSelect>
                 </div>
+                @* Payment Date *@
                 <div class="ff">
                     <label class="ff-label">
                         Payment Date
@@ -303,14 +308,8 @@
                             <span class="req">*</span>
                         }
                     </label>
-                    @{
-                        var paymentDateClass = model.PaymentStatus == 2 && !model.PaymentDate.HasValue
-                            ? "ff-input ff-input--invalid"
-                            : "ff-input";
-                    }
-                    <input type="date" class="@paymentDateClass"
-                           value="@(model.PaymentDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnPaymentDateChanged"
-                           disabled="@(model.PaymentStatus != 2)" />
+                    <UniformDateInput Value="@model.PaymentDate" ValueChanged="@OnPaymentDateChanged"
+                                      Disabled="@(model.PaymentStatus != 2)" />
                     @if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
                     {
                         <div class="ff-err">Payment Date is required when status is Paid.</div>
@@ -576,6 +575,30 @@
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
 
+    private void OnBirthDateChanged(DateTime? value)
+    {
+        model.BirthDate = value ?? DateTime.MinValue;
+        ApplyEligibilityRules();
+    }
+
+    private void OnValidationDateChanged(DateTime? value)
+    {
+        model.ValidationDate = value ?? DateTime.MinValue;
+        ApplyEligibilityRules();
+    }
+
+    private void OnPaymentDateChanged(DateTime? value)
+    {
+        model.PaymentDate = value;
+        StateHasChanged();
+    }
+
+    private void OnDateOfDeathChanged(DateTime? value)
+    {
+        model.DateOfDeath = value;
+        model.IsDeceased = value.HasValue;
+        ApplyEligibilityRules();
+    }
     #region Address cascade
     private void OnPaymentDateChanged(ChangeEventArgs e)
     {

@@ -1,0 +1,276 @@
+@* UniformDateInput.razor *@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="uniform-date-wrap" id="@_wrapperId">
+    <input type="text" class="@InputClass" value="@_displayValue" placeholder="e.g. January 01, 1946" @oninput="OnInput"
+           @onblur="OnBlur" @onfocus="OnFocus" maxlength="30" autocomplete="off" readonly="@Readonly"
+           disabled="@Disabled" />
+
+    @if (_showError)
+    {
+        <div class="ff-err">@_errorText</div>
+    }
+</div>
+
+@* Picker rendered OUTSIDE the card — appended to body via JS *@
+@if (_showPicker)
+{
+    <div class="udp-picker-portal @(_isFlippedUp ? "udp-picker--up" : "udp-picker--down")" id="@_pickerId"
+         style="position:fixed; top:@(_pickerTop)px; left:@(_pickerLeft)px; z-index:9999;" @onmousedown:preventDefault>
+
+        @* Month/Year navigation *@
+        <div class="udp-nav">
+            <button type="button" class="udp-nav-btn" @onclick="PrevMonth">&#8249;</button>
+            <span class="udp-nav-label">@_pickerDate.ToString("MMMM yyyy")</span>
+            <button type="button" class="udp-nav-btn" @onclick="NextMonth">&#8250;</button>
+        </div>
+
+        @* Day-of-week headers *@
+        <div class="udp-dow-row">
+            @foreach (var d in new[] { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" })
+            {
+                <span class="udp-dow">@d</span>
+            }
+        </div>
+
+        @* Day grid *@
+        <div class="udp-days">
+            @{
+                var firstDay = new DateTime(_pickerDate.Year, _pickerDate.Month, 1);
+                var offset = (int)firstDay.DayOfWeek;
+                var daysInMonth = DateTime.DaysInMonth(_pickerDate.Year, _pickerDate.Month);
+            }
+
+            @for (int i = 0; i < offset; i++)
+            {
+                <span class="udp-day udp-day--empty"></span>
+            }
+
+            @for (int day = 1; day <= daysInMonth; day++)
+            {
+                var d = day;
+                var isSelected = Value.HasValue
+                    && Value.Value.Year == _pickerDate.Year
+                    && Value.Value.Month == _pickerDate.Month
+                    && Value.Value.Day == d;
+                var isToday = DateTime.Today.Year == _pickerDate.Year
+                    && DateTime.Today.Month == _pickerDate.Month
+                    && DateTime.Today.Day == d;
+
+                <button type="button"
+                        class="udp-day @(isSelected ? "udp-day--selected" : "") @(isToday ? "udp-day--today" : "")"
+                        @onclick="() => SelectDay(d)">
+                    @d
+                </button>
+            }
+        </div>
+
+        @* Year jump *@
+        <div class="udp-year-row">
+            <button type="button" class="udp-year-btn" @onclick="PrevYear">&#8249;</button>
+            <input type="number" class="udp-year-input" value="@_pickerDate.Year" min="1900" max="2100"
+                   @onchange="OnYearChanged" />
+            <button type="button" class="udp-year-btn" @onclick="NextYear">&#8250;</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public DateTime? Value { get; set; }
+    [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public bool Readonly { get; set; } = false;
+    [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public DateTime? MaxDate { get; set; }
+    [Parameter] public DateTime? MinDate { get; set; }
+
+    private string InputClass =>
+        $"{CssClass ?? "ff-input"} {(_showError ? "ff-input--invalid" : "")}".Trim();
+
+    private string _displayValue = string.Empty;
+    private bool _showError = false;
+    private string _errorText = string.Empty;
+    private bool _showPicker = false;
+    private bool _isFlippedUp = false;
+    private DateTime _pickerDate = DateTime.Today;
+
+    // For fixed positioning
+    private double _pickerTop = 0;
+    private double _pickerLeft = 0;
+
+    // Unique IDs so JS can find the right element
+    private readonly string _wrapperId = $"udw-{Guid.NewGuid():N}";
+    private readonly string _pickerId = $"udp-{Guid.NewGuid():N}";
+
+    private static readonly string[] _formats = new[]
+    {
+        "MMMM d, yyyy",
+        "MMMM dd, yyyy",
+        "MMM d, yyyy",
+        "MMM dd, yyyy",
+        "MM/dd/yyyy",
+        "M/d/yyyy",
+        "yyyy-MM-dd",
+        "MM-dd-yyyy",
+        "M-d-yyyy"
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            var formatted = Value.Value.ToString("MMMM dd, yyyy");
+            if (_displayValue != formatted && !_showPicker)
+            {
+                _displayValue = formatted;
+                _pickerDate = new DateTime(Value.Value.Year, Value.Value.Month, 1);
+            }
+        }
+        else if (!_showPicker)
+        {
+            _displayValue = string.Empty;
+        }
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _displayValue = e.Value?.ToString() ?? string.Empty;
+        _showError = false;
+    }
+
+    private async Task OnBlur()
+    {
+        // Small delay so click on picker day fires before blur closes it
+        await Task.Delay(200);
+        _showPicker = false;
+
+        if (string.IsNullOrWhiteSpace(_displayValue))
+        {
+            _showError = false;
+            await ValueChanged.InvokeAsync(null);
+            return;
+        }
+
+        if (TryParseDate(_displayValue, out var parsed))
+        {
+            if (MaxDate.HasValue && parsed > MaxDate.Value)
+            {
+                _showError = true;
+                _errorText = $"Date cannot be after {MaxDate.Value:MMMM dd, yyyy}.";
+                return;
+            }
+
+            if (MinDate.HasValue && parsed < MinDate.Value)
+            {
+                _showError = true;
+                _errorText = $"Date cannot be before {MinDate.Value:MMMM dd, yyyy}.";
+                return;
+            }
+
+            _showError = false;
+            _displayValue = parsed.ToString("MMMM dd, yyyy");
+            _pickerDate = new DateTime(parsed.Year, parsed.Month, 1);
+            await ValueChanged.InvokeAsync(parsed);
+        }
+        else
+        {
+            _showError = true;
+            _errorText = "Invalid date. Use format: January 01, 1946";
+        }
+    }
+
+    private async Task OnFocus()
+    {
+        if (Disabled || Readonly) return;
+
+        var rect = await JS.InvokeAsync<BoundingRect>(
+            "eval",
+            $"(function(){{ " +
+            $"var el = document.getElementById('{_wrapperId}'); " +
+            $"if(!el) return {{top:0, bottom:0, left:0, width:0, viewportHeight:0}}; " +
+            $"var r = el.getBoundingClientRect(); " +
+            $"return {{top:r.top, bottom:r.bottom, left:r.left, width:r.width, viewportHeight:window.innerHeight}}; " +
+            $"}})()");
+
+        const double pickerHeight = 320;
+        const double gap = 4;
+
+        _isFlippedUp = (rect.Bottom + pickerHeight + gap) > rect.ViewportHeight;
+
+        if (_isFlippedUp)
+            _pickerTop = rect.Top - pickerHeight - gap;
+        else
+            _pickerTop = rect.Bottom + gap;
+
+        _pickerLeft = rect.Left;
+
+        _showPicker = true;
+        StateHasChanged();
+    }
+
+    private async Task SelectDay(int day)
+    {
+        var selected = new DateTime(_pickerDate.Year, _pickerDate.Month, day);
+
+        if (MaxDate.HasValue && selected > MaxDate.Value)
+        {
+            _showError = true;
+            _errorText = $"Date cannot be after {MaxDate.Value:MMMM dd, yyyy}.";
+            _showPicker = false;
+            return;
+        }
+
+        if (MinDate.HasValue && selected < MinDate.Value)
+        {
+            _showError = true;
+            _errorText = $"Date cannot be before {MinDate.Value:MMMM dd, yyyy}.";
+            _showPicker = false;
+            return;
+        }
+
+        _showError = false;
+        _displayValue = selected.ToString("MMMM dd, yyyy");
+        _showPicker = false;
+        await ValueChanged.InvokeAsync(selected);
+    }
+
+    private void PrevMonth() => _pickerDate = _pickerDate.AddMonths(-1);
+    private void NextMonth() => _pickerDate = _pickerDate.AddMonths(1);
+    private void PrevYear() => _pickerDate = _pickerDate.AddYears(-1);
+    private void NextYear() => _pickerDate = _pickerDate.AddYears(1);
+
+    private void OnYearChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var year) && year >= 1900 && year <= 2100)
+            _pickerDate = new DateTime(year, _pickerDate.Month, 1);
+    }
+
+    private static bool TryParseDate(string input, out DateTime result)
+    {
+        var normalized = System.Globalization.CultureInfo.InvariantCulture
+            .TextInfo.ToTitleCase(input.Trim().ToLower());
+
+        return DateTime.TryParseExact(
+            normalized,
+            _formats,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None,
+            out result);
+    }
+
+    // JS interop cleanup
+    public async ValueTask DisposeAsync()
+    {
+        // nothing to dispose — no JS module held
+        await ValueTask.CompletedTask;
+    }
+
+    private record BoundingRect(
+        double Top,
+        double Bottom,
+        double Left,
+        double Width,
+        double ViewportHeight);
+}
