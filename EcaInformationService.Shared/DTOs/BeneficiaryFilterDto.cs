@@ -41,6 +41,7 @@
         public bool? IsEligible { get; set; }
 
         public string? ComplianceMode { get; set; }
+        public string? GeneralSearch { get; set; } // General search - scans all relevant columns with OR logic
 
     }
 }

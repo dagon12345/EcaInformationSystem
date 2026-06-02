@@ -21,6 +21,73 @@
     --badge-r: 6px;
     --input-ht: 32px;
 }
+.sf-general-search {
+    padding: 0 16px;
+}
+
+.sf-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.sf-search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--text-muted);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.sf-search-input {
+    width: 100%;
+    padding: 8px 36px 8px 32px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--bg-input);
+    color: var(--text);
+    transition: border-color 0.2s;
+}
+
+.sf-search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.08);
+}
+
+.sf-search-clear {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.sf-search-clear:hover {
+    color: var(--danger);
+    background: var(--bg-hover);
+}
+/* ── General search highlight ── */
+.search-highlight {
+    background-color: #fff176;   /* bright yellow */
+    color: #1a1a1a;
+    border-radius: 2px;
+    padding: 0 2px;
+    font-weight: 600;
+}
+
+/* Dark mode friendly */
+@media (prefers-color-scheme: dark) {
+    .search-highlight {
+        background-color: #f9a825;
+        color: #000;
+    }
+}
 /* -Sortable header base---------- */
 .sortable-th{
     cursor:pointer;

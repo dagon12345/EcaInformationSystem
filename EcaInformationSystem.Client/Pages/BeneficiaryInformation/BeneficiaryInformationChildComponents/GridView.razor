@@ -99,9 +99,9 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
-                                                                                                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || bulkPaymentStatus == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -129,8 +129,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -273,38 +273,76 @@
                                                            checked="@checkedIds.Contains(item.Id)"
                                                            @onchange="() => ToggleCheck(item.Id)" />
                                                 </td>
-                                                <td>@item.BatchCode</td>
-                                                <td>@item.PhoneNumber</td>
-                                                <td>@GetFullName(item)</td>
-                                                <td>@item.BirthDate.ToString("MMM dd, yyyy")</td>
+
+                                                @* Batch Code *@
+                                                <td>@Highlight(item.BatchCode)</td>
+
+                                                @* Phone *@
+                                                <td>@Highlight(item.PhoneNumber)</td>
+
+                                                @* Full Name — built from parts so highlight each separately *@
+                                                <td>
+                                                    @Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
+                                                    @if (!string.IsNullOrWhiteSpace(item.MiddleName))
+                                                    {
+                                                        <span>&nbsp;</span>
+                                                        @Highlight(item.MiddleName)
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.Extension))
+                                                    {
+                                                        <span>&nbsp;</span>
+                                                        @Highlight(item.Extension)
+                                                    }
+                                                </td>
+
+                                                @* Birth Date — highlight if year matches *@
+                                                <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
+
+                                                @* Age badge — no highlight needed, it's a number badge *@
                                                 <td>
                                                     <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">
                                                         @item.Age
                                                     </span>
                                                 </td>
+
+                                                @* Milestone *@
                                                 <td>
                                                     <span class="tbl-badge mile">@item.MilestoneYear</span>
                                                 </td>
-                                                <td>@GetSexText(item.Sex)</td>
-                                                <td>@item.MunicipalityName</td>
-                                                <td>@item.BarangayName</td>
-                                                <td>@item.Validator</td>
+
+                                                @* Sex *@
+                                                <td>@Highlight(GetSexText(item.Sex))</td>
+
+                                                @* Municipality *@
+                                                <td>@Highlight(item.MunicipalityName)</td>
+
+                                                @* Barangay *@
+                                                <td>@Highlight(item.BarangayName)</td>
+
+                                                @* Validator *@
+                                                <td>@Highlight(item.Validator)</td>
+
+                                                @* Payment — badge, no highlight *@
                                                 <td>
                                                     <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
                                                         @GetPaymentStatusText(item.PaymentStatus)
                                                     </span>
                                                 </td>
+
+                                                @* Eligible badge *@
                                                 <td>
                                                     <span class="tbl-badge @(item.IsEligible ? "yes-g" : "no-g")">
                                                         @(item.IsEligible ? "Yes" : "No")
                                                     </span>
                                                 </td>
+
+                                                @* Compliant badge *@
                                                 <td>
                                                     @{
                                                         var compBadge = GetComplianceBadgeClass(item.IsCompliant,
-                                                                                            item.AssessmentRemarks);
+                                                                                        item.AssessmentRemarks);
                                                         var compLabel = GetComplianceLabel(item.IsCompliant,
-                                                                                            item.AssessmentRemarks);
+                                                                                        item.AssessmentRemarks);
                                                     }
                                                     <span class="tbl-badge @compBadge" title="@item.AssessmentRemarks">
                                                         @compLabel
@@ -315,10 +353,12 @@
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
                                                             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @item.AssessmentRemarks
+                                                            @Highlight(item.AssessmentRemarks)
                                                         </small>
                                                     }
                                                 </td>
+
+                                                @* Findings *@
                                                 <td>
                                                     @{
                                                         var badge = GetFindingBadgeClass(item.FindingStatus);
@@ -328,15 +368,17 @@
                                                         @label
                                                     </span>
                                                     @if (item.FindingStatus == 2 &&
-                                            !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                                                                        !string.IsNullOrWhiteSpace(item.FindingRemarks))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
-                                                               style="font-size:10px; max-width:120px; display:inline-block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @item.FindingRemarks
+                                                               style="font-size:10px; max-width:120px; display:inline-block;
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            @Highlight(item.FindingRemarks)
                                                         </small>
                                                     }
                                                 </td>
+
                                                 <td>
                                                     <button class="btn-details" @onclick="() => OpenDetailsPanel(item)"
                                                             title="View Details">
@@ -785,6 +827,40 @@
     private bool IsBulkUpdatingOther;
     private HxModal bulkOtherUpdateModal = default!;
 
+    // ── General search highlight ──────────────────────────────────────────────
+    // Wraps matched text with <mark> so the browser highlights it yellow.
+    // Safe: we only highlight plain text cells, never HTML content.
+    private MarkupString Highlight(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return new MarkupString("—");
+
+        var term = State.Filter.GeneralSearch?.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+            return new MarkupString(System.Web.HttpUtility.HtmlEncode(text));
+
+        // Case-insensitive find and wrap
+        var encoded = System.Web.HttpUtility.HtmlEncode(text);
+        var encodedTerm = System.Web.HttpUtility.HtmlEncode(term);
+
+        var result = System.Text.RegularExpressions.Regex.Replace(
+            encoded,
+            System.Text.RegularExpressions.Regex.Escape(encodedTerm),
+            match => $"<mark class=\"search-highlight\">{match.Value}</mark>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
+
+        return new MarkupString(result);
+    }
+
+    // ✅ Nullable overload — returns "—" for null
+    private MarkupString Highlight(string? text, string fallback = "—")
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return new MarkupString(fallback);
+
+        return Highlight(text);
+    }
     // ── Open modal ────────────────────────────────────────────────────────
     private async Task OpenBulkOtherUpdateModal()
     {
@@ -1223,7 +1299,7 @@
     {
         var middle = string.IsNullOrWhiteSpace(item.MiddleName) ? "" : $" {item.MiddleName}";
         var extension = string.IsNullOrWhiteSpace(item.Extension) ? "" : $" {item.Extension}";
-        return $"{item.LastName}, {item.FirstName}{middle}{extension}";
+        return $"{item.LastName}, {item.FirstName} {middle}{extension}";
     }
     private void ToggleCheck(Guid id)
     {

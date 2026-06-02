@@ -551,7 +551,82 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
                     FindingRemarks = finding != null ? finding.FindingRemarks : null,
                 };
+            // ── General Search ────────────────────────────────────────────────────────
+            // Scans all relevant columns with OR logic.
+            // Example: "USA" matches citizenship, remarks, assessment remarks, validator, etc.
+            // Example: "JUAN" matches first name, last name, full name combo
+            // Example: "12345" matches NCSC RRN, OSCA ID, phone number
+            if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
+            {
+                var term = filter.GeneralSearch.Trim().ToLower();
 
+                // ── Pre-resolve mapped integer values from the search term ────────────
+                // So "male" matches Sex == 1, "paid" matches PaymentStatus == 2, etc.
+                int? sexMatch = term switch
+                {
+                    "male" => 1,
+                    "female" => 2,
+                    _ => null
+                };
+
+                int? paymentMatch = term switch
+                {
+                    "paid" => 2,
+                    "unpaid" => 1,
+                    "pending" => 3,
+                    "n/a" => 0,
+                    _ => null
+                };
+
+                int? citizenshipMatch = term switch
+                {
+                    "filipino" => 1,
+                    "dual citizenship" => 2,
+                    "dual" => 2,
+                    _ => null
+                };
+
+                // ── Parse as year for milestone matching ──────────────────────────────
+                int.TryParse(term, out var yearTerm);
+
+                query = query.Where(x =>
+                    // ── Name fields ───────────────────────────────────────────────────
+                    (x.Beneficiary.LastName != null && x.Beneficiary.LastName.ToLower().Contains(term)) ||
+                    (x.Beneficiary.FirstName.ToLower().Contains(term)) ||
+                    (x.Beneficiary.MiddleName != null && x.Beneficiary.MiddleName.ToLower().Contains(term)) ||
+                    (x.Beneficiary.Extension != null && x.Beneficiary.Extension.ToLower().Contains(term)) ||
+
+                    // ── ID / code fields ──────────────────────────────────────────────
+                    (x.Beneficiary.OscaIdNumber != null && x.Beneficiary.OscaIdNumber.ToLower().Contains(term)) ||
+                    (x.Beneficiary.BatchCode != null && x.Beneficiary.BatchCode.ToLower().Contains(term)) ||
+                    (x.Beneficiary.PhoneNumber != null && x.Beneficiary.PhoneNumber.ToLower().Contains(term)) ||
+                    (x.Beneficiary.NcscRrn != null && x.Beneficiary.NcscRrn.ToString()!.Contains(term)) ||
+
+                    // ── Location name fields (joined) ─────────────────────────────────
+                    (x.Province != null && x.Province.ToLower().Contains(term)) ||
+                    (x.Municipality != null && x.Municipality.ToLower().Contains(term)) ||
+                    (x.Barangay != null && x.Barangay.ToLower().Contains(term)) ||
+                    (x.Region != null && x.Region.ToLower().Contains(term)) ||
+
+                    // ── Validation fields ─────────────────────────────────────────────
+                    (x.Beneficiary.Validator != null && x.Beneficiary.Validator.ToLower().Contains(term)) ||
+
+                    // ── Remarks fields ────────────────────────────────────────────────
+                    (x.Beneficiary.Remarks != null && x.Beneficiary.Remarks.ToLower().Contains(term)) ||
+                    (x.Beneficiary.AssessmentRemarks != null && x.Beneficiary.AssessmentRemarks.ToLower().Contains(term)) ||
+
+                    // ── Mapped integer fields ─────────────────────────────────────────
+                    (sexMatch.HasValue && x.Beneficiary.Sex == sexMatch.Value) ||
+                    (paymentMatch.HasValue && x.Beneficiary.PaymentStatus == paymentMatch.Value) ||
+                    (citizenshipMatch.HasValue && x.Beneficiary.Citizenship == citizenshipMatch.Value) ||
+
+                    // ── Birth year ────────────────────────────────────────────────────
+                    (yearTerm > 0 && x.Beneficiary.BirthDate.Year == yearTerm) ||
+
+                    // ── Finding remarks ───────────────────────────────────────────────
+                    (x.FindingRemarks != null && x.FindingRemarks.ToLower().Contains(term))
+                );
+            }
             // ── Location ─────────────────────────────────────────────────────────
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
             {

@@ -3173,7 +3173,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.SortColumn ?? CommonConstants.Default,
                 filter.SortAscending.ToString(),
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null,
-                filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null
+                filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
+                filter.GeneralSearch ?? string.Empty
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)

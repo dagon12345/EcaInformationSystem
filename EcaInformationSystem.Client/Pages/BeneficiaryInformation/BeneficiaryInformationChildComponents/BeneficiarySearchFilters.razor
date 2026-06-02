@@ -299,6 +299,32 @@
 
                     </div>
                 </div>
+                @* ── GENERAL SEARCH ── *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-globe me-1"></i>General Search</div>
+                    <div class="sf-general-search mb-3">
+                        <div class="sf-search-wrap">
+                            <i class="bi bi-search sf-search-icon"></i>
+                            <input type="text" class="sf-search-input"
+                                   placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
+                                   @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
+                            @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+                            {
+                                <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+                        {
+                            <small class="text-muted mt-1 d-block">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Searching all columns for
+                                <strong>"@State.Filter.GeneralSearch"</strong>
+                            </small>
+                        }
+                    </div>
+                </div>
 
                 @* ACTIONS *@
                 <div class="sf-actions">
@@ -384,6 +410,19 @@
 
     private void ToggleCollapse() => _collapsed = !_collapsed;
     private string _eligibilityValue = string.Empty;
+    private CancellationTokenSource? _generalSearchCts;
+
+    private async Task OnGeneralSearchInput(ChangeEventArgs e)
+    {
+        State.Filter.GeneralSearch = e.Value?.ToString();
+    }
+
+    private async Task ClearGeneralSearch()
+    {
+        State.Filter.GeneralSearch = null;
+        State.Filter.PageNumber = 1;
+        await State.LoadAsync();
+    }
 
     private void OnEligibilityChanged(ChangeEventArgs e)
     {
@@ -624,6 +663,7 @@
         State.Filter.IsCompliant = null;
         State.Filter.ComplianceMode = null; // ✅ add this
         _eligibilityValue = string.Empty; // ✅ add this
+        State.Filter.GeneralSearch = null; // ✅ add this
 
         State.Filter = new BeneficiaryFilterDto
         {
@@ -664,6 +704,8 @@
     string.IsNullOrWhiteSpace(f.ComplianceMode) && // ✅ add this
     f.IsEligible == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
+    string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
+    string.IsNullOrWhiteSpace(f.FullName) &&
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&
     _birthdayToMonth == 0;
