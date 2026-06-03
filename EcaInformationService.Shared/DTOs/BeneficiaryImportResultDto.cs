@@ -9,6 +9,7 @@
         public int SkippedDuplicateCount { get; set; }
         public bool HasErrors => ErrorCount > 0;
         public bool IsSuccess => ErrorCount == 0;
+        public List<Guid> ImportedIds { get; set; } = new();
         public List<BeneficiaryImportErrorDto> Errors { get; set; } = new();
     }
 

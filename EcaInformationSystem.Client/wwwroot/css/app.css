@@ -21,6 +21,33 @@
     --badge-r: 6px;
     --input-ht: 32px;
 }
+.tbl-scroll {
+    height: 600px;       /* ✅ fixed height required for Virtualize */
+    overflow-y: auto;
+    overflow-x: auto;
+}
+/* ── Virtualize placeholder row ── */
+.virtualize-placeholder-row td {
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+
+.virtualize-loading {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    opacity: 0.6;
+}
+.tbl-badge.ref-no {
+    background: #e8f4fd;
+    color: #1F3864;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    border: 1px solid #b8d4ed;
+    white-space: nowrap;
+}
 /* ── Uniform Date Input ─────────────────────────────────────────── */
 .uniform-date-wrap {
     position: relative;

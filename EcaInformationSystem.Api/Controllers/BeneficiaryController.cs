@@ -17,6 +17,22 @@ namespace EcaInformationSystem.Api.Controllers
         public BeneficiaryController(IBeneficiaryInformationService service)
             => _service = service;
 
+        [HttpPost("bulk-assign-refnumber")]
+        public async Task<IActionResult> BulkAssignRefNumber([FromBody] BulkUpdateRefNumberRequestDto dto)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkAssignRefNumberAsync(
+                    dto.Ids, dto.Quarter, dto.Batch, dto.RefYear, userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
         [HttpGet]
         public async Task<ActionResult<List<BeneficiaryInformationDto>>> Get()
         {
@@ -100,16 +116,15 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(result);
         }
         [HttpPost("import/confirm")]
-        public async Task<IActionResult> ConfirmImport(
-         IFormFile file,
-         [FromForm] string sheetName,
-         [FromForm] string skipRowsJson)
+        public async Task<IActionResult> ConfirmImport(IFormFile file, [FromForm] string sheetName, [FromForm] string skipRowsJson,
+        [FromForm] int quarter, [FromForm] string batch, [FromForm] int refYear)      // ✅ new
         {
             var skipRows = JsonSerializer.Deserialize<HashSet<int>>(skipRowsJson) ?? new();
-            var userName = User.Identity?.Name ?? "System"; // ✅ from auth, not form
+            var userName = User.Identity?.Name ?? "System";
             using var stream = file.OpenReadStream();
             var result = await _service.ConfirmImportAsync(
-                stream, file.FileName, sheetName, userName, skipRows);
+                stream, file.FileName, sheetName, userName, skipRows,
+                quarter, batch, refYear);   // ✅ pass through
             return Ok(result);
         }
         [HttpPost("import/sheets")]

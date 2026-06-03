@@ -3,6 +3,9 @@
     public class BeneficiaryInformation
     {
         public Guid Id { get; set; }
+        public int? Quarter { get; set; }
+        public string? Batch { get; set; }
+        public int? RefYear { get; set; }
         public DateTime? DateApplied { get; set; }
         public DateTime? DateEndorsed { get; set; }
         public string? BatchCode { get; set; }
@@ -43,12 +46,15 @@
         public DateTime? CoDateApproved { get; set; }
         public bool IsDeleted { get; set; }
         public BeneficiaryFinding? Finding { get; set; }
-        public void Update(DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
+        public void Update(int? quarter, string? batch, int? refYear, DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
             DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
             DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, string? eligibilityRemarks, int? remarkCategory, string? remarks
             , int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved)
         {
+            Quarter = quarter;
+            Batch = batch;
+            RefYear = refYear;
             DateApplied = dateApplied;
             DateEndorsed = dateEndorsed;
             BatchCode = batchCode;

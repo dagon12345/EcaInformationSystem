@@ -317,6 +317,9 @@ namespace EcaInformationSystem.Application.Services
             var beneficiary = new BeneficiaryInformation
             {
                 Id = Guid.NewGuid(),
+                Quarter = dto.Quarter,
+                Batch = dto.Batch,
+                RefYear = dto.RefYear,
                 DateApplied = dto.DateApplied,
                 DateEndorsed = dto.DateEndorsed,
                 BatchCode = dto.BatchCode,
@@ -373,6 +376,9 @@ namespace EcaInformationSystem.Application.Services
                 CreatedBeneficiary = new BeneficiaryInformationDto
                 {
                     Id = beneficiary.Id,
+                    Quarter = beneficiary.Quarter,
+                    Batch = beneficiary.Batch,
+                    RefYear = beneficiary.RefYear,
                     DateApplied = beneficiary.DateApplied,
                     DateEndorsed = beneficiary.DateEndorsed,
                     BatchCode = beneficiary.BatchCode,
@@ -479,6 +485,32 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+        // Service
+        public async Task BulkAssignRefNumberAsync(
+            List<Guid> ids, int quarter, string batch, int refYear, string userName)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception("No records to assign.");
+
+            // ✅ Uses the new GetEntitiesByIdsAsync — not GetByIdsAsync which returns DTOs
+            var beneficiaries = await _repo.GetEntitiesByIdsAsync(ids);
+
+            foreach (var b in beneficiaries)
+            {
+                b.Quarter = quarter;
+                b.Batch = batch.Trim();
+                b.RefYear = refYear;
+            }
+
+            await _repo.SaveChangesAsync();
+
+            foreach (var id in ids)
+                await AddLogAsync(id,
+                    $"Reference number assigned: Q{quarter}-{batch}-{refYear:D2}", userName);
+
+            await _repo.SaveChangesAsync(); // ✅ saves the logs
+            InvalidateSummaryCache();
+        }
 
         public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName)
         {
@@ -570,7 +602,7 @@ namespace EcaInformationSystem.Application.Services
 
             var changes = await GetChangedFields(beneficiary, dto);
 
-            beneficiary.Update(dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
+            beneficiary.Update(dto.Quarter, dto.Batch, dto.RefYear, dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
                 dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
                 dto.LastName, dto.FirstName, dto.MiddleName,
                 dto.Extension, dto.BirthDate, dto.PhoneNumber,
@@ -1903,7 +1935,10 @@ namespace EcaInformationSystem.Application.Services
             string fileName,
             string sheetName,
             string userName,
-            HashSet<int> skipRows)
+            HashSet<int> skipRows,
+            int quarter,      // ✅ new
+            string batch,     // ✅ new
+            int refYear)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -2290,6 +2325,9 @@ namespace EcaInformationSystem.Application.Services
                     beneficiariesToImport.Add(new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
+                        Quarter = quarter,        // ✅
+                        Batch = batch.Trim(),   // ✅
+                        RefYear = refYear,        // ✅
                         DateApplied = effectiveDateApplied, //This is our column 23 
                         DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),
@@ -2362,8 +2400,10 @@ namespace EcaInformationSystem.Application.Services
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
-
+            // After saving
             result.ImportedCount = beneficiariesToImport.Count;
+            // ✅ Return IDs so frontend can call bulk-assign-refnumber after modal
+            result.ImportedIds = beneficiariesToImport.Select(x => x.Id).ToList();
             return result;
         }
         public async Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName)
@@ -3237,7 +3277,11 @@ namespace EcaInformationSystem.Application.Services
                 filter.EligibilityMode ?? CommonConstants.Null,
                 //General
                 filter.GeneralSearch ?? string.Empty,
-                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null
+                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
+                filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
+                filter.FilterBatch ?? CommonConstants.Null,
+                filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
+                filter.FilterRegionRoman ?? CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
@@ -3377,7 +3421,11 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
                 filter.ComplianceMode ?? CommonConstants.Null,
                 filter.EligibilityMode ?? CommonConstants.Null,
-                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null
+                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
+                filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
+                filter.FilterBatch ?? CommonConstants.Null,
+                filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
+                filter.FilterRegionRoman ?? CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
@@ -3385,6 +3433,15 @@ namespace EcaInformationSystem.Application.Services
      BeneficiaryInformation beneficiary, BeneficiaryInformationDto dto)
         {
             var changes = new List<string>();
+
+            if (beneficiary.Quarter != dto.Quarter)
+                changes.Add($"Quarter '{beneficiary.Quarter}' → '{dto.Quarter}'");
+
+            if (beneficiary.Batch != dto.Batch)
+                changes.Add($"Batch '{beneficiary.Batch}' → '{dto.Batch}'");
+
+            if (beneficiary.RefYear != dto.RefYear)
+                changes.Add($"Ref Year '{beneficiary.RefYear}' → '{dto.RefYear}'");
 
             // ── Simple text fields ────────────────────────────────
             if (beneficiary.DateApplied != dto.DateApplied)

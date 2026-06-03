@@ -1,0 +1,142 @@
+<HxModal @ref="_modal" Size="ModalSize.Regular">
+    <HeaderTemplate>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-hash text-primary fs-5"></i>
+            <h5 class="mb-0">Assign Reference Number</h5>
+        </div>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="text-muted small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            This reference number will be assigned to the new record(s) before saving.
+        </p>
+
+        <div class="form-grid">
+
+            @* Quarter *@
+            <div class="ff">
+                <label class="ff-label">Quarter <span class="req">*</span></label>
+                <select class="ff-input" @bind="_quarter">
+                    <option value="0">-- Select Quarter --</option>
+                    <option value="1">Q1 (Jan–Mar)</option>
+                    <option value="2">Q2 (Apr–Jun)</option>
+                    <option value="3">Q3 (Jul–Sep)</option>
+                    <option value="4">Q4 (Oct–Dec)</option>
+                </select>
+                @if (_submitted && _quarter == 0)
+                {
+                    <div class="ff-err">Quarter is required.</div>
+                }
+            </div>
+
+            @* Batch *@
+            <div class="ff">
+                <label class="ff-label">Batch <span class="req">*</span></label>
+                <input class="ff-input" placeholder="e.g. 1, 2, A, B" value="@_batch" @oninput="OnBatchInput"
+                       maxlength="10" />
+                @if (_submitted && string.IsNullOrWhiteSpace(_batch))
+                {
+                    <div class="ff-err">Batch is required.</div>
+                }
+            </div>
+
+            @* Year — fixed to current short year *@
+            <div class="ff">
+                <label class="ff-label">Year</label>
+                <input class="ff-input ff-readonly" value="@_refYear" readonly />
+                <small class="text-muted">Auto — current year</small>
+            </div>
+
+            @* Region *@
+            <div class="ff">
+                <label class="ff-label">Region</label>
+                <input class="ff-input ff-readonly"
+                       value="@EcaInformationSystem.Shared.Helpers.RegionRomanNumeralHelper.GetRoman(_psgcCodeRegion)"
+                       readonly />
+                <small class="text-muted">From grantee record</small>
+            </div>
+
+        </div>
+
+        @* Preview *@
+        @if (_quarter > 0 && !string.IsNullOrWhiteSpace(_batch))
+        {
+            <div class="alert alert-success mt-3 py-2 d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill"></i>
+                <span>
+                    Reference Number Preview:
+                    <strong>@PreviewRefNumber</strong>
+                </span>
+            </div>
+        }
+
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="Cancel">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="Confirm">
+            <i class="bi bi-check-lg me-1"></i>Confirm &amp; Save
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    [Parameter] public EventCallback<RefNumberResult> OnConfirmed { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private HxModal _modal = default!;
+    private int _quarter = 0;
+    private string _batch = string.Empty;
+    private int _refYear = DateTime.Today.Year % 100; // e.g. 26
+    private int? _psgcCodeRegion;
+    private bool _submitted = false;
+
+    public record RefNumberResult(int Quarter, string Batch, int RefYear, int? PsgcCodeRegion);
+
+    private string PreviewRefNumber =>
+        EcaInformationSystem.Shared.Helpers.RegionRomanNumeralHelper.BuildReferenceNumber(_quarter, _batch, _refYear,
+_psgcCodeRegion);
+
+    public async Task ShowAsync(int? psgcCodeRegion)
+    {
+        _psgcCodeRegion = psgcCodeRegion;
+        _quarter = 0;
+        _batch = string.Empty;
+        _refYear = DateTime.Today.Year % 100;
+        _submitted = false;
+        await _modal.ShowAsync();
+    }
+
+    private async Task Confirm()
+    {
+        _submitted = true;
+        StateHasChanged();
+
+        if (_quarter == 0 || string.IsNullOrWhiteSpace(_batch))
+            return;
+
+        await _modal.HideAsync();
+        await OnConfirmed.InvokeAsync(
+            new RefNumberResult(_quarter, _batch.Trim(), _refYear, _psgcCodeRegion));
+    }
+    private void OnBatchInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? string.Empty;
+
+        // ✅ If it's a number, strip leading zeros: "01" → "1", "02" → "2"
+        // If it's text like "A" or "B", keep as-is
+        if (int.TryParse(raw, out var numeric))
+            _batch = numeric.ToString(); // "01" → "1", "001" → "1"
+        else
+            _batch = raw.Trim(); // "A", "B" → kept as-is
+
+        StateHasChanged();
+    }
+
+    private async Task Cancel()
+    {
+        await _modal.HideAsync();
+        await OnCancelled.InvokeAsync();
+    }
+}

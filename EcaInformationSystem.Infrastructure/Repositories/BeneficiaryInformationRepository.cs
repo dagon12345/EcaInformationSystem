@@ -1,9 +1,9 @@
 ﻿using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
-using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.Helpers;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Immutable;
 using System.Text.Json;
@@ -23,12 +23,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             await _context.BeneficiaryInformations.AddAsync(beneficiaryInformation);
         }
+        public async Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids)
+        {
+            return await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+                .ToListAsync();
+        }
 
-        public async Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(
-      string? firstName,
-      string? lastName,
-      DateTime birthDate,
-      int birthdateToleranceDays = 365)
+        public async Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365)
         {
             // ✅ Guard: if either name is missing there is nothing meaningful to compare
             if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
@@ -155,6 +157,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 select new BeneficiaryInformationDto
                 {
                     Id = b.Id,
+                    Quarter = b.Quarter,
+                    Batch = b.Batch,
+                    RefYear = b.RefYear,
                     DateApplied = b.DateApplied,
                     DateEndorsed = b.DateEndorsed,
                     BatchCode = b.BatchCode,
@@ -300,6 +305,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
              select new BeneficiaryInformationDto
              {
                  Id = b.Id,
+                 Quarter = b.Quarter,
+                 Batch = b.Batch,
+                 RefYear = b.RefYear,
                  DateApplied = b.DateApplied,
                  DateEndorsed = b.DateEndorsed,
                  BatchCode = b.BatchCode,
@@ -679,6 +687,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
                     // ── Birth year ────────────────────────────────────────────────────
                     (yearTerm > 0 && x.Beneficiary.BirthDate.Year == yearTerm) ||
+                    
+                    // ── Reference number components ───────────────────────────────────────────
+                    (x.Beneficiary.Batch != null && x.Beneficiary.Batch.ToLower().Contains(term)) ||
+                    (yearTerm > 0 && x.Beneficiary.RefYear == yearTerm) ||
 
                     // ── Finding remarks ───────────────────────────────────────────────
                     (x.FindingRemarks != null && x.FindingRemarks.ToLower().Contains(term))
@@ -1002,6 +1014,28 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     query = query.Where(x => x.Beneficiary.CoStatus == filter.CoStatus.Value);
                 }
             }
+            // ── Quarter Filter ────────────────────────────────────────────────────────
+            if (filter.FilterQuarter.HasValue)
+                query = query.Where(x => x.Beneficiary.Quarter == filter.FilterQuarter.Value);
+
+            // ── Batch Filter ──────────────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
+                query = query.Where(x =>
+                    x.Beneficiary.Batch != null &&
+                    x.Beneficiary.Batch.Contains(filter.FilterBatch.Trim()));
+
+            // ── RefYear Filter ────────────────────────────────────────────────────────
+            if (filter.FilterRefYear.HasValue)
+                query = query.Where(x => x.Beneficiary.RefYear == filter.FilterRefYear.Value);
+
+            // ── Region Roman Filter ───────────────────────────────────────────────────
+            // Translate roman back to region codes and filter
+            if (!string.IsNullOrWhiteSpace(filter.FilterRegionRoman))
+            {
+                var regionCodes = RegionRomanNumeralHelper.GetRegionCodesForRoman(filter.FilterRegionRoman);
+                if (regionCodes.Any())
+                    query = query.Where(x => regionCodes.Contains(x.Beneficiary.Region));
+            }
 
             Console.WriteLine(query);
             return query.AsNoTracking();
@@ -1015,6 +1049,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Select(x => new BeneficiaryRawDto
                 {
                     Id = x.Beneficiary.Id,
+                    Quarter = x.Beneficiary.Quarter,
+                    Batch = x.Beneficiary.Batch,
+                    RefYear = x.Beneficiary.RefYear,
                     DateApplied = x.Beneficiary.DateApplied,
                     DateEndorsed = x.Beneficiary.DateEndorsed,
                     BatchCode = x.Beneficiary.BatchCode,
@@ -1067,6 +1104,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         private static BeneficiaryInformationDto MapToDto(BeneficiaryRawDto x) => new()
         {
             Id = x.Id,
+            Quarter = x.Quarter,
+            Batch = x.Batch,
+            RefYear = x.RefYear,
             DateApplied = x.DateApplied,
             DateEndorsed = x.DateEndorsed,
             BatchCode = x.BatchCode,
@@ -1183,6 +1223,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 select new
                 {
                     b.Id,
+                    b.Quarter,
+                    b.Batch,
+                    b.RefYear,
                     b.BatchCode,
                     b.OscaIdNumber,
                     b.OscaIdDateIssued,
@@ -1245,6 +1288,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var result = deduped.Select(x => new BeneficiaryInformationDto
             {
                 Id = x.Id,
+                Quarter = x.Quarter,
+                Batch = x.Batch,
+                RefYear = x.RefYear,
                 DateApplied = x.DateApplied,
                 DateEndorsed = x.DateEndorsed,
                 BatchCode = x.BatchCode,
@@ -1322,6 +1368,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         private sealed class BeneficiaryRawDto
         {
             public Guid Id { get; set; }
+            public int? Quarter { get; set; }
+            public string? Batch { get; set; }
+            public int? RefYear { get; set; }
             public DateTime? DateApplied { get; set; }
             public DateTime? DateEndorsed { get; set; }
             public string? BatchCode { get; set; }

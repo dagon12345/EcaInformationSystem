@@ -66,6 +66,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.IsDeleted, x.CoStatus });
                 entity.HasIndex(x => new { x.IsDeleted, x.CoStatus, x.IsCompliant });
                 entity.HasIndex(x => new { x.IsDeleted, x.CoStatus, x.IsEligible });
+                //Reference Index
+                entity.HasIndex(x => new { x.IsDeleted, x.Quarter, x.Batch, x.RefYear });
+                entity.HasIndex(x => new { x.IsDeleted, x.Quarter });
+                entity.HasIndex(x => new { x.IsDeleted, x.Batch });
+                entity.HasIndex(x => new{x.IsDeleted, x.RefYear});
 
 
             });

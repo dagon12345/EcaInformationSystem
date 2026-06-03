@@ -26,8 +26,17 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
-        Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows);
+        Task<BeneficiaryImportResultDto> ConfirmImportAsync(
+                Stream fileStream,
+                string fileName,
+                string sheetName,
+                string userName,
+                HashSet<int> skipRows,
+                int quarter,      // ✅ new
+                string batch,     // ✅ new
+                int refYear);     // ✅ new
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName);
+        Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);
     }
 }

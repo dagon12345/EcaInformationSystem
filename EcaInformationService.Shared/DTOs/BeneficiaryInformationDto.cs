@@ -2,12 +2,16 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EcaInformationSystem.Shared.Helpers;
 
 namespace EcaInformationSystem.Shared.DTOs
 {
     public class BeneficiaryInformationDto
     {
         public Guid Id { get; set; }
+        public int? Quarter { get; set; }
+        public string? Batch { get; set; }
+        public int? RefYear { get; set; }
         public DateTime? DateApplied { get; set; }
         public DateTime? DateEndorsed { get; set; }
         public string? BatchCode { get; set; }
@@ -83,5 +87,8 @@ namespace EcaInformationSystem.Shared.DTOs
                 _ => ""
             };
         }
+        // ✅ Computed — not stored in DB
+        public string? ReferenceNumber =>
+            RegionRomanNumeralHelper.BuildReferenceNumber(Quarter, Batch, RefYear, PsgcCodeRegion);
     }
 }

@@ -3,6 +3,11 @@
     public class BeneficiaryFilterDto
     {
         public List<Guid> Ids { get; set; } = new();
+        public int? FilterQuarter { get; set; }
+        public string? FilterBatch { get; set; }
+        public int? FilterRefYear { get; set; }
+        public string? FilterRegionRoman { get; set; } // e.g. "XIII", "X"
+
         public int? PsgcCodeRegion { get; set; }
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }

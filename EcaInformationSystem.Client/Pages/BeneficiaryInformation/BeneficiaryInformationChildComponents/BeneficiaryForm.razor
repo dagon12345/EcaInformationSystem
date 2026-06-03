@@ -1,6 +1,7 @@
 ﻿@* BeneficiaryForm.razor — redesigned to match navy #1F3864 design system *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @inject HttpClient Http
 @inject ToastService toast
@@ -13,7 +14,66 @@
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
     <DataAnnotationsValidator />
     <ValidationSummary class="text-danger mb-3 small" />
+    @if (IsEditMode)
+    {
+        @* ── Reference Number ── *@
+        <div class="form-section mb-3">
+            <div class="form-section-header">
+                <i class="bi bi-hash me-2"></i>Reference Number
+            </div>
+            <div class="form-section-body">
+                <div class="form-grid">
 
+                    <div class="ff">
+                        <label class="ff-label">Quarter</label>
+                        <InputSelect class="ff-input" @bind-Value="model.Quarter">
+                            <option value="">Not Set</option>
+                            <option value="1">Q1 (Jan–Mar)</option>
+                            <option value="2">Q2 (Apr–Jun)</option>
+                            <option value="3">Q3 (Jul–Sep)</option>
+                            <option value="4">Q4 (Oct–Dec)</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="ff">
+                        <label class="ff-label">Batch</label>
+                        <input class="ff-input" placeholder="e.g. 1, 2, A" value="@model.Batch" @oninput="OnBatchInput"
+                               maxlength="10" />
+                    </div>
+
+                    <div class="ff">
+                        <label class="ff-label">Year (short)</label>
+                        <input class="ff-input" type="number" placeholder="e.g. 26" @bind="model.RefYear" />
+                        <small class="text-muted">2-digit year e.g. 26 for 2026</small>
+                    </div>
+
+                    @* Preview — shown when all three are filled *@
+                    @if (model.Quarter.HasValue &&
+                         !string.IsNullOrWhiteSpace(model.Batch) &&
+                         model.RefYear.HasValue)
+                    {
+                        <div class="ff" style="grid-column: 1 / -1;">
+                            <div class="alert alert-success py-2 mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span>
+                                    Reference Number:
+                                    <strong>
+                                        @RegionRomanNumeralHelper.BuildReferenceNumber(
+                                            model.Quarter,
+                                            model.Batch,
+                                            model.RefYear,
+                                            model.PsgcCodeRegion)
+                                    </strong>
+                                </span>
+                            </div>
+                        </div>
+                    }
+
+                </div>
+            </div>
+        </div>
+
+    }
     @* ── Identity Information ── *@
     <div class="form-section mb-3">
         <div class="form-section-header">
@@ -587,6 +647,8 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── Reference Number Modal ── *@
+<ReferenceNumberModal @ref="_refNumberModal" OnConfirmed="OnRefNumberConfirmed" OnCancelled="OnRefNumberCancelled" />
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
     [Parameter] public bool IsEditMode { get; set; } = false;
@@ -633,6 +695,17 @@
     private bool _showSoftDuplicateModal = false;
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
+    private ReferenceNumberModal _refNumberModal = default!;
+    private bool _awaitingRefNumber = false;
+    private void OnBatchInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? string.Empty;
+        if (int.TryParse(raw, out var numeric))
+            model.Batch = numeric.ToString();
+        else
+            model.Batch = raw.Trim();
+        StateHasChanged();
+    }
     private void OnCoStatusChanged()
     {
         StateHasChanged();
@@ -1115,31 +1188,25 @@
         errorMessage = null;
         successMessage = null;
 
-        // ✅ CO Status date guards
+        // ── Guards ────────────────────────────────────────────────────────────
         if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
         {
             toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
-            IsLoading = false;
-            return;
+            IsLoading = false; return;
         }
         if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
         {
             toast.ShowError("CO Date Approved is required when CO Status is Approved.");
-            IsLoading = false;
-            return;
+            IsLoading = false; return;
         }
-        // ✅ Payment date required if Paid
         if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
         {
             toast.ShowError("Payment Date is required when Payment Status is Paid.");
-            IsLoading = false;
-            return;
+            IsLoading = false; return;
         }
+        if (model.PaymentStatus != 2) model.PaymentDate = null;
 
-        // ✅ Clear payment date if not Paid
-        if (model.PaymentStatus != 2)
-            model.PaymentDate = null;
-
+        // ── Build pending DTO (without quarter/batch yet) ─────────────────────
         _pendingDto = new CreateBeneficiaryInformationDto
         {
             DateApplied = model.DateApplied,
@@ -1171,16 +1238,39 @@
             PaymentDate = model.PaymentDate,
             IsDeceased = model.IsDeceased,
             AssessmentRemarks = model.AssessmentRemarks,
-            EligibilityRemarks = model.EligibilityRemarks, // ✅ new
+            EligibilityRemarks = model.EligibilityRemarks,
             DateOfDeath = model.DateOfDeath,
             IsEligible = model.IsEligible,
             RemarkCategory = model.RemarkCategory,
             Remarks = model.Remarks,
             IsDeleted = false,
-            BypassSoftDuplicateCheck = false //First attempt always false
+            BypassSoftDuplicateCheck = false
         };
 
+        IsLoading = false;
+
+        // ✅ Show reference number modal BEFORE sending to API
+        _awaitingRefNumber = true;
+        await _refNumberModal.ShowAsync(model.PsgcCodeRegion);
+    }
+
+    private async Task OnRefNumberConfirmed(ReferenceNumberModal.RefNumberResult result)
+    {
+        if (_pendingDto == null) return;
+
+        // ✅ Attach reference number data to the DTO
+        _pendingDto.Quarter = result.Quarter;
+        _pendingDto.Batch = result.Batch;
+        _pendingDto.RefYear = result.RefYear;
+
+        _awaitingRefNumber = false;
         await SendCreateRequestAsync(_pendingDto);
+    }
+
+    private void OnRefNumberCancelled()
+    {
+        _awaitingRefNumber = false;
+        _pendingDto = null;
     }
     private async Task SendCreateRequestAsync(CreateBeneficiaryInformationDto dto)
     {

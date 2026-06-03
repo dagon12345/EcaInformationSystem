@@ -1,6 +1,7 @@
 ﻿@* BeneficiaryImporting.razor — with advanced duplicate detection modal *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject AuthService AuthService
@@ -413,6 +414,8 @@
         </div>
     </FooterTemplate>
 </HxModal>
+<ReferenceNumberModal @ref="_importRefModal" OnConfirmed="OnImportRefNumberConfirmed"
+                      OnCancelled="OnImportRefNumberCancelled" />
 
 @code {
     // ── Existing state (unchanged) ────────────────────────────────────────────
@@ -438,6 +441,14 @@
     private static string DupKey(int rowNumber, Guid existingId)
         => $"{rowNumber}_{existingId}";
     private HxModal duplicateModal = default!;
+    private ReferenceNumberModal _importRefModal = default!;
+    private List<Guid> _lastImportedIds = new();
+    private int? _importRegionCode;
+    // ✅ Holds the import payload until ref number is confirmed
+    private byte[]? _pendingImportBytes;
+    private string? _pendingImportFileName;
+    private string? _pendingImportSheetName;
+    private HashSet<int> _pendingSkipRows = new();
 
     // ── Computed ──────────────────────────────────────────────────────────────
     // A row is fully skipped only when ALL its candidates are skipped
@@ -461,6 +472,79 @@
 
             return Math.Max(0, cleanRows + importingRows);
         }
+    }
+    private async Task OnImportRefNumberConfirmed(ReferenceNumberModal.RefNumberResult result)
+    {
+        if (_pendingImportBytes == null || string.IsNullOrWhiteSpace(_pendingImportFileName))
+        {
+            toast.ShowError("Import data is missing. Please re-select the file.");
+            return;
+        }
+
+        try
+        {
+            isUploading = true;
+            StateHasChanged();
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_pendingImportBytes), "File", _pendingImportFileName);
+            content.Add(new StringContent(_pendingImportSheetName!), "SheetName");
+            content.Add(
+                new StringContent(
+                    System.Text.Json.JsonSerializer.Serialize(_pendingSkipRows)),
+                "SkipRowsJson");
+
+            // ✅ Include quarter/batch/refYear in the import request
+            content.Add(new StringContent(result.Quarter.ToString()), "Quarter");
+            content.Add(new StringContent(result.Batch), "Batch");
+            content.Add(new StringContent(result.RefYear.ToString()), "RefYear");
+
+            var response = await Http.PostAsync("api/beneficiary/import/confirm", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                importResult = await response.Content
+                    .ReadFromJsonAsync<BeneficiaryImportResultDto>();
+
+                if (importResult?.HasErrors == true)
+                {
+                    toast.ShowError($"Validation failed. {importResult.ErrorCount} error(s).");
+                }
+                else
+                {
+                    toast.ShowSuccess(
+                        $"Import completed. {importResult?.ImportedCount ?? 0} record(s) saved " +
+                        $"with Reference Number Q{result.Quarter}-{result.Batch}-{result.RefYear:D2}.");
+                }
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"Import failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Import failed: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+            _pendingImportBytes = null;
+            _pendingSkipRows = new();
+            StateHasChanged();
+        }
+    }
+
+    private void OnImportRefNumberCancelled()
+    {
+        // ✅ User cancelled — nothing was saved, just discard the pending payload
+        _pendingImportBytes = null;
+        _pendingImportFileName = null;
+        _pendingImportSheetName = null;
+        _pendingSkipRows = new();
+        toast.ShowWarning("Import cancelled. No records were saved.");
+        StateHasChanged();
     }
     // ── Existing methods (unchanged) ──────────────────────────────────────────
     private async Task DownloadTemplateAsync()
@@ -624,52 +708,24 @@
         if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
         { toast.ShowError("File data is missing. Please re-select the file."); return; }
 
-        try
-        {
-            isUploading = true;
-            StateHasChanged();
+        // ✅ Build skip rows
+        var rowNumbersToSkip = previewResult?.SoftDuplicates
+            .GroupBy(x => x.RowNumber)
+            .Where(g => g.All(c => skipRows.Contains(DupKey(c.RowNumber, c.ExistingId))))
+            .Select(g => g.Key)
+            .ToHashSet() ?? new HashSet<int>();
 
-            // Build the set of row numbers where ALL candidates are skipped
-            var rowNumbersToSkip = previewResult!.SoftDuplicates
-                .GroupBy(x => x.RowNumber)
-                .Where(g => g.All(c => skipRows.Contains(DupKey(c.RowNumber, c.ExistingId))))
-                .Select(g => g.Key)
-                .ToHashSet();
+        // ✅ Store payload for later — do NOT save yet
+        _pendingImportBytes = uploadedExcelBytes;
+        _pendingImportFileName = uploadedExcelFileName;
+        _pendingImportSheetName = selectedSheetName!;
+        _pendingSkipRows = rowNumbersToSkip;
 
-            using var content = new MultipartFormDataContent();
-            content.Add(new ByteArrayContent(uploadedExcelBytes), "File", uploadedExcelFileName);
-            content.Add(new StringContent(selectedSheetName!), "SheetName");
-            content.Add(
-                new StringContent(
-                    System.Text.Json.JsonSerializer.Serialize(rowNumbersToSkip)),
-                "SkipRowsJson");
+        // ✅ Close duplicate modal if open
+        await CloseDuplicateModal();
 
-            var response = await Http.PostAsync("api/beneficiary/import/confirm", content);
-
-            // Close modal regardless of outcome
-            await CloseDuplicateModal();
-
-            if (response.IsSuccessStatusCode)
-            {
-                importResult = await response.Content
-                    .ReadFromJsonAsync<BeneficiaryImportResultDto>();
-
-                if (importResult?.HasErrors == true)
-                    toast.ShowError($"Validation failed. {importResult.ErrorCount} error(s).");
-                else
-                    toast.ShowSuccess(
-                        $"Import completed. {importResult?.ImportedCount ?? 0} record(s) saved." +
-                        (importResult?.SkippedDuplicateCount > 0
-                            ? $" {importResult.SkippedDuplicateCount} skipped."
-                            : string.Empty));
-            }
-            else
-            {
-                throw new Exception(await response.Content.ReadAsStringAsync());
-            }
-        }
-        catch (Exception ex) { toast.ShowError($"Import failed: {ex.Message}"); }
-        finally { isUploading = false; StateHasChanged(); }
+        // ✅ Show ref number modal FIRST — import only fires after user confirms
+        await _importRefModal.ShowAsync(_importRegionCode);
     }
 
     // ── Skip row helpers ──────────────────────────────────────────────────────
