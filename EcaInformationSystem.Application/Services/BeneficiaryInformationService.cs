@@ -502,6 +502,31 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
 
         }
+
+        public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception(CommonConstants.NoRecordsSelected);
+            if (!coStatus.HasValue)
+                throw new Exception("Co Status is required");
+            //Endorsed requires date
+            if (coStatus == 1 && !coDateEndorsed.HasValue)
+                throw new Exception("CO Date Endorsed is required when status is Endorsed.");
+            //Approved requires a date
+            if (coStatus == 2 && !coDateApproved.HasValue)
+                throw new Exception("CO Date Approved is required when status is Approved");
+
+            await _repo.BulkUpdateCoStatusAsync(ids, coStatus, coDateEndorsed, coDateApproved);
+
+            var statusLabel = CoStatusLabel(coStatus.Value);
+
+            foreach (var id in ids)
+                await AddLogAsync(id, $"Bulk CO Status update -> {statusLabel}", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
         public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName)
         {
             if (ids == null || !ids.Any())
@@ -555,7 +580,8 @@ namespace EcaInformationSystem.Application.Services
                 dto.IsCompliant, dto.Validator, dto.ValidationDate,
                 dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
-                dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks);
+                dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
+                dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
 
             await _repo.UpdateAsync(beneficiary);
 
@@ -3136,6 +3162,12 @@ namespace EcaInformationSystem.Application.Services
 
 
         #region Private helpers
+        private static string CoStatusLabel(int status) => status switch
+        {
+            1 => "Endorsed",
+            2 => "Approved",
+            _ => "Not Set"
+        };
         // ── Map Payment Status from col 31 ───────────────────────────────────────
         private static int? MapPaymentStatus(string? value)
         {
@@ -3204,9 +3236,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
                 filter.EligibilityMode ?? CommonConstants.Null,
                 //General
-                filter.GeneralSearch ?? string.Empty
-
-
+                filter.GeneralSearch ?? string.Empty,
+                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
@@ -3345,7 +3376,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null,
                 filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
                 filter.ComplianceMode ?? CommonConstants.Null,
-                filter.EligibilityMode ?? CommonConstants.Null
+                filter.EligibilityMode ?? CommonConstants.Null,
+                filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
@@ -3432,12 +3464,28 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.IsEligible != dto.IsEligible)
                 changes.Add($"{CommonConstants.Eligible.ToTitleCase()} '{(beneficiary.IsEligible ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsEligible ? CommonConstants.Yes : CommonConstants.No)}'");
-
+            //Compliant remarks
             if (beneficiary.AssessmentRemarks != dto.AssessmentRemarks)
                 changes.Add($"{CommonConstants.AssessmentRemarks} '{beneficiary.AssessmentRemarks}' → '{dto.AssessmentRemarks}'");
 
+            //Eligibility remarks
+            if (beneficiary.EligibilityRemarks != dto.EligibilityRemarks)
+                changes.Add($"{CommonConstants.EligibilityRemarks} '{beneficiary.EligibilityRemarks}' → '{dto.EligibilityRemarks}'");
+
             if (beneficiary.RemarkCategory != dto.RemarkCategory)
                 changes.Add($"{CommonConstants.RemarkCategory} '{MapRemarkCategoryLabel(beneficiary.RemarkCategory)}' → '{MapRemarkCategoryLabel(dto.RemarkCategory)}'");
+
+            if (beneficiary.CoStatus != dto.CoStatus)
+                changes.Add($"CO Status '{CoStatusLabel(beneficiary.CoStatus ?? 0)}'" +
+                            $" → '{CoStatusLabel(dto.CoStatus ?? 0)}'");
+
+            if (beneficiary.CoDateEndorsed != dto.CoDateEndorsed)
+                changes.Add($"CO Date Endorsed '{beneficiary.CoDateEndorsed.ToFullDate()}'" +
+                            $" → '{dto.CoDateEndorsed.ToFullDate()}'");
+
+            if (beneficiary.CoDateApproved != dto.CoDateApproved)
+                changes.Add($"CO Date Approved '{beneficiary.CoDateApproved.ToFullDate()}'" +
+                            $" → '{dto.CoDateApproved.ToFullDate()}'");
 
             if (beneficiary.Remarks != dto.Remarks)
                 changes.Add($"{CommonConstants.Remarks.ToTitleCase()} '{beneficiary.Remarks}' → '{dto.Remarks}'");

@@ -28,5 +28,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
         Task<BeneficiaryImportResultDto> ConfirmImportAsync(Stream fileStream, string fileName, string sheetName, string userName, HashSet<int> skipRows);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName);
+        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName);
     }
 }

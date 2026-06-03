@@ -358,6 +358,48 @@
             </div>
         </div>
     </div>
+    @* ── CO Status ── *@
+    <div class="form-section mb-3">
+        <div class="form-section-header">
+            <i class="bi bi-building-check me-2"></i>CO Status
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="ff">
+                    <label class="ff-label">CO Status</label>
+                    <InputSelect class="ff-input" @bind-Value="model.CoStatus" @bind-Value:after="OnCoStatusChanged">
+                        <option value="">Not Set</option>
+                        <option value="1">Endorsed</option>
+                        <option value="2">Approved</option>
+                    </InputSelect>
+                </div>
+
+                <div class="ff">
+                    <label class="ff-label">
+                        CO Date Endorsed
+                        @if (model.CoStatus == 1)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <UniformDateInput Value="@model.CoDateEndorsed" ValueChanged="@OnCoDateEndorsedChanged"
+                                      Disabled="@(model.CoStatus != 1)" />
+                </div>
+
+                <div class="ff">
+                    <label class="ff-label">
+                        CO Date Approved
+                        @if (model.CoStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <UniformDateInput Value="@model.CoDateApproved" ValueChanged="@OnCoDateApprovedChanged"
+                                      Disabled="@(model.CoStatus != 2)" />
+                </div>
+            </div>
+        </div>
+    </div>
     @* ── Findings (Edit Mode only) ── *@
     @if (IsEditMode)
     {
@@ -591,6 +633,21 @@
     private bool _showSoftDuplicateModal = false;
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
+    private void OnCoStatusChanged()
+    {
+        StateHasChanged();
+    }
+    private void OnCoDateEndorsedChanged(DateTime? value)
+    {
+        model.CoDateEndorsed = value;
+        StateHasChanged();
+    }
+
+    private void OnCoDateApprovedChanged(DateTime? value)
+    {
+        model.CoDateApproved = value;
+        StateHasChanged();
+    }
 
     private void OnBirthDateChanged(DateTime? value)
     {
@@ -984,6 +1041,19 @@
         IsLoading = true;
         try
         {
+            // ✅ CO Status date guards
+            if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
+            {
+                toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
+                IsLoading = false;
+                return;
+            }
+            if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
+            {
+                toast.ShowError("CO Date Approved is required when CO Status is Approved.");
+                IsLoading = false;
+                return;
+            }
             // ✅ Payment date required if Paid
             if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
             {
@@ -1045,6 +1115,19 @@
         errorMessage = null;
         successMessage = null;
 
+        // ✅ CO Status date guards
+        if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
+        {
+            toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
+            IsLoading = false;
+            return;
+        }
+        if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
+        {
+            toast.ShowError("CO Date Approved is required when CO Status is Approved.");
+            IsLoading = false;
+            return;
+        }
         // ✅ Payment date required if Paid
         if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
         {

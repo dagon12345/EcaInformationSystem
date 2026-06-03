@@ -69,6 +69,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public string MunicipalityName => GetJsonString(Municipality);
         public string BarangayName => GetJsonString(Barangay);
 
+        public int? CoStatus { get; set; }
+        public DateTime? CoDateEndorsed { get; set; }
+        public DateTime? CoDateApproved { get; set; }
+
         private string GetJsonString(JsonElement? element)
         {
             if (element == null) return string.Empty;

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -214,6 +215,25 @@ namespace EcaInformationSystem.Api.Controllers
             catch (Exception ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+        }
+        [HttpPost("bulk-co-status")]
+        public async Task<IActionResult> BulkUpdateCoStatus([FromBody] BulkUpdateCoStatusRequestDto dto)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkUpdateCoStatusAsync(
+                    dto.Ids,
+                    dto.CoStatus,
+                    dto.CoDateEndorsed,
+                    dto.CoDateApproved,
+                    userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
             }
         }
         [HttpPost("bulk-eligibility-batchcode")]

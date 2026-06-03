@@ -202,6 +202,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     RemarkCategory = b.RemarkCategory,
                     Remarks = b.Remarks,
                     DateAdded = b.DateAdded,
+                    CoStatus = b.CoStatus,
+                    CoDateEndorsed = b.CoDateEndorsed,
+                    CoDateApproved = b.CoDateApproved,
                     IsDeleted = b.IsDeleted
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
@@ -351,6 +354,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  EligibilityRemarks = b.EligibilityRemarks,  // ✅
                  RemarkCategory = b.RemarkCategory != null ? b.RemarkCategory : null,
                  DateAdded = b.DateAdded,
+                 CoStatus = b.CoStatus,
+                 CoDateEndorsed = b.CoDateEndorsed,
+                 CoDateApproved = b.CoDateApproved,
                  Remarks = b.Remarks,
                  IsDeleted = b.IsDeleted
              })
@@ -433,6 +439,31 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
                 if (batchCode != null) // null meanse don't touch, empty string means clear it.
                     b.BatchCode = string.IsNullOrWhiteSpace(batchCode) ? null : batchCode.Trim();
+            }
+            await _context.SaveChangesAsync();
+        }
+        public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+            .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+            .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                if (coStatus.HasValue)
+                    b.CoStatus = coStatus.Value;
+
+                //Only set date if status matches
+                if (coStatus == 1)
+                {
+                    b.CoDateEndorsed = coDateEndorsed;
+                    //b.CoDateApproved = null; //clear approved when setting endorsed // Optional
+                }
+                else if (coStatus == 2)
+                {
+                    b.CoDateApproved = coDateApproved;
+                    //keep endorsed date intact
+                }
             }
             await _context.SaveChangesAsync();
         }
@@ -587,6 +618,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     "dual" => 2,
                     _ => null
                 };
+                // ✅ CO Status — "not set" needs special null/0 handling below
+                int? coStatusMatch = term switch
+                {
+                    "endorsed" => 1,
+                    "approved" => 2,
+                    _ => null
+                };
+                // ✅ Flag for "not set" search — matches null or 0 CoStatus
+                bool searchCoNotSet = term == "not set";
 
                 // ── Parse as year for milestone matching ──────────────────────────────
                 int.TryParse(term, out var yearTerm);
@@ -616,11 +656,26 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     // ── Remarks fields ────────────────────────────────────────────────
                     (x.Beneficiary.Remarks != null && x.Beneficiary.Remarks.ToLower().Contains(term)) ||
                     (x.Beneficiary.AssessmentRemarks != null && x.Beneficiary.AssessmentRemarks.ToLower().Contains(term)) ||
+                    (x.Beneficiary.EligibilityRemarks != null && x.Beneficiary.EligibilityRemarks.ToLower().Contains(term)) ||
 
                     // ── Mapped integer fields ─────────────────────────────────────────
                     (sexMatch.HasValue && x.Beneficiary.Sex == sexMatch.Value) ||
                     (paymentMatch.HasValue && x.Beneficiary.PaymentStatus == paymentMatch.Value) ||
                     (citizenshipMatch.HasValue && x.Beneficiary.Citizenship == citizenshipMatch.Value) ||
+
+                    // ── CO Status — named values ──────────────────────────────────────
+                    // "endorsed" → CoStatus == 1
+                    // "approved" → CoStatus == 2
+                    (coStatusMatch.HasValue && x.Beneficiary.CoStatus == coStatusMatch.Value) ||
+                    // ── CO Status — "not set" → CoStatus is null or 0 ────────────────
+                    (searchCoNotSet && (x.Beneficiary.CoStatus == null || x.Beneficiary.CoStatus == 0)) ||
+
+                      // ── CO date fields — match year or full date string ───────────────
+                      (yearTerm > 0 && x.Beneficiary.CoDateEndorsed.HasValue &&
+                      x.Beneficiary.CoDateEndorsed.Value.Year == yearTerm) ||
+                     (yearTerm > 0 && x.Beneficiary.CoDateApproved.HasValue &&
+                     x.Beneficiary.CoDateApproved.Value.Year == yearTerm) ||
+
 
                     // ── Birth year ────────────────────────────────────────────────────
                     (yearTerm > 0 && x.Beneficiary.BirthDate.Year == yearTerm) ||
@@ -928,6 +983,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         batchCodes.Contains(x.Beneficiary.BatchCode));
                 }
             }
+            // ── CO Status Filter ──────────────────────────────────────────────────────
+            // -1  = no filter (user hasn't selected anything)
+            //  0  = filter for Not Set (null or 0 in DB)
+            //  1  = Endorsed
+            //  2  = Approved
+            if (filter.CoStatus.HasValue && filter.CoStatus.Value >= 0)
+            {
+                if (filter.CoStatus.Value == 0)
+                {
+                    // ✅ "Not Set" = CoStatus is null OR CoStatus is 0
+                    query = query.Where(x =>
+                        x.Beneficiary.CoStatus == null ||
+                        x.Beneficiary.CoStatus == 0);
+                }
+                else
+                {
+                    query = query.Where(x => x.Beneficiary.CoStatus == filter.CoStatus.Value);
+                }
+            }
 
             Console.WriteLine(query);
             return query.AsNoTracking();
@@ -982,7 +1056,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     MunicipalityName = x.Municipality,
                     BarangayName = x.Barangay,
                     FindingStatus = x.FindingStatus,
-                    FindingRemarks = x.FindingRemarks
+                    FindingRemarks = x.FindingRemarks,
+                    CoStatus = x.Beneficiary.CoStatus,
+                    CoDateEndorsed = x.Beneficiary.CoDateEndorsed,
+                    CoDateApproved = x.Beneficiary.CoDateApproved
                 });
         }
 
@@ -1038,7 +1115,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             Remarks = x.Remarks,
             IsDeleted = x.IsDeleted,
             FindingStatus = x.FindingStatus,
-            FindingRemarks = x.FindingRemarks
+            FindingRemarks = x.FindingRemarks,
+            CoStatus = x.CoStatus,
+            CoDateEndorsed = x.CoDateEndorsed,
+            CoDateApproved = x.CoDateApproved
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -1131,6 +1211,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     b.RemarkCategory,
                     b.Remarks,
                     b.DateAdded,
+                    b.CoStatus,
+                    b.CoDateEndorsed,
+                    b.CoDateApproved,
                     b.IsDeleted,
                     b.DateApplied,
                     b.DateEndorsed,
@@ -1207,6 +1290,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 RemarkCategory = x.RemarkCategory,
                 Remarks = x.Remarks,
                 DateAdded = x.DateAdded,
+                CoStatus = x.CoStatus,
+                CoDateEndorsed = x.CoDateEndorsed,
+                CoDateApproved = x.CoDateApproved,
                 IsDeleted = x.IsDeleted,
 
                 MilestoneYear =
@@ -1278,6 +1364,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool IsDeleted { get; set; }
             public int? FindingStatus { get; set; }
             public string? FindingRemarks { get; set; }
+            public int? CoStatus { get; set; }
+            public DateTime? CoDateEndorsed { get; set; }
+            public DateTime? CoDateApproved { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

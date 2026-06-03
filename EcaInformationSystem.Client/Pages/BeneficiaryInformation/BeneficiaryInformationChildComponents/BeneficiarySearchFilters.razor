@@ -140,6 +140,16 @@
                             <label>Batch Code</label>
                             <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90" @bind="State.Filter.BatchCode" />
                         </div>
+                        @* CO STATUS *@
+                        <div class="sf-field">
+                            <label>CO Status</label>
+                            <select value="@_coStatusValue" @onchange="OnCoStatusFilterChanged" disabled="@IsLoading">
+                                <option value="-1">Select CO Status</option>
+                                <option value="0">Not Set</option>
+                                <option value="1">Endorsed</option>
+                                <option value="2">Approved</option>
+                            </select>
+                        </div>
                         <div class="sf-field">
                             <label>Validator</label>
                             <input type="text" placeholder="Validator" @bind="State.Filter.Validator" />
@@ -378,7 +388,17 @@
         new(11, "November"),
         new(12, "December"),
     };
+    private string _coStatusValue = "-1";
+    private void OnCoStatusFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _coStatusValue = val ?? "-1";
 
+        if (int.TryParse(val, out var parsed) && parsed >= 0)
+            State.Filter.CoStatus = parsed; // 0 = Not Set, 1 = Endorsed, 2 = Approved
+        else
+            State.Filter.CoStatus = null; // -1 = no filter
+    }
     // Use a fixed leap year (2000) so February always shows up to day 29
     private static IEnumerable<int> GetDaysForMonth(int month)
     {
@@ -673,6 +693,8 @@
         _birthdayToMonth = 0;
         _birthdayToDay = 0;
         //reset compliance selector
+        _coStatusValue = "-1";
+        State.Filter.CoStatus = null;
         _complianceValue = string.Empty;
         State.Filter.IsCompliant = null;
         State.Filter.ComplianceMode = null; // ✅ add this
@@ -719,10 +741,11 @@
     f.IsCompliant == null &&
     string.IsNullOrWhiteSpace(f.ComplianceMode) && // ✅ add this
     f.IsEligible == null &&
-      string.IsNullOrWhiteSpace(f.EligibilityMode)    &&
+      string.IsNullOrWhiteSpace(f.EligibilityMode) &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
+    f.CoStatus == null &&
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&
     _birthdayToMonth == 0;

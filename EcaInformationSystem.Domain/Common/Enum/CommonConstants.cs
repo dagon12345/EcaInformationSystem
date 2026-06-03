@@ -4,6 +4,7 @@ namespace EcaInformationSystem.Domain.Common.Enum
 {
     public static class CommonConstants
     {
+        public const string EligibilityRemarks = "Eligibility Remarks";
         public const string SummaryCacheVersionKey = "beneficiary-summary-version";
         public const string NoDataAvailableToExport = "No data available to export.";
         public const string Grantees = "Grantees";
@@ -72,7 +73,7 @@ namespace EcaInformationSystem.Domain.Common.Enum
         public const string DuplicateFound = "Duplicate beneficiary found. Same name, birth date, OSCA ID, and RRN already exist.";
         public const string CreatedBeneficiary = "Created beneficiary record for";
         public const string GranteeNotFound = "Grantee not found";
-        public const string AssessmentRemarks = "Assessment Remarks";
+        public const string AssessmentRemarks = "Compliant Remarks";
         public const string RemarkCategory = "Remark Category";
         public const string LogSoftDelete = "Soft deleted beneficiary record";
         public const string Unknown = "Unknown";

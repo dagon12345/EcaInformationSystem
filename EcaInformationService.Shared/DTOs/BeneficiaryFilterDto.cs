@@ -43,6 +43,7 @@
         public string? ComplianceMode { get; set; }
         public string? EligibilityMode { get; set; }
         public string? GeneralSearch { get; set; } // General search - scans all relevant columns with OR logic
+        public int? CoStatus { get; set; }
 
     }
 }

@@ -49,10 +49,13 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? EligibilityRemarks { get; set; }
         public int? RemarkCategory { get; set; }
         public string? Remarks { get; set; }
+        public int? CoStatus { get; set; }
+        public DateTime? CoDateEndorsed { get; set; }
+        public DateTime? CoDateApproved { get; set; }
         public bool IsDeleted { get; set; }
         //<summary>
         //  Set to true when the user has reviewed soft duplicated and confirmed they want to proceed
         // </summary>
-        public bool  BypassSoftDuplicateCheck { get; set; }
+        public bool BypassSoftDuplicateCheck { get; set; }
     }
 }

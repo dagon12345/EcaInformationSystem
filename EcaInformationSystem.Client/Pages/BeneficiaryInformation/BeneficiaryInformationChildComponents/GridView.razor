@@ -81,6 +81,11 @@
                                         @onclick='() => activeBulkTab = "other"'>
                                     <i class="bi bi-pencil-square me-1"></i>Eligibility / Batch
                                 </button>
+                                <button type="button"
+                                        class="btn @(activeBulkTab == "costatus" ? "btn-primary" : "btn-outline-secondary")"
+                                        @onclick='() => activeBulkTab = "costatus"'>
+                                    <i class="bi bi-building-check me-1"></i>CO Status
+                                </button>
                             </div>
 
                             @* ── Payment tab ── *@
@@ -99,9 +104,9 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || bulkPaymentStatus == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -129,8 +134,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -139,6 +144,42 @@
                                     else
                                     {
                                         <span>Apply Changes</span>
+                                    }
+                                </button>
+                            }
+                            @* ── CO Status tab ── *@
+                            @if (activeBulkTab == "costatus")
+                            {
+                                <select class="form-select form-select-sm w-auto" @bind="bulkCoStatus">
+                                    <option value="">-- Set CO Status --</option>
+                                    <option value="1">Endorsed</option>
+                                    <option value="2">Approved</option>
+                                </select>
+
+                                @if (bulkCoStatus == "1")
+                                {
+                                    <input type="date" class="form-control form-control-sm w-auto" @bind="bulkCoDateEndorsed" />
+                                }
+
+                                @if (bulkCoStatus == "2")
+                                {
+                                    <input type="date" class="form-control form-control-sm w-auto" @bind="bulkCoDateApproved" />
+                                }
+
+                                <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
+                                        disabled="@(!checkedIds.Any()
+                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkCoStatus)
+                                                                                                                                                                 || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
+                                                                                                                                                                 || (bulkCoStatus == "2" && bulkCoDateApproved == null)
+                                                                                                                                                                 || IsBulkUpdatingCoStatus)">
+                                    @if (IsBulkUpdatingCoStatus)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Updating...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Apply CO Status</span>
                                     }
                                 </button>
                             }
@@ -261,6 +302,7 @@
                                             <th>Eligible</th>
                                             <th>Compliant</th>
                                             <th>CO Findings</th>
+                                            <th>CO Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -268,6 +310,7 @@
                                         @foreach (var item in FilteredBeneficiaries)
                                         {
                                             <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
+
                                                 <td>
                                                     <input type="checkbox" class="form-check-input"
                                                            checked="@checkedIds.Contains(item.Id)"
@@ -280,7 +323,7 @@
                                                 @* Phone *@
                                                 <td>@Highlight(item.PhoneNumber)</td>
 
-                                                @* Full Name — built from parts so highlight each separately *@
+                                                @* Full Name *@
                                                 <td>
                                                     @Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
                                                     @if (!string.IsNullOrWhiteSpace(item.MiddleName))
@@ -295,17 +338,17 @@
                                                     }
                                                 </td>
 
-                                                @* Birth Date — highlight if year matches *@
+                                                @* Birth Date *@
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
 
-                                                @* Age badge — no highlight needed, it's a number badge *@
+                                                @* Age — numeric badge, no highlight *@
                                                 <td>
                                                     <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">
                                                         @item.Age
                                                     </span>
                                                 </td>
 
-                                                @* Milestone *@
+                                                @* Milestone — numeric badge, no highlight *@
                                                 <td>
                                                     <span class="tbl-badge mile">@item.MilestoneYear</span>
                                                 </td>
@@ -322,23 +365,23 @@
                                                 @* Validator *@
                                                 <td>@Highlight(item.Validator)</td>
 
-                                                @* Payment — badge, no highlight *@
+                                                @* Payment — ✅ highlight label *@
                                                 <td>
                                                     <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
-                                                        @GetPaymentStatusText(item.PaymentStatus)
+                                                        @Highlight(GetPaymentStatusText(item.PaymentStatus))
                                                     </span>
                                                 </td>
 
-                                                @* ── Eligible ── *@
+                                                @* Eligible — ✅ highlight label + remarks *@
                                                 <td>
                                                     @{
                                                         var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
-                                                                                            item.EligibilityRemarks);
+                                                                                        item.EligibilityRemarks);
                                                         var eligLabel = GetEligibilityLabel(item.IsEligible,
-                                                                                            item.EligibilityRemarks);
+                                                                                        item.EligibilityRemarks);
                                                     }
                                                     <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarks">
-                                                        @eligLabel
+                                                        @Highlight(eligLabel)
                                                     </span>
                                                     @if (item.IsEligible && !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
                                                     {
@@ -351,7 +394,7 @@
                                                     }
                                                 </td>
 
-                                                @* Compliant badge *@
+                                                @* Compliant — ✅ highlight label + remarks *@
                                                 <td>
                                                     @{
                                                         var compBadge = GetComplianceBadgeClass(item.IsCompliant,
@@ -360,7 +403,7 @@
                                                                                         item.AssessmentRemarks);
                                                     }
                                                     <span class="tbl-badge @compBadge" title="@item.AssessmentRemarks">
-                                                        @compLabel
+                                                        @Highlight(compLabel)
                                                     </span>
                                                     @if (item.IsCompliant && !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
                                                     {
@@ -373,14 +416,14 @@
                                                     }
                                                 </td>
 
-                                                @* Findings *@
+                                                @* CO Findings — ✅ highlight label + remarks *@
                                                 <td>
                                                     @{
-                                                        var badge = GetFindingBadgeClass(item.FindingStatus);
-                                                        var label = GetFindingStatusText(item.FindingStatus);
+                                                        var findBadge = GetFindingBadgeClass(item.FindingStatus);
+                                                        var findLabel = GetFindingStatusText(item.FindingStatus);
                                                     }
-                                                    <span class="tbl-badge @badge" title="@item.FindingRemarks">
-                                                        @label
+                                                    <span class="tbl-badge @findBadge" title="@item.FindingRemarks">
+                                                        @Highlight(findLabel)
                                                     </span>
                                                     @if (item.FindingStatus == 2 &&
                                                                                         !string.IsNullOrWhiteSpace(item.FindingRemarks))
@@ -394,12 +437,38 @@
                                                     }
                                                 </td>
 
+                                                @* CO Status — ✅ highlight label + dates (already correct) *@
+                                                <td>
+                                                    @{
+                                                        var coBadge = GetCoStatusBadgeClass(item.CoStatus);
+                                                        var coLabel = GetCoStatusLabel(item.CoStatus);
+                                                    }
+                                                    <span class="tbl-badge @coBadge" title="@coLabel">
+                                                        @Highlight(coLabel)
+                                                    </span>
+                                                    @if (item.CoStatus == 1 && item.CoDateEndorsed.HasValue)
+                                                    {
+                                                        <br />
+                                                        <small class="text-muted" style="font-size:10px;">
+                                                            @Highlight(item.CoDateEndorsed.Value.ToString("MMM dd, yyyy"))
+                                                        </small>
+                                                    }
+                                                    @if (item.CoStatus == 2 && item.CoDateApproved.HasValue)
+                                                    {
+                                                        <br />
+                                                        <small class="text-muted" style="font-size:10px;">
+                                                            @Highlight(item.CoDateApproved.Value.ToString("MMM dd, yyyy"))
+                                                        </small>
+                                                    }
+                                                </td>
+
                                                 <td>
                                                     <button class="btn-details" @onclick="() => OpenDetailsPanel(item)"
                                                             title="View Details">
                                                         <i class="bi bi-info-circle"></i> Details
                                                     </button>
                                                 </td>
+
                                             </tr>
                                         }
 
@@ -482,6 +551,46 @@
             </HxButton>
             <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkOtherUpdateAsync" Disabled="@IsBulkUpdatingOther">
                 @if (IsBulkUpdatingOther)
+                {
+                    <span>Updating...</span>
+                }
+                else
+                {
+                    <span>Yes, Update</span>
+                }
+            </HxButton>
+        </FooterTemplate>
+    </HxModal>
+    <HxModal @ref="bulkCoStatusModal">
+        <HeaderTemplate>
+            <h5 class="modal-title">Confirm CO Status Update</h5>
+        </HeaderTemplate>
+        <BodyTemplate>
+            <p>
+                You are about to set <strong>@checkedIds.Count</strong> record(s) to
+                CO Status: <strong>@GetCoStatusLabel(int.TryParse(bulkCoStatus, out var s) ? s : 0)</strong>.
+            </p>
+            @if (bulkCoStatus == "1" && bulkCoDateEndorsed.HasValue)
+            {
+                <p class="mb-0">
+                    CO Date Endorsed:
+                    <strong>@bulkCoDateEndorsed.Value.ToString("MMMM dd, yyyy")</strong>
+                </p>
+            }
+            @if (bulkCoStatus == "2" && bulkCoDateApproved.HasValue)
+            {
+                <p class="mb-0">
+                    CO Date Approved:
+                    <strong>@bulkCoDateApproved.Value.ToString("MMMM dd, yyyy")</strong>
+                </p>
+            }
+        </BodyTemplate>
+        <FooterTemplate>
+            <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkCoStatusModal.HideAsync()">
+                Cancel
+            </HxButton>
+            <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkCoStatusAsync" Disabled="@IsBulkUpdatingCoStatus">
+                @if (IsBulkUpdatingCoStatus)
                 {
                     <span>Updating...</span>
                 }
@@ -630,6 +739,12 @@
                         <small class="text-muted d-block">Mode of Payment</small>
                         <span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span>
                     </div>
+
+                    @* ── Remarks stays as general notes ── *@
+                    <div class="col-12">
+                        <small class="text-muted d-block">Remarks</small>
+                        <span>@(selectedDetails.Remarks ?? "—")</span>
+                    </div>
                 </div>
 
                 <!-- Assessment -->
@@ -677,12 +792,6 @@
                             <span>@selectedDetails.AssessmentRemarks</span>
                         </div>
                     }
-
-                    @* ── Remarks stays as general notes ── *@
-                    <div class="col-12">
-                        <small class="text-muted d-block">Remarks</small>
-                        <span>@(selectedDetails.Remarks ?? "—")</span>
-                    </div>
                 </div>
 
                 <!-- Deceased -->
@@ -719,6 +828,27 @@
                             <span>@selectedDetails.FindingRemarks</span>
                         </div>
                     }
+                </div>
+
+                <!-- CO Status -->
+                <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
+                    <i class="bi bi-building-check me-1"></i>CO Status
+                </h6>
+                <div class="row g-2 mb-4">
+                    <div class="col-6">
+                        <small class="text-muted d-block">CO Status</small>
+                        <span class="tbl-badge @GetCoStatusBadgeClass(selectedDetails!.CoStatus)">
+                            @GetCoStatusLabel(selectedDetails.CoStatus)
+                        </span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">CO Date Endorsed</small>
+                        <span>@(selectedDetails.CoDateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">CO Date Approved</small>
+                        <span>@(selectedDetails.CoDateApproved?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                    </div>
                 </div>
             }
         </BodyTemplate>
@@ -869,7 +999,67 @@
     private string? bulkBatchCode; // null / "" = no change
     private bool IsBulkUpdatingOther;
     private HxModal bulkOtherUpdateModal = default!;
+    // ── CO Status bulk state ──────────────────────────────────────────────────
+    private string? bulkCoStatus = null;
+    private DateTime? bulkCoDateEndorsed = null;
+    private DateTime? bulkCoDateApproved = null;
+    private bool IsBulkUpdatingCoStatus;
+    private HxModal bulkCoStatusModal = default!;
 
+    private async Task OpenBulkCoStatusModal()
+    {
+        if (!checkedIds.Any() || string.IsNullOrWhiteSpace(bulkCoStatus))
+            return;
+        await bulkCoStatusModal.ShowAsync();
+    }
+    private async Task ExecuteBulkCoStatusAsync()
+    {
+        try
+        {
+            IsBulkUpdatingCoStatus = true;
+
+            var request = new
+            {
+                Ids = checkedIds.ToList(),
+                CoStatus = int.TryParse(bulkCoStatus, out var s) ? s : (int?)null,
+                CoDateEndorsed = bulkCoStatus == "1" ? bulkCoDateEndorsed : null,
+                CoDateApproved = bulkCoStatus == "2" ? bulkCoDateApproved : null
+            };
+
+            var response = await Http.PostAsJsonAsync(
+                "api/beneficiary/bulk-co-status", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess(
+                    $"Updated {checkedIds.Count} record(s) CO Status to " +
+                    $"{GetCoStatusLabel(int.TryParse(bulkCoStatus, out var sl) ? sl : 0)}.");
+
+                // Reset
+                bulkCoStatus = null;
+                bulkCoDateEndorsed = null;
+                bulkCoDateApproved = null;
+                ClearSelection();
+
+                await bulkCoStatusModal.HideAsync();
+                State.Invalidate();
+                await State.LoadAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                toast.ShowError($"CO Status update failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            IsBulkUpdatingCoStatus = false;
+        }
+    }
     // ── General search highlight ──────────────────────────────────────────────
     // Wraps matched text with <mark> so the browser highlights it yellow.
     // Safe: we only highlight plain text cells, never HTML content.
@@ -1559,6 +1749,20 @@
     }
 
     #region Private mapping
+
+    private string GetCoStatusLabel(int? status) => status switch
+    {
+        1 => "Endorsed",
+        2 => "Approved",
+        _ => "Not Set"
+    };
+
+    private string GetCoStatusBadgeClass(int? status) => status switch
+    {
+        1 => "pending", // yellow
+        2 => "yes-g", // green
+        _ => "no-g"       // grey
+    };
     private string GetSexText(int sex) => sex switch
     {
         1 => "Male",

@@ -31,5 +31,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
         Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode);
+        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved);
     }
 }
