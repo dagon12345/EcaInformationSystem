@@ -267,30 +267,22 @@
                         <label class="ff-label mb-0">Is Compliant</label>
                     </div>
 
-                    @* ✅ EligibilityRemarks — bound to IsEligible *@
+                    @* ✅ EligibilityRemarks — always enabled *@
                     <div class="ff" style="grid-column: 1 / -1;">
                         <label class="ff-label">
                             Eligibility Remarks
-                            @if (!model.IsEligible)
-                            {
-                                <span class="text-muted small ms-1">(enable Is Eligible first)</span>
-                            }
                         </label>
                         <InputTextArea class="ff-input" @bind-Value="model.EligibilityRemarks" rows="2"
-                                       placeholder="Enter eligibility finding notes..." disabled="@(!model.IsEligible)" />
+                                       placeholder="Enter eligibility finding notes..." />
                     </div>
 
-                    @* ✅ AssessmentRemarks, bound to IsCompliant *@
+                    @* ✅ ComplianceRemarks — always enabled *@
                     <div class="ff" style="grid-column: 1 / -1;">
                         <label class="ff-label">
                             Compliance Remarks
-                            @if (!model.IsCompliant)
-                            {
-                                <span class="text-muted small ms-1">(enable Is Compliant first)</span>
-                            }
                         </label>
                         <InputTextArea class="ff-input" @bind-Value="model.AssessmentRemarks" rows="2"
-                                       placeholder="Enter compliance finding notes..." disabled="@(!model.IsCompliant)" />
+                                       placeholder="Enter compliance finding notes..." />
                     </div>
                 </div>
             </div>
