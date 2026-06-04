@@ -6,6 +6,7 @@ using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Common.Extensions;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.Helpers;
 using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 using System.IO.Compression;
@@ -320,6 +321,9 @@ namespace EcaInformationSystem.Application.Services
                 Quarter = dto.Quarter,
                 Batch = dto.Batch,
                 RefYear = dto.RefYear,
+                RefCode = !string.IsNullOrWhiteSpace(dto.RefCode)
+                    ? dto.RefCode
+                    : RegionRomanNumeralHelper.GenerateRefCode(), // ✅ generate if not provided
                 DateApplied = dto.DateApplied,
                 DateEndorsed = dto.DateEndorsed,
                 BatchCode = dto.BatchCode,
@@ -379,6 +383,7 @@ namespace EcaInformationSystem.Application.Services
                     Quarter = beneficiary.Quarter,
                     Batch = beneficiary.Batch,
                     RefYear = beneficiary.RefYear,
+                    RefCode = beneficiary.RefCode,
                     DateApplied = beneficiary.DateApplied,
                     DateEndorsed = beneficiary.DateEndorsed,
                     BatchCode = beneficiary.BatchCode,
@@ -487,12 +492,11 @@ namespace EcaInformationSystem.Application.Services
         }
         // Service
         public async Task BulkAssignRefNumberAsync(
-            List<Guid> ids, int quarter, string batch, int refYear, string userName)
+     List<Guid> ids, int quarter, string batch, int refYear, string userName)
         {
             if (ids == null || !ids.Any())
                 throw new Exception("No records to assign.");
 
-            // ✅ Uses the new GetEntitiesByIdsAsync — not GetByIdsAsync which returns DTOs
             var beneficiaries = await _repo.GetEntitiesByIdsAsync(ids);
 
             foreach (var b in beneficiaries)
@@ -500,15 +504,22 @@ namespace EcaInformationSystem.Application.Services
                 b.Quarter = quarter;
                 b.Batch = batch.Trim();
                 b.RefYear = refYear;
+
+                // ✅ Only generate a new RefCode if one doesn't already exist
+                // — preserves the unique code on re-assignment (e.g. quarter change)
+                if (string.IsNullOrWhiteSpace(b.RefCode))
+                    b.RefCode = RegionRomanNumeralHelper.GenerateRefCode();
             }
 
             await _repo.SaveChangesAsync();
 
             foreach (var id in ids)
-                await AddLogAsync(id,
-                    $"Reference number assigned: Q{quarter}-{batch}-{refYear:D2}", userName);
+                await AddLogAsync(
+                    id,
+                    $"Reference number assigned: Q{quarter}B{batch}-{refYear:D2}",
+                    userName);
 
-            await _repo.SaveChangesAsync(); // ✅ saves the logs
+            await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
 
@@ -591,18 +602,27 @@ namespace EcaInformationSystem.Application.Services
             if (beneficiary == null)
                 throw new Exception(CommonConstants.GranteeNotFound);
 
-            //Check Duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
-                  dto.LastName,
-                  dto.FirstName,
-                  dto.MiddleName,
-                  dto.BirthDate,
-                  Id);
-
+                dto.LastName, dto.FirstName, dto.MiddleName, dto.BirthDate, Id);
 
             var changes = await GetChangedFields(beneficiary, dto);
 
-            beneficiary.Update(dto.Quarter, dto.Batch, dto.RefYear, dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
+            // ✅ Preserve existing RefCode — only generate a new one if
+            // Quarter/Batch/RefYear are being set for the first time (RefCode was null)
+            var refCodeToSave = beneficiary.RefCode;
+
+            if (string.IsNullOrWhiteSpace(refCodeToSave) &&
+                dto.Quarter.HasValue &&
+                !string.IsNullOrWhiteSpace(dto.Batch) &&
+                dto.RefYear.HasValue)
+            {
+                // ✅ First time assigning ref number via edit form — generate the code
+                refCodeToSave = RegionRomanNumeralHelper.GenerateRefCode();
+            }
+
+            beneficiary.Update(
+                dto.Quarter, dto.Batch, dto.RefYear, refCodeToSave,
+                dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
                 dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
                 dto.LastName, dto.FirstName, dto.MiddleName,
                 dto.Extension, dto.BirthDate, dto.PhoneNumber,
@@ -624,9 +644,9 @@ namespace EcaInformationSystem.Application.Services
                     $"{CommonConstants.UpdatedBeneficiaryChanges} {string.Join("; ", changes)}",
                     userName);
             }
+
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
-
         }
         public async Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId)
         {
@@ -2328,6 +2348,7 @@ namespace EcaInformationSystem.Application.Services
                         Quarter = quarter,        // ✅
                         Batch = batch.Trim(),   // ✅
                         RefYear = refYear,        // ✅
+                        RefCode = RegionRomanNumeralHelper.GenerateRefCode(), // ✅ unique per record
                         DateApplied = effectiveDateApplied, //This is our column 23 
                         DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),

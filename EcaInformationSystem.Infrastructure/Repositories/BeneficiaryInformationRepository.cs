@@ -160,6 +160,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Quarter = b.Quarter,
                     Batch = b.Batch,
                     RefYear = b.RefYear,
+                    RefCode = b.RefCode,
                     DateApplied = b.DateApplied,
                     DateEndorsed = b.DateEndorsed,
                     BatchCode = b.BatchCode,
@@ -308,6 +309,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  Quarter = b.Quarter,
                  Batch = b.Batch,
                  RefYear = b.RefYear,
+                 RefCode = b.RefCode,
                  DateApplied = b.DateApplied,
                  DateEndorsed = b.DateEndorsed,
                  BatchCode = b.BatchCode,
@@ -687,10 +689,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
                     // ── Birth year ────────────────────────────────────────────────────
                     (yearTerm > 0 && x.Beneficiary.BirthDate.Year == yearTerm) ||
-                    
+
                     // ── Reference number components ───────────────────────────────────────────
                     (x.Beneficiary.Batch != null && x.Beneficiary.Batch.ToLower().Contains(term)) ||
                     (yearTerm > 0 && x.Beneficiary.RefYear == yearTerm) ||
+                    // ── Ref Code ──────────────────────────────────────────────────────────────
+                    (x.Beneficiary.RefCode != null && x.Beneficiary.RefCode.ToLower().Contains(term)) ||
 
                     // ── Finding remarks ───────────────────────────────────────────────
                     (x.FindingRemarks != null && x.FindingRemarks.ToLower().Contains(term))
@@ -1052,6 +1056,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Quarter = x.Beneficiary.Quarter,
                     Batch = x.Beneficiary.Batch,
                     RefYear = x.Beneficiary.RefYear,
+                    RefCode = x.Beneficiary.RefCode,
                     DateApplied = x.Beneficiary.DateApplied,
                     DateEndorsed = x.Beneficiary.DateEndorsed,
                     BatchCode = x.Beneficiary.BatchCode,
@@ -1107,6 +1112,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             Quarter = x.Quarter,
             Batch = x.Batch,
             RefYear = x.RefYear,
+            RefCode = x.RefCode,
             DateApplied = x.DateApplied,
             DateEndorsed = x.DateEndorsed,
             BatchCode = x.BatchCode,
@@ -1226,6 +1232,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     b.Quarter,
                     b.Batch,
                     b.RefYear,
+                    b.RefCode,
                     b.BatchCode,
                     b.OscaIdNumber,
                     b.OscaIdDateIssued,
@@ -1291,6 +1298,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 Quarter = x.Quarter,
                 Batch = x.Batch,
                 RefYear = x.RefYear,
+                RefCode = x.RefCode,
                 DateApplied = x.DateApplied,
                 DateEndorsed = x.DateEndorsed,
                 BatchCode = x.BatchCode,
@@ -1371,6 +1379,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public int? Quarter { get; set; }
             public string? Batch { get; set; }
             public int? RefYear { get; set; }
+            public string? RefCode { get; set; }
             public DateTime? DateApplied { get; set; }
             public DateTime? DateEndorsed { get; set; }
             public string? BatchCode { get; set; }

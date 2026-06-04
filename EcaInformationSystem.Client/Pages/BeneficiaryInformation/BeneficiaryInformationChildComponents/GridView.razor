@@ -111,8 +111,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -140,7 +140,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any() || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -173,7 +173,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
                                         disabled="@(!checkedIds.Any() || string.IsNullOrWhiteSpace(bulkCoStatus) || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
-                                                                                                                                                                                                                                                || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
+                                                                                                                                                                                                                                                                                                                                                                                                                || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
                                     @if (IsBulkUpdatingCoStatus)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -204,10 +204,10 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkRefNumberModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefQuarter)
-                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefBatch)
-                                                                                                                                                                                                                                                                                         || bulkRefYear == null
-                                                                                                                                                                                                                                                                                         || IsBulkUpdatingRefNumber)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefQuarter)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefBatch)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                         || bulkRefYear == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                         || IsBulkUpdatingRefNumber)">
                                     @if (IsBulkUpdatingRefNumber)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -363,6 +363,17 @@
                                                         {
                                                             <span class="tbl-badge ref-no" title="@refNo">
                                                                 @Highlight(refNo)
+                                                            </span>
+                                                        }
+                                                        else if (item.Quarter.HasValue &&
+                                                                 !string.IsNullOrWhiteSpace(item.Batch) &&
+                                                                 item.RefYear.HasValue)
+                                                        {
+                                                            @* ✅ Quarter/Batch/Year set but RefCode missing — old record before
+                                                    migration *@
+                                                            <span class="tbl-badge ref-no text-muted" style="opacity:0.6;"
+                                                                  title="Reference code not yet generated">
+                                                                Q@(item.Quarter)B@(item.Batch)-@(item.RefYear?.ToString("D2"))-?????-@RegionRomanNumeralHelper.GetRoman(item.PsgcCodeRegion)
                                                             </span>
                                                         }
                                                         else
@@ -531,6 +542,10 @@
                 <strong>@GetBulkRefPreview()</strong>
                 to <strong>@checkedIds.Count</strong> record(s).
             </p>
+            <p class="text-muted small mb-0">
+                <i class="bi bi-info-circle me-1"></i>
+                Each record will receive a unique 5-digit code in place of <strong>#####</strong>.
+            </p>
         </BodyTemplate>
         <FooterTemplate>
             <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkRefNumberModal.HideAsync()">
@@ -673,28 +688,26 @@
                     <div class="col-12">
                         <small class="text-muted d-block">Reference Number</small>
                         @{
-                            var refNo = selectedDetails!.ReferenceNumber;
+                            var detailRefNo = selectedDetails!.ReferenceNumber;
                         }
-                        @if (!string.IsNullOrWhiteSpace(refNo))
+                        @if (!string.IsNullOrWhiteSpace(detailRefNo))
                         {
-                            <span class="tbl-badge ref-no fs-6">@refNo</span>
+                            <span class="tbl-badge ref-no fs-6">@detailRefNo</span>
+                        }
+                        else if (selectedDetails.Quarter.HasValue &&
+                                 !string.IsNullOrWhiteSpace(selectedDetails.Batch) &&
+                                 selectedDetails.RefYear.HasValue)
+                        {
+                            @* ✅ Partial — has Q/B/Y but no RefCode yet *@
+                            <span class="text-warning fst-italic">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                Code not yet generated — use bulk assign to fix
+                            </span>
                         }
                         else
                         {
                             <span class="text-muted fst-italic">Not assigned yet</span>
                         }
-                    </div>
-                    <div class="col-4">
-                        <small class="text-muted d-block">Quarter</small>
-                        <span>@(selectedDetails.Quarter.HasValue ? $"Q{selectedDetails.Quarter}" : "—")</span>
-                    </div>
-                    <div class="col-4">
-                        <small class="text-muted d-block">Batch</small>
-                        <span>@(selectedDetails.Batch ?? "—")</span>
-                    </div>
-                    <div class="col-4">
-                        <small class="text-muted d-block">Year</small>
-                        <span>@(selectedDetails.RefYear.HasValue ? selectedDetails.RefYear.ToString() : "—")</span>
                     </div>
                 </div>
                 <!-- Identity -->
@@ -1161,15 +1174,15 @@
             bulkRefYear == null)
             return "—";
 
-        // Use first checked item's region for preview
         var firstItem = State.Beneficiaries
             .FirstOrDefault(x => checkedIds.Contains(x.Id));
 
-        return RegionRomanNumeralHelper.BuildReferenceNumber(
-            int.TryParse(bulkRefQuarter, out var q) ? q : 0,
-            bulkRefBatch,
-            bulkRefYear.Value,
-            firstItem?.PsgcCodeRegion);
+        var quarter = int.TryParse(bulkRefQuarter, out var q) ? q : 0;
+        var year = bulkRefYear.Value.ToString("D2");
+        var roman = RegionRomanNumeralHelper.GetRoman(firstItem?.PsgcCodeRegion);
+
+        // ✅ RefCode is generated server-side per record — show placeholder here
+        return $"Q{quarter}B{bulkRefBatch}-{year}-#####-{roman}";
     }
     private async Task OpenBulkRefNumberModal()
     {

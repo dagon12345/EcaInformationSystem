@@ -52,18 +52,22 @@
                          !string.IsNullOrWhiteSpace(model.Batch) &&
                          model.RefYear.HasValue)
                     {
+                        var yearFormatted = model.RefYear.Value.ToString("D2");
+                        var roman = RegionRomanNumeralHelper.GetRoman(model.PsgcCodeRegion);
+                        var refDisplay = !string.IsNullOrWhiteSpace(model.RefCode)
+                                                ? model.RefCode
+                                                : "#####"; // ✅ placeholder if not yet generated
+
                         <div class="ff" style="grid-column: 1 / -1;">
                             <div class="alert alert-success py-2 mb-0 d-flex align-items-center gap-2">
                                 <i class="bi bi-check-circle-fill"></i>
                                 <span>
                                     Reference Number:
-                                    <strong>
-                                        @RegionRomanNumeralHelper.BuildReferenceNumber(
-                                            model.Quarter,
-                                            model.Batch,
-                                            model.RefYear,
-                                            model.PsgcCodeRegion)
-                                    </strong>
+                                    <strong>Q@(model.Quarter)B@(model.Batch)-@yearFormatted-@refDisplay-@roman</strong>
+                                    @if (string.IsNullOrWhiteSpace(model.RefCode))
+                                    {
+                                        <small class="text-muted ms-1">(unique code assigned on save)</small>
+                                    }
                                 </span>
                             </div>
                         </div>
@@ -1209,6 +1213,11 @@
         // ── Build pending DTO (without quarter/batch yet) ─────────────────────
         _pendingDto = new CreateBeneficiaryInformationDto
         {
+            // ... all existing fields unchanged ...
+            Quarter = model.Quarter,
+            Batch = model.Batch,
+            RefYear = model.RefYear,
+            RefCode = model.RefCode, // ✅ carry existing RefCode if editing
             DateApplied = model.DateApplied,
             DateEndorsed = model.DateEndorsed,
             BatchCode = model.BatchCode,

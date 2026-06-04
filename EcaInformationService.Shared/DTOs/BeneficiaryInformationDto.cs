@@ -12,6 +12,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? Quarter { get; set; }
         public string? Batch { get; set; }
         public int? RefYear { get; set; }
+        public string? RefCode { get; set; }
         public DateTime? DateApplied { get; set; }
         public DateTime? DateEndorsed { get; set; }
         public string? BatchCode { get; set; }
@@ -87,8 +88,10 @@ namespace EcaInformationSystem.Shared.DTOs
                 _ => ""
             };
         }
-        // ✅ Computed — not stored in DB
+
+        // ✅ Now passes RefCode — generated once, stored in DB
         public string? ReferenceNumber =>
-            RegionRomanNumeralHelper.BuildReferenceNumber(Quarter, Batch, RefYear, PsgcCodeRegion);
+            RegionRomanNumeralHelper.BuildReferenceNumber(
+                Quarter, Batch, RefYear, RefCode, PsgcCodeRegion);
     }
 }
