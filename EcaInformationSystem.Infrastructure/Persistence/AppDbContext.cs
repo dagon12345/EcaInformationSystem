@@ -70,7 +70,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.IsDeleted, x.Quarter, x.Batch, x.RefYear });
                 entity.HasIndex(x => new { x.IsDeleted, x.Quarter });
                 entity.HasIndex(x => new { x.IsDeleted, x.Batch });
-                entity.HasIndex(x => new{x.IsDeleted, x.RefYear});
+                entity.HasIndex(x => new { x.IsDeleted, x.RefYear });
 
 
             });
@@ -117,6 +117,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             .HasIndex(x => x.UserName)
             .IsUnique();
 
+            modelBuilder.Entity<BeneficiaryInformation>()
+            .Property(x => x.RowVersion)
+            .IsRowVersion();
         }
     }
 }

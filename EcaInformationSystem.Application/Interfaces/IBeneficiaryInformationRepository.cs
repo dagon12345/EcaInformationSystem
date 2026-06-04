@@ -14,6 +14,8 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter);
         Task AddAsync(BeneficiaryInformation beneficiaryInformation);
         Task UpdateAsync(BeneficiaryInformation beneficiaryInformation);
+        // ✅ Clean abstraction — no EF Core reference needed by caller
+        void SetOriginalRowVersion(BeneficiaryInformation entity, byte[] rowVersion);
         Task SaveChangesAsync();
         Task<bool> ExistsDuplicateAsync(string? lastName,
             string? firstName,
@@ -25,13 +27,13 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<int?> GetProvinceCodeByNameAsync(string provinceName);
         Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName);
         Task<int?> GetBarangayCodeByNameAsync(string barangayName);
-        Task<BeneficiaryInformation?> FindExistingAsync(string? lastName,string? firstName, string? middleName, DateTime birthDate);
+        Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate);
 
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate);
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, Dictionary<Guid, byte[]>? rowVersions = null); //Added
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
         Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
-        Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode);
-        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved);
+        Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);
+        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
     }
 }

@@ -2,6 +2,7 @@
 using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Common.Enum;
+using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -80,13 +81,28 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        public async Task<IActionResult> Update(
-            Guid id, [FromBody] BeneficiaryInformationDto dto)
+        public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)
         {
-            await _service.UpdateAsync(id, dto, User.Identity?.Name ?? "System");
-            return NoContent();
-        }
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
+            var userName = User.Identity?.Name ?? "Unknown";
+
+            try
+            {
+                await _service.UpdateAsync(id, dto, userName);
+                return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                // ✅ 409 Conflict — client knows to reload
+                return Conflict(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
         [HttpDelete("soft-delete/{id:guid}")]
         public async Task<IActionResult> Delete(Guid id)
         {
@@ -224,13 +240,18 @@ namespace EcaInformationSystem.Api.Controllers
                 var userName = User.Identity?.Name ?? "System";
 
                 await _service.BulkUpdatePaymentStatusAsync(
-                    request.Ids, 
+                    request.Ids,
                     request.PaymentStatus,
-                    request.ModeOfPayment, 
-                    request.PaymentDate, 
-                    userName);
+                    request.ModeOfPayment,
+                    request.PaymentDate,
+                    userName,
+                    request.RowVersions);
 
                 return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
             }
             catch (Exception ex)
             {
@@ -248,8 +269,13 @@ namespace EcaInformationSystem.Api.Controllers
                     dto.CoStatus,
                     dto.CoDateEndorsed,
                     dto.CoDateApproved,
-                    userName);
+                    userName,
+                    dto.RowVersions);
                 return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
             }
             catch (Exception ex)
             {
@@ -265,12 +291,17 @@ namespace EcaInformationSystem.Api.Controllers
                 await _service.BulkUpdateEligibilityAndBatchCodeAsync(request.Ids,
                 request.IsEligible,
                 request.BatchCode,
-                userName);
+                userName,
+                request.RowVersions);
                 return Ok(new { message = "Bulk update successful" });
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(ex.Message);
             }
         }
 

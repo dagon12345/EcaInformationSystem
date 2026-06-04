@@ -1,6 +1,7 @@
 ﻿using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
@@ -211,7 +212,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = b.CoStatus,
                     CoDateEndorsed = b.CoDateEndorsed,
                     CoDateApproved = b.CoDateApproved,
-                    IsDeleted = b.IsDeleted
+                    IsDeleted = b.IsDeleted,
+                    RowVersion = b.RowVersion
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 
@@ -427,7 +429,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task SaveChangesAsync()
         {
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // ✅ Translate EF Core exception → Domain exception
+                // Application layer catches ConcurrencyException, never DbUpdateConcurrencyException
+                throw new ConcurrencyException(
+                    "This record was modified by another user while you were editing it. " +
+                    "Please reload the record and apply your changes again.",
+                    ex);
+            }
         }
 
         public Task UpdateAsync(BeneficiaryInformation beneficiaryInformation)
@@ -436,48 +450,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return Task.CompletedTask;
         }
 
-        public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode)
-        {
-            var beneficiaries = await _context.BeneficiaryInformations
-            .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
-            .ToListAsync();
-
-            foreach (var b in beneficiaries)
-            {
-                if (isEligible.HasValue)
-                    b.IsEligible = isEligible.Value;
-
-                if (batchCode != null) // null meanse don't touch, empty string means clear it.
-                    b.BatchCode = string.IsNullOrWhiteSpace(batchCode) ? null : batchCode.Trim();
-            }
-            await _context.SaveChangesAsync();
-        }
-        public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved)
-        {
-            var beneficiaries = await _context.BeneficiaryInformations
-            .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
-            .ToListAsync();
-
-            foreach (var b in beneficiaries)
-            {
-                if (coStatus.HasValue)
-                    b.CoStatus = coStatus.Value;
-
-                //Only set date if status matches
-                if (coStatus == 1)
-                {
-                    b.CoDateEndorsed = coDateEndorsed;
-                    //b.CoDateApproved = null; //clear approved when setting endorsed // Optional
-                }
-                else if (coStatus == 2)
-                {
-                    b.CoDateApproved = coDateApproved;
-                    //keep endorsed date intact
-                }
-            }
-            await _context.SaveChangesAsync();
-        }
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate)
+        public async Task BulkUpdateEligibilityAndBatchCodeAsync(
+     List<Guid> ids,
+     bool? isEligible,
+     string? batchCode,
+     Dictionary<Guid, byte[]>? rowVersions = null)
         {
             var beneficiaries = await _context.BeneficiaryInformations
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
@@ -485,21 +462,127 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             foreach (var b in beneficiaries)
             {
+                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                {
+                    _context.Entry(b)
+                            .Property(x => x.RowVersion)
+                            .OriginalValue = rv;
+                }
+
+                if (isEligible.HasValue)
+                    b.IsEligible = isEligible.Value;
+
+                if (batchCode != null)
+                    b.BatchCode = string.IsNullOrWhiteSpace(batchCode)
+                        ? null
+                        : batchCode.Trim();
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var conflictedNames = GetConflictedRecordNames(ex);
+
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: " +
+                    $"{conflictedNames}. Please refresh and try again.", ex);
+            }
+        }
+        public async Task BulkUpdateCoStatusAsync(
+            List<Guid> ids,
+            int? coStatus,
+            DateTime? coDateEndorsed,
+            DateTime? coDateApproved,
+            Dictionary<Guid, byte[]>? rowVersions = null)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+                .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                {
+                    _context.Entry(b)
+                            .Property(x => x.RowVersion)
+                            .OriginalValue = rv;
+                }
+
+                if (coStatus.HasValue)
+                    b.CoStatus = coStatus.Value;
+
+                if (coStatus == 1)
+                    b.CoDateEndorsed = coDateEndorsed;
+                else if (coStatus == 2)
+                    b.CoDateApproved = coDateApproved;
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var conflictedNames = GetConflictedRecordNames(ex);
+
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: " +
+                    $"{conflictedNames}. Please refresh and try again.", ex);
+            }
+        }
+        public async Task BulkUpdatePaymentStatusAsync(
+            List<Guid> ids,
+            int paymentStatus,
+            int? modeOfPayment,
+            DateTime? paymentDate,
+            Dictionary<Guid, byte[]>? rowVersions = null)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+                .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                // ✅ Set the original RowVersion the client saw
+                // EF Core will now check: WHERE Id = X AND RowVersion = [client version]
+                // If DB has a newer version → DbUpdateConcurrencyException
+                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                {
+                    _context.Entry(b)
+                            .Property(x => x.RowVersion)
+                            .OriginalValue = rv;
+                }
+
                 b.PaymentStatus = paymentStatus;
 
                 if (paymentStatus == 2)
                 {
                     b.PaymentDate = paymentDate;
-                    b.ModeOfPayment = modeOfPayment ?? 0; // ✅ set mode when Paid
+                    b.ModeOfPayment = modeOfPayment ?? 0;
                 }
                 else
                 {
                     b.PaymentDate = null;
-                    b.ModeOfPayment = 0; // ✅ clear mode when not Paid
+                    b.ModeOfPayment = 0;
                 }
             }
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // ✅ Find which records caused the conflict for a better error message
+                var conflictedNames = GetConflictedRecordNames(ex);
+
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: " +
+                    $"{conflictedNames}. Please refresh and try again.", ex);
+            }
         }
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter)
         {
@@ -1122,7 +1205,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     FindingRemarks = x.FindingRemarks,
                     CoStatus = x.Beneficiary.CoStatus,
                     CoDateEndorsed = x.Beneficiary.CoDateEndorsed,
-                    CoDateApproved = x.Beneficiary.CoDateApproved
+                    CoDateApproved = x.Beneficiary.CoDateApproved,
+                    RowVersion = x.Beneficiary.RowVersion
                 });
         }
 
@@ -1185,7 +1269,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             FindingRemarks = x.FindingRemarks,
             CoStatus = x.CoStatus,
             CoDateEndorsed = x.CoDateEndorsed,
-            CoDateApproved = x.CoDateApproved
+            CoDateApproved = x.CoDateApproved,
+            RowVersion = x.RowVersion
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -1222,7 +1307,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
                     x.BirthDate.Date == normalizedBirthDate);
         }
-
+        // Infrastructure/Repositories/BeneficiaryInformationRepository.cs
+        public void SetOriginalRowVersion(BeneficiaryInformation entity, byte[] rowVersion)
+        {
+            // ✅ EF Core only used here in Infrastructure — not in Application
+            _context.Entry(entity)
+                    .Property(x => x.RowVersion)
+                    .OriginalValue = rowVersion;
+        }
         public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)
         {
             // Step 1: Fetch the raw data with joins (no JsonElement in projection)
@@ -1297,6 +1389,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     ProvinceName = province != null ? province.Name : null,
                     MunicipalityName = municipality != null ? municipality.Name : null,
                     BarangayName = barangay != null ? barangay.Name : null,
+                    b.RowVersion
                 }
             ).AsNoTracking().ToListAsync();
 
@@ -1369,6 +1462,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 CoDateEndorsed = x.CoDateEndorsed,
                 CoDateApproved = x.CoDateApproved,
                 IsDeleted = x.IsDeleted,
+                RowVersion = x.RowVersion,
 
                 MilestoneYear =
                     (x.BirthDate.Year + 100) <= DateTime.Today.Year && (x.BirthDate.Year + 100) >= 2024 ? x.BirthDate.Year + 100 :
@@ -1383,6 +1477,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
 
         #region Private functions
+        // ✅ Helper — extracts names from conflicted entries for a useful error message
+        private static string GetConflictedRecordNames(DbUpdateConcurrencyException ex)
+        {
+            var names = ex.Entries
+                .Where(e => e.Entity is BeneficiaryInformation)
+                .Select(e =>
+                {
+                    var entity = (BeneficiaryInformation)e.Entity;
+                    return $"{entity.LastName}, {entity.FirstName}";
+                })
+                .ToList();
+
+            return names.Any()
+                ? string.Join("; ", names)
+                : "unknown record(s)";
+        }
         private sealed class BeneficiaryQueryModel
         {
             public BeneficiaryInformation Beneficiary { get; set; } = default!;
@@ -1446,6 +1556,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public int? CoStatus { get; set; }
             public DateTime? CoDateEndorsed { get; set; }
             public DateTime? CoDateApproved { get; set; }
+            public byte[]? RowVersion { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

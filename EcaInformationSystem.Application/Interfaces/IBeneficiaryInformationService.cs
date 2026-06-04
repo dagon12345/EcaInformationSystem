@@ -18,7 +18,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
         Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
         Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string userName);
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
@@ -35,8 +35,8 @@ namespace EcaInformationSystem.Application.Interfaces
                 int quarter,      // ✅ new
                 string batch,     // ✅ new
                 int refYear);     // ✅ new
-        Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName);
-        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName);
+        Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
+        Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);
     }
 }

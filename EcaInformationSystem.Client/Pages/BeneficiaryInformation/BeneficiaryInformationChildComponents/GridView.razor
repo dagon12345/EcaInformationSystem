@@ -120,8 +120,8 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -149,7 +149,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any() || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -182,7 +182,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
                                         disabled="@(!checkedIds.Any() || string.IsNullOrWhiteSpace(bulkCoStatus) || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
                                     @if (IsBulkUpdatingCoStatus)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -213,10 +213,10 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkRefNumberModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefQuarter)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefBatch)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || bulkRefYear == null
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || IsBulkUpdatingRefNumber)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefQuarter)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefBatch)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || bulkRefYear == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || IsBulkUpdatingRefNumber)">
                                     @if (IsBulkUpdatingRefNumber)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -1285,6 +1285,12 @@
         {
             IsBulkUpdatingCoStatus = true;
 
+            // ✅ Build RowVersions from the currently displayed records
+            // State.Beneficiaries contains the DTOs with RowVersion from last load
+            var rowVersions = State.Beneficiaries
+                .Where(x => checkedIds.Contains(x.Id) && x.RowVersion != null)
+                .ToDictionary(x => x.Id, x => x.RowVersion!);
+
             var request = new
             {
                 Ids = checkedIds.ToList(),
@@ -1295,6 +1301,16 @@
 
             var response = await Http.PostAsJsonAsync(
                 "api/beneficiary/bulk-co-status", request);
+
+            // ✅ Handle concurrency conflict
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                var message = await response.Content.ReadAsStringAsync();
+                toast.ShowError(message);
+                State.Invalidate();
+                await State.LoadAsync();
+                return;
+            }
 
             if (response.IsSuccessStatusCode)
             {
@@ -1376,6 +1392,11 @@
         try
         {
             IsBulkUpdatingOther = true;
+            // ✅ Build RowVersions from the currently displayed records
+            // State.Beneficiaries contains the DTOs with RowVersion from last load
+            var rowVersions = State.Beneficiaries
+                .Where(x => checkedIds.Contains(x.Id) && x.RowVersion != null)
+                .ToDictionary(x => x.Id, x => x.RowVersion!);
 
             // Parse eligibility — null means "don't touch"
             bool? parsedEligible = bulkIsEligible switch
@@ -1399,6 +1420,16 @@
 
             var response = await Http.PostAsJsonAsync(
                 "api/beneficiary/bulk-eligibility-batchcode", request);
+
+            // ✅ Handle concurrency conflict
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                var message = await response.Content.ReadAsStringAsync();
+                toast.ShowError(message);
+                State.Invalidate();
+                await State.LoadAsync();
+                return;
+            }
 
             if (response.IsSuccessStatusCode)
             {
@@ -1885,6 +1916,11 @@
         try
         {
             IsBulkUpdating = true;
+            // ✅ Build RowVersions from the currently displayed records
+            // State.Beneficiaries contains the DTOs with RowVersion from last load
+            var rowVersions = State.Beneficiaries
+                .Where(x => checkedIds.Contains(x.Id) && x.RowVersion != null)
+                .ToDictionary(x => x.Id, x => x.RowVersion!);
 
             // 1. Create the request object matching the Controller's DTO
             var request = new
@@ -1897,6 +1933,17 @@
 
             // 2. Call the API directly using HttpClient
             var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-payment-status", request);
+
+            // ✅ Handle concurrency conflict
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                var message = await response.Content.ReadAsStringAsync();
+                toast.ShowError(message);
+                // ✅ Reload so user sees the current state
+                State.Invalidate();
+                await State.LoadAsync();
+                return;
+            }
 
             if (response.IsSuccessStatusCode)
             {

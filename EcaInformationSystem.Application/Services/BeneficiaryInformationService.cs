@@ -523,7 +523,8 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName)
+        public async Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode,
+            string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
         {
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
@@ -531,7 +532,9 @@ namespace EcaInformationSystem.Application.Services
             if (!isEligible.HasValue && batchCode == null)
                 throw new Exception("Nothing to update. Select at least one field to change.");
 
-            await _repo.BulkUpdateEligibilityAndBatchCodeAsync(ids, isEligible, batchCode);
+            await _repo.BulkUpdateEligibilityAndBatchCodeAsync(
+                ids, isEligible, batchCode, rowVersions);  // ✅
+
             var parts = new List<string>();
             if (isEligible.HasValue)
                 parts.Add($"Eligibility -> {(isEligible.Value ? "Eligible" : "Ineligible")}");
@@ -543,23 +546,25 @@ namespace EcaInformationSystem.Application.Services
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
-
         }
 
-        public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName)
+        public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved,
+        string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
         {
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
+
             if (!coStatus.HasValue)
                 throw new Exception("Co Status is required");
-            //Endorsed requires date
+
             if (coStatus == 1 && !coDateEndorsed.HasValue)
                 throw new Exception("CO Date Endorsed is required when status is Endorsed.");
-            //Approved requires a date
+
             if (coStatus == 2 && !coDateApproved.HasValue)
                 throw new Exception("CO Date Approved is required when status is Approved");
 
-            await _repo.BulkUpdateCoStatusAsync(ids, coStatus, coDateEndorsed, coDateApproved);
+            await _repo.BulkUpdateCoStatusAsync(
+                ids, coStatus, coDateEndorsed, coDateApproved, rowVersions);  // ✅
 
             var statusLabel = CoStatusLabel(coStatus.Value);
 
@@ -570,30 +575,34 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string userName)
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+         string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
         {
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
 
-            if (paymentStatus != 1 && paymentStatus != 2 && paymentStatus != 3 && paymentStatus != 0)
+            if (paymentStatus != 1 && paymentStatus != 2 &&
+                paymentStatus != 3 && paymentStatus != 0)
                 throw new Exception(CommonConstants.InvalidPaymentStatus);
 
-            // ✅ Paid requires a date
             if (paymentStatus == 2 && paymentDate == null)
                 throw new Exception(CommonConstants.PaymentDateRequiredForPaidStatus);
 
             if (paymentStatus == 2 && !modeOfPayment.HasValue)
-                throw new Exception("Mode of Payment is required when status is Paid.");  // ✅
+                throw new Exception("Mode of Payment is required when status is Paid.");
 
+            await _repo.BulkUpdatePaymentStatusAsync(
+                ids, paymentStatus, modeOfPayment, paymentDate, rowVersions);  // ✅
 
-            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus, modeOfPayment, paymentDate);
-
-            var statusLabel = paymentStatus == 2 ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})" : CommonConstants.Unpaid;
+            var statusLabel = paymentStatus == 2
+                ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})"
+                : CommonConstants.Unpaid;
 
             foreach (var id in ids)
-            {
-                await AddLogAsync(id, $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}", userName);
-            }
+                await AddLogAsync(
+                    id,
+                    $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}",
+                    userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
@@ -604,21 +613,24 @@ namespace EcaInformationSystem.Application.Services
             if (beneficiary == null)
                 throw new Exception(CommonConstants.GranteeNotFound);
 
+            // ✅ Clean — no EF Core in Application layer
+            if (dto.RowVersion != null)
+                _repo.SetOriginalRowVersion(beneficiary, dto.RowVersion);
+
             var isDuplicate = await _repo.ExistsDuplicateAsync(
                 dto.LastName, dto.FirstName, dto.MiddleName, dto.BirthDate, Id);
 
+            if (isDuplicate)
+                throw new Exception(CommonConstants.DuplicateFound);
+
             var changes = await GetChangedFields(beneficiary, dto);
 
-            // ✅ Preserve existing RefCode — only generate a new one if
-            // Quarter/Batch/RefYear are being set for the first time (RefCode was null)
             var refCodeToSave = beneficiary.RefCode;
-
             if (string.IsNullOrWhiteSpace(refCodeToSave) &&
                 dto.Quarter.HasValue &&
                 !string.IsNullOrWhiteSpace(dto.Batch) &&
                 dto.RefYear.HasValue)
             {
-                // ✅ First time assigning ref number via edit form — generate the code
                 refCodeToSave = RegionRomanNumeralHelper.GenerateRefCode();
             }
 
@@ -647,6 +659,8 @@ namespace EcaInformationSystem.Application.Services
                     userName);
             }
 
+            // ✅ ConcurrencyException thrown from repository's SaveChangesAsync
+            // No try/catch needed here — let it bubble up to the controller
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }

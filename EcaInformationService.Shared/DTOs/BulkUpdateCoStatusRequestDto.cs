@@ -6,5 +6,6 @@ namespace EcaInformationService.Shared.DTOs
         public int? CoStatus { get; set; }
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
+        public Dictionary<Guid, byte[]> RowVersions { get; set; } = new();
     }
 }
