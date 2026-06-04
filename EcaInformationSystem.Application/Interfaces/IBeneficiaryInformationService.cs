@@ -18,7 +18,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
         Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
         Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName);
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string userName);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);

@@ -106,13 +106,22 @@
                                     <option value="3">Pending</option>
                                 </select>
 
+                                @* ✅ Mode of Payment — only enabled when Paid (2) *@
+                                <select class="form-select form-select-sm w-auto" @bind="bulkModeOfPayment"
+                                        disabled="@(bulkPaymentStatus != 2)">
+                                    <option value="">-- Mode of Payment --</option>
+                                    <option value="1">Cash Advance by SDO</option>
+                                    <option value="2">Bank Transfer</option>
+                                </select>
+
+
                                 <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
                                            @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                || IsBulkUpdating)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || bulkPaymentStatus == null || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdating)">
                                     @if (IsBulkUpdating)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -140,7 +149,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                         disabled="@(!checkedIds.Any() || (string.IsNullOrWhiteSpace(bulkBatchCode) && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                                                                                                                                                                                                                || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || IsBulkUpdatingOther)">
                                     @if (IsBulkUpdatingOther)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -173,7 +182,7 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
                                         disabled="@(!checkedIds.Any() || string.IsNullOrWhiteSpace(bulkCoStatus) || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
-                                                                                                                                                                                                                                                                                                                                                                                                                || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        || (bulkCoStatus == "2" && bulkCoDateApproved == null) || IsBulkUpdatingCoStatus)">
                                     @if (IsBulkUpdatingCoStatus)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -204,10 +213,10 @@
 
                                 <button class="btn btn-sm btn-primary" @onclick="OpenBulkRefNumberModal"
                                         disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefQuarter)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                         || string.IsNullOrWhiteSpace(bulkRefBatch)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                         || bulkRefYear == null
-                                                                                                                                                                                                                                                                                                                                                                                                                                                         || IsBulkUpdatingRefNumber)">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefQuarter)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || string.IsNullOrWhiteSpace(bulkRefBatch)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || bulkRefYear == null
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 || IsBulkUpdatingRefNumber)">
                                     @if (IsBulkUpdatingRefNumber)
                                     {
                                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -337,6 +346,7 @@
                                             <th>Barangay</th>
                                             <th>Validator</th>
                                             <th>Payment</th>
+                                            <th>Mode</th>
                                             <th>Eligible</th>
                                             <th>Compliant</th>
                                             <th>CO Findings</th>
@@ -409,10 +419,27 @@
                                                     <td>@Highlight(item.MunicipalityName)</td>
                                                     <td>@Highlight(item.BarangayName)</td>
                                                     <td>@Highlight(item.Validator)</td>
+                                                    @* Payment *@
                                                     <td>
                                                         <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
                                                             @Highlight(GetPaymentStatusText(item.PaymentStatus))
                                                         </span>
+                                                    </td>
+
+                                                    @* Mode of Payment — ✅ new *@
+                                                    <td>
+                                                        @if (item.PaymentStatus == 2)
+                                                        {
+                                                            <span
+                                                                class="tbl-badge @GetModeOfPaymentBadgeClass(item.ModeOfPayment)"
+                                                                title="@GetModeOfPaymentText(item.ModeOfPayment)">
+                                                                @Highlight(GetModeOfPaymentText(item.ModeOfPayment))
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted small">—</span>
+                                                        }
                                                     </td>
                                                     <td>
                                                         @{
@@ -425,7 +452,7 @@
                                                             @Highlight(eligLabel)
                                                         </span>
                                                         @if (item.IsEligible &&
-                                                                                        !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
                                                         {
                                                             <br />
                                                             <small class="text-muted"
@@ -446,7 +473,7 @@
                                                             @Highlight(compLabel)
                                                         </span>
                                                         @if (item.IsCompliant &&
-                                                                                        !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
                                                         {
                                                             <br />
                                                             <small class="text-muted"
@@ -465,7 +492,7 @@
                                                             @Highlight(findLabel)
                                                         </span>
                                                         @if (item.FindingStatus == 2 &&
-                                                                                        !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.FindingRemarks))
                                                         {
                                                             <br />
                                                             <small class="text-muted"
@@ -514,7 +541,7 @@
                                         @if (!FilteredBeneficiaries.Any())
                                         {
                                             <tr class="filler-row">
-                                                <td colspan="17">
+                                                <td colspan="19">
                                                     @if (!State.IsLoading)
                                                     {
                                                         <span>No records found.</span>
@@ -572,20 +599,33 @@
             <p>
                 You are about to set <strong>@checkedIds.Count</strong> record(s) to
                 <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong>.
-                This action cannot be undone easily. Proceed?
             </p>
+            @if (bulkPaymentStatus == 2)
+            {
+                <ul class="mb-0">
+                    <li>
+                        Mode of Payment:
+                        <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong>
+                    </li>
+                    <li>
+                        Payment Date:
+                        <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong>
+                    </li>
+                </ul>
+            }
+            <p class="mt-2 mb-0 text-muted small">This action cannot be undone easily. Proceed?</p>
         </BodyTemplate>
         <FooterTemplate>
-            <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkUpdateModal.HideAsync()">Cancel</HxButton>
+            <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkUpdateModal.HideAsync()">
+                Cancel
+            </HxButton>
             <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkUpdateAsync" Disabled="@IsBulkUpdating">
                 @if (IsBulkUpdating)
                 {
-                    //No need spinner Hxmodal have already
                     <span>Updating...</span>
                 }
                 else
                 {
-
                     <span>Yes, Update</span>
                 }
             </HxButton>
@@ -1077,7 +1117,6 @@
     private CancellationTokenSource? _nameCts;
     private BeneficiaryInformationDto? selectedDetails;
     private HxOffcanvas detailsOffcanvas = default!;
-    private const int DefaultRegionCode = 1600000000;
     private HxModal bulkUpdateModal = default!;
     private HxModal logModal = default!;
     private HxModal confirmModal = default!;
@@ -1110,6 +1149,7 @@
     private int? bulkRefYear = null;
     private bool IsBulkUpdatingRefNumber;
     private HxModal bulkRefNumberModal = default!;
+    private int? bulkModeOfPayment = null;
     private async Task OnSingleRefNumberConfirmed(ReferenceNumberModal.RefNumberResult result)
     {
         if (selectedDetails == null) return;
@@ -1814,7 +1854,9 @@
     }
     private async Task OpenBulkUpdateModal()
     {
-        if (bulkPaymentStatus == null || !checkedIds.Any() || bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
+        if (bulkPaymentStatus == null || !checkedIds.Any()) return;
+        if (bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
+        if (bulkPaymentStatus == 2 && bulkModeOfPayment == null) return; // ✅
         await bulkUpdateModal.ShowAsync();
     }
     // ✅ AFTER — selects only visible filtered rows
@@ -1831,6 +1873,7 @@
         checkedIds.Clear();
         bulkPaymentStatus = null;
         bulkPaymentDate = null;
+        bulkModeOfPayment = null;
     }
     private void GoToDashboardSummary()
     {
@@ -1848,6 +1891,7 @@
             {
                 Ids = checkedIds.ToList(),
                 PaymentStatus = bulkPaymentStatus,
+                ModeOfPayment = bulkPaymentStatus == 2 ? bulkModeOfPayment : null, // ✅
                 PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null // ✅ 2 = Paid
             };
 
@@ -1985,6 +2029,19 @@
     }
 
     #region Private mapping
+    private string GetModeOfPaymentText(int mode) => mode switch
+    {
+        1 => "Cash Advance",
+        2 => "Bank Transfer",
+        _ => "—"
+    };
+
+    private string GetModeOfPaymentBadgeClass(int mode) => mode switch
+    {
+        1 => "pending", // yellow — cash advance
+        2 => "yes-b", // blue — bank transfer
+        _ => "no-g"       // grey
+    };
 
     private string GetCoStatusLabel(int? status) => status switch
     {
@@ -2027,13 +2084,6 @@
     {
         1 => "Filipino",
         2 => "Dual Citizenship",
-        _ => "—"
-    };
-
-    private string GetModeOfPaymentText(int mode) => mode switch
-    {
-        1 => "Cash Advance by SDO ",
-        2 => "Bank Transfer",
         _ => "—"
     };
     #endregion Private mapping - END

@@ -374,7 +374,8 @@
                 </div>
                 <div class="ff">
                     <label class="ff-label">Mode of Payment</label>
-                    <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment">
+                    <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment"
+                                 disabled="@(model.PaymentStatus != 2)"> @* ✅ disabled when not Paid *@
                         <option value="0">Select Mode</option>
                         <option value="1">Cash Advance by SDO</option>
                         <option value="2">Bank Transfer</option>
@@ -933,6 +934,7 @@
         // Clear payment date when switching away from Paid
         if (newStatus != 2)
             model.PaymentDate = null;
+            model.ModeOfPayment = 0;
 
         // ✅ Always update model.PaymentStatus immediately so the UI reacts
         // (date field enables/disables, required star shows, etc.)
@@ -968,6 +970,7 @@
         model.PaymentStatus = _originalPaymentStatus;
         if (_originalPaymentStatus != 2)
             model.PaymentDate = null;
+            model.ModeOfPayment = 0;
 
         _pendingPaymentStatus = 0;
         await _paymentConfirmModal.HideAsync();

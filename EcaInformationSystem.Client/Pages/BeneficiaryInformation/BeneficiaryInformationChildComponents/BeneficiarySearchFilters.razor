@@ -201,6 +201,15 @@
                                 <option value="3">Pending</option>
                             </select>
                         </div>
+                        @* MODE OF PAYMENT *@
+                        <div class="sf-field">
+                            <label>Mode of Payment</label>
+                            <select value="@_modeOfPaymentValue" @onchange="OnModeOfPaymentChanged" disabled="@IsLoading">
+                                <option value="">All</option>
+                                <option value="1">Cash Advance by SDO</option>
+                                <option value="2">Bank Transfer</option>
+                            </select>
+                        </div>
                         <div class="sf-field">
                             <label>Payment Date</label>
                             <input type="date" @bind="State.Filter.PaymentDate" />
@@ -484,7 +493,14 @@
     private void ToggleCollapse() => _collapsed = !_collapsed;
     private string _eligibilityValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
-
+    private string _modeOfPaymentValue = string.Empty;
+    private void OnModeOfPaymentChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _modeOfPaymentValue = val ?? string.Empty;
+        State.Filter.FilterModeOfPayment =
+            int.TryParse(val, out var id) && id > 0 ? id : null;
+    }
     private async Task OnGeneralSearchInput(ChangeEventArgs e)
     {
         State.Filter.GeneralSearch = e.Value?.ToString();
@@ -769,6 +785,8 @@
         State.Filter.FilterBatch = null;
         State.Filter.FilterRefYear = null;
         State.Filter.FilterRegionRoman = null;
+        _modeOfPaymentValue = string.Empty;
+        State.Filter.FilterModeOfPayment = null;
 
         State.Filter = new BeneficiaryFilterDto
         {
@@ -819,6 +837,7 @@
     string.IsNullOrWhiteSpace(f.FilterBatch) &&
     f.FilterRefYear == null &&
     string.IsNullOrWhiteSpace(f.FilterRegionRoman) &&
+    State.Filter.FilterModeOfPayment == null &&
     _birthdayToMonth == 0;
 
     private async Task LoadMunicipalitiesAsync(int provinceId)

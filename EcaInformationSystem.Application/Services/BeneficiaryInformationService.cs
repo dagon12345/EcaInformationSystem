@@ -570,7 +570,7 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate, string userName)
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string userName)
         {
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
@@ -582,9 +582,11 @@ namespace EcaInformationSystem.Application.Services
             if (paymentStatus == 2 && paymentDate == null)
                 throw new Exception(CommonConstants.PaymentDateRequiredForPaidStatus);
 
+            if (paymentStatus == 2 && !modeOfPayment.HasValue)
+                throw new Exception("Mode of Payment is required when status is Paid.");  // ✅
 
 
-            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus, paymentDate);
+            await _repo.BulkUpdatePaymentStatusAsync(ids, paymentStatus, modeOfPayment, paymentDate);
 
             var statusLabel = paymentStatus == 2 ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})" : CommonConstants.Unpaid;
 
@@ -3302,7 +3304,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
-                filter.FilterRegionRoman ?? CommonConstants.Null
+                filter.FilterRegionRoman ?? CommonConstants.Null,
+                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
@@ -3446,7 +3449,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
-                filter.FilterRegionRoman ?? CommonConstants.Null
+                filter.FilterRegionRoman ?? CommonConstants.Null,
+                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.

@@ -477,7 +477,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
             await _context.SaveChangesAsync();
         }
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, DateTime? paymentDate)
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate)
         {
             var beneficiaries = await _context.BeneficiaryInformations
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
@@ -486,9 +486,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             foreach (var b in beneficiaries)
             {
                 b.PaymentStatus = paymentStatus;
-                b.PaymentDate = paymentStatus == 2  // ✅ 2 = Paid → save date
-                    ? paymentDate
-                    : null; //✅ 1 = Unpaid → always null
+
+                if (paymentStatus == 2)
+                {
+                    b.PaymentDate = paymentDate;
+                    b.ModeOfPayment = modeOfPayment ?? 0; // ✅ set mode when Paid
+                }
+                else
+                {
+                    b.PaymentDate = null;
+                    b.ModeOfPayment = 0; // ✅ clear mode when not Paid
+                }
             }
 
             await _context.SaveChangesAsync();
@@ -635,6 +643,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     "approved" => 2,
                     _ => null
                 };
+                int? modeOfPaymentMatch = term switch
+                {
+                    "cash advance" => 1,
+                    "cash advance by sdo" => 1,
+                    "bank transfer" => 2,
+                    _ => null
+                };
                 // ✅ Flag for "not set" search — matches null or 0 CoStatus
                 bool searchCoNotSet = term == "not set";
 
@@ -672,6 +687,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (sexMatch.HasValue && x.Beneficiary.Sex == sexMatch.Value) ||
                     (paymentMatch.HasValue && x.Beneficiary.PaymentStatus == paymentMatch.Value) ||
                     (citizenshipMatch.HasValue && x.Beneficiary.Citizenship == citizenshipMatch.Value) ||
+                    (modeOfPaymentMatch.HasValue && x.Beneficiary.ModeOfPayment == modeOfPaymentMatch.Value) || // ✅ new
 
                     // ── CO Status — named values ──────────────────────────────────────
                     // "endorsed" → CoStatus == 1
@@ -941,6 +957,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // ── Payment Status ────────────────────────────────────────────────────
             if (filter.PaymentStatus.HasValue && filter.PaymentStatus.Value >= 0)
                 query = query.Where(x => x.Beneficiary.PaymentStatus == filter.PaymentStatus.Value);
+
+            // ── Mode of Payment Filter ────────────────────────────────────────────────
+            if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
+                query = query.Where(x =>
+                    x.Beneficiary.ModeOfPayment == filter.FilterModeOfPayment.Value);
 
             // ── Payment Date (exact) ──────────────────────────────────────────────
             if (filter.PaymentDate.HasValue)
