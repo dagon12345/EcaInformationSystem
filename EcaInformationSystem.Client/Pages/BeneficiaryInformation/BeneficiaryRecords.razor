@@ -6,13 +6,16 @@
 <!--This is where the search filters positioned-->
 <div class="card shadow-sm mb-3">
     <div class="card-header">
-        <BeneficiarySearchFilters/>
+        <BeneficiarySearchFilters OnFilterApplied="@(() => _list.RunDuplicateScanAsync())"/>
     </div>
 </div>
 <!--This is where the search filters positioned-->
 <div class="card shadow-sm mb-3">
     <div class="card-header">
-        <GridView/>
+        <GridView @ref="_list"/>
     </div>
 </div>
-
+@code
+{
+        private GridView _list = default!;
+}

@@ -79,6 +79,22 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        // BeneficiaryController.cs
+        // ✅ Change from GET with single param to POST with full filter
+        [HttpPost("possible-duplicates")]
+        public async Task<IActionResult> GetPossibleDuplicates(
+            [FromBody] BeneficiaryFilterDto filter)
+        {
+            try
+            {
+                var result = await _service.GetPossibleDuplicatesAsync(filter);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
 
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)

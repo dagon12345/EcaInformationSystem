@@ -30,6 +30,162 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
                 .ToListAsync();
         }
+        // Infrastructure/Repositories/BeneficiaryInformationRepository.cs
+        public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
+            BeneficiaryFilterDto filter,
+            int maxPairs = 50,
+            CancellationToken cancellationToken = default)
+        {
+            // ✅ REUSE your existing BuildBeneficiaryFilteredQuery
+            // This applies ALL active filters — province, payment status,
+            // municipality, barangay, eligibility, compliance, etc.
+            // Now the scan only sees the same records the grid shows
+            var candidates = await BuildBeneficiaryFilteredQuery(filter)
+                .Select(x => new
+                {
+                    x.Beneficiary.Id,
+                    x.Beneficiary.FirstName,
+                    x.Beneficiary.LastName,
+                    x.Beneficiary.MiddleName,
+                    x.Beneficiary.BirthDate,
+                    x.Beneficiary.OscaIdNumber,
+                    x.Beneficiary.PaymentStatus,
+                    MunicipalityName = x.Municipality,
+                    BarangayName = x.Barangay
+                })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            // ✅ Need at least 2 records to form a pair
+            if (candidates.Count < 2)
+                return new List<PossibleDuplicatePairDto>();
+
+            // ✅ Group by birth year — same optimization as before
+            // but now only operating on the already-filtered set
+            var byBirthYear = candidates
+                .GroupBy(x => x.BirthDate.Year)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            var pairs = new List<PossibleDuplicatePairDto>();
+            var seen = new HashSet<string>();
+
+            foreach (var yearGroup in byBirthYear)
+            {
+                var group = yearGroup.ToList();
+
+                for (int i = 0; i < group.Count; i++)
+                {
+                    for (int j = i + 1; j < group.Count; j++)
+                    {
+                        if (pairs.Count >= maxPairs)
+                            goto Done;
+
+                        var a = group[i];
+                        var b = group[j];
+
+                        var pairKey = string.Join("|",
+                            new[] { a.Id, b.Id }.OrderBy(x => x));
+                        if (!seen.Add(pairKey)) continue;
+
+                        // ── Gate 1: Birthdate window ──────────────────────────────
+                        var daysDiff = Math.Abs(
+                            (a.BirthDate - b.BirthDate).TotalDays);
+                        if (daysDiff > 365) continue;
+
+                        // ── Gate 2: Last name ─────────────────────────────────────
+                        var lastNameScore = ComputeNameSimilarity(
+                            a.LastName?.Trim(), b.LastName?.Trim());
+                        if (lastNameScore < 0.60) continue;
+
+                        // ── Gate 3: First name ────────────────────────────────────
+                        var firstNameScore = ComputeNameSimilarity(
+                            a.FirstName?.Trim(), b.FirstName?.Trim());
+                        if (firstNameScore < 0.60) continue;
+
+                        // ── Gate 4: Middle name analysis ──────────────────────────
+                        bool aHasMiddle = !string.IsNullOrWhiteSpace(a.MiddleName);
+                        bool bHasMiddle = !string.IsNullOrWhiteSpace(b.MiddleName);
+                        bool bothHaveMiddle = aHasMiddle && bHasMiddle;
+                        bool neitherHas = !aHasMiddle && !bHasMiddle;
+                        bool oneHas = aHasMiddle ^ bHasMiddle;
+
+                        double middleScore = 1.0;
+                        MiddleNameStatus middleStatus;
+
+                        if (neitherHas)
+                        {
+                            middleStatus = MiddleNameStatus.BothBlank;
+                            middleScore = 1.0;
+                        }
+                        else if (oneHas)
+                        {
+                            middleStatus = MiddleNameStatus.OneBlank;
+                            middleScore = 0.80;
+                        }
+                        else
+                        {
+                            middleScore = ComputeNameSimilarity(
+                                a.MiddleName!.Trim(), b.MiddleName!.Trim());
+
+                            middleStatus = middleScore >= 0.75
+                                ? MiddleNameStatus.Similar
+                                : middleScore >= 0.40
+                                    ? MiddleNameStatus.PartiallyDifferent
+                                    : MiddleNameStatus.Conflicting;
+                        }
+
+                        // ── Weighted final score ──────────────────────────────────
+                        double finalScore = neitherHas || oneHas
+                            ? (lastNameScore * 0.50) + (firstNameScore * 0.50)
+                            : (lastNameScore * 0.40) + (firstNameScore * 0.40)
+                                + (middleScore * 0.20);
+
+                        // ✅ Force flag exact first+last with conflicting middle
+                        bool firstLastExact = lastNameScore >= 0.99
+                                           && firstNameScore >= 0.99;
+
+                        if (firstLastExact && middleStatus == MiddleNameStatus.Conflicting)
+                            finalScore = Math.Max(finalScore, 0.80);
+
+                        if (finalScore < 0.75) continue;
+
+                        var reason = BuildDuplicateReason(
+                            firstLastExact, middleStatus, daysDiff,
+                            a.MiddleName, b.MiddleName);
+
+                        pairs.Add(new PossibleDuplicatePairDto
+                        {
+                            Record1Id = a.Id,
+                            Record1FullName = FormatDuplicateName(a.LastName, a.FirstName, a.MiddleName),
+                            Record1BirthDate = a.BirthDate.ToString("MMMM dd, yyyy"),
+                            Record1Municipality = a.MunicipalityName ?? string.Empty,
+                            Record1Barangay = a.BarangayName ?? string.Empty,
+                            Record1OscaId = a.OscaIdNumber ?? string.Empty,
+                            Record1PaymentStatus = a.PaymentStatus,
+
+                            Record2Id = b.Id,
+                            Record2FullName = FormatDuplicateName(b.LastName, b.FirstName, b.MiddleName),
+                            Record2BirthDate = b.BirthDate.ToString("MMMM dd, yyyy"),
+                            Record2Municipality = b.MunicipalityName ?? string.Empty,
+                            Record2Barangay = b.BarangayName ?? string.Empty,
+                            Record2OscaId = b.OscaIdNumber ?? string.Empty,
+                            Record2PaymentStatus = b.PaymentStatus,
+
+                            MatchScore = Math.Round(finalScore, 2),
+                            MatchReason = reason
+                        });
+                    }
+                }
+            }
+
+        Done:
+            return pairs
+                .OrderByDescending(x => x.MatchScore)
+                .ToList();
+            // ✅ No extra muni/barangay batch queries needed
+            // BuildBeneficiaryFilteredQuery already joins them via x.Municipality / x.Barangay
+        }
 
         public async Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365)
         {
@@ -1477,6 +1633,57 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
 
         #region Private functions
+        private static string FormatDuplicateName(
+            string? lastName, string? firstName, string? middleName)
+        {
+            var full = string.Join(", ",
+                new[] { lastName?.Trim(), firstName?.Trim() }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            return string.IsNullOrWhiteSpace(middleName)
+                ? full
+                : $"{full} {middleName.Trim()}";
+        }
+        // ── Private enum — keeps the logic readable ───────────────────────────────────
+        private enum MiddleNameStatus
+        {
+            BothBlank,
+            OneBlank,
+            Similar,
+            PartiallyDifferent,
+            Conflicting
+        }
+
+        // ── Private helper — builds a clear reason label for the reviewer ─────────────
+        private static string BuildDuplicateReason(
+            bool firstLastExact,
+            MiddleNameStatus middleStatus,
+            double daysDiff,
+            string? middleA,
+            string? middleB)
+        {
+            var birthdatePart = daysDiff == 0
+                ? "same birthdate"
+                : $"birthdate ±{(int)daysDiff} day(s)";
+
+            // ✅ Most informative label — tells the reviewer exactly what to check
+            var namePart = (firstLastExact, middleStatus) switch
+            {
+                (true, MiddleNameStatus.BothBlank) => "Exact name",
+                (true, MiddleNameStatus.OneBlank) => "Exact name (one missing middle)",
+                (true, MiddleNameStatus.Similar) => "Exact name",
+                (true, MiddleNameStatus.PartiallyDifferent) => "Exact first + last, similar middle",
+                (true, MiddleNameStatus.Conflicting) => "⚠ Exact first + last, DIFFERENT middle",
+                (false, MiddleNameStatus.BothBlank) => "Similar name",
+                (false, MiddleNameStatus.OneBlank) => "Similar name (one missing middle)",
+                (false, MiddleNameStatus.Similar) => "Similar name",
+                (false, MiddleNameStatus.PartiallyDifferent) => "Similar name + partially different middle",
+                (false, MiddleNameStatus.Conflicting) => "⚠ Similar first + last, DIFFERENT middle",
+                _ => "Similar name"
+            };
+
+            return $"{namePart} + {birthdatePart}";
+        }
         // ✅ Helper — extracts names from conflicted entries for a useful error message
         private static string GetConflictedRecordNames(DbUpdateConcurrencyException ex)
         {

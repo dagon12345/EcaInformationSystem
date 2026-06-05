@@ -286,6 +286,112 @@ namespace EcaInformationSystem.Application.Services
             ws.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
 
         }
+        // Application/Services/BeneficiaryInformationService.cs
+
+        public async Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(
+            BeneficiaryFilterDto filter)
+        {
+            // ✅ Dedicated cache key — explicitly lists every field
+            // that affects what records the scan sees
+            // Any filter change produces a different key
+            var cacheKey = BuildDuplicateScanCacheKey(filter);
+
+            if (_memoryCache.TryGetValue(
+                    cacheKey, out PossibleDuplicateSummaryDto? cached)
+                && cached is not null)
+                return cached;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+            List<PossibleDuplicatePairDto> pairs;
+
+            try
+            {
+                pairs = await _repo.FindAllPossibleDuplicatesAsync(
+                    filter,
+                    maxPairs: 50,
+                    cancellationToken: cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                var empty = new PossibleDuplicateSummaryDto
+                {
+                    TotalPairs = 0,
+                    Pairs = new List<PossibleDuplicatePairDto>(),
+                    TimedOut = true
+                };
+
+                // ✅ Short cache on timeout so user can retry quickly
+                _memoryCache.Set(cacheKey, empty, TimeSpan.FromMinutes(1));
+                return empty;
+            }
+
+            var summary = new PossibleDuplicateSummaryDto
+            {
+                TotalPairs = pairs.Count,
+                Pairs = pairs,
+                TimedOut = false
+            };
+
+            _memoryCache.Set(cacheKey, summary,
+                new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                    SlidingExpiration = TimeSpan.FromMinutes(3)
+                });
+
+            return summary;
+        }
+
+        private string BuildDuplicateScanCacheKey(BeneficiaryFilterDto f)
+        {
+            var version = _memoryCache.GetOrCreate(
+                CommonConstants.DuplicateScanCacheVersionKey,
+                entry =>
+                {
+                    entry.Priority = CacheItemPriority.NeverRemove;
+                    return CommonConstants.V1;
+                })!;
+
+            static string N(object? v) => v?.ToString() ?? "null";
+
+            return string.Join("|",
+                "dup_scan",
+                version,
+                // ── Location ──────────────────────────────────────────────────
+                N(f.PsgcCodeRegion),
+                N(f.PsgcCodeProvince),
+                N(f.PsgcCodeMunicipality),
+                N(f.PsgcCodeBarangay),
+                // ✅ No name fields — excluded from scan scope
+                N(f.Validator),
+                N(f.BatchCode),
+                // ── Status ────────────────────────────────────────────────────
+                N(f.PaymentStatus),
+                N(f.PaymentDate),
+                N(f.PaymentDateFrom),
+                N(f.PaymentDateTo),
+                N(f.IsEligible),
+                N(f.EligibilityMode),
+                N(f.IsCompliant),
+                N(f.ComplianceMode),
+                N(f.CoStatus),
+                N(f.FindingStatus),
+                N(f.Sex),
+                N(f.FilterModeOfPayment),
+                // ── Age / Birthday ────────────────────────────────────────────
+                N(f.SpecificAge),
+                N(f.MilestoneYear),
+                N(f.SpecificBirthday),
+                N(f.BirthdayFrom),
+                N(f.BirthdayTo),
+                // ── Reference number ──────────────────────────────────────────
+                N(f.FilterQuarter),
+                N(f.FilterBatch),
+                N(f.FilterRefYear),
+                N(f.FilterRegionRoman)
+            );
+        }
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
             //Check duplicates
@@ -3418,8 +3524,16 @@ namespace EcaInformationSystem.Application.Services
 
         private void InvalidateSummaryCache()
         {
+            // ✅ Bump the version token — invalidates all summary cache entries
             var newVersion = Guid.NewGuid().ToString();
             _memoryCache.Set(CommonConstants.SummaryCacheVersionKey, newVersion);
+
+            // ✅ Remove all duplicate scan cache entries
+            // We can't enumerate IMemoryCache keys directly, so we use
+            // a version token pattern for the duplicate scan too
+            _memoryCache.Set(
+                CommonConstants.DuplicateScanCacheVersionKey,
+                Guid.NewGuid().ToString());
         }
 
         private string GetCurrentSummaryCacheVersion()

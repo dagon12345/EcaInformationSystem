@@ -449,6 +449,8 @@
     };
     private string _refQuarterValue = string.Empty;
     private string _coStatusValue = "-1";
+    // ✅ Add this parameter — grid component passes its scan method in
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
     private void OnCoStatusFilterChanged(ChangeEventArgs e)
     {
         var val = e.Value?.ToString();
@@ -741,6 +743,10 @@
 
             if (State.ErrorMessage is not null)
                 toast.ShowError(State.ErrorMessage);
+
+             // ✅ Only fire AFTER successful load — validation passed, grid loaded
+            // Grid component receives this and runs the duplicate scan
+            await OnFilterApplied.InvokeAsync();
         }
         finally
         {

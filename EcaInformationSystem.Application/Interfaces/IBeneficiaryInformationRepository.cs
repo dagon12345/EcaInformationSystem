@@ -35,5 +35,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
+        Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter,int maxPairs = 50, CancellationToken cancellationToken = default);
     }
 }

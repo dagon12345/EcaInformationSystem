@@ -4,6 +4,8 @@ namespace EcaInformationSystem.Domain.Common.Enum
 {
     public static class CommonConstants
     {
+        // Add to CommonConstants.cs
+        public const string DuplicateScanCacheVersionKey = "dup_scan_version";
         public const string EligibilityRemarks = "Eligibility Remarks";
         public const string SummaryCacheVersionKey = "beneficiary-summary-version";
         public const string NoDataAvailableToExport = "No data available to export.";
@@ -224,9 +226,9 @@ namespace EcaInformationSystem.Domain.Common.Enum
         public const string CertificationSpaced = "C E R T I F I C A T I O N";
         public const string Null = "null";
         public const string BeneficiaryPaginated = "beneficiary-paginated";
-        public const string BeneficiarySummary = "beneficiary-summary"; 
+        public const string BeneficiarySummary = "beneficiary-summary";
         public const string NameAndSignatureOfDisbursingOfficer = "Name and Signature of Disbursing Officer";
-        public const string V1= "v1";
+        public const string V1 = "v1";
         public const string Status = "Status";
         public const string Default = "default";
     }
