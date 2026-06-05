@@ -427,9 +427,14 @@ namespace EcaInformationSystem.Application.Services
                 Quarter = dto.Quarter,
                 Batch = dto.Batch,
                 RefYear = dto.RefYear,
-                RefCode = !string.IsNullOrWhiteSpace(dto.RefCode)
-                    ? dto.RefCode
-                    : RegionRomanNumeralHelper.GenerateRefCode(), // ✅ generate if not provided
+                // BeneficiaryInformationService.cs — in CreateAsync
+                // ✅ Only generate RefCode if all three ref number fields are provided
+                // If Quarter/Batch/RefYear are null, RefCode stays null too
+                RefCode = (dto.Quarter.HasValue &&
+                    !string.IsNullOrWhiteSpace(dto.Batch) &&
+                    dto.RefYear.HasValue)
+                    ? RegionRomanNumeralHelper.GenerateRefCode()
+                    : null,
                 DateApplied = dto.DateApplied,
                 DateEndorsed = dto.DateEndorsed,
                 BatchCode = dto.BatchCode,
@@ -2078,9 +2083,9 @@ namespace EcaInformationSystem.Application.Services
             string sheetName,
             string userName,
             HashSet<int> skipRows,
-            int quarter,      // ✅ new
-            string batch,     // ✅ new
-            int refYear)
+            int? quarter,      // ✅ new
+            string? batch,     // ✅ new
+            int? refYear)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -2468,9 +2473,14 @@ namespace EcaInformationSystem.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         Quarter = quarter,        // ✅
-                        Batch = batch.Trim(),   // ✅
+                        Batch = batch?.Trim(),   // ✅
                         RefYear = refYear,        // ✅
-                        RefCode = RegionRomanNumeralHelper.GenerateRefCode(), // ✅ unique per record
+                                                  // ✅ Only generate RefCode if all three ref number fields are provided
+                        RefCode = (quarter.HasValue &&
+                             !string.IsNullOrWhiteSpace(batch) &&
+                             refYear.HasValue)
+                             ? RegionRomanNumeralHelper.GenerateRefCode()
+                            : null,
                         DateApplied = effectiveDateApplied, //This is our column 23 
                         DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),

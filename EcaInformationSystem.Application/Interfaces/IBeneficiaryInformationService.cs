@@ -32,9 +32,9 @@ namespace EcaInformationSystem.Application.Interfaces
                 string sheetName,
                 string userName,
                 HashSet<int> skipRows,
-                int quarter,      // ✅ new
-                string batch,     // ✅ new
-                int refYear);     // ✅ new
+                int? quarter,      // ✅ new
+                string? batch,     // ✅ new
+                int? refYear);     // ✅ new
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);

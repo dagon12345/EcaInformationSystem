@@ -147,16 +147,25 @@ namespace EcaInformationSystem.Api.Controllers
             var result = await _service.PreviewImportAsync(stream, file.FileName, sheetName);
             return Ok(result);
         }
+        // BeneficiaryController.cs
         [HttpPost("import/confirm")]
-        public async Task<IActionResult> ConfirmImport(IFormFile file, [FromForm] string sheetName, [FromForm] string skipRowsJson,
-        [FromForm] int quarter, [FromForm] string batch, [FromForm] int refYear)      // ✅ new
+        public async Task<IActionResult> ConfirmImport(
+            IFormFile file,
+            [FromForm] string sheetName,
+            [FromForm] string skipRowsJson,
+            [FromForm] int? quarter,       // ✅ nullable
+            [FromForm] string? batch,      // ✅ nullable
+            [FromForm] int? refYear)       // ✅ nullable
         {
             var skipRows = JsonSerializer.Deserialize<HashSet<int>>(skipRowsJson) ?? new();
             var userName = User.Identity?.Name ?? "System";
+
             using var stream = file.OpenReadStream();
+
             var result = await _service.ConfirmImportAsync(
                 stream, file.FileName, sheetName, userName, skipRows,
-                quarter, batch, refYear);   // ✅ pass through
+                quarter, batch, refYear);
+
             return Ok(result);
         }
         [HttpPost("import/sheets")]
