@@ -389,7 +389,9 @@ namespace EcaInformationSystem.Application.Services
                 N(f.FilterQuarter),
                 N(f.FilterBatch),
                 N(f.FilterRefYear),
-                N(f.FilterRegionRoman)
+                N(f.FilterRegionRoman),
+                N(f.DateAddedFrom),
+                N(f.DateAddedTo)
             );
         }
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
@@ -3435,7 +3437,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
-                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null
+                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
+                // Add at the end of the string.Join(...) list
+                filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
+                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)

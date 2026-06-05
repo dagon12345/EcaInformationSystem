@@ -185,6 +185,51 @@
                         </div>
                     </div>
                 </div>
+                @* DATE ADDED *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>From</label>
+                            <input type="date" value="@(State.Filter.DateAddedFrom?.ToString("yyyy-MM-dd"))"
+                                   @onchange="e => OnDateAddedFromChanged(e)" />
+                        </div>
+                        <div class="sf-field">
+                            <label>To</label>
+                            <input type="date" value="@(State.Filter.DateAddedTo?.ToString("yyyy-MM-dd"))"
+                                   @onchange="e => OnDateAddedToChanged(e)" />
+                        </div>
+                        @if (State.Filter.DateAddedFrom.HasValue || State.Filter.DateAddedTo.HasValue)
+                        {
+                            <div class="sf-field" style="align-self: flex-end;">
+                                <button class="sf-btn sf-btn-clear" style="width: auto;" @onclick="ClearDateAddedFilter">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    @if (State.Filter.DateAddedFrom.HasValue || State.Filter.DateAddedTo.HasValue)
+                    {
+                        <small class="text-muted mt-1 d-block">
+                            <i class="bi bi-funnel-fill me-1 text-primary"></i>
+                            @if (State.Filter.DateAddedFrom.HasValue && State.Filter.DateAddedTo.HasValue)
+                            {
+                                <span>
+                                    @State.Filter.DateAddedFrom.Value.ToString("MMM dd, yyyy")
+                                    → @State.Filter.DateAddedTo.Value.ToString("MMM dd, yyyy")
+                                </span>
+                            }
+                            else if (State.Filter.DateAddedFrom.HasValue)
+                            {
+                                <span>From @State.Filter.DateAddedFrom.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                            else
+                            {
+                                <span>Until @State.Filter.DateAddedTo!.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                        </small>
+                    }
+                </div>
 
                 @* PAYMENT *@
                 <div>
@@ -320,32 +365,6 @@
 
                     </div>
                 </div>
-                @* ── GENERAL SEARCH ── *@
-                <div>
-                    <div class="sf-section-label"><i class="bi bi-globe me-1"></i>General Search</div>
-                    <div class="sf-general-search mb-3">
-                        <div class="sf-search-wrap">
-                            <i class="bi bi-search sf-search-icon"></i>
-                            <input type="text" class="sf-search-input"
-                                   placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
-                                   @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
-                            @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
-                            {
-                                <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            }
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
-                        {
-                            <small class="text-muted mt-1 d-block">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Searching all columns for
-                                <strong>"@State.Filter.GeneralSearch"</strong>
-                            </small>
-                        }
-                    </div>
-                </div>
                 @* REFERENCE NUMBER *@
                 <div>
                     <div class="sf-section-label">
@@ -396,7 +415,34 @@
                         </div>
                     </div>
                 </div>
+                @* ── GENERAL SEARCH ── *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-globe me-1"></i>General Search</div>
+                    <div class="sf-general-search mb-3">
+                        <div class="sf-search-wrap">
+                            <i class="bi bi-search sf-search-icon"></i>
+                            <input type="text" class="sf-search-input"
+                                   placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
+                                   @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
+                            @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+                            {
+                                <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+                        {
+                            <small class="text-muted mt-1 d-block">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Searching all columns for
+                                <strong>"@State.Filter.GeneralSearch"</strong>
+                            </small>
+                        }
+                    </div>
+                </div>
 
+              
                 @* ACTIONS *@
                 <div class="sf-actions">
                     <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
@@ -670,6 +716,25 @@
         }
         finally { IsFilterProvinceLoading = false; StateHasChanged(); }
     }
+    // ── Date Added range handlers ─────────────────────────────────────────────
+    private void OnDateAddedFromChanged(ChangeEventArgs e)
+    {
+        State.Filter.DateAddedFrom = DateTime.TryParse(
+            e.Value?.ToString(), out var d) ? d : null;
+    }
+
+    private void OnDateAddedToChanged(ChangeEventArgs e)
+    {
+        State.Filter.DateAddedTo = DateTime.TryParse(
+            e.Value?.ToString(), out var d) ? d : null;
+    }
+
+    private void ClearDateAddedFilter()
+    {
+        State.Filter.DateAddedFrom = null;
+        State.Filter.DateAddedTo = null;
+        StateHasChanged();
+    }
 
     private async Task ApplyFiltersAsync()
     {
@@ -744,7 +809,7 @@
             if (State.ErrorMessage is not null)
                 toast.ShowError(State.ErrorMessage);
 
-             // ✅ Only fire AFTER successful load — validation passed, grid loaded
+            // ✅ Only fire AFTER successful load — validation passed, grid loaded
             // Grid component receives this and runs the duplicate scan
             await OnFilterApplied.InvokeAsync();
         }
@@ -793,6 +858,9 @@
         State.Filter.FilterRegionRoman = null;
         _modeOfPaymentValue = string.Empty;
         State.Filter.FilterModeOfPayment = null;
+        // Inside ClearAllFilters — add alongside the other clears
+        State.Filter.DateAddedFrom = null;
+        State.Filter.DateAddedTo = null;
 
         State.Filter = new BeneficiaryFilterDto
         {
@@ -844,6 +912,9 @@
     f.FilterRefYear == null &&
     string.IsNullOrWhiteSpace(f.FilterRegionRoman) &&
     State.Filter.FilterModeOfPayment == null &&
+    // ── Date Added ────────────────────────────────────────────────────────────
+    State.Filter.DateAddedFrom == null &&
+    State.Filter.DateAddedTo == null &&
     _birthdayToMonth == 0;
 
     private async Task LoadMunicipalitiesAsync(int provinceId)

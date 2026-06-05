@@ -36,6 +36,9 @@
 
         public DateTime? PaymentDateFrom { get; set; }
         public DateTime? PaymentDateTo { get; set; }
+        // Add these alongside your existing PaymentDateFrom/PaymentDateTo
+        public DateTime? DateAddedFrom { get; set; }
+        public DateTime? DateAddedTo { get; set; }
 
         public int? FindingStatus { get; set; }
 

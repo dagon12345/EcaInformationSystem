@@ -1224,6 +1224,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 var to = filter.PaymentDateTo.Value.Date.AddDays(1);
                 query = query.Where(x => x.Beneficiary.PaymentDate < to);
             }
+            // ── Date Added Range ──────────────────────────────────────────────────────
+            if (filter.DateAddedFrom.HasValue)
+            {
+                var from = filter.DateAddedFrom.Value.Date;
+                query = query.Where(x => x.Beneficiary.DateAdded >= from);
+            }
+
+            if (filter.DateAddedTo.HasValue)
+            {
+                // ✅ Add one day so "To = June 5" includes all records added on June 5
+                var to = filter.DateAddedTo.Value.Date.AddDays(1);
+                query = query.Where(x => x.Beneficiary.DateAdded < to);
+            }
 
             // ── Other ─────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.Validator))
