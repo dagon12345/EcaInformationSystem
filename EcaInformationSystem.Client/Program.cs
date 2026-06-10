@@ -31,4 +31,5 @@ builder.Services.AddScoped<BeneficiaryFindingClientService>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddLocalization();
 builder.Services.AddHxServices();
+builder.Services.AddHxMessenger();
 await builder.Build().RunAsync();

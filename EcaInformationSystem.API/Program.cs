@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -115,6 +116,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // This prevents IIS from killing the process for exceeding startupTimeLimit
 // when the database is empty on first deployment.
 builder.Services.AddHostedService<PsgcSeederBackgroundService>();
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 209_715_200;
+});
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 209_715_200;
+});
 
 // ════════════════════════════════════════════════════════════════════════════
 var app = builder.Build();

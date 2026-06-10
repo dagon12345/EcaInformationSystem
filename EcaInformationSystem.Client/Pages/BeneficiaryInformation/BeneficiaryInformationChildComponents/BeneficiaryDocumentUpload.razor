@@ -1,0 +1,142 @@
+﻿<div class="doc-panel">
+
+    <HxInputFileDropZone @ref="_dropZone" OnChange="OnFilesChanged" Accept=".pdf" Multiple="true" CssClass="mb-3" />
+
+    <div class="doc-pending-list mb-3">
+        <HxListGroup>
+            @foreach (var f in _pendingFiles)
+            {
+                <HxListGroupItem>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-file-pdf text-danger"></i>
+                        <span class="flex-grow-1 text-truncate small">@f.Name</span>
+                        <small class="text-muted">@FormatSize(f.Size)</small>
+                        <HxButton Color="ThemeColor.None" CssClass="btn-close btn-sm" OnClick="() => RemovePending(f)" />
+                    </div>
+                </HxListGroupItem>
+            }
+        </HxListGroup>
+        <HxSubmit Text="@UploadButtonText" Color="ThemeColor.Primary" CssClass="w-100 mt-2"
+                  Enabled="@(!_isUploading && _pendingFiles.Any())" OnClick="UploadPendingAsync" />
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="alert alert-info py-2 small">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Loading documents...
+        </div>
+    }
+    else if (!_documents.Any())
+    {
+        <div class="alert alert-secondary py-2 small">
+            <i class="bi bi-folder2-open me-2"></i>No documents uploaded yet.
+        </div>
+    }
+
+    <HxListGroup>
+        @foreach (var doc in _documents)
+        {
+            <HxListGroupItem CssClass="@(doc.Id == _selectedDoc?.Id ? "active" : "")">
+                <div class="d-flex align-items-center gap-2" style="cursor:pointer;"
+                     @onclick="() => SelectDocumentAsync(doc)">
+
+                    <i class="bi bi-file-earmark-pdf-fill text-danger fs-5 flex-shrink-0"></i>
+
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="text-truncate small fw-semibold" title="@doc.OriginalFileName">
+                            @doc.OriginalFileName
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <small class="text-muted">@doc.FileSizeDisplay</small>
+                            <small class="text-muted">
+                                @doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy")
+                            </small>
+                            <small class="text-muted">@doc.UploadedBy</small>
+                            @if (!string.IsNullOrWhiteSpace(doc.CompressionDisplay))
+                            {
+                                <span class="badge bg-success" style="font-size:10px;">
+                                    @doc.CompressionDisplay
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <span @onclick:stopPropagation="true">
+                            <HxButton Color="ThemeColor.Primary" Outline="true" Size="ButtonSize.Small"
+                                      OnClick="() => DownloadAsync(doc)">
+                                <i class="bi bi-download"></i>
+                            </HxButton>
+                        </span>
+                        <span @onclick:stopPropagation="true">
+                            <HxButton Color="ThemeColor.Danger" Outline="true" Size="ButtonSize.Small"
+                                      OnClick="() => ConfirmDeleteAsync(doc)">
+                                <i class="bi bi-trash"></i>
+                            </HxButton>
+                        </span>
+                    </div>
+                </div>
+            </HxListGroupItem>
+        }
+    </HxListGroup>
+
+    @* ✅ PDF Viewer *@
+    @if (_selectedDoc != null && _blobUrl != null)
+    {
+        <div class="doc-viewer mt-3 border rounded">
+            <div class="d-flex align-items-center gap-2 p-2 bg-dark text-white rounded-top">
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                <span class="text-truncate flex-grow-1 small">
+                    @_selectedDoc.OriginalFileName
+                </span>
+                <HxButton Size="ButtonSize.Small" Color="ThemeColor.None" CssClass="btn-close btn-close-white"
+                          OnClick="CloseViewerAsync" />
+            </div>
+            <iframe src="@_blobUrl" style="width:100%; height:600px; border:none;" />
+        </div>
+    }
+    else if (_selectedDoc != null && _blobUrl == null)
+    {
+        <div class="alert alert-info py-2 small mt-3">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Loading preview...
+        </div>
+    }
+
+    @* ✅ Replace HxModal with inline confirmation — no backdrop, no z-index issues *@
+    @if (_docToDelete != null)
+    {
+        <div class="delete-confirm-box mt-3 border border-danger rounded p-3">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-danger mt-1 flex-shrink-0"></i>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold text-danger small mb-1">Delete Document</div>
+                    <div class="small mb-3">
+                        Are you sure you want to delete
+                        <strong>@_docToDelete.OriginalFileName</strong>?
+                        This cannot be undone.
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-danger" @onclick="ExecuteDeleteAsync">
+                            @if (_isDeleting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Deleting...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-trash me-1"></i>
+                                <span>Yes, Delete</span>
+                            }
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="CancelDelete" disabled="@_isDeleting">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>

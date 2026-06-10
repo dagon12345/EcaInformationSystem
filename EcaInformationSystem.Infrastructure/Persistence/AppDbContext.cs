@@ -15,6 +15,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
         public DbSet<Log> Logs => Set<Log>();
         public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
+        public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -120,6 +121,25 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             modelBuilder.Entity<BeneficiaryInformation>()
             .Property(x => x.RowVersion)
             .IsRowVersion();
+                    
+            modelBuilder.Entity<BeneficiaryDocument>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.OriginalFileName).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.FilePath).IsRequired().HasMaxLength(1000);
+                entity.Property(e => e.ContentType).HasMaxLength(100);
+                entity.Property(e => e.UploadedBy).HasMaxLength(200);
+
+                entity.HasOne(e => e.BeneficiaryInformation)
+                    .WithMany()
+                    .HasForeignKey(e => e.BeneficiaryInformationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.BeneficiaryInformationId);
+                entity.HasIndex(e => e.IsDeleted);
+            });
         }
     }
 }

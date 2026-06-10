@@ -20,6 +20,156 @@
     --text-muted: #64748b;
     --badge-r: 6px;
     --input-ht: 32px;
+    --bs-offcanvas-zindex: 1040;
+    --bs-modal-zindex: 1200;
+    --bs-backdrop-zindex: 1190;
+}
+.delete-confirm-box {
+    background: #fff5f5;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+/* ═══════════════════════════════════════════════════════════
+   FIX: Offcanvas backdrop blocks modal clicks
+   The backdrop needs pointer-events disabled when a modal
+   is open so clicks pass through to the modal buttons.
+   ═══════════════════════════════════════════════════════════ */
+
+/* When modal is open, disable pointer events on offcanvas backdrop */
+body:has(.modal.show) .offcanvas-backdrop {
+    pointer-events: none !important;
+}
+
+/* Also ensure modal and its backdrop are fully interactive */
+body:has(.modal.show) .modal,
+body:has(.modal.show) .modal-dialog,
+body:has(.modal.show) .modal-content {
+    pointer-events: auto !important;
+}
+
+body:has(.modal.show) .modal-backdrop {
+    pointer-events: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Z-INDEX FIX — Modal must always render above Offcanvas
+   Havit Blazor uses Bootstrap's stacking context but the
+   offcanvas backdrop blocks pointer events on the modal.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Offcanvas — keep LOW */
+.offcanvas          { z-index: 1045 !important; }
+.offcanvas-backdrop { z-index: 1044 !important; }
+
+/* Modal — must be HIGHER than offcanvas + its backdrop */
+.modal              { z-index: 1200 !important; }
+.modal-backdrop     { z-index: 1199 !important; }
+
+/* ── Document Panel ────────────────────────────────────── */
+.doc-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.doc-upload-area {
+    border: 2px dashed #ced4da;
+    border-radius: 10px;
+    padding: 24px 16px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: border-color 0.2s, background 0.2s;
+    background: #fafafa;
+}
+
+.doc-upload-area--dragging {
+    border-color: #1F3864;
+    background: #eef2ff;
+}
+
+.doc-pending-list {
+    text-align: left;
+}
+
+.doc-pending-item {
+    display: flex;
+    align-items: center;
+    background: #f1f3f5;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    gap: 6px;
+}
+
+/* ── Document list ──────────────────────────────────────── */
+.doc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.doc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fff;
+}
+
+.doc-item:hover {
+    background: #f8f9fa;
+    border-color: #1F3864;
+}
+
+.doc-item--active {
+    border-color: #1F3864;
+    background: #eef2ff;
+}
+
+.doc-item-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #212529;
+}
+
+.doc-item-meta {
+    font-size: 0.78rem;
+    margin-top: 2px;
+}
+
+/* ── PDF Viewer ─────────────────────────────────────────── */
+.doc-viewer {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.doc-viewer-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: #1F3864;
+    color: #fff;
+    font-size: 0.875rem;
+}
+
+.doc-viewer-frame {
+    width: 100%;
+    height: 650px;
+    border: none;
+    display: block;
+    background: #525659;
 }
 .tbl-scroll {
     height: 600px;       /* ✅ fixed height required for Virtualize */

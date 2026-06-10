@@ -20,6 +20,8 @@ namespace EcaInformationSystem.Application
             services.AddScoped<TokenService>();
             services.AddScoped<IBeneficiaryFindingService, BeneficiaryFindingService>();
             services.AddScoped<IAddressSearchService, AddressSearchService>();
+            services.AddScoped<IBeneficiaryDocumentService, BeneficiaryDocumentService>();
+            services.AddScoped<IPdfCompressionService, PdfCompressionService>();
             return services;
         }
     }

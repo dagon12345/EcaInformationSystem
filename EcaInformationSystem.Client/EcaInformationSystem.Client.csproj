@@ -4,12 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-	  <PublishTrimmed>false</PublishTrimmed>
-	  <RunAOTCompilation>false</RunAOTCompilation>
-	  <BlazorWebAssemblyPreserveCollationData>false</BlazorWebAssemblyPreserveCollationData>
-	  <PublishIISAssets>true</PublishIISAssets>
-	  <!-- ✅ ADD THIS — forces generation of blazor.webassembly.js -->
-	  <WasmFingerprintAssets>false</WasmFingerprintAssets>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <BlazorWebAssemblyPreserveCollationData>false</BlazorWebAssemblyPreserveCollationData>
+    <PublishIISAssets>true</PublishIISAssets>
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +17,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="10.0.0" />
-	  <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
   </ItemGroup>
 
@@ -28,6 +27,12 @@
 
   <ItemGroup>
     <Folder Include="Pages\BeneficiaryInformation\LiquidationComponents\Modal\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Pages\BeneficiaryInformation\BeneficiaryInformationChildComponents\BeneficiaryDocumentUpload.razor.cs">
+      <DependentUpon>BeneficiaryDocumentUpload.razor</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

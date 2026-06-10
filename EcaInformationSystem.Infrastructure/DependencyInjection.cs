@@ -7,6 +7,7 @@ using EcaInformationSystem.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace EcaInformationSystem.Infrastructure
 {
@@ -48,6 +49,13 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
             services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();
+            services.AddScoped<IBeneficiaryDocumentRepository, BeneficiaryDocumentRepository>();
+
+            // Increase form limits for large PDF uploads
+            services.Configure<FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 209_715_200; // 200MB
+            });
             return services;
         }
     }
