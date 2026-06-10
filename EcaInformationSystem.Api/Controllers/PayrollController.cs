@@ -21,6 +21,7 @@ namespace EcaInformationSystem.Api.Controllers
         /// Returns an .xlsx file download.
         /// </summary>
         [HttpPost("generate-payroll")]
+        [Authorize(Policy = "AdminOnly")] 
         public async Task<IActionResult> GeneratePayroll([FromBody] PayrollSettingsDto settings)
         {
             if (settings?.Ids == null || !settings.Ids.Any())

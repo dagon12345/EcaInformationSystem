@@ -80,6 +80,10 @@ builder.Services.AddAuthorization(options =>
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme);
         policy.RequireAuthenticatedUser();
     });
+
+    // New role policies
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("AdminOrPDO", policy => policy.RequireRole("Admin", "PDO"));
 });
 
 // ─── CORS ────────────────────────────────────────────────────────────────────

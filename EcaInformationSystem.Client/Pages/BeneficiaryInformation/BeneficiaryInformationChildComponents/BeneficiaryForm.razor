@@ -8,6 +8,8 @@
 @inject AuthService AuthService
 @inject BeneficiaryStateService State;
 @inject BeneficiaryFindingClientService FindingService
+@inject AuthService AuthService
+
 
 
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
@@ -550,15 +552,8 @@
                 @onclick='() => { State.Invalidate(); Navigation.NavigateTo("/beneficiary-records"); }'>
             <i class="bi bi-x-circle me-1"></i>Cancel
         </button>
-        <button type="submit" class="sys-btn sys-btn-save" disabled="@IsLoading">
-            @if (IsLoading)
-            {
-                <span class="spinner-border spinner-border-sm me-1"></span>
-            }
-            else
-            {
-                <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-floppy") me-1"></i>
-            }
+        <button type="submit" class="sys-btn sys-btn-save"
+                disabled="@(IsLoading || (!AuthService.IsAdmin() && IsEditMode))">
             @(IsEditMode ? "Update Record" : "Save Record")
         </button>
     </div>
@@ -686,6 +681,10 @@
         BirthDate = DateTime.UtcNow.AddYears(-80),
         ValidationDate = DateTime.UtcNow,
     };
+    // Add these fields in @code
+    private bool _isAdmin;
+    private bool _isPdo;
+    private bool _roleLoaded;
 
     private bool IsLoading;
     private string pendingAction = string.Empty;
@@ -737,6 +736,17 @@
             model.Batch = numeric.ToString();
         else
             model.Batch = raw.Trim();
+        StateHasChanged();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        _isPdo = AuthService.IsPDO();
+        _roleLoaded = true;
+
         StateHasChanged();
     }
     private void OnCoStatusChanged()
@@ -1100,11 +1110,35 @@
     private async Task OpenSaveConfirmationModal()
     {
         ClearMessages();
+
+        // ── Role gate ─────────────────────────────────────────────────────────────
+        // Create is allowed for Admin and PDO only.
+        // Edit is allowed for Admin only.
+        if (!IsEditMode && !_isAdmin && !_isPdo)
+        {
+            if (MainLayout.Current is not null)
+                await MainLayout.Current.ShowPermissionDeniedAsync(
+                    "Creating new records requires at least Project Development Officer access. " +
+                    "Your account (Viewer) is restricted to viewing and uploading documents only.");
+            return;
+        }
+
+        if (IsEditMode && !_isAdmin)
+        {
+            if (MainLayout.Current is not null)
+                await MainLayout.Current.ShowPermissionDeniedAsync(
+                    "Editing records requires Administrator access. " +
+                    "Your account does not have permission to modify existing records.");
+            return;
+        }
+
+        // ── Passed — open normal confirmation ────────────────────────────────────
         pendingAction = IsEditMode ? "edit" : "add";
         confirmationTitle = IsEditMode ? "Confirm Update" : "Confirm Add";
         confirmationMessage = IsEditMode
             ? "Are you sure you want to update this record?"
             : "Are you sure you want to add this record?";
+
         await confirmModal.ShowAsync();
     }
 

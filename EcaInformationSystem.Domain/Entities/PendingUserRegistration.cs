@@ -29,5 +29,8 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime ReviewedAt { get; set; }
         public string? ReviewedBy { get; set; }
         public string? Remarks { get; set; }
+        [Required]
+        [MaxLength(50)]
+        public string Role { get; set; } = "Viewer";
     }
 }

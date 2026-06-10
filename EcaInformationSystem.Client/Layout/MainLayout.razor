@@ -22,9 +22,22 @@
             <div class="navbar-actions">
                 <AuthorizeView>
                     <Authorized>
-                        <span style="font-size:12px;color:#6b7280;margin-right:8px;">
-                            @context.User.Identity?.Name
-                        </span>
+                        @* ── User info + role badge ────────────────────────── *@
+                        <div class="d-flex align-items-center gap-2 me-2">
+                            <div class="d-flex flex-column align-items-end"
+                                 style="line-height:1.2;">
+                                <span style="font-size:12px; color:#6b7280; font-weight:500;">
+                                    @context.User.Identity?.Name
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(_userRole))
+                                {
+                                    <span class="badge @GetRoleBadgeClass(_userRole)"
+                                          style="font-size:9px; padding:2px 6px; margin-top:2px;">
+                                        <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
+                                    </span>
+                                }
+                            </div>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 <button class="icon-btn" @onclick="HandleLogout" title="Logout">
@@ -32,33 +45,118 @@
                 </button>
             </div>
         </div>
+
+        @* ── Permission denied banner ──────────────────────────────────────── *@
+        @if (_showPermissionBanner)
+        {
+            <div class="permission-banner permission-banner--@_bannerType"
+                 role="alert">
+                <div class="permission-banner__icon">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <div class="permission-banner__body">
+                    <strong>Access Restricted</strong>
+                    <span>@_permissionMessage</span>
+                </div>
+                <button class="permission-banner__close"
+                        @onclick="DismissBanner"
+                        title="Dismiss">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        }
+
         <article class="content-area">
             @Body
         </article>
     </div>
 </div>
 
+@* ── Permission denied banner styles ──────────────────────────────────────── *@
+<style>
+    .permission-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 8px 16px 0;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        animation: slideDown 0.2s ease-out;
+    }
+
+    @@keyframes slideDown {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .permission-banner--error {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .permission-banner--warning {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+    }
+
+    .permission-banner__icon { font-size: 16px; flex-shrink: 0; }
+
+    .permission-banner__body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .permission-banner__body strong { font-weight: 600; }
+    .permission-banner__body span   { opacity: 0.85; }
+
+    .permission-banner__close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        opacity: 0.6;
+        font-size: 12px;
+        padding: 2px 4px;
+        flex-shrink: 0;
+    }
+
+    .permission-banner__close:hover { opacity: 1; }
+</style>
 
 @code {
-    private bool collapsed = false;
-    private string userName = string.Empty;
-    private string currentPage = "Dashboard";
+    private bool    collapsed    = false;
+    private string  userName     = string.Empty;
+    private string  currentPage  = "Dashboard";
+    private string? _userRole;
 
-    // Map URL segments to display names
+    // ── Permission banner state ───────────────────────────────────────────────
+    private bool    _showPermissionBanner = false;
+    private string  _permissionMessage    = string.Empty;
+    private string  _bannerType           = "error"; // "error" | "warning"
+    private System.Threading.CancellationTokenSource? _bannerCts;
+
+    // ── Expose so child components can trigger the banner ─────────────────────
+    // Usage in any child: await MainLayout.ShowPermissionDeniedAsync("...");
+    public static MainLayout? Current { get; private set; }
+
     private static readonly Dictionary<string, string> PageNames = new()
     {
-        { "",           "Dashboard" },
-        { "dashboard",  "Dashboard" },
-        { "beneficiary-create",   "Create Record" },
-        { "beneficiary-records",    "Records" },
-        { "liquidation",   "Liquidation" },
-        { "settings",   "Settings" },
-        { "help",       "Help" },
+        { "",                    "Dashboard"    },
+        { "dashboard",           "Dashboard"    },
+        { "beneficiary-create",  "Create Record"},
+        { "beneficiary-records", "Records"      },
+        { "liquidation",         "Liquidation"  },
+        { "settings",            "Settings"     },
+        { "help",                "Help"         },
     };
 
     protected override void OnInitialized()
     {
-        // Listen for navigation changes
+        Current = this;
         Navigation.LocationChanged += OnLocationChanged;
         UpdateCurrentPage(Navigation.Uri);
     }
@@ -67,28 +165,101 @@
     {
         if (!firstRender) return;
 
+        await AuthService.InitAsync();
+        _userRole = AuthService.GetRole();
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
+        var user      = authState.User;
 
         if (user.Identity?.IsAuthenticated == true)
-        {
             userName = user.Identity.Name ?? "User";
-            StateHasChanged();
-        }
+
+        StateHasChanged();
     }
+
+    // ── Call this from any component when a restricted button is clicked ──────
+    public async Task ShowPermissionDeniedAsync(string? customMessage = null)
+    {
+        var role    = _userRole ?? AuthService.GetRole() ?? "your role";
+        var label   = GetRoleLabel(role);
+
+        _permissionMessage = customMessage
+            ?? GetDefaultDeniedMessage(role, label);
+
+        _bannerType           = role == "Viewer" ? "error" : "warning";
+        _showPermissionBanner = true;
+
+        StateHasChanged();
+
+        // Auto-dismiss after 5 seconds
+        _bannerCts?.Cancel();
+        _bannerCts = new System.Threading.CancellationTokenSource();
+        var token = _bannerCts.Token;
+
+        try
+        {
+            await Task.Delay(5000, token);
+            if (!token.IsCancellationRequested)
+                DismissBanner();
+        }
+        catch (TaskCanceledException) { /* dismissed early — ignore */ }
+    }
+
+    private void DismissBanner()
+    {
+        _showPermissionBanner = false;
+        StateHasChanged();
+    }
+
+    private static string GetDefaultDeniedMessage(string role, string label) => role switch
+    {
+        "Viewer" =>
+            $"You have view-only access ({label}). " +
+            "Contact an administrator to request additional permissions.",
+
+        "PDO" =>
+            $"This action is restricted to Administrators. " +
+            $"Your account ({label}) does not have permission to perform this operation.",
+
+        _ =>
+            "You do not have permission to perform this action."
+    };
+
+    // ── Badge helpers ─────────────────────────────────────────────────────────
+    private static string GetRoleBadgeClass(string role) => role switch
+    {
+        "Admin"  => "bg-danger",
+        "PDO"    => "bg-primary",
+        "Viewer" => "bg-secondary",
+        _        => "bg-secondary"
+    };
+
+    private static string GetRoleIcon(string role) => role switch
+    {
+        "Admin"  => "bi-shield-fill-check",
+        "PDO"    => "bi-person-badge-fill",
+        "Viewer" => "bi-eye-fill",
+        _        => "bi-person-fill"
+    };
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        "Admin"  => "Administrator",
+        "PDO"    => "Project Development Officer",
+        "Viewer" => "Viewer",
+        _        => role
+    };
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         UpdateCurrentPage(e.Location);
+        DismissBanner(); // ✅ clear banner on page navigation
         InvokeAsync(StateHasChanged);
     }
 
     private void UpdateCurrentPage(string uri)
     {
-        // Extract the last segment of the URL
-        var path = new Uri(uri).AbsolutePath.Trim('/').ToLower();
-
-        // Handle nested routes like "students/create" → "Students"
+        var path    = new Uri(uri).AbsolutePath.Trim('/').ToLower();
         var segment = path.Split('/')[0];
 
         currentPage = PageNames.TryGetValue(segment, out var name)
@@ -96,7 +267,6 @@
             : ToTitleCase(segment);
     }
 
-    // Fallback for pages not in the dictionary
     private static string ToTitleCase(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return "Dashboard";
@@ -107,15 +277,17 @@
 
     private async Task HandleLogout()
     {
+        Current = null;
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
         Navigation.NavigateTo("/login", true);
     }
 
-    // Always unsubscribe to avoid memory leaks
     public void Dispose()
     {
+        Current = null;
+        _bannerCts?.Cancel();
         Navigation.LocationChanged -= OnLocationChanged;
     }
 }

@@ -38,11 +38,11 @@ namespace EcaInformationSystem.Application.Services
             }
 
             //Generate the token using the Token Service
-            var token = _tokenService.GenerateToken(user.UserName, user.FullName, user.Position ?? "User");
+            var token = _tokenService.GenerateToken(user.UserName, user.FullName, user.Role);
 
 
 
-            var result =  AuthResult.Passed(
+            var result = AuthResult.Passed(
                 "Login successful.",
                 user.Id.ToString(),
                 user.UserName,
@@ -71,7 +71,8 @@ namespace EcaInformationSystem.Application.Services
                 RequestedAt = DateTime.UtcNow,
                 ReviewedAt = DateTime.UtcNow,
                 ReviewedBy = "System",
-                Remarks = "Auto-approved internal registration"
+                Remarks = "Auto-approved internal registration",
+                Role = request.Role 
             };
             user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
             await _pendingUserRegistrationRepository.AddAsync(user, cancellationToken);

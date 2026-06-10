@@ -125,8 +125,8 @@
     <div class="d-flex gap-2 mt-2 flex-wrap">
         <button class="sys-btn sys-btn-save" @onclick="RunPreviewAsync"
                 disabled="@(isUploading || isPreviewing || uploadedExcelBytes == null
-                                                                                          || !excelSheetNames.Any()
-                                                                                          || string.IsNullOrWhiteSpace(selectedSheetName))">
+                                                                                                                                                                          || !excelSheetNames.Any()
+                                                                                                                                                                          || string.IsNullOrWhiteSpace(selectedSheetName))">
             @if (isPreviewing)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -144,8 +144,8 @@
             Placement="TooltipPlacement.Top">
             <button class="sys-btn sys-btn-warn" @onclick="UpdateExcelAsync"
                     disabled="@(isUpdating || uploadedExcelBytes == null
-                                                                                                              || !excelSheetNames.Any()
-                                                                                                              || string.IsNullOrWhiteSpace(selectedSheetName))">
+                                                                                                                                                                                                                  || !excelSheetNames.Any()
+                                                                                                                                                                                                                  || string.IsNullOrWhiteSpace(selectedSheetName))">
                 @if (isUpdating)
                 {
                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -528,6 +528,20 @@
     // private string? _pendingImportFileName
     // private string? _pendingImportSheetName
     // private HashSet<int> _pendingSkipRows
+    private bool _isAdmin;
+    private bool _isPdo;
+    private bool _roleLoaded;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        _isPdo = AuthService.IsPDO();
+        _roleLoaded = true;
+
+        StateHasChanged();
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     private static string DupKey(int rowNumber, Guid existingId)
@@ -643,6 +657,17 @@
     // ── Update existing records ───────────────────────────────────────────────
     private async Task UpdateExcelAsync()
     {
+        // ── Role gate — Admin only for updating existing records ─────────────────
+        if (!_isAdmin)
+        {
+            if (MainLayout.Current is not null)
+                await MainLayout.Current.ShowPermissionDeniedAsync(
+                    "Updating existing records via Excel requires Administrator access. " +
+                    "Your account does not have permission to modify existing records.");
+            return;
+        }
+
+
         if (uploadedExcelBytes == null ||
             string.IsNullOrWhiteSpace(selectedSheetName))
         {
@@ -696,6 +721,16 @@
     // ── Phase 1: Preview + duplicate detection ────────────────────────────────
     private async Task RunPreviewAsync()
     {
+        // ── Role gate — Viewer cannot import ─────────────────────────────────────
+        if (!_isAdmin && !_isPdo)
+        {
+            if (MainLayout.Current is not null)
+                await MainLayout.Current.ShowPermissionDeniedAsync(
+                    "Importing records requires at least Project Development Officer access. " +
+                    "Your account (Viewer) is restricted to viewing and uploading documents only.");
+            return;
+        }
+
         if (uploadedExcelBytes == null ||
             string.IsNullOrWhiteSpace(uploadedExcelFileName))
         {
@@ -783,6 +818,15 @@
     // ── Phase 2: Confirm import ───────────────────────────────────────────────
     private async Task RunConfirmImportAsync()
     {
+        // ── Role gate — safety net in case modal confirm is reached directly ──────
+        if (!_isAdmin && !_isPdo)
+        {
+            if (MainLayout.Current is not null)
+                await MainLayout.Current.ShowPermissionDeniedAsync(
+                    "Importing records requires at least Project Development Officer access.");
+            await CloseDuplicateModal();
+            return;
+        }
         if (uploadedExcelBytes == null ||
             string.IsNullOrWhiteSpace(uploadedExcelFileName))
         {

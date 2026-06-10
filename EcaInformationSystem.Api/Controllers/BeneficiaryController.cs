@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
 using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
-using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -19,6 +18,7 @@ namespace EcaInformationSystem.Api.Controllers
             => _service = service;
 
         [HttpPost("bulk-assign-refnumber")]
+        [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> BulkAssignRefNumber([FromBody] BulkUpdateRefNumberRequestDto dto)
         {
             try
@@ -56,6 +56,7 @@ namespace EcaInformationSystem.Api.Controllers
             => Ok(await _service.GetSummaryAsync(filter));
 
         [HttpPost("create")]
+        [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> Create(
             [FromBody] CreateBeneficiaryInformationDto dto)
         {
@@ -97,6 +98,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Policy = "AdminOnly")] 
         public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)
         {
             if (!ModelState.IsValid)
@@ -120,6 +122,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpDelete("soft-delete/{id:guid}")]
+        [Authorize(Policy = "AdminOnly")] 
         public async Task<IActionResult> Delete(Guid id)
         {
             await _service.SoftDeleteAsync(id, User.Identity?.Name ?? "System");
@@ -257,6 +260,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("bulk-payment-status")]
+        [Authorize(Policy = "AdminOnly")] 
         public async Task<IActionResult> BulkUpdatePaymentStatus([FromBody] BulkUpdatePaymentStatusRequestDto request)
         {
             try
@@ -284,6 +288,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpPost("bulk-co-status")]
+        [Authorize(Policy = "AdminOnly")] 
         public async Task<IActionResult> BulkUpdateCoStatus([FromBody] BulkUpdateCoStatusRequestDto dto)
         {
             try
@@ -308,6 +313,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpPost("bulk-eligibility-batchcode")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> BulkUpdateEligibilityAndBatchCode([FromBody] BulkUpdateEligibilityBatchCodeRequestDto request)
         {
             try
