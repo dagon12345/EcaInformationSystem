@@ -72,6 +72,98 @@
                 </button>
             }
         </div>
+        @* ── Filter bar ──────────────────────────────────────────────────────────── *@
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+
+                    @* Name search *@
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-search me-1"></i>Search
+                        </label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Name, username, position..."
+                               @bind="_searchName" @bind:event="oninput" />
+                    </div>
+
+                    @* Province filter *@
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-map me-1"></i>Province
+                        </label>
+                        <select class="form-select form-select-sm" @bind="_filterProvince"
+                                @bind:after="OnProvinceFilterChanged">
+                            <option value="">All Provinces</option>
+                            @foreach (var p in _filterableProvinces)
+                            {
+                                <option value="@p">@p</option>
+                            }
+                        </select>
+                    </div>
+
+                    @* Municipality filter *@
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-building me-1"></i>Municipality
+                        </label>
+                        <select class="form-select form-select-sm" @bind="_filterMunicipality">
+                            <option value="">All Municipalities</option>
+                            @foreach (var m in _filteredMunicipalityOptions)
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </div>
+
+                    @* Clear button *@
+                    <div class="col-md-2">
+                        <button class="btn btn-sm btn-outline-secondary w-100" @onclick="ClearFilters"
+                                disabled="@(!HasActiveFilter)">
+                            <i class="bi bi-x-circle me-1"></i>Clear
+                        </button>
+                    </div>
+
+                </div>
+
+                @* ── Active filter summary ── *@
+                @if (HasActiveFilter)
+                {
+                    <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                        <small class="text-muted">Showing</small>
+                        <span class="badge bg-primary">
+                            @FilteredUsers.Count() of @_users.Count user(s)
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(_searchName))
+                        {
+                            <span class="badge bg-secondary">
+                                Name: "@_searchName"
+                                <button class="btn-close btn-close-white ms-1" style="font-size:8px;"
+                                        @onclick="() => _searchName = string.Empty">
+                                </button>
+                            </span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_filterProvince))
+                        {
+                            <span class="badge bg-secondary">
+                                Province: @_filterProvince
+                                <button class="btn-close btn-close-white ms-1" style="font-size:8px;"
+                                        @onclick="() => { _filterProvince = string.Empty; _filterMunicipality = string.Empty; }">
+                                </button>
+                            </span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_filterMunicipality))
+                        {
+                            <span class="badge bg-secondary">
+                                Municipality: @_filterMunicipality
+                                <button class="btn-close btn-close-white ms-1" style="font-size:8px;"
+                                        @onclick="() => _filterMunicipality = string.Empty">
+                                </button>
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
 
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
@@ -122,19 +214,16 @@
                                     <div class="d-flex gap-1 flex-wrap">
                                         @if (user.ApprovalStatus == 0)
                                         {
-                                            <button class="btn btn-sm btn-success"
-                                                    @onclick="() => OpenApproveModal(user)">
+                                            <button class="btn btn-sm btn-success" @onclick="() => OpenApproveModal(user)">
                                                 <i class="bi bi-check-lg me-1"></i>Approve
                                             </button>
-                                            <button class="btn btn-sm btn-danger"
-                                                    @onclick="() => OpenRejectModal(user)">
+                                            <button class="btn btn-sm btn-danger" @onclick="() => OpenRejectModal(user)">
                                                 <i class="bi bi-x-lg me-1"></i>Reject
                                             </button>
                                         }
                                         @if (user.ApprovalStatus == 1)
                                         {
-                                            <button class="btn btn-sm btn-outline-primary"
-                                                    @onclick="() => OpenApproveModal(user)">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenApproveModal(user)">
                                                 <i class="bi bi-pencil me-1"></i>Edit Role
                                             </button>
                                             @if (user.Role == "PDO")
@@ -205,13 +294,10 @@
         }
     </BodyTemplate>
     <FooterTemplate>
-        <HxButton Color="ThemeColor.Secondary"
-                  @onclick="() => _approveModal.HideAsync()">
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _approveModal.HideAsync()">
             Cancel
         </HxButton>
-        <HxButton Color="ThemeColor.Success"
-                  @onclick="ConfirmApproveAsync"
-                  Disabled="@_isSaving">
+        <HxButton Color="ThemeColor.Success" @onclick="ConfirmApproveAsync" Disabled="@_isSaving">
             @if (_isSaving)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -242,13 +328,10 @@
         }
     </BodyTemplate>
     <FooterTemplate>
-        <HxButton Color="ThemeColor.Secondary"
-                  @onclick="() => _rejectModal.HideAsync()">
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _rejectModal.HideAsync()">
             Cancel
         </HxButton>
-        <HxButton Color="ThemeColor.Danger"
-                  @onclick="ConfirmRejectAsync"
-                  Disabled="@_isSaving">
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmRejectAsync" Disabled="@_isSaving">
             @if (_isSaving)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -276,78 +359,125 @@
         }
         else
         {
+            @* ── Sticky search + summary bar ─────────────────────────────── *@
+            <div class="jur-sticky-bar">
+
+                @* Search input *@
+                <div class="input-group input-group-sm" style="max-width:260px;">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" class="form-control" placeholder="Search province or municipality..."
+                           @bind="_jurSearchTerm" @bind:event="oninput" />
+                    @if (!string.IsNullOrWhiteSpace(_jurSearchTerm))
+                    {
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => _jurSearchTerm = string.Empty">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
+                </div>
+
+                @* Selection summary *@
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge bg-primary fs-6">
+                        <i class="bi bi-check2-circle me-1"></i>
+                        @_selectedMunicipalities.Count selected
+                    </span>
+
+                    @* Quick actions *@
+                    <button class="btn btn-sm btn-outline-success" type="button" @onclick="SelectAllVisibleAsync">
+                        <i class="bi bi-check-all me-1"></i>
+                        Select All Visible
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="ClearAllMunicipalities"
+                            disabled="@(!_selectedMunicipalities.Any())">
+                        <i class="bi bi-x-circle me-1"></i>
+                        Clear All
+                    </button>
+                </div>
+
+            </div>
+
+            @* ── Info text ────────────────────────────────────────────────── *@
             <p class="text-muted small mb-3">
                 <i class="bi bi-info-circle me-1"></i>
                 Check the municipalities this PDO is responsible for.
-                They will only be able to create and edit records
-                within these areas.
+                They will only be able to create and edit records within these areas.
             </p>
 
-            @foreach (var provinceGroup in _availableProvinces)
+            @* ── No results ───────────────────────────────────────────────── *@
+            @if (!FilteredJurisdictionProvinces.Any())
             {
-                <div class="mb-3 border rounded p-3">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <input type="checkbox"
-                               class="form-check-input"
-                               id="prov-@provinceGroup.Key"
-                               checked="@IsProvinceAllChecked(provinceGroup.Value)"
-                               @onchange="e => ToggleProvince(
-                                   provinceGroup.Value,
-                                   (bool)e.Value!)" />
-                        <label class="fw-semibold mb-0"
-                               for="prov-@provinceGroup.Key"
-                               style="cursor:pointer;">
-                            <i class="bi bi-map me-1"></i>@provinceGroup.Key
-                        </label>
-                        <span class="badge bg-secondary ms-1">
-                            @_selectedMunicipalities.Count(
-                                c => provinceGroup.Value.Any(m => m.Code == c))
-                            / @provinceGroup.Value.Count selected
-                        </span>
-                    </div>
-
-                    <div class="row g-2">
-                        @foreach (var muni in provinceGroup.Value.OrderBy(m => m.Name))
-                        {
-                            <div class="col-md-4 col-sm-6">
-                                <div class="form-check">
-                                    <input type="checkbox"
-                                           class="form-check-input"
-                                           id="muni-@muni.Code"
-                                           checked="@_selectedMunicipalities.Contains(muni.Code)"
-                                           @onchange="() => ToggleMunicipality(muni.Code)" />
-                                    <label class="form-check-label small"
-                                           for="muni-@muni.Code">
-                                        @muni.Name
-                                    </label>
-                                </div>
-                            </div>
-                        }
-                    </div>
+                <div class="alert alert-info py-2">
+                    <i class="bi bi-search me-2"></i>
+                    No provinces or municipalities match
+                    <strong>"@_jurSearchTerm"</strong>.
                 </div>
             }
 
-            <div class="alert alert-info py-2 small mt-2">
-                <i class="bi bi-check-circle me-1"></i>
-                <strong>@_selectedMunicipalities.Count</strong>
-                municipality(ies) selected
-            </div>
+            @* ── Province + municipality grid ─────────────────────────────── *@
+            @foreach (var provinceGroup in FilteredJurisdictionProvinces)
+            {
+                var allMusInProvince = _availableProvinces[provinceGroup.Key];
+                var visibleMunis = provinceGroup.Value;
+                var selectedInProvince = visibleMunis
+                    .Count(m => _selectedMunicipalities.Contains(m.Code));
+
+                <div class="jur-province-card">
+
+                    @* Province header *@
+                    <div class="jur-province-header">
+                        <input type="checkbox" class="form-check-input" id="prov-@provinceGroup.Key"
+                               checked="@IsProvinceAllChecked(allMusInProvince)" @onchange="e => ToggleProvince(
+                                                                                                                                allMusInProvince,
+                                                                                                                                (bool)e.Value!)" />
+<label class="jur-province-label" for="prov-@provinceGroup.Key">
+                            <i class="bi bi-map me-1 text-primary"></i>
+                            @provinceGroup.Key
+                        </label>
+                        <span class="badge bg-secondary ms-auto">
+                            @selectedInProvince / @visibleMunis.Count
+                            @if (!string.IsNullOrWhiteSpace(_jurSearchTerm)
+                                 && visibleMunis.Count < allMusInProvince.Count)
+                            {
+                                <span class="ms-1 opacity-75">
+                                    (filtered)
+                                </span>
+                            }
+                        </span>
+                    </div>
+
+                    @* Municipality checkboxes *@
+                    <div class="jur-muni-grid">
+                        @foreach (var muni in visibleMunis.OrderBy(m => m.Name))
+                        {
+                            var isChecked = _selectedMunicipalities.Contains(muni.Code);
+                            <div class="jur-muni-item @(isChecked ? "jur-muni-item--checked" : "")">
+                                <input type="checkbox" class="form-check-input" id="muni-@muni.Code" checked="@isChecked"
+                                       @onchange="() => ToggleMunicipality(muni.Code)" />
+                                <label class="form-check-label" for="muni-@muni.Code">
+                                    @HighlightMatch(muni.Name, _jurSearchTerm)
+                                </label>
+                            </div>
+                        }
+                    </div>
+
+                </div>
+            }
         }
     </BodyTemplate>
     <FooterTemplate>
         <div class="d-flex justify-content-between align-items-center w-100">
-            <button class="btn btn-sm btn-outline-secondary"
-                    @onclick="ClearAllMunicipalities">
-                Clear All
-            </button>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary">
+                    @_selectedMunicipalities.Count municipality(ies) selected
+                </span>
+            </div>
             <div class="d-flex gap-2">
-                <HxButton Color="ThemeColor.Secondary"
-                          @onclick="() => _jurisdictionModal.HideAsync()">
+                <HxButton Color="ThemeColor.Secondary" @onclick="() => _jurisdictionModal.HideAsync()">
                     Cancel
                 </HxButton>
-                <HxButton Color="ThemeColor.Primary"
-                          @onclick="SaveJurisdictionsAsync"
-                          Disabled="@_isSaving">
+                <HxButton Color="ThemeColor.Primary" @onclick="SaveJurisdictionsAsync" Disabled="@_isSaving">
                     @if (_isSaving)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
@@ -361,49 +491,189 @@
 
 @code {
     // ── Page state ────────────────────────────────────────────────────────────
-    private bool _initialized = false;   // ✅ false until OnAfterRenderAsync runs
-    private bool _authorized  = false;
-    private bool _isLoading   = false;
-    private bool _isSaving    = false;
+    private bool _initialized = false; // ✅ false until OnAfterRenderAsync runs
+    private bool _authorized = false;
+    private bool _isLoading = false;
+    private bool _isSaving = false;
     private string _activeTab = "Pending";
+    // ── Search/filter state ───────────────────────────────────────────────────
+    private string _searchName = string.Empty;
+    private string _filterProvince = string.Empty;
+    private string _filterMunicipality = string.Empty;
+    private List<string> _filterableProvinces = new();
+    private List<string> _filterableMunicipalities = new();
     private List<UserListDto> _users = new();
     private UserListDto? _selectedUser;
 
     // ── Approve modal ─────────────────────────────────────────────────────────
-    private HxModal  _approveModal   = default!;
-    private string   _approveRole    = "Viewer";
-    private string?  _approveRemarks;
+    private HxModal _approveModal = default!;
+    private string _approveRole = "Viewer";
+    private string? _approveRemarks;
 
     // ── Reject modal ──────────────────────────────────────────────────────────
-    private HxModal  _rejectModal    = default!;
-    private string?  _rejectRemarks;
+    private HxModal _rejectModal = default!;
+    private string? _rejectRemarks;
 
     // ── Jurisdiction modal ────────────────────────────────────────────────────
-    private HxModal  _jurisdictionModal       = default!;
-    private bool     _isLoadingJurisdictions  = false;
+    private HxModal _jurisdictionModal = default!;
+    private bool _isLoadingJurisdictions = false;
     private HashSet<int> _selectedMunicipalities = new();
+    // ── Jurisdiction modal search ─────────────────────────────────────────────
+    private string _jurSearchTerm = string.Empty;
     private Dictionary<string, List<(int Code, string Name)>>
-        _availableProvinces = new();
+    _availableProvinces = new();
 
     // ── Computed ──────────────────────────────────────────────────────────────
     private int PendingCount => _users.Count(u => u.ApprovalStatus == 0);
 
-    private IEnumerable<UserListDto> FilteredUsers => _activeTab switch
-    {
-        "Pending"  => _users.Where(u => u.ApprovalStatus == 0),
-        "Approved" => _users.Where(u => u.ApprovalStatus == 1),
-        "Rejected" => _users.Where(u => u.ApprovalStatus == 2),
-        _          => _users
-    };
+    // ── Municipality options filtered by selected province ────────────────────
+    private IEnumerable<string> _filteredMunicipalityOptions =>
+        string.IsNullOrWhiteSpace(_filterProvince)
+            ? _filterableMunicipalities
+            : _users
+                .SelectMany(u => u.Jurisdictions)
+                .Where(j => j.ProvinceName?.Equals(
+                    _filterProvince,
+                    StringComparison.OrdinalIgnoreCase) == true)
+                .Select(j => j.MunicipalityName ?? string.Empty)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(m => m);
 
+    private bool HasActiveFilter =>
+        !string.IsNullOrWhiteSpace(_searchName) ||
+        !string.IsNullOrWhiteSpace(_filterProvince) ||
+        !string.IsNullOrWhiteSpace(_filterMunicipality);
+    private void OnProvinceFilterChanged()
+    {
+        // ── Reset municipality when province changes ──────────────────────────
+        _filterMunicipality = string.Empty;
+        StateHasChanged();
+    }
+    // ── Filtered provinces + municipalities based on search term ──────────────
+    private Dictionary<string, List<(int Code, string Name)>>
+        FilteredJurisdictionProvinces
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_jurSearchTerm))
+                return _availableProvinces;
+
+            var term = _jurSearchTerm.Trim().ToLower();
+            var result = new Dictionary<string, List<(int Code, string Name)>>();
+
+            foreach (var kvp in _availableProvinces)
+            {
+                // ── Province name matches → show all its municipalities ────────
+                if (kvp.Key.ToLower().Contains(term))
+                {
+                    result[kvp.Key] = kvp.Value;
+                    continue;
+                }
+
+                // ── Otherwise filter municipalities by name ────────────────────
+                var matchedMusis = kvp.Value
+                    .Where(m => m.Name.ToLower().Contains(term))
+                    .ToList();
+
+                if (matchedMusis.Any())
+                    result[kvp.Key] = matchedMusis;
+            }
+
+            return result;
+        }
+    }
+
+    // ── Select all currently visible (filtered) municipalities ────────────────
+    private void SelectAllVisibleAsync()
+    {
+        foreach (var province in FilteredJurisdictionProvinces.Values)
+            foreach (var muni in province)
+                _selectedMunicipalities.Add(muni.Code);
+
+        StateHasChanged();
+    }
+
+    // ── Highlight matched text in municipality names ──────────────────────────
+    private MarkupString HighlightMatch(string text, string? term)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return new MarkupString(
+                System.Web.HttpUtility.HtmlEncode(text));
+
+        var encoded = System.Web.HttpUtility.HtmlEncode(text);
+        var encodedTerm = System.Web.HttpUtility.HtmlEncode(term.Trim());
+
+        var result = System.Text.RegularExpressions.Regex.Replace(
+            encoded,
+            System.Text.RegularExpressions.Regex.Escape(encodedTerm),
+            m => $"<mark style='background:#fef08a; padding:0 2px; " +
+                 $"border-radius:2px;'>{m.Value}</mark>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        return new MarkupString(result);
+    }
+
+    private void ClearFilters()
+    {
+        _searchName = string.Empty;
+        _filterProvince = string.Empty;
+        _filterMunicipality = string.Empty;
+        StateHasChanged();
+    }
+    private IEnumerable<UserListDto> FilteredUsers
+    {
+        get
+        {
+            var query = _activeTab switch
+            {
+                "Pending" => _users.Where(u => u.ApprovalStatus == 0),
+                "Approved" => _users.Where(u => u.ApprovalStatus == 1),
+                "Rejected" => _users.Where(u => u.ApprovalStatus == 2),
+                _ => _users.AsEnumerable()
+            };
+
+            // ── Name search ───────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(_searchName))
+            {
+                var term = _searchName.Trim().ToLower();
+                query = query.Where(u =>
+                    (u.FullName?.ToLower().Contains(term) == true) ||
+                    (u.UserName?.ToLower().Contains(term) == true) ||
+                    (u.Position?.ToLower().Contains(term) == true));
+            }
+
+            // ── Province filter ───────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(_filterProvince))
+            {
+                query = query.Where(u =>
+                    u.Jurisdictions.Any(j =>
+                        j.ProvinceName?.Equals(
+                            _filterProvince,
+                            StringComparison.OrdinalIgnoreCase) == true));
+            }
+
+            // ── Municipality filter ───────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(_filterMunicipality))
+            {
+                query = query.Where(u =>
+                    u.Jurisdictions.Any(j =>
+                        j.MunicipalityName?.Equals(
+                            _filterMunicipality,
+                            StringComparison.OrdinalIgnoreCase) == true));
+            }
+
+            return query;
+        }
+    }
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
 
         await AuthService.InitAsync();
-        _authorized  = AuthService.IsSuperAdmin();
-        _initialized = true;   // ✅ now the markup knows we've checked
+        _authorized = AuthService.IsSuperAdmin();
+        _initialized = true; // ✅ now the markup knows we've checked
 
         if (_authorized)
             await LoadUsersAsync();
@@ -421,6 +691,23 @@
 
             _users = await Http.GetFromJsonAsync<List<UserListDto>>(
                 "api/user-management") ?? new();
+
+            // ── Build unique province/municipality lists for filter dropdowns ─
+            _filterableProvinces = _users
+                .SelectMany(u => u.Jurisdictions)
+                .Select(j => j.ProvinceName ?? string.Empty)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(p => p)
+                .ToList();
+
+            _filterableMunicipalities = _users
+                .SelectMany(u => u.Jurisdictions)
+                .Select(j => j.MunicipalityName ?? string.Empty)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(m => m)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -436,8 +723,8 @@
     // ── Approve ───────────────────────────────────────────────────────────────
     private async Task OpenApproveModal(UserListDto user)
     {
-        _selectedUser   = user;
-        _approveRole    = user.Role;
+        _selectedUser = user;
+        _approveRole = user.Role;
         _approveRemarks = user.Remarks;
         await _approveModal.ShowAsync();
     }
@@ -452,7 +739,7 @@
                 $"api/user-management/{_selectedUser.Id}/approve",
                 new ApproveUserRequestDto
                 {
-                    Role    = _approveRole,
+                    Role = _approveRole,
                     Remarks = _approveRemarks
                 });
 
@@ -484,7 +771,7 @@
     // ── Reject ────────────────────────────────────────────────────────────────
     private async Task OpenRejectModal(UserListDto user)
     {
-        _selectedUser  = user;
+        _selectedUser = user;
         _rejectRemarks = null;
         await _rejectModal.ShowAsync();
     }
@@ -517,7 +804,7 @@
         _selectedUser = user;
         _selectedMunicipalities = new HashSet<int>(
             user.Jurisdictions.Select(j => j.PsgcCodeMunicipality));
-        _availableProvinces     = new();
+        _availableProvinces = new();
         _isLoadingJurisdictions = true;
 
         await _jurisdictionModal.ShowAsync();
@@ -525,11 +812,17 @@
 
         try
         {
-            // ✅ Load all provinces for the PSGC region dropdown
             var provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
                 "api/Province") ?? new();
 
-            foreach (var province in provinces.OrderBy(p => p.Name))
+            // ── Deduplicate provinces by name ─────────────────────────────────
+            var uniqueProvinces = provinces
+                .GroupBy(p => p.Name?.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(p => p.PsgcCodeProvince).First())
+                .OrderBy(p => p.Name)
+                .ToList();
+
+            foreach (var province in uniqueProvinces)
             {
                 var munis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
                     $"api/Municipality/by-province/{province.PsgcCodeProvince}")
@@ -551,7 +844,6 @@
             StateHasChanged();
         }
     }
-
     private void ToggleMunicipality(int code)
     {
         if (!_selectedMunicipalities.Remove(code))
@@ -565,7 +857,7 @@
         foreach (var m in munis)
         {
             if (check) _selectedMunicipalities.Add(m.Code);
-            else       _selectedMunicipalities.Remove(m.Code);
+            else _selectedMunicipalities.Remove(m.Code);
         }
         StateHasChanged();
     }
@@ -610,10 +902,10 @@
     private static string GetRoleBadgeClass(string role) => role switch
     {
         "SuperAdmin" => "bg-dark",
-        "Admin"      => "bg-danger",
-        "PDO"        => "bg-primary",
-        "Viewer"     => "bg-secondary",
-        _            => "bg-secondary"
+        "Admin" => "bg-danger",
+        "PDO" => "bg-primary",
+        "Viewer" => "bg-secondary",
+        _ => "bg-secondary"
     };
 
     private static string GetStatusBadgeClass(int status) => status switch
