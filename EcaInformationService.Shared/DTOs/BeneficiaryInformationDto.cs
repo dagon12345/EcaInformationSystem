@@ -78,6 +78,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
         public byte[]? RowVersion { get; set; }
+        public bool HasDocuments { get; set; }
 
         private string GetJsonString(JsonElement? element)
         {

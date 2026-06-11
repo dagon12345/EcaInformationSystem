@@ -1,6 +1,15 @@
 ﻿<div class="doc-panel">
 
     <HxInputFileDropZone @ref="_dropZone" OnChange="OnFilesChanged" Accept=".pdf" Multiple="true" CssClass="mb-3" />
+    @if (!string.IsNullOrWhiteSpace(_fileValidationError))
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2 mt-2 py-2 px-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>@_fileValidationError</span>
+            <button type="button" class="btn-close ms-auto" @onclick="@(() => _fileValidationError = null)">
+            </button>
+        </div>
+    }
 
     <div class="doc-pending-list mb-3">
         <HxListGroup>

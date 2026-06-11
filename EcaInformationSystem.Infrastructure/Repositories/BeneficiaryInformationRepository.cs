@@ -1375,8 +1375,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = x.Beneficiary.CoStatus,
                     CoDateEndorsed = x.Beneficiary.CoDateEndorsed,
                     CoDateApproved = x.Beneficiary.CoDateApproved,
-                    RowVersion = x.Beneficiary.RowVersion
-                });
+                    RowVersion = x.Beneficiary.RowVersion,
+                    HasDocuments = _context.BeneficiaryDocuments
+                    .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted)});
         }
 
         // ── Mapper: call this AFTER .ToListAsync() ───────────────────────────────────
@@ -1439,7 +1440,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             CoStatus = x.CoStatus,
             CoDateEndorsed = x.CoDateEndorsed,
             CoDateApproved = x.CoDateApproved,
-            RowVersion = x.RowVersion
+            RowVersion = x.RowVersion,
+            HasDocuments = x.HasDocuments
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -1777,6 +1779,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public DateTime? CoDateEndorsed { get; set; }
             public DateTime? CoDateApproved { get; set; }
             public byte[]? RowVersion { get; set; }
+            public bool HasDocuments { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

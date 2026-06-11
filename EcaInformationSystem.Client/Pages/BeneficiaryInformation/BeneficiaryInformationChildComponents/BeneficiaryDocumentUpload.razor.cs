@@ -43,6 +43,7 @@ public partial class BeneficiaryDocumentUpload
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     // ✅ Stores the blob URL for the iframe so it can be revoked later
     private string? _blobUrl;
+    private string? _fileValidationError;
 
     private string ApiBase =>
         (Http.BaseAddress?.ToString() ?? Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080")
@@ -179,11 +180,34 @@ public partial class BeneficiaryDocumentUpload
         }
     }
 
-    private void OnFilesChanged(InputFileChangeEventArgs e)
+    private async Task OnFilesChanged(InputFileChangeEventArgs e)
     {
-        foreach (var file in e.GetMultipleFiles(20))
-            if (!_pendingFiles.Any(f => f.Name == file.Name))
-                _pendingFiles.Add(file);
+        _fileValidationError = null; // ✅ clear previous error
+
+        var invalidFiles = new List<string>();
+
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            // ✅ Validate by MIME type AND extension
+            var isValidMime = file.ContentType == "application/pdf";
+            var isValidExt = Path.GetExtension(file.Name)
+                .Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+
+            if (!isValidMime || !isValidExt)
+            {
+                invalidFiles.Add(file.Name);
+                continue; // skip invalid files
+            }
+
+            _pendingFiles.Add(file);
+        }
+
+        if (invalidFiles.Any())
+        {
+            _fileValidationError = $"Only PDF files are allowed. " +
+                $"The following file(s) were rejected: {string.Join(", ", invalidFiles)}";
+        }
+
         StateHasChanged();
     }
 
@@ -196,6 +220,7 @@ public partial class BeneficiaryDocumentUpload
     private async Task UploadPendingAsync()
     {
         if (!_pendingFiles.Any()) return;
+        _fileValidationError = null;
         try
         {
             _isUploading = true;

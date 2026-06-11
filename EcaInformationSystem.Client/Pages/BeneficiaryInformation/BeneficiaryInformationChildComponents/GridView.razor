@@ -94,8 +94,7 @@
         <div class="flex-grow-1 small">
             No possible duplicate records found in the current filtered results.
         </div>
-        <button class="btn btn-sm btn-outline-secondary flex-shrink-0"
-                @onclick="() => _dismissedDuplicateBanner = true">
+        <button class="btn btn-sm btn-outline-secondary flex-shrink-0" @onclick="() => _dismissedDuplicateBanner = true">
             Dismiss
         </button>
     </div>
@@ -130,8 +129,7 @@
                         @* ── Generate Payroll — Admin only (hidden for others) ── *@
                         @if (_isAdmin)
                         {
-                            <button class="btn btn-sm btn-warning"
-                                    @onclick="OnGeneratePayrollClicked"
+                            <button class="btn btn-sm btn-warning" @onclick="OnGeneratePayrollClicked"
                                     disabled="@(!checkedIds.Any() || IsGeneratingPayroll)">
                                 @if (IsGeneratingPayroll)
                                 {
@@ -243,9 +241,9 @@
 
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                     disabled="@(!checkedIds.Any()
-                                               || bulkPaymentStatus == null
-                                               || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                               || IsBulkUpdating)">
+                                                                                                                                                           || bulkPaymentStatus == null
+                                                                                                                                                           || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                           || IsBulkUpdating)">
                                 @if (IsBulkUpdating)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -268,14 +266,14 @@
                             </select>
 
                             <input class="form-control form-control-sm" style="max-width:160px;"
-                                   placeholder="Batch Code (leave blank = no change)"
-                                   @bind="bulkBatchCode" @bind:event="oninput" />
+                                   placeholder="Batch Code (leave blank = no change)" @bind="bulkBatchCode"
+                                   @bind:event="oninput" />
 
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                     disabled="@(!checkedIds.Any()
-                                               || (string.IsNullOrWhiteSpace(bulkBatchCode)
-                                                   && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                               || IsBulkUpdatingOther)">
+                                                                                                                                                           || (string.IsNullOrWhiteSpace(bulkBatchCode)
+                                                                                                                                                               && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                           || IsBulkUpdatingOther)">
                                 @if (IsBulkUpdatingOther)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -299,21 +297,19 @@
 
                             @if (bulkCoStatus == "1")
                             {
-                                <input type="date" class="form-control form-control-sm w-auto"
-                                       @bind="bulkCoDateEndorsed" />
+                                <input type="date" class="form-control form-control-sm w-auto" @bind="bulkCoDateEndorsed" />
                             }
                             @if (bulkCoStatus == "2")
                             {
-                                <input type="date" class="form-control form-control-sm w-auto"
-                                       @bind="bulkCoDateApproved" />
+                                <input type="date" class="form-control form-control-sm w-auto" @bind="bulkCoDateApproved" />
                             }
 
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
                                     disabled="@(!checkedIds.Any()
-                                               || string.IsNullOrWhiteSpace(bulkCoStatus)
-                                               || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
-                                               || (bulkCoStatus == "2" && bulkCoDateApproved == null)
-                                               || IsBulkUpdatingCoStatus)">
+                                                                                                                                                           || string.IsNullOrWhiteSpace(bulkCoStatus)
+                                                                                                                                                           || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
+                                                                                                                                                           || (bulkCoStatus == "2" && bulkCoDateApproved == null)
+                                                                                                                                                           || IsBulkUpdatingCoStatus)">
                                 @if (IsBulkUpdatingCoStatus)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -337,20 +333,18 @@
                                 <option value="4">Q4</option>
                             </select>
 
-                            <input class="form-control form-control-sm" style="max-width:100px;"
-                                   placeholder="Batch e.g. 1"
+                            <input class="form-control form-control-sm" style="max-width:100px;" placeholder="Batch e.g. 1"
                                    value="@bulkRefBatch" @oninput="OnBulkBatchInput" />
 
-                            <input class="form-control form-control-sm" type="number"
-                                   style="max-width:150px;" placeholder="Year e.g. 26"
-                                   @bind="bulkRefYear" />
+                            <input class="form-control form-control-sm" type="number" style="max-width:150px;"
+                                   placeholder="Year e.g. 26" @bind="bulkRefYear" />
 
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkRefNumberModal"
                                     disabled="@(!checkedIds.Any()
-                                               || string.IsNullOrWhiteSpace(bulkRefQuarter)
-                                               || string.IsNullOrWhiteSpace(bulkRefBatch)
-                                               || bulkRefYear == null
-                                               || IsBulkUpdatingRefNumber)">
+                                                                                                                                                           || string.IsNullOrWhiteSpace(bulkRefQuarter)
+                                                                                                                                                           || string.IsNullOrWhiteSpace(bulkRefBatch)
+                                                                                                                                                           || bulkRefYear == null
+                                                                                                                                                           || IsBulkUpdatingRefNumber)">
                                 @if (IsBulkUpdatingRefNumber)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -391,8 +385,7 @@
                                     disabled="@(State.Filter.PageNumber >= State.TotalPages || State.IsLoading)">
                                 Next →
                             </button>
-                            <select class="form-select form-select-sm w-auto"
-                                    @bind="State.Filter.PageSize"
+                            <select class="form-select form-select-sm w-auto" @bind="State.Filter.PageSize"
                                     @bind:after="OnPageSizeChangedAsync">
                                 <option value="10">10 / page</option>
                                 <option value="20">20 / page</option>
@@ -421,8 +414,7 @@
                                 <thead>
                                     <tr>
                                         <th style="width:42px;">
-                                            <input type="checkbox" class="form-check-input"
-                                                   checked="@AreAllChecked()"
+                                            <input type="checkbox" class="form-check-input" checked="@AreAllChecked()"
                                                    @onchange="ToggleSelectAll" />
                                         </th>
                                         <th>Reference Number</th>
@@ -433,11 +425,13 @@
                                                 <span class="sort-icon-wrap">
                                                     @if (_sortColumn == "batchcode")
                                                     {
-                                                        <i class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
+                                                        <i
+                                                        class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
                                                     }
                                                     else
                                                     {
-                                                        <i class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
+                                                        <i
+                                                        class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
                                                     }
                                                 </span>
                                             </div>
@@ -445,8 +439,7 @@
                                         <th>Phone</th>
                                         <th>
                                             Full Name
-                                            <input type="text" class="hdr-search"
-                                                   placeholder="Search name..."
+                                            <input type="text" class="hdr-search" placeholder="Search name..."
                                                    @oninput="OnFullNameFilterInput" />
                                         </th>
                                         <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
@@ -456,11 +449,13 @@
                                                 <span class="sort-icon-wrap">
                                                     @if (_sortColumn == "birthdate")
                                                     {
-                                                        <i class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
+                                                        <i
+                                                        class="bi @(_sortAscending ? "bi-sort-up" : "bi-sort-down") sort-icon-active"></i>
                                                     }
                                                     else
                                                     {
-                                                        <i class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
+                                                        <i
+                                                        class="bi bi-arrow-down-up sort-icon-idle @(!State.Beneficiaries.Any() ? "sort-icon-hidden" : "")"></i>
                                                     }
                                                 </span>
                                             </div>
@@ -477,12 +472,13 @@
                                         <th>Compliant</th>
                                         <th>CO Findings</th>
                                         <th>CO Status</th>
+                                        <th>Docs</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <Virtualize Items="@FilteredBeneficiaries.ToList()" Context="item"
-                                                ItemSize="56" OverscanCount="5">
+                                    <Virtualize Items="@FilteredBeneficiaries.ToList()" Context="item" ItemSize="56"
+                                                OverscanCount="5">
                                         <ItemContent>
                                             <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
                                                 <td>
@@ -504,8 +500,7 @@
                                                              !string.IsNullOrWhiteSpace(item.Batch) &&
                                                              item.RefYear.HasValue)
                                                     {
-                                                        <span class="tbl-badge ref-no text-muted"
-                                                              style="opacity:0.6;"
+                                                        <span class="tbl-badge ref-no text-muted" style="opacity:0.6;"
                                                               title="Reference code not yet generated">
                                                             Q@(item.Quarter)B@(item.Batch)-@(item.RefYear?.ToString("D2"))-?????-@RegionRomanNumeralHelper.GetRoman(item.PsgcCodeRegion)
                                                         </span>
@@ -521,11 +516,13 @@
                                                     @Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
                                                     @if (!string.IsNullOrWhiteSpace(item.MiddleName))
                                                     {
-                                                        <span>&nbsp;</span>@Highlight(item.MiddleName)
+                                                        <span>&nbsp;</span>
+                                                        @Highlight(item.MiddleName)
                                                     }
                                                     @if (!string.IsNullOrWhiteSpace(item.Extension))
                                                     {
-                                                        <span>&nbsp;</span>@Highlight(item.Extension)
+                                                        <span>&nbsp;</span>
+                                                        @Highlight(item.Extension)
                                                     }
                                                 </td>
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
@@ -549,8 +546,9 @@
                                                 <td>
                                                     @if (item.PaymentStatus == 2)
                                                     {
-                                                        <span class="tbl-badge @GetModeOfPaymentBadgeClass(item.ModeOfPayment)"
-                                                              title="@GetModeOfPaymentText(item.ModeOfPayment)">
+                                                        <span
+                                                            class="tbl-badge @GetModeOfPaymentBadgeClass(item.ModeOfPayment)"
+                                                            title="@GetModeOfPaymentText(item.ModeOfPayment)">
                                                             @Highlight(GetModeOfPaymentText(item.ModeOfPayment))
                                                         </span>
                                                     }
@@ -561,36 +559,42 @@
                                                 </td>
                                                 <td>
                                                     @{
-                                                        var eligBadge = GetEligibilityBadgeClass(item.IsEligible, item.EligibilityRemarks);
-                                                        var eligLabel = GetEligibilityLabel(item.IsEligible, item.EligibilityRemarks);
+                                                        var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
+                                                    item.EligibilityRemarks);
+                                                        var eligLabel = GetEligibilityLabel(item.IsEligible,
+                                                    item.EligibilityRemarks);
                                                     }
                                                     <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarks">
                                                         @Highlight(eligLabel)
                                                     </span>
-                                                    @if (item.IsEligible && !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
+                                                    @if (item.IsEligible &&
+                                                    !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
-                                                                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                                             @Highlight(item.EligibilityRemarks)
                                                         </small>
                                                     }
                                                 </td>
                                                 <td>
                                                     @{
-                                                        var compBadge = GetComplianceBadgeClass(item.IsCompliant, item.AssessmentRemarks);
-                                                        var compLabel = GetComplianceLabel(item.IsCompliant, item.AssessmentRemarks);
+                                                        var compBadge = GetComplianceBadgeClass(item.IsCompliant,
+                                                    item.AssessmentRemarks);
+                                                        var compLabel = GetComplianceLabel(item.IsCompliant,
+                                                    item.AssessmentRemarks);
                                                     }
                                                     <span class="tbl-badge @compBadge" title="@item.AssessmentRemarks">
                                                         @Highlight(compLabel)
                                                     </span>
-                                                    @if (item.IsCompliant && !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
+                                                    @if (item.IsCompliant &&
+                                                    !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
-                                                                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                                             @Highlight(item.AssessmentRemarks)
                                                         </small>
                                                     }
@@ -603,12 +607,13 @@
                                                     <span class="tbl-badge @findBadge" title="@item.FindingRemarks">
                                                         @Highlight(findLabel)
                                                     </span>
-                                                    @if (item.FindingStatus == 2 && !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                                    @if (item.FindingStatus == 2 &&
+                                                    !string.IsNullOrWhiteSpace(item.FindingRemarks))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
-                                                                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                                                             @Highlight(item.FindingRemarks)
                                                         </small>
                                                     }
@@ -637,8 +642,19 @@
                                                     }
                                                 </td>
                                                 <td>
-                                                    <button class="btn-details"
-                                                            @onclick="() => OpenDetailsPanel(item)"
+                                                    @if (item.HasDocuments)
+                                                    {
+                                                        <span class="tbl-badge yes-b" title="Has attached documents">
+                                                            <i class="bi bi-paperclip me-1"></i>PDF
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">—</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <button class="btn-details" @onclick="() => OpenDetailsPanel(item)"
                                                             title="View Details">
                                                         <i class="bi bi-info-circle"></i> Details
                                                     </button>
@@ -704,8 +720,8 @@
             <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
                 <div class="input-group input-group-sm" style="max-width:240px;">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" placeholder="Search name..."
-                           @bind="_duplicateSearchTerm" @bind:event="oninput" />
+                    <input type="text" class="form-control" placeholder="Search name..." @bind="_duplicateSearchTerm"
+                           @bind:event="oninput" />
                 </div>
                 <select class="form-select form-select-sm w-auto" @bind="_duplicateReasonFilter">
                     <option value="">All reasons</option>
@@ -856,16 +872,24 @@
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkRefNumberModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkRefNumberAsync"
-                  Disabled="@IsBulkUpdatingRefNumber">
-            @if (IsBulkUpdatingRefNumber) { <span>Updating...</span> }
-            else { <span>Yes, Assign</span> }
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkRefNumberAsync" Disabled="@IsBulkUpdatingRefNumber">
+            @if (IsBulkUpdatingRefNumber)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+
+                <span>Yes, Assign</span>
+            }
         </HxButton>
     </FooterTemplate>
 </HxModal>
 
 <HxModal @ref="bulkUpdateModal">
-    <HeaderTemplate><h5 class="modal-title">Confirm Bulk Update</h5></HeaderTemplate>
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm Bulk Update</h5>
+    </HeaderTemplate>
     <BodyTemplate>
         <p>
             You are about to set <strong>@checkedIds.Count</strong> record(s) to
@@ -883,14 +907,23 @@
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkUpdateModal.HideAsync()">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkUpdateAsync" Disabled="@IsBulkUpdating">
-            @if (IsBulkUpdating) { <span>Updating...</span> }
-            else { <span>Yes, Update</span> }
+            @if (IsBulkUpdating)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+
+                <span>Yes, Update</span>
+            }
         </HxButton>
     </FooterTemplate>
 </HxModal>
 
 <HxModal @ref="bulkOtherUpdateModal">
-    <HeaderTemplate><h5 class="modal-title">Confirm Bulk Update</h5></HeaderTemplate>
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm Bulk Update</h5>
+    </HeaderTemplate>
     <BodyTemplate>
         <p>You are about to update <strong>@checkedIds.Count</strong> record(s):</p>
         <ul class="mb-0">
@@ -907,16 +940,24 @@
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkOtherUpdateModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkOtherUpdateAsync"
-                  Disabled="@IsBulkUpdatingOther">
-            @if (IsBulkUpdatingOther) { <span>Updating...</span> }
-            else { <span>Yes, Update</span> }
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkOtherUpdateAsync" Disabled="@IsBulkUpdatingOther">
+            @if (IsBulkUpdatingOther)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+
+                <span>Yes, Update</span>
+            }
         </HxButton>
     </FooterTemplate>
 </HxModal>
 
 <HxModal @ref="bulkCoStatusModal">
-    <HeaderTemplate><h5 class="modal-title">Confirm CO Status Update</h5></HeaderTemplate>
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm CO Status Update</h5>
+    </HeaderTemplate>
     <BodyTemplate>
         <p>
             You are about to set <strong>@checkedIds.Count</strong> record(s) to
@@ -939,10 +980,16 @@
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkCoStatusModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkCoStatusAsync"
-                  Disabled="@IsBulkUpdatingCoStatus">
-            @if (IsBulkUpdatingCoStatus) { <span>Updating...</span> }
-            else { <span>Yes, Update</span> }
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkCoStatusAsync" Disabled="@IsBulkUpdatingCoStatus">
+            @if (IsBulkUpdatingCoStatus)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+
+                <span>Yes, Update</span>
+            }
         </HxButton>
     </FooterTemplate>
 </HxModal>
@@ -987,253 +1034,297 @@
 
             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Identity Information</h6>
             <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Last Name</small><span>@(selectedDetails.LastName ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">First Name</small><span>@selectedDetails.FirstName</span></div>
-                <div class="col-6"><small class="text-muted d-block">Middle Name</small><span>@(selectedDetails.MiddleName ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Extension</small><span>@(selectedDetails.Extension ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Birth Date</small><span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Age</small><span>@selectedDetails.Age</span></div>
-                <div class="col-6"><small class="text-muted d-block">Sex</small><span>@GetSexText(selectedDetails.Sex)</span></div>
-                <div class="col-6"><small class="text-muted d-block">Phone Number</small><span>@(selectedDetails.PhoneNumber ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">OSCA ID Number</small><span>@(selectedDetails.OscaIdNumber ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">NCSC RRN</small><span>@(selectedDetails.NcscRrn?.ToString() ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Batch Code</small><span>@(selectedDetails.BatchCode ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Date Applied</small><span>@(selectedDetails.DateApplied?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Date Endorsed</small><span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">OSCA ID Date Issued</small><span>@(selectedDetails.OscaIdDateIssued?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-            </div>
+                <div class="col-6"><small class="text-muted d-block">Last Name</small><span>@(selectedDetails.LastName ??
+                                                                              "—")</span></div>
+                    <div class="col-6"><small class="text-muted d-block">First
+                        Name</small><span>@selectedDetails.FirstName</span></div>
+                        <div class="col-6"><small class="text-muted d-block">Middle Name</small><span>@(selectedDetails.MiddleName
+                                                                                                        ?? "—")</span></div>
+                            <div class="col-6"><small class="text-muted d-block">Extension</small><span>@(selectedDetails.Extension ??
+                                                                                                                   "—")</span></div>
+                                <div class="col-6"><small class="text-muted d-block">Birth
+                                    Date</small><span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span></div>
+                                    <div class="col-6"><small class="text-muted d-block">Age</small><span>@selectedDetails.Age</span></div>
+                                    <div class="col-6"><small
+                                        class="text-muted d-block">Sex</small><span>@GetSexText(selectedDetails.Sex)</span></div>
+                                        <div class="col-6"><small class="text-muted d-block">Phone Number</small><span>@(selectedDetails.PhoneNumber
+                                                                                                                                                        ?? "—")</span></div>
+                                            <div class="col-6"><small class="text-muted d-block">OSCA ID
+                                                Number</small><span>@(selectedDetails.OscaIdNumber ?? "—")</span></div>
+                                                <div class="col-6"><small class="text-muted d-block">NCSC
+                                                    RRN</small><span>@(selectedDetails.NcscRrn?.ToString() ?? "—")</span></div>
+                                                    <div class="col-6"><small class="text-muted d-block">Batch Code</small><span>@(selectedDetails.BatchCode ??
+                                                                                                                                                                                           "—")</span></div>
+                                                        <div class="col-6"><small class="text-muted d-block">Date
+                                                            Applied</small><span>@(selectedDetails.DateApplied?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
+                                                            <div class="col-6"><small class="text-muted d-block">Date
+                                                                Endorsed</small><span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
+                                                                <div class="col-6"><small class="text-muted d-block">OSCA ID Date
+                                                                    Issued</small><span>@(selectedDetails.OscaIdDateIssued?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                                                                </div>
+                                                            </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Demographic Information</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Civil Status</small><span>@GetCivilStatusText(selectedDetails.CivilStatus)</span></div>
-                <div class="col-6"><small class="text-muted d-block">Citizenship</small><span>@GetCitizenshipText(selectedDetails.Citizenship)</span></div>
-                <div class="col-6"><small class="text-muted d-block">Indigenous People</small><span>@(selectedDetails.IsIndigenousPeople ? "Yes" : "No")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Person with Disability</small><span>@(selectedDetails.IsPersonWithDisability ? "Yes" : "No")</span></div>
-            </div>
+                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Demographic Information</h6>
+                                                            <div class="row g-2 mb-4">
+                                                                <div class="col-6"><small class="text-muted d-block">Civil
+                                                                    Status</small><span>@GetCivilStatusText(selectedDetails.CivilStatus)</span></div>
+                                                                    <div class="col-6"><small
+                                                                        class="text-muted d-block">Citizenship</small><span>@GetCitizenshipText(selectedDetails.Citizenship)</span>
+                                                                    </div>
+                                                                    <div class="col-6"><small class="text-muted d-block">Indigenous
+                                                                        People</small><span>@(selectedDetails.IsIndigenousPeople ? "Yes" : "No")</span></div>
+                                                                        <div class="col-6"><small class="text-muted d-block">Person with
+                                                                            Disability</small><span>@(selectedDetails.IsPersonWithDisability ? "Yes" : "No")</span></div>
+                                                                        </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Address Information</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Region</small><span>@selectedDetails.Region</span></div>
-                <div class="col-6"><small class="text-muted d-block">Province</small><span>@selectedDetails.Province</span></div>
-                <div class="col-6"><small class="text-muted d-block">Municipality</small><span>@selectedDetails.Municipality</span></div>
-                <div class="col-6"><small class="text-muted d-block">Barangay</small><span>@selectedDetails.Barangay</span></div>
-            </div>
+                                                                        <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Address Information</h6>
+                                                                        <div class="row g-2 mb-4">
+                                                                            <div class="col-6"><small class="text-muted d-block">Region</small><span>@selectedDetails.Region</span>
+                                                                            </div>
+                                                                            <div class="col-6"><small class="text-muted d-block">Province</small><span>@selectedDetails.Province</span>
+                                                                            </div>
+                                                                            <div class="col-6"><small
+                                                                                class="text-muted d-block">Municipality</small><span>@selectedDetails.Municipality</span></div>
+                                                                                <div class="col-6"><small class="text-muted d-block">Barangay</small><span>@selectedDetails.Barangay</span>
+                                                                                </div>
+                                                                            </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Validator</small><span>@(selectedDetails.Validator ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Validation Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
-                <div class="col-6">
-                    <small class="text-muted d-block">Payment Status</small>
-                    <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
-                        @GetPaymentStatusText(selectedDetails.PaymentStatus)
-                    </span>
-                </div>
-                <div class="col-6"><small class="text-muted d-block">Payment Date</small><span>@(selectedDetails.PaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Mode of Payment</small><span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span></div>
-                <div class="col-12"><small class="text-muted d-block">Remarks</small><span>@(selectedDetails.Remarks ?? "—")</span></div>
-            </div>
+                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
+                                                                            <div class="row g-2 mb-4">
+                                                                                <div class="col-6"><small class="text-muted d-block">Validator</small><span>@(selectedDetails.Validator ??
+                                                                                                                                                                                                                                                                      "—")</span></div>
+                                                                                    <div class="col-6"><small class="text-muted d-block">Validation
+                                                                                        Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
+                                                                                        <div class="col-6">
+                                                                                            <small class="text-muted d-block">Payment Status</small>
+                                                                                            <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
+                                                                                                @GetPaymentStatusText(selectedDetails.PaymentStatus)
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div class="col-6"><small class="text-muted d-block">Payment
+                                                                                            Date</small><span>@(selectedDetails.PaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
+                                                                                            <div class="col-6"><small class="text-muted d-block">Mode of
+                                                                                                Payment</small><span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span></div>
+                                                                                                <div class="col-12"><small class="text-muted d-block">Remarks</small><span>@(selectedDetails.Remarks ??
+                                                                                                                                                                                                                                                                                                                         "—")</span></div>
+                                                                                                </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6">
-                    <small class="text-muted d-block">Is Eligible</small>
-                    @{
-                        var detailEligLabel = GetEligibilityLabel(selectedDetails!.IsEligible, selectedDetails.EligibilityRemarks);
-                    }
-                    <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
-                        @detailEligLabel
-                    </span>
-                </div>
-                @if (!string.IsNullOrWhiteSpace(selectedDetails.EligibilityRemarks))
-                {
-                    <div class="col-12">
-                        <small class="text-muted d-block">Eligibility Remarks</small>
-                        <span>@selectedDetails.EligibilityRemarks</span>
-                    </div>
-                }
-                <div class="col-6">
-                    <small class="text-muted d-block">Is Compliant</small>
-                    @{
-                        var detailCompLabel = GetComplianceLabel(selectedDetails.IsCompliant, selectedDetails.AssessmentRemarks);
-                    }
-                    <span class="badge @(selectedDetails.IsCompliant ? "bg-info" : "bg-warning text-dark")">
-                        @detailCompLabel
-                    </span>
-                </div>
-                @if (!string.IsNullOrWhiteSpace(selectedDetails.AssessmentRemarks))
-                {
-                    <div class="col-12">
-                        <small class="text-muted d-block">Compliance Remarks</small>
-                        <span>@selectedDetails.AssessmentRemarks</span>
-                    </div>
-                }
-            </div>
+                                                                                                <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
+                                                                                                <div class="row g-2 mb-4">
+                                                                                                    <div class="col-6">
+                                                                                                        <small class="text-muted d-block">Is Eligible</small>
+                                                                                                        @{
+                                                                                                            var detailEligLabel = GetEligibilityLabel(selectedDetails!.IsEligible,
+                                                                                                    selectedDetails.EligibilityRemarks);
+                                                                                                        }
+                                                                                                        <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
+                                                                                                            @detailEligLabel
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                    @if (!string.IsNullOrWhiteSpace(selectedDetails.EligibilityRemarks))
+                                                                                                    {
+                                                                                                        <div class="col-12">
+                                                                                                            <small class="text-muted d-block">Eligibility Remarks</small>
+                                                                                                            <span>@selectedDetails.EligibilityRemarks</span>
+                                                                                                        </div>
+                                                                                                    }
+                                                                                                    <div class="col-6">
+                                                                                                        <small class="text-muted d-block">Is Compliant</small>
+                                                                                                        @{
+                                                                                                            var detailCompLabel = GetComplianceLabel(selectedDetails.IsCompliant,
+                                                                                                    selectedDetails.AssessmentRemarks);
+                                                                                                        }
+                                                                                                        <span class="badge @(selectedDetails.IsCompliant ? "bg-info" : "bg-warning text-dark")">
+                                                                                                            @detailCompLabel
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                    @if (!string.IsNullOrWhiteSpace(selectedDetails.AssessmentRemarks))
+                                                                                                    {
+                                                                                                        <div class="col-12">
+                                                                                                            <small class="text-muted d-block">Compliance Remarks</small>
+                                                                                                            <span>@selectedDetails.AssessmentRemarks</span>
+                                                                                                        </div>
+                                                                                                    }
+                                                                                                </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Is Deceased</small><span>@(selectedDetails.IsDeceased ? "Yes" : "No")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Date of Death</small><span>@(selectedDetails.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">Date Added</small><span>@selectedDetails.DateAdded.ToString("MMMM dd, yyyy")</span></div>
-            </div>
+                                                                                                <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
+                                                                                                <div class="row g-2 mb-4">
+                                                                                                    <div class="col-6"><small class="text-muted d-block">Is Deceased</small><span>@(selectedDetails.IsDeceased ?
+                                                                                                                                                                                                                                                                                                                                           "Yes" : "No")</span></div>
+                                                                                                        <div class="col-6"><small class="text-muted d-block">Date of
+                                                                                                            Death</small><span>@(selectedDetails.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
+                                                                                                            <div class="col-6"><small class="text-muted d-block">Date
+                                                                                                                Added</small><span>@selectedDetails.DateAdded.ToString("MMMM dd, yyyy")</span></div>
+                                                                                                            </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
-                <i class="bi bi-exclamation-triangle me-1"></i>Findings
-            </h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6">
-                    <small class="text-muted d-block">With Findings</small>
-                    <span class="tbl-badge @GetFindingBadgeClass(selectedDetails.FindingStatus)">
-                        @GetFindingStatusText(selectedDetails.FindingStatus)
-                    </span>
-                </div>
-                @if (selectedDetails.FindingStatus == 2 && !string.IsNullOrWhiteSpace(selectedDetails.FindingRemarks))
-                {
-                    <div class="col-12">
-                        <small class="text-muted d-block">Finding Remarks</small>
-                        <span>@selectedDetails.FindingRemarks</span>
-                    </div>
-                }
-            </div>
+                                                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
+                                                                                                                <i class="bi bi-exclamation-triangle me-1"></i>Findings
+                                                                                                            </h6>
+                                                                                                            <div class="row g-2 mb-4">
+                                                                                                                <div class="col-6">
+                                                                                                                    <small class="text-muted d-block">With Findings</small>
+                                                                                                                    <span class="tbl-badge @GetFindingBadgeClass(selectedDetails.FindingStatus)">
+                                                                                                                        @GetFindingStatusText(selectedDetails.FindingStatus)
+                                                                                                                    </span>
+                                                                                                                </div>
+                                                                                                                @if (selectedDetails.FindingStatus == 2 && !string.IsNullOrWhiteSpace(selectedDetails.FindingRemarks))
+                                                                                                                {
+                                                                                                                    <div class="col-12">
+                                                                                                                        <small class="text-muted d-block">Finding Remarks</small>
+                                                                                                                        <span>@selectedDetails.FindingRemarks</span>
+                                                                                                                    </div>
+                                                                                                                }
+                                                                                                            </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
-                <i class="bi bi-building-check me-1"></i>CO Status
-            </h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6">
-                    <small class="text-muted d-block">CO Status</small>
-                    <span class="tbl-badge @GetCoStatusBadgeClass(selectedDetails!.CoStatus)">
-                        @GetCoStatusLabel(selectedDetails.CoStatus)
-                    </span>
-                </div>
-                <div class="col-6"><small class="text-muted d-block">CO Date Endorsed</small><span>@(selectedDetails.CoDateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                <div class="col-6"><small class="text-muted d-block">CO Date Approved</small><span>@(selectedDetails.CoDateApproved?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-            </div>
+                                                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
+                                                                                                                <i class="bi bi-building-check me-1"></i>CO Status
+                                                                                                            </h6>
+                                                                                                            <div class="row g-2 mb-4">
+                                                                                                                <div class="col-6">
+                                                                                                                    <small class="text-muted d-block">CO Status</small>
+                                                                                                                    <span class="tbl-badge @GetCoStatusBadgeClass(selectedDetails!.CoStatus)">
+                                                                                                                        @GetCoStatusLabel(selectedDetails.CoStatus)
+                                                                                                                    </span>
+                                                                                                                </div>
+                                                                                                                <div class="col-6"><small class="text-muted d-block">CO Date
+                                                                                                                    Endorsed</small><span>@(selectedDetails.CoDateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                                                                                                                </div>
+                                                                                                                <div class="col-6"><small class="text-muted d-block">CO Date
+                                                                                                                    Approved</small><span>@(selectedDetails.CoDateApproved?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                                                                                                                </div>
+                                                                                                            </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
-                <i class="bi bi-file-earmark-pdf me-1"></i>Documents
-            </h6>
-            <BeneficiaryDocumentUpload EditId="@selectedDetails!.Id"
-                                       OnDeleteComplete="@(() => detailsOffcanvas.ShowAsync())" />
-        }
-    </BodyTemplate>
-    <FooterTemplate>
-        <div class="d-flex justify-content-between align-items-center w-100">
+                                                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
+                                                                                                                <i class="bi bi-file-earmark-pdf me-1"></i>Documents
+                                                                                                                @if (selectedDetails!.HasDocuments)
+                                                                                                                {
+                                                                                                                    <span class="badge bg-primary ms-2" style="font-size:10px;">
+                                                                                                                        Has Attachments
+                                                                                                                    </span>
+                                                                                                                }
+                                                                                                            </h6>
+                                                                                                            <BeneficiaryDocumentUpload EditId="@selectedDetails!.Id"
+                                                                                                                                       OnDeleteComplete="@(() => detailsOffcanvas.ShowAsync())" />
+                                                                                                        }
+                                                                                                    </BodyTemplate>
+                                                                                                    <FooterTemplate>
+                                                                                                        <div class="d-flex justify-content-between align-items-center w-100">
 
-            @* ── Left side — Close, Logs (all roles), Edit/Delete (Admin only) ── *@
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-secondary px-4"
-                        @onclick="() => detailsOffcanvas.HideAsync()">
-                    Close
-                </button>
+                                                                                                            @* ── Left side — Close, Logs (all roles), Edit/Delete (Admin only) ── *@
+                                                                                                            <div class="d-flex gap-2">
+                                                                                                                <button class="btn btn-outline-secondary px-4" @onclick="() => detailsOffcanvas.HideAsync()">
+                                                                                                                    Close
+                                                                                                                </button>
 
-                @* ── Logs — all roles ── *@
-                <button class="btn btn-outline-info px-4"
-                        @onclick="() => OpenLogModal(selectedDetails!)"
-                        title="Logs">
-                    <i class="bi bi-clock-history me-1"></i>Logs
-                </button>
+                                                                                                                @* ── Logs — all roles ── *@
+                                                                                                                <button class="btn btn-outline-info px-4" @onclick="() => OpenLogModal(selectedDetails!)" title="Logs">
+                                                                                                                    <i class="bi bi-clock-history me-1"></i>Logs
+                                                                                                                </button>
 
-                @* ── Edit — Admin only ── *@
-                @if (_isAdmin)
-                {
-                    <button class="btn btn-outline-primary px-4"
-                            @onclick="async () => { await OpenEditConfirmationModal(selectedDetails!, selectedDetails!.Id); }">
-                        <i class="bi bi-pencil-square me-1"></i>Edit
-                    </button>
-                }
-            </div>
+                                                                                                                @* ── Edit — Admin only ── *@
+                                                                                                                @if (_isAdmin)
+                                                                                                                {
+                                                                                                                    <button class="btn btn-outline-primary px-4"
+                                                                                                                            @onclick="async () => { await OpenEditConfirmationModal(selectedDetails!, selectedDetails!.Id); }">
+                                                                                                                        <i class="bi bi-pencil-square me-1"></i>Edit
+                                                                                                                    </button>
+                                                                                                                }
+                                                                                                            </div>
 
-            @* ── Right side — Delete (Admin only, pushed far right) ── *@
-            @if (_isAdmin)
-            {
-                <button class="btn btn-outline-danger px-4"
-                        @onclick="async () => { await detailsOffcanvas.HideAsync(); await OpenDeleteConfirmationModal(selectedDetails!); }"
-                        title="Delete">
-                    <i class="bi bi-trash me-1"></i>Delete
-                </button>
-            }
+                                                                                                            @* ── Right side — Delete (Admin only, pushed far right) ── *@
+                                                                                                            @if (_isAdmin)
+                                                                                                            {
+                                                                                                                <button class="btn btn-outline-danger px-4"
+                                                                                                                        @onclick="async () => { await detailsOffcanvas.HideAsync(); await OpenDeleteConfirmationModal(selectedDetails!); }"
+                                                                                                                        title="Delete">
+                                                                                                                    <i class="bi bi-trash me-1"></i>Delete
+                                                                                                                </button>
+                                                                                                            }
 
-        </div>
-    </FooterTemplate>
-</HxOffcanvas>
+                                                                                                        </div>
+                                                                                                    </FooterTemplate>
+                                                                                                </HxOffcanvas>
 
-<HxModal @ref="logModal" Size="ModalSize.ExtraLarge">
-    <HeaderTemplate>
-        <h5 class="modal-title">Logs - @selectedBeneficiaryName</h5>
-    </HeaderTemplate>
-    <BodyTemplate>
-        @if (IsLogsLoading)
-        {
-            <div class="text-center py-4">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2 mb-0">Loading logs...</p>
-            </div>
-        }
-        else if (logs == null || !logs.Any())
-        {
-            <div class="alert alert-info mb-0">No logs found for this beneficiary.</div>
-        }
-        else
-        {
-            <div style="max-height:500px; overflow-y:auto;">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped align-middle mb-0">
-                        <thead class="table-light" style="position:sticky; top:0; z-index:1;">
-                            <tr>
-                                <th style="width:70px;">#</th>
-                                <th>Activity</th>
-                                <th style="width:180px;">User</th>
-                                <th style="width:200px;">Date Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (int i = 0; i < logs.Count; i++)
-                            {
-                                var log = logs[i];
-                                <tr>
-                                    <td>@(i + 1)</td>
-                                    <td>@log.Activity</td>
-                                    <td>@log.UserName</td>
-                                    <td>@log.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-    </BodyTemplate>
-    <FooterTemplate>
-        <HxButton Type="ButtonType.Button" Color="ThemeColor.Secondary" @onclick="CloseLogModal">
-            Close
-        </HxButton>
-    </FooterTemplate>
-</HxModal>
+                                                                                                <HxModal @ref="logModal" Size="ModalSize.ExtraLarge">
+                                                                                                    <HeaderTemplate>
+                                                                                                        <h5 class="modal-title">Logs - @selectedBeneficiaryName</h5>
+                                                                                                    </HeaderTemplate>
+                                                                                                    <BodyTemplate>
+                                                                                                        @if (IsLogsLoading)
+                                                                                                        {
+                                                                                                            <div class="text-center py-4">
+                                                                                                                <div class="spinner-border text-primary" role="status"></div>
+                                                                                                                <p class="mt-2 mb-0">Loading logs...</p>
+                                                                                                            </div>
+                                                                                                        }
+                                                                                                        else if (logs == null || !logs.Any())
+                                                                                                        {
+                                                                                                            <div class="alert alert-info mb-0">No logs found for this beneficiary.</div>
+                                                                                                        }
+                                                                                                        else
+                                                                                                        {
+                                                                                                            <div style="max-height:500px; overflow-y:auto;">
+                                                                                                                <div class="table-responsive">
+                                                                                                                    <table class="table table-hover table-striped align-middle mb-0">
+                                                                                                                        <thead class="table-light" style="position:sticky; top:0; z-index:1;">
+                                                                                                                            <tr>
+                                                                                                                                <th style="width:70px;">#</th>
+                                                                                                                                <th>Activity</th>
+                                                                                                                                <th style="width:180px;">User</th>
+                                                                                                                                <th style="width:200px;">Date Created</th>
+                                                                                                                            </tr>
+                                                                                                                        </thead>
+                                                                                                                        <tbody>
+                                                                                                                            @for (int i = 0; i < logs.Count; i++)
+                                                                                                                            {
+                                                                                                                                var log = logs[i];
+                                                                                                                                <tr>
+                                                                                                                                    <td>@(i + 1)</td>
+                                                                                                                                    <td>@log.Activity</td>
+                                                                                                                                    <td>@log.UserName</td>
+                                                                                                                                    <td>@log.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</td>
+                                                                                                                                </tr>
+                                                                                                                            }
+                                                                                                                        </tbody>
+                                                                                                                    </table>
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        }
+                                                                                                    </BodyTemplate>
+                                                                                                    <FooterTemplate>
+                                                                                                        <HxButton Type="ButtonType.Button" Color="ThemeColor.Secondary" @onclick="CloseLogModal">
+                                                                                                            Close
+                                                                                                        </HxButton>
+                                                                                                    </FooterTemplate>
+                                                                                                </HxModal>
 
-<PayrollModal @ref="_payrollModal" />
+                                                                                                <PayrollModal @ref="_payrollModal" />
 
-<HxModal @ref="confirmModal">
-    <HeaderTemplate><h5 class="modal-title">@confirmationTitle</h5></HeaderTemplate>
-    <BodyTemplate><p class="mb-0">@confirmationMessage</p></BodyTemplate>
-    <FooterTemplate>
-        <HxButton Type="ButtonType.Button" Color="ThemeColor.Secondary" @onclick="CloseConfirmationModal">
-            Cancel
-        </HxButton>
-        <HxButton Type="ButtonType.Button" Color="ThemeColor.Primary" @onclick="ConfirmActionAsync"
-                  Disabled="@IsSaving">
-            @if (IsSaving)
-            {
-                <span class="spinner-border spinner-border-sm me-2"></span>
-                <span>Processing...</span>
-            }
-            else
-            {
-                <span>Yes, Confirm</span>
-            }
-        </HxButton>
-    </FooterTemplate>
-</HxModal>
+                                                                                                <HxModal @ref="confirmModal">
+                                                                                                    <HeaderTemplate>
+                                                                                                        <h5 class="modal-title">@confirmationTitle</h5>
+                                                                                                    </HeaderTemplate>
+                                                                                                    <BodyTemplate>
+                                                                                                        <p class="mb-0">@confirmationMessage</p>
+                                                                                                    </BodyTemplate>
+                                                                                                    <FooterTemplate>
+                                                                                                        <HxButton Type="ButtonType.Button" Color="ThemeColor.Secondary" @onclick="CloseConfirmationModal">
+                                                                                                            Cancel
+                                                                                                        </HxButton>
+                                                                                                        <HxButton Type="ButtonType.Button" Color="ThemeColor.Primary" @onclick="ConfirmActionAsync"
+                                                                                                                  Disabled="@IsSaving">
+                                                                                                            @if (IsSaving)
+                                                                                                            {
+                                                                                                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                                                                                                <span>Processing...</span>
+                                                                                                            }
+                                                                                                            else
+                                                                                                            {
+                                                                                                                <span>Yes, Confirm</span>
+                                                                                                            }
+                                                                                                        </HxButton>
+                                                                                                    </FooterTemplate>
+                                                                                                </HxModal>
 
 @code {
     private bool _isAdmin;
@@ -1317,14 +1408,14 @@
         // ✅ JS interop available — read role from localStorage
         await AuthService.InitAsync();
         _isAdmin = AuthService.IsAdmin();
-        _isPdo   = AuthService.IsPDO();
+        _isPdo = AuthService.IsPDO();
 
         // ✅ Set default bulk tab based on role AFTER flags are set
         // Admin → payment (has all tabs)
-        // PDO   → refnumber (only tab available to them)
+        // PDO → refnumber (only tab available to them)
         // Viewer → empty string (no bulk tabs at all)
         activeBulkTab = _isAdmin ? "payment"
-                      : _isPdo   ? "refnumber"
+                      : _isPdo ? "refnumber"
                       : string.Empty;
 
         if (State.HasActiveFilter && State.IsStale())
@@ -1426,37 +1517,37 @@
 
             var scanFilter = new BeneficiaryFilterDto
             {
-                PsgcCodeRegion     = State.Filter.PsgcCodeRegion,
-                PsgcCodeProvince   = State.Filter.PsgcCodeProvince,
+                PsgcCodeRegion = State.Filter.PsgcCodeRegion,
+                PsgcCodeProvince = State.Filter.PsgcCodeProvince,
                 PsgcCodeMunicipality = State.Filter.PsgcCodeMunicipality,
-                PsgcCodeBarangay   = State.Filter.PsgcCodeBarangay,
-                Validator          = State.Filter.Validator,
-                BatchCode          = State.Filter.BatchCode,
-                PaymentStatus      = State.Filter.PaymentStatus,
-                PaymentDate        = State.Filter.PaymentDate,
-                PaymentDateFrom    = State.Filter.PaymentDateFrom,
-                PaymentDateTo      = State.Filter.PaymentDateTo,
-                IsEligible         = State.Filter.IsEligible,
-                EligibilityMode    = State.Filter.EligibilityMode,
-                IsCompliant        = State.Filter.IsCompliant,
-                ComplianceMode     = State.Filter.ComplianceMode,
-                CoStatus           = State.Filter.CoStatus,
-                FindingStatus      = State.Filter.FindingStatus,
-                Sex                = State.Filter.Sex,
+                PsgcCodeBarangay = State.Filter.PsgcCodeBarangay,
+                Validator = State.Filter.Validator,
+                BatchCode = State.Filter.BatchCode,
+                PaymentStatus = State.Filter.PaymentStatus,
+                PaymentDate = State.Filter.PaymentDate,
+                PaymentDateFrom = State.Filter.PaymentDateFrom,
+                PaymentDateTo = State.Filter.PaymentDateTo,
+                IsEligible = State.Filter.IsEligible,
+                EligibilityMode = State.Filter.EligibilityMode,
+                IsCompliant = State.Filter.IsCompliant,
+                ComplianceMode = State.Filter.ComplianceMode,
+                CoStatus = State.Filter.CoStatus,
+                FindingStatus = State.Filter.FindingStatus,
+                Sex = State.Filter.Sex,
                 FilterModeOfPayment = State.Filter.FilterModeOfPayment,
-                SpecificAge        = State.Filter.SpecificAge,
-                MilestoneYear      = State.Filter.MilestoneYear,
-                SpecificBirthday   = State.Filter.SpecificBirthday,
-                BirthdayFrom       = State.Filter.BirthdayFrom,
-                BirthdayTo         = State.Filter.BirthdayTo,
-                FilterQuarter      = State.Filter.FilterQuarter,
-                FilterBatch        = State.Filter.FilterBatch,
-                FilterRefYear      = State.Filter.FilterRefYear,
-                FilterRegionRoman  = State.Filter.FilterRegionRoman,
-                DateAddedFrom      = State.Filter.DateAddedFrom,
-                DateAddedTo        = State.Filter.DateAddedTo,
-                PageNumber         = 1,
-                PageSize           = int.MaxValue
+                SpecificAge = State.Filter.SpecificAge,
+                MilestoneYear = State.Filter.MilestoneYear,
+                SpecificBirthday = State.Filter.SpecificBirthday,
+                BirthdayFrom = State.Filter.BirthdayFrom,
+                BirthdayTo = State.Filter.BirthdayTo,
+                FilterQuarter = State.Filter.FilterQuarter,
+                FilterBatch = State.Filter.FilterBatch,
+                FilterRefYear = State.Filter.FilterRefYear,
+                FilterRegionRoman = State.Filter.FilterRegionRoman,
+                DateAddedFrom = State.Filter.DateAddedFrom,
+                DateAddedTo = State.Filter.DateAddedTo,
+                PageNumber = 1,
+                PageSize = int.MaxValue
             };
 
             var response = await Http.PostAsJsonAsync("api/beneficiary/possible-duplicates", scanFilter);
@@ -1501,7 +1592,7 @@
             {
                 Ids = new List<Guid> { selectedDetails.Id },
                 Quarter = result.Quarter,
-                Batch   = result.Batch,
+                Batch = result.Batch,
                 RefYear = result.RefYear
             };
             var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-assign-refnumber", request);
@@ -1509,7 +1600,7 @@
             {
                 toast.ShowSuccess("Reference number assigned successfully.");
                 selectedDetails.Quarter = result.Quarter;
-                selectedDetails.Batch   = result.Batch;
+                selectedDetails.Batch = result.Batch;
                 selectedDetails.RefYear = result.RefYear;
                 State.Invalidate();
                 await State.LoadAsync();
@@ -1547,9 +1638,9 @@
             return "—";
 
         var firstItem = State.Beneficiaries.FirstOrDefault(x => checkedIds.Contains(x.Id));
-        var quarter   = int.TryParse(bulkRefQuarter, out var q) ? q : 0;
-        var year      = bulkRefYear.Value.ToString("D2");
-        var roman     = RegionRomanNumeralHelper.GetRoman(firstItem?.PsgcCodeRegion);
+        var quarter = int.TryParse(bulkRefQuarter, out var q) ? q : 0;
+        var year = bulkRefYear.Value.ToString("D2");
+        var roman = RegionRomanNumeralHelper.GetRoman(firstItem?.PsgcCodeRegion);
         return $"Q{quarter}B{bulkRefBatch}-{year}-#####-{roman}";
     }
 
@@ -1570,9 +1661,9 @@
             IsBulkUpdatingRefNumber = true;
             var request = new
             {
-                Ids     = checkedIds.ToList(),
+                Ids = checkedIds.ToList(),
                 Quarter = int.TryParse(bulkRefQuarter, out var q) ? q : 0,
-                Batch   = bulkRefBatch,
+                Batch = bulkRefBatch,
                 RefYear = bulkRefYear!.Value
             };
             var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-assign-refnumber", request);
@@ -1602,8 +1693,8 @@
             IsBulkUpdatingCoStatus = true;
             var request = new
             {
-                Ids            = checkedIds.ToList(),
-                CoStatus       = int.TryParse(bulkCoStatus, out var s) ? s : (int?)null,
+                Ids = checkedIds.ToList(),
+                CoStatus = int.TryParse(bulkCoStatus, out var s) ? s : (int?)null,
                 CoDateEndorsed = bulkCoStatus == "1" ? bulkCoDateEndorsed : null,
                 CoDateApproved = bulkCoStatus == "2" ? bulkCoDateApproved : null
             };
@@ -1615,7 +1706,8 @@
             }
             if (response.IsSuccessStatusCode)
             {
-                toast.ShowSuccess($"Updated {checkedIds.Count} record(s) CO Status to {GetCoStatusLabel(int.TryParse(bulkCoStatus, out var sl) ? sl : 0)}.");
+                toast.ShowSuccess($"Updated {checkedIds.Count} record(s) CO Status to {GetCoStatusLabel(int.TryParse(bulkCoStatus, out
+var sl) ? sl : 0)}.");
                 bulkCoStatus = null; bulkCoDateEndorsed = null; bulkCoDateApproved = null;
                 ClearSelection();
                 await bulkCoStatusModal.HideAsync();
@@ -1633,7 +1725,7 @@
         var term = State.Filter.GeneralSearch?.Trim();
         if (string.IsNullOrWhiteSpace(term))
             return new MarkupString(System.Web.HttpUtility.HtmlEncode(text));
-        var encoded     = System.Web.HttpUtility.HtmlEncode(text);
+        var encoded = System.Web.HttpUtility.HtmlEncode(text);
         var encodedTerm = System.Web.HttpUtility.HtmlEncode(term);
         var result = System.Text.RegularExpressions.Regex.Replace(
             encoded,
@@ -1663,9 +1755,9 @@
             IsBulkUpdatingOther = true;
             bool? parsedEligible = bulkIsEligible switch
             {
-                "true"  => true,
+                "true" => true,
                 "false" => false,
-                _       => null
+                _ => null
             };
             string? parsedBatchCode = string.IsNullOrWhiteSpace(bulkBatchCode) ? null : bulkBatchCode.Trim();
             var request = new { Ids = checkedIds.ToList(), IsEligible = parsedEligible, BatchCode = parsedBatchCode };
@@ -1699,9 +1791,9 @@
         if (!State.Beneficiaries.Any()) return;
         if (_sortColumn == column) _sortAscending = !_sortAscending;
         else { _sortColumn = column; _sortAscending = true; }
-        State.Filter.SortColumn    = _sortColumn;
+        State.Filter.SortColumn = _sortColumn;
         State.Filter.SortAscending = _sortAscending;
-        State.Filter.PageNumber    = 1;
+        State.Filter.PageNumber = 1;
         await State.LoadAsync();
     }
 
@@ -1756,10 +1848,10 @@
             if (string.IsNullOrWhiteSpace(pendingAction)) { errorMessage = "No action selected."; return; }
             switch (pendingAction)
             {
-                case "delete":           await SoftDeleteBeneficiaryAsync(); break;
-                case "navigate":         Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}"); break;
+                case "delete": await SoftDeleteBeneficiaryAsync(); break;
+                case "navigate": Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}"); break;
                 case "generate-payroll": await OpenPayrollModal(); break;
-                default:                 errorMessage = "Unknown action."; break;
+                default: errorMessage = "Unknown action."; break;
             }
         }
         catch (Exception ex) { errorMessage = $"An error occurred while processing. {ex.Message}"; }
@@ -1803,19 +1895,19 @@
     private async Task OpenEditConfirmationModal(BeneficiaryInformationDto item, Guid Id)
     {
         ClearMessages();
-        pendingAction        = "navigate";
-        confirmationTitle    = "Proceed to Editing";
-        confirmationMessage  = $"You are going to edit Grantee '{item.FirstName} {item.LastName}'";
+        pendingAction = "navigate";
+        confirmationTitle = "Proceed to Editing";
+        confirmationMessage = $"You are going to edit Grantee '{item.FirstName} {item.LastName}'";
         await confirmModal.ShowAsync();
     }
 
     private async Task OpenDeleteConfirmationModal(BeneficiaryInformationDto item)
     {
         ClearMessages();
-        selectedDeleteItem   = item;
-        pendingAction        = "delete";
-        confirmationTitle    = "Confirm Delete";
-        confirmationMessage  = $"Are you sure you want to delete Grantee '{item.FirstName} {item.LastName}'?";
+        selectedDeleteItem = item;
+        pendingAction = "delete";
+        confirmationTitle = "Confirm Delete";
+        confirmationMessage = $"Are you sure you want to delete Grantee '{item.FirstName} {item.LastName}'?";
         await confirmModal.ShowAsync();
     }
 
@@ -1859,7 +1951,7 @@
     {
         if (birthDate == null) return null;
         var today = DateTime.Today;
-        var age   = today.Year - birthDate.Value.Year;
+        var age = today.Year - birthDate.Value.Year;
         if (birthDate.Value.Date > today.AddYears(-age)) age--;
         return age;
     }
@@ -1882,12 +1974,18 @@
 
     private string GetFindingStatusText(int? status) => status switch
     {
-        0 => "N/A", 1 => "Solved", 2 => "Unresolved", _ => "N/A"
+        0 => "N/A",
+        1 => "Solved",
+        2 => "Unresolved",
+        _ => "N/A"
     };
 
     private string GetFindingBadgeClass(int? status) => status switch
     {
-        0 => "no-g", 1 => "yes-g", 2 => "unpaid", _ => "no-g"
+        0 => "no-g",
+        1 => "yes-g",
+        2 => "unpaid",
+        _ => "no-g"
     };
 
     private string GetAgeBadgeClass(DateTime birthDate)
@@ -1920,13 +2018,16 @@
 
     private string GetPaymentBadgeClass(int status) => status switch
     {
-        1 => "unpaid", 2 => "paid", 3 => "pending", _ => "no-g"
+        1 => "unpaid",
+        2 => "paid",
+        3 => "pending",
+        _ => "no-g"
     };
 
     private string GetFullName(BeneficiaryInformationDto item)
     {
-        var middle    = string.IsNullOrWhiteSpace(item.MiddleName)  ? "" : $" {item.MiddleName}";
-        var extension = string.IsNullOrWhiteSpace(item.Extension)   ? "" : $" {item.Extension}";
+        var middle = string.IsNullOrWhiteSpace(item.MiddleName) ? "" : $" {item.MiddleName}";
+        var extension = string.IsNullOrWhiteSpace(item.Extension) ? "" : $" {item.Extension}";
         return $"{item.LastName}, {item.FirstName}{middle}{extension}";
     }
 
@@ -1948,7 +2049,7 @@
         try
         {
             await Task.Delay(400, _nameCts.Token);
-            State.Filter.FullName   = string.IsNullOrWhiteSpace(fullNameFilter) ? null : fullNameFilter.Trim();
+            State.Filter.FullName = string.IsNullOrWhiteSpace(fullNameFilter) ? null : fullNameFilter.Trim();
             State.Filter.PageNumber = 1;
             await State.LoadAsync();
             if (_duplicateSummary is not null)
@@ -1976,9 +2077,9 @@
     private void ClearSelection()
     {
         checkedIds.Clear();
-        bulkPaymentStatus  = null;
-        bulkPaymentDate    = null;
-        bulkModeOfPayment  = null;
+        bulkPaymentStatus = null;
+        bulkPaymentDate = null;
+        bulkModeOfPayment = null;
     }
 
     private void GoToDashboardSummary() => Navigation.NavigateTo("/");
@@ -1990,10 +2091,10 @@
             IsBulkUpdating = true;
             var request = new
             {
-                Ids           = checkedIds.ToList(),
+                Ids = checkedIds.ToList(),
                 PaymentStatus = bulkPaymentStatus,
                 ModeOfPayment = bulkPaymentStatus == 2 ? bulkModeOfPayment : null,
-                PaymentDate   = bulkPaymentStatus == 2 ? bulkPaymentDate   : null
+                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null
             };
             var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-payment-status", request);
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
@@ -2022,10 +2123,15 @@
             IsExporting = true;
             StateHasChanged();
             var response = await Http.PostAsJsonAsync("api/beneficiary/export", new { Ids = checkedIds.ToList() });
-            if (!response.IsSuccessStatusCode) { toast.ShowError($"Export failed: {await response.Content.ReadAsStringAsync()}"); return; }
+            if (!response.IsSuccessStatusCode)
+            {
+                toast.ShowError($"Export failed: {await response.Content.ReadAsStringAsync()}");
+                return;
+            }
             var exportBytes = await response.Content.ReadAsByteArrayAsync();
             if (exportBytes == null || exportBytes.Length == 0) { toast.ShowError("No data returned from export."); return; }
-            await JS.InvokeVoidAsync("downloadFile", $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx", Convert.ToBase64String(exportBytes));
+            await JS.InvokeVoidAsync("downloadFile", $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx",
+Convert.ToBase64String(exportBytes));
         }
         catch (Exception ex) { toast.ShowError($"Export failed: {ex.Message}"); }
         finally { IsExporting = false; }
@@ -2039,10 +2145,18 @@
             IsGeneratingPayroll = true;
             StateHasChanged();
             var response = await Http.PostAsJsonAsync("api/payroll/generate-payroll", new { Ids = checkedIds.ToList() });
-            if (!response.IsSuccessStatusCode) { toast.ShowError($"Payroll generation failed: {await response.Content.ReadAsStringAsync()}"); return; }
+            if (!response.IsSuccessStatusCode)
+            {
+                toast.ShowError($"Payroll generation failed: {await
+response.Content.ReadAsStringAsync()}"); return;
+            }
             var fileBytes = await response.Content.ReadAsByteArrayAsync();
-            if (fileBytes == null || fileBytes.Length == 0) { toast.ShowError("No data returned from payroll generation."); return; }
-            await JS.InvokeVoidAsync("downloadFile", $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.xlsx", Convert.ToBase64String(fileBytes));
+            if (fileBytes == null || fileBytes.Length == 0)
+            {
+                toast.ShowError("No data returned from payroll generation."); return;
+            }
+            await JS.InvokeVoidAsync("downloadFile", $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.xlsx",
+Convert.ToBase64String(fileBytes));
             toast.ShowSuccess($"Payroll generated for {checkedIds.Count} record(s).");
         }
         catch (Exception ex) { toast.ShowError($"Payroll generation failed: {ex.Message}"); }
@@ -2056,7 +2170,7 @@
     private static string GetDuplicateReasonBadgeClass(string reason)
     {
         if (reason.Contains("DIFFERENT middle", StringComparison.OrdinalIgnoreCase)) return "bg-danger";
-        if (reason.Contains("Exact name",       StringComparison.OrdinalIgnoreCase)) return "bg-warning text-dark";
+        if (reason.Contains("Exact name", StringComparison.OrdinalIgnoreCase)) return "bg-warning text-dark";
         return "bg-secondary";
     }
 
@@ -2065,8 +2179,31 @@
     private string GetCoStatusLabel(int? status) => status switch { 1 => "Endorsed", 2 => "Approved", _ => "Not Set" };
     private string GetCoStatusBadgeClass(int? status) => status switch { 1 => "pending", 2 => "yes-g", _ => "no-g" };
     private string GetSexText(int sex) => sex switch { 1 => "Male", 2 => "Female", _ => "N/A" };
-    private string GetPaymentStatusText(int? status) => status switch { 0 => "N/A", 1 => "Unpaid", 2 => "Paid", 3 => "Pending", _ => "Unknown" };
-    private string GetCivilStatusText(int? status) => status switch { 1 => "Single", 2 => "Widowed", 3 => "Married", 4 => "Live In", _ => "—" };
-    private string GetCitizenshipText(int? citizenship) => citizenship switch { 1 => "Filipino", 2 => "Dual Citizenship", _ => "—" };
+    private string GetPaymentStatusText(int? status) => status switch
+    {
+        0 => "N/A",
+        1 => "Unpaid",
+        2 => "Paid",
+        3 =>
+"Pending",
+        _ => "Unknown"
+    };
+    private string GetCivilStatusText(int? status) => status switch
+    {
+        1 => "Single",
+        2 => "Widowed",
+        3 => "Married",
+        4 =>
+"Live In",
+        _ => "—"
+    };
+    private string GetCitizenshipText(int? citizenship) => citizenship switch
+    {
+        1 => "Filipino",
+        2 => "Dual Citizenship",
+        _
+=> "—"
+    };
     #endregion
+
 }
