@@ -7,5 +7,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<IEnumerable<Municipality>> GetByProvinceCodeAsync(int psgcCodeProvince);
         Task<IEnumerable<Municipality>> GetAllMunicipalityAsync();
         Task<IEnumerable<Municipality>> GetByProvinceIdsAsync(IEnumerable<int> provinceIds);
+        Task<Dictionary<int, string>> GetProvinceNamesForCodesAsync(List<int> provinceCodes);
     }
 }

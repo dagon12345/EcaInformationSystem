@@ -34,8 +34,8 @@ namespace EcaInformationSystem.Client.Services
             var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
 
             await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result!.Token);
-            await _js.InvokeVoidAsync("localStorage.setItem", "fullName",  result.FullName);
-            await _js.InvokeVoidAsync("localStorage.setItem", "userName",  result.UserName);
+            await _js.InvokeVoidAsync("localStorage.setItem", "fullName", result.FullName);
+            await _js.InvokeVoidAsync("localStorage.setItem", "userName", result.UserName);
 
             // ✅ Parse and cache role immediately at login
             _cachedRole = ParseRoleFromToken(result.Token);
@@ -90,20 +90,66 @@ namespace EcaInformationSystem.Client.Services
             if (!string.IsNullOrWhiteSpace(storedRole))
             {
                 _cachedRole = storedRole;
+
+                // ✅ Also restore jurisdictions from token on page refresh
+                _cachedJurisdictions = await GetJurisdictionCodesAsync();
                 return;
             }
 
             // Fallback: re-parse from the token itself
             var token = await GetTokenAsync();
             if (!string.IsNullOrWhiteSpace(token))
+            {
                 _cachedRole = ParseRoleFromToken(token);
+                _cachedJurisdictions = await GetJurisdictionCodesAsync();
+            }
         }
+        public List<int> GetJurisdictionCodes() => _cachedJurisdictions;
+
+        public bool IsInJurisdiction(int municipalityCode)
+        {
+            // ✅ Admin/SuperAdmin see everything — no jurisdiction filter
+            if (_cachedRole is "Admin" or "SuperAdmin") return true;
+            if (_cachedRole != "PDO") return false;
+            return _cachedJurisdictions.Contains(municipalityCode);
+        }
+        public bool IsSuperAdmin() => _cachedRole == "SuperAdmin";
+
+        public async Task<List<int>> GetJurisdictionCodesAsync()
+        {
+            var token = await GetTokenAsync();
+            if (string.IsNullOrWhiteSpace(token)) return new();
+
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (!handler.CanReadToken(token)) return new();
+
+                var jwt = handler.ReadJwtToken(token);
+                var jurisdictionsClaim = jwt.Claims
+                    .FirstOrDefault(c => c.Type == "jurisdictions")?.Value;
+
+                if (string.IsNullOrWhiteSpace(jurisdictionsClaim)) return new();
+
+                return jurisdictionsClaim
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => int.TryParse(s.Trim(), out var v) ? v : 0)
+                    .Where(v => v > 0)
+                    .ToList();
+            }
+            catch { return new(); }
+        }
+
+        // ── Cache alongside role ─────────────────────────────────────────────────────
+        private List<int> _cachedJurisdictions = new();
+
 
         // ── Sync helpers — safe to call after InitAsync has run ──────────────
         public string? GetRole() => _cachedRole;
-        public bool IsAdmin()    => _cachedRole == "Admin";
-        public bool IsPDO()      => _cachedRole == "PDO";
-        public bool IsViewer()   => _cachedRole == "Viewer";
+        // Fixed — SuperAdmin also gets admin access
+        public bool IsAdmin() => _cachedRole == "Admin" || _cachedRole == "SuperAdmin";
+        public bool IsPDO() => _cachedRole == "PDO";
+        public bool IsViewer() => _cachedRole == "Viewer";
 
         // ── Private: parse role claim out of a JWT string ────────────────────
         private static string? ParseRoleFromToken(string? token)
@@ -132,7 +178,7 @@ namespace EcaInformationSystem.Client.Services
 
     public class LoginResponse
     {
-        public string Token    { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
     }

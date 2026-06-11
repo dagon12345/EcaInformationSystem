@@ -16,6 +16,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<Log> Logs => Set<Log>();
         public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
         public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
+        public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -121,7 +122,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             modelBuilder.Entity<BeneficiaryInformation>()
             .Property(x => x.RowVersion)
             .IsRowVersion();
-                    
+
             modelBuilder.Entity<BeneficiaryDocument>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -140,6 +141,41 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(e => e.BeneficiaryInformationId);
                 entity.HasIndex(e => e.IsDeleted);
             });
+            modelBuilder.Entity<PdoJurisdiction>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne(x => x.User)
+                    .WithMany(x => x.Jurisdictions)
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // One PDO can't be assigned the same municipality twice
+                entity.HasIndex(x => new { x.UserId, x.PsgcCodeMunicipality })
+                    .IsUnique();
+
+                entity.HasIndex(x => x.UserId);
+                entity.HasIndex(x => x.PsgcCodeMunicipality);
+            });
+
+            modelBuilder.Entity<PendingUserRegistration>(entity =>
+            {
+                // ✅ existing config stays — just add SuperAdmin to allowed roles
+                entity.ToTable("PendingUserRegistrations");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.FullName).IsRequired().HasMaxLength(200);
+                entity.Property(x => x.Position).IsRequired().HasMaxLength(150);
+                entity.Property(x => x.UserName).IsRequired().HasMaxLength(100);
+                entity.Property(x => x.PasswordHash).IsRequired();
+                entity.Property(x => x.ApprovalStatus).IsRequired();
+                entity.Property(x => x.Role).IsRequired().HasMaxLength(50)
+                      .HasDefaultValue("Viewer");
+                entity.HasIndex(x => x.UserName);
+            });
+            
+            modelBuilder.Entity<PendingUserRegistration>()
+                .HasIndex(x => x.UserName)
+                .IsUnique();            
         }
     }
 }

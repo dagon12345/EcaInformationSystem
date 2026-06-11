@@ -1,4 +1,7 @@
+using System.Reflection;
+using EcaInformationSystem.Api.Extensions;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,10 +13,12 @@ namespace EcaInformationSystem.Api.Controllers
     public class BeneficiaryDocumentController : ControllerBase
     {
         private readonly IBeneficiaryDocumentService _service;
+        private readonly IJurisdictionGuardService _jurisdictionGuardService;
 
-        public BeneficiaryDocumentController(IBeneficiaryDocumentService service)
+        public BeneficiaryDocumentController(IBeneficiaryDocumentService service, IJurisdictionGuardService jurisdictionGuardService)
         {
             _service = service;
+            _jurisdictionGuardService = jurisdictionGuardService;
         }
 
         // ── Upload — all roles ────────────────────────────────────────────────────
@@ -22,8 +27,7 @@ namespace EcaInformationSystem.Api.Controllers
         [RequestFormLimits(MultipartBodyLengthLimit = 209_715_200)]
         // ✅ No extra [Authorize] needed — base [Authorize] on class covers all authenticated users
         public async Task<IActionResult> Upload(
-            Guid beneficiaryId,
-            [FromForm] List<IFormFile> files)
+            Guid beneficiaryId, [FromForm] List<IFormFile> files)
         {
             try
             {
@@ -31,6 +35,7 @@ namespace EcaInformationSystem.Api.Controllers
                     return BadRequest("No files uploaded.");
 
                 var userName = User.Identity?.Name ?? "System";
+
                 var result = await _service.UploadAsync(beneficiaryId, files, userName);
                 return Ok(result);
             }
@@ -76,11 +81,21 @@ namespace EcaInformationSystem.Api.Controllers
 
         // ── Delete — all roles (document delete is allowed for PDO and Viewer too) ─
         [HttpDelete("delete/{documentId:guid}")]
-        public async Task<IActionResult> Delete(Guid documentId)
+        [Authorize(Policy = "AdminOrPDO")] // Admin and PDO can edit but the PDO have jurisdiction restrictions
+        public async Task<IActionResult> Delete(Guid documentId, [FromBody] BeneficiaryInformationDto dto)
         {
             try
             {
-                await _service.SoftDeleteAsync(documentId, User.Identity?.Name ?? "System");
+                var userName = User.Identity?.Name ?? "System";
+                var role = User.GetRole();
+
+                //Jurisdiction check
+                var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, dto.PsgcCodeMunicipality);
+
+                if (jurisdictionError is not null)
+                    return StatusCode(403, jurisdictionError);
+
+                await _service.SoftDeleteAsync(documentId, userName);
                 return NoContent();
             }
             catch (Exception ex) { return BadRequest(ex.Message); }

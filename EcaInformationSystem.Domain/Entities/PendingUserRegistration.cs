@@ -32,5 +32,8 @@ namespace EcaInformationSystem.Domain.Entities
         [Required]
         [MaxLength(50)]
         public string Role { get; set; } = "Viewer";
+
+        public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
+            = new List<PdoJurisdiction>();
     }
 }

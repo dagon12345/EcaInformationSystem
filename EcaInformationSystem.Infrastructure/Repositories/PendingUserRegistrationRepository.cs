@@ -12,20 +12,56 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             _context = context;
         }
-        public async Task AddAsync(PendingUserRegistration user, CancellationToken cancellationToken = default)
-        {
-            await _context.PendingUserRegistrations.AddAsync(user, cancellationToken);
-        }
+        public async Task AddAsync(
+            PendingUserRegistration user, CancellationToken cancellationToken = default)
+            => await _context.PendingUserRegistrations.AddAsync(user, cancellationToken);
 
-        public async Task<PendingUserRegistration?> GetByUserNameAsync(string userName, CancellationToken cancellationToken = default)
-        {
-            return await _context.PendingUserRegistrations
+
+        public async Task<List<PendingUserRegistration>> GetAllAsync(
+           CancellationToken cancellationToken = default)
+           => await _context.PendingUserRegistrations
+               .Include(x => x.Jurisdictions)
+               .OrderByDescending(x => x.RequestedAt)
+               .ToListAsync(cancellationToken);
+
+        public async Task<List<int>> GetAssignedMunicipalityCodesAsync(Guid userId)
+            => await _context.PdoJurisdictions
+                .Where(x => x.UserId == userId)
+                .Select(x => x.PsgcCodeMunicipality)
+                .ToListAsync();
+
+        public async Task<PendingUserRegistration?> GetByIdAsync(
+            Guid id, CancellationToken cancellationToken = default)
+            => await _context.PendingUserRegistrations
+                .Include(x => x.Jurisdictions)
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        public async Task<PendingUserRegistration?> GetByUserNameAsync(
+            string userName, CancellationToken cancellationToken = default)
+            => await _context.PendingUserRegistrations
+                .Include(x => x.Jurisdictions)
                 .FirstOrDefaultAsync(x => x.UserName == userName, cancellationToken);
+
+        public async Task<List<PdoJurisdiction>> GetJurisdictionsByUserIdAsync(Guid userId)
+             => await _context.PdoJurisdictions
+                 .Where(x => x.UserId == userId)
+                 .ToListAsync();
+
+        public async Task ReplaceJurisdictionsAsync(
+          Guid userId, List<PdoJurisdiction> newJurisdictions)
+        {
+            // ✅ Delete all existing then insert the new set
+            // Simple and avoids diff logic — jurisdiction sets are small
+            var existing = await _context.PdoJurisdictions
+                .Where(x => x.UserId == userId)
+                .ToListAsync();
+
+            _context.PdoJurisdictions.RemoveRange(existing);
+            await _context.PdoJurisdictions.AddRangeAsync(newJurisdictions);
+            await _context.SaveChangesAsync();
         }
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
-        {
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+             => await _context.SaveChangesAsync(cancellationToken);
     }
 }

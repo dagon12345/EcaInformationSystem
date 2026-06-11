@@ -809,9 +809,32 @@
             if (State.ErrorMessage is not null)
                 toast.ShowError(State.ErrorMessage);
 
+            // ✅ Only fire duplicate scan if at least one non-name filter is active.
+            // Name-only filters are not useful for duplicate scanning.
+            bool hasNonNameFilter =
+                State.Filter.PsgcCodeRegion != null ||
+                State.Filter.PsgcCodeProvince != null ||
+                State.Filter.PsgcCodeMunicipality != null ||
+                State.Filter.PsgcCodeBarangay != null ||
+                State.Filter.PaymentStatus != null ||
+                State.Filter.IsEligible != null ||
+                State.Filter.IsCompliant != null ||
+                State.Filter.CoStatus != null ||
+                State.Filter.Sex != null ||
+                State.Filter.MilestoneYear != null ||
+                State.Filter.SpecificAge != null ||
+                State.Filter.FilterQuarter != null ||
+                !string.IsNullOrWhiteSpace(State.Filter.FilterBatch) ||
+                State.Filter.FilterRefYear != null ||
+                !string.IsNullOrWhiteSpace(State.Filter.FilterRegionRoman) ||
+                State.Filter.DateAddedFrom != null ||
+                State.Filter.DateAddedTo != null ||
+                State.Filter.FilterModeOfPayment != null;
+
             // ✅ Only fire AFTER successful load — validation passed, grid loaded
             // Grid component receives this and runs the duplicate scan
-            await OnFilterApplied.InvokeAsync();
+            if(hasNonNameFilter)
+                await OnFilterApplied.InvokeAsync();
         }
         finally
         {

@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces;
+﻿using System.Security.Authentication.ExtendedProtection;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Application.Services;
@@ -22,6 +23,8 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IAddressSearchService, AddressSearchService>();
             services.AddScoped<IBeneficiaryDocumentService, BeneficiaryDocumentService>();
             services.AddScoped<IPdfCompressionService, PdfCompressionService>();
+            services.AddScoped<IUserManagementService, UserManagementService>();
+            services.AddScoped<IJurisdictionGuardService, JurisdictionGuardService>();
             return services;
         }
     }

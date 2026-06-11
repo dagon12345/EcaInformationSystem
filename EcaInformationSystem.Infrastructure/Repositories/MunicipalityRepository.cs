@@ -13,6 +13,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             _context = context;
         }
+        public async Task<Dictionary<int, string>> GetProvinceNamesForCodesAsync(
+            List<int> provinceCodes)
+        {
+            return await _context.Provinces
+                .Where(p => provinceCodes.Contains(p.PsgcCodeProvince))
+                .ToDictionaryAsync(p => p.PsgcCodeProvince, p => p.Name ?? string.Empty);
+        }
 
         public async Task<IEnumerable<Municipality>> GetByProvinceCodeAsync(int psgcCodeProvince)
         {

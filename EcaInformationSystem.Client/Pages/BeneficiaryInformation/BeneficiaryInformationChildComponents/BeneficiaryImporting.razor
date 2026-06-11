@@ -125,8 +125,8 @@
     <div class="d-flex gap-2 mt-2 flex-wrap">
         <button class="sys-btn sys-btn-save" @onclick="RunPreviewAsync"
                 disabled="@(isUploading || isPreviewing || uploadedExcelBytes == null
-                                                                                                                                                                          || !excelSheetNames.Any()
-                                                                                                                                                                          || string.IsNullOrWhiteSpace(selectedSheetName))">
+                                                                                                                                                                                                                                                                          || !excelSheetNames.Any()
+                                                                                                                                                                                                                                                                          || string.IsNullOrWhiteSpace(selectedSheetName))">
             @if (isPreviewing)
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -138,26 +138,6 @@
                 <span>Validate &amp; Import</span>
             }
         </button>
-
-        <HxTooltip
-            Text="Matches existing records by Name, Birth Date, OSCA ID, and NCSC RRN. Only updates: Batch Code, Eligibility, Date of Death, and Validation Date."
-            Placement="TooltipPlacement.Top">
-            <button class="sys-btn sys-btn-warn" @onclick="UpdateExcelAsync"
-                    disabled="@(isUpdating || uploadedExcelBytes == null
-                                                                                                                                                                                                                  || !excelSheetNames.Any()
-                                                                                                                                                                                                                  || string.IsNullOrWhiteSpace(selectedSheetName))">
-                @if (isUpdating)
-                {
-                    <span class="spinner-border spinner-border-sm me-1"></span>
-                    <span>Updating...</span>
-                }
-                else
-                {
-                    <i class="bi bi-arrow-repeat me-1"></i>
-                    <span>Update Existing Records</span>
-                }
-            </button>
-        </HxTooltip>
     </div>
 
     @* ── Import result *@
@@ -520,29 +500,6 @@
     // ✅ Shown in success banner after import
     private string? _lastUsedRefSummary;
 
-    // ✅ Removed — no longer needed:
-    // private ReferenceNumberModal _importRefModal
-    // private List<Guid> _lastImportedIds
-    // private int? _importRegionCode
-    // private byte[]? _pendingImportBytes
-    // private string? _pendingImportFileName
-    // private string? _pendingImportSheetName
-    // private HashSet<int> _pendingSkipRows
-    private bool _isAdmin;
-    private bool _isPdo;
-    private bool _roleLoaded;
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-
-        await AuthService.InitAsync();
-        _isAdmin = AuthService.IsAdmin();
-        _isPdo = AuthService.IsPDO();
-        _roleLoaded = true;
-
-        StateHasChanged();
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
     private static string DupKey(int rowNumber, Guid existingId)
         => $"{rowNumber}_{existingId}";
@@ -630,6 +587,16 @@
             var response = await Http.PostAsync(
                 "api/beneficiary/import/sheets", content);
 
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    toast.ShowError("Access denied. You do not have permission to import records.");
+                    return;
+                }
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
+
             if (response.IsSuccessStatusCode)
             {
                 excelSheetNames = await response.Content
@@ -657,17 +624,6 @@
     // ── Update existing records ───────────────────────────────────────────────
     private async Task UpdateExcelAsync()
     {
-        // ── Role gate — Admin only for updating existing records ─────────────────
-        if (!_isAdmin)
-        {
-            if (MainLayout.Current is not null)
-                await MainLayout.Current.ShowPermissionDeniedAsync(
-                    "Updating existing records via Excel requires Administrator access. " +
-                    "Your account does not have permission to modify existing records.");
-            return;
-        }
-
-
         if (uploadedExcelBytes == null ||
             string.IsNullOrWhiteSpace(selectedSheetName))
         {
@@ -688,6 +644,11 @@
 
             var response = await Http.PostAsync(
                 "api/beneficiary/update-excel", content);
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                toast.ShowError("Access denied. You do not have permission to update records via Excel.");
+                return;
+            }
 
             if (response.IsSuccessStatusCode)
             {
@@ -721,18 +682,8 @@
     // ── Phase 1: Preview + duplicate detection ────────────────────────────────
     private async Task RunPreviewAsync()
     {
-        // ── Role gate — Viewer cannot import ─────────────────────────────────────
-        if (!_isAdmin && !_isPdo)
-        {
-            if (MainLayout.Current is not null)
-                await MainLayout.Current.ShowPermissionDeniedAsync(
-                    "Importing records requires at least Project Development Officer access. " +
-                    "Your account (Viewer) is restricted to viewing and uploading documents only.");
-            return;
-        }
-
-        if (uploadedExcelBytes == null ||
-            string.IsNullOrWhiteSpace(uploadedExcelFileName))
+        // ✅ No role check — API will return 403 if unauthorized
+        if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
         {
             toast.ShowError("Please select an Excel file first.");
             return;
@@ -762,6 +713,15 @@
 
             var response = await Http.PostAsync(
                 "api/beneficiary/import/preview", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    toast.ShowError("Access denied. You do not have permission to import records.");
+                    return;
+                }
+                throw new Exception(await response.Content.ReadAsStringAsync());
+            }
 
             if (!response.IsSuccessStatusCode)
                 throw new Exception(
@@ -818,15 +778,6 @@
     // ── Phase 2: Confirm import ───────────────────────────────────────────────
     private async Task RunConfirmImportAsync()
     {
-        // ── Role gate — safety net in case modal confirm is reached directly ──────
-        if (!_isAdmin && !_isPdo)
-        {
-            if (MainLayout.Current is not null)
-                await MainLayout.Current.ShowPermissionDeniedAsync(
-                    "Importing records requires at least Project Development Officer access.");
-            await CloseDuplicateModal();
-            return;
-        }
         if (uploadedExcelBytes == null ||
             string.IsNullOrWhiteSpace(uploadedExcelFileName))
         {
@@ -887,6 +838,12 @@
 
             var response = await Http.PostAsync(
                 "api/beneficiary/import/confirm", content);
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                toast.ShowError("Access denied. You do not have permission to import records.");
+                await CloseDuplicateModal();
+                return;
+            }
 
             if (response.IsSuccessStatusCode)
             {

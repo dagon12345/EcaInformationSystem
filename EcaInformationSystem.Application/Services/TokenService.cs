@@ -14,7 +14,7 @@ public class TokenService
         _config = config;
     }
 
-    public string GenerateToken(string userName, string fullName, string role = "User")
+    public string GenerateToken(string userName, string fullName, string role, List<int>? jurisdictionCodes = null)
     {
         var key = new SymmetricSecurityKey(
                           Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
@@ -22,16 +22,22 @@ public class TokenService
         var expiry = DateTime.UtcNow.AddHours(
                           double.Parse(_config["Jwt:ExpiryHours"] ?? "8"));
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.Name,           userName),
-            new Claim("FullName",                fullName),
-            new Claim(ClaimTypes.Role,           role),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim(JwtRegisteredClaimNames.Iat,
-                      DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
-                      ClaimValueTypes.Integer64)
-        };
+        var claims = new List<Claim>
+            {
+                new(ClaimTypes.Name,            userName),
+                new("FullName",                 fullName),
+                new(ClaimTypes.Role,            role),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new(JwtRegisteredClaimNames.Iat,
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+                    ClaimValueTypes.Integer64)
+            };
+
+        // ✅ Embed jurisdiction codes for PDO users
+        // Stored as a single comma-separated claim — avoids issuing many claims
+        if (role == "PDO" && jurisdictionCodes?.Any() == true)
+            claims.Add(new Claim("jurisdictions",
+            string.Join(",", jurisdictionCodes)));
 
         var token = new JwtSecurityToken(
             issuer: _config["Jwt:Issuer"],

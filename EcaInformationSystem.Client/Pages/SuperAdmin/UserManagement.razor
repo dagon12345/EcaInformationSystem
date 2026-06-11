@@ -1,0 +1,647 @@
+@* Client/Pages/SuperAdmin/UserManagement.razor *@
+@page "/user-management"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.UserManagement
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject ToastService toast
+@inject NavigationManager Navigation
+
+<PageTitle>User Management</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">User Management</h5>
+            <span class="page-header-sub">
+                Approve registrations, assign roles, and set PDO jurisdictions
+            </span>
+        </div>
+    </div>
+
+    @* ── Not yet initialized ──────────────────────────────────────────────── *@
+    @if (!_initialized)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Checking access...</p>
+        </div>
+    }
+    @* ── Unauthorized ─────────────────────────────────────────────────────── *@
+    else if (!_authorized)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock fs-5"></i>
+            <div>
+                <strong>Access Denied</strong>
+                <p class="mb-0 small">
+                    This page is restricted to Super Administrators only.
+                </p>
+            </div>
+        </div>
+    }
+    @* ── Loading users ────────────────────────────────────────────────────── *@
+    else if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted">Loading users...</p>
+        </div>
+    }
+    @* ── Main content ─────────────────────────────────────────────────────── *@
+    else
+    {
+        @* ── Filter tabs ─────────────────────────────────────────────────── *@
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            @foreach (var tab in new[] { "All", "Pending", "Approved", "Rejected" })
+            {
+                <button class="btn btn-sm @(_activeTab == tab ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => _activeTab = tab">
+                    @tab
+                    @if (tab == "Pending" && PendingCount > 0)
+                    {
+                        <span class="badge bg-danger ms-1">@PendingCount</span>
+                    }
+                </button>
+            }
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Full Name</th>
+                            <th>Username</th>
+                            <th>Position</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Requested</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in FilteredUsers)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@user.FullName</div>
+                                    @if (user.Jurisdictions.Any())
+                                    {
+                                        <small class="text-muted">
+                                            <i class="bi bi-geo-alt me-1"></i>
+                                            @user.Jurisdictions.Count municipality(ies) assigned
+                                        </small>
+                                    }
+                                </td>
+                                <td><code>@user.UserName</code></td>
+                                <td>@user.Position</td>
+                                <td>
+                                    <span class="badge @GetRoleBadgeClass(user.Role)">
+                                        @user.Role
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge @GetStatusBadgeClass(user.ApprovalStatus)">
+                                        @GetStatusLabel(user.ApprovalStatus)
+                                    </span>
+                                </td>
+                                <td>
+                                    <small>
+                                        @user.RequestedAt.ToLocalTime().ToString("MMM dd, yyyy")
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        @if (user.ApprovalStatus == 0)
+                                        {
+                                            <button class="btn btn-sm btn-success"
+                                                    @onclick="() => OpenApproveModal(user)">
+                                                <i class="bi bi-check-lg me-1"></i>Approve
+                                            </button>
+                                            <button class="btn btn-sm btn-danger"
+                                                    @onclick="() => OpenRejectModal(user)">
+                                                <i class="bi bi-x-lg me-1"></i>Reject
+                                            </button>
+                                        }
+                                        @if (user.ApprovalStatus == 1)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    @onclick="() => OpenApproveModal(user)">
+                                                <i class="bi bi-pencil me-1"></i>Edit Role
+                                            </button>
+                                            @if (user.Role == "PDO")
+                                            {
+                                                <button class="btn btn-sm btn-outline-info"
+                                                        @onclick="() => OpenJurisdictionModal(user)">
+                                                    <i class="bi bi-geo-alt me-1"></i>Jurisdiction
+                                                </button>
+                                            }
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredUsers.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No users in this category.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+</div>
+
+@* ── Approve / Edit Role Modal ────────────────────────────────────────────── *@
+<HxModal @ref="_approveModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            @(_selectedUser?.ApprovalStatus == 0 ? "Approve User" : "Edit Role")
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedUser is not null)
+        {
+            <div class="mb-3">
+                <strong>@_selectedUser.FullName</strong>
+                <div class="text-muted small">
+                    @_selectedUser.UserName · @_selectedUser.Position
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">
+                    Assign Role <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" @bind="_approveRole">
+                    <option value="Viewer">Viewer — view and upload only</option>
+                    <option value="PDO">PDO — Project Development Officer</option>
+                    <option value="Admin">Admin — full operational access</option>
+                    <option value="SuperAdmin">Super Admin — user management</option>
+                </select>
+                <small class="text-muted mt-1 d-block">
+                    @GetRoleDescription(_approveRole)
+                </small>
+            </div>
+
+            <div class="mb-0">
+                <label class="form-label fw-semibold">Remarks (optional)</label>
+                <textarea class="form-control" rows="2" @bind="_approveRemarks"
+                          placeholder="Internal notes about this approval..."></textarea>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary"
+                  @onclick="() => _approveModal.HideAsync()">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Success"
+                  @onclick="ConfirmApproveAsync"
+                  Disabled="@_isSaving">
+            @if (_isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <span>@(_selectedUser?.ApprovalStatus == 0 ? "Approve" : "Save Changes")</span>
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Reject Modal ─────────────────────────────────────────────────────────── *@
+<HxModal @ref="_rejectModal">
+    <HeaderTemplate>
+        <h5 class="modal-title text-danger">Reject Registration</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedUser is not null)
+        {
+            <p>
+                You are about to reject
+                <strong>@_selectedUser.FullName</strong>.
+                They will not be able to log in.
+            </p>
+            <div class="mb-0">
+                <label class="form-label fw-semibold">Reason (optional)</label>
+                <textarea class="form-control" rows="2" @bind="_rejectRemarks"
+                          placeholder="Reason for rejection..."></textarea>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary"
+                  @onclick="() => _rejectModal.HideAsync()">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Danger"
+                  @onclick="ConfirmRejectAsync"
+                  Disabled="@_isSaving">
+            @if (_isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <span>Yes, Reject</span>
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Jurisdiction Modal ───────────────────────────────────────────────────── *@
+<HxModal @ref="_jurisdictionModal" Size="ModalSize.ExtraLarge" Scrollable="true">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-geo-alt me-2"></i>
+            Assign Jurisdictions — @_selectedUser?.FullName
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingJurisdictions)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary"></div>
+                <p class="mt-2">Loading municipalities...</p>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Check the municipalities this PDO is responsible for.
+                They will only be able to create and edit records
+                within these areas.
+            </p>
+
+            @foreach (var provinceGroup in _availableProvinces)
+            {
+                <div class="mb-3 border rounded p-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               id="prov-@provinceGroup.Key"
+                               checked="@IsProvinceAllChecked(provinceGroup.Value)"
+                               @onchange="e => ToggleProvince(
+                                   provinceGroup.Value,
+                                   (bool)e.Value!)" />
+                        <label class="fw-semibold mb-0"
+                               for="prov-@provinceGroup.Key"
+                               style="cursor:pointer;">
+                            <i class="bi bi-map me-1"></i>@provinceGroup.Key
+                        </label>
+                        <span class="badge bg-secondary ms-1">
+                            @_selectedMunicipalities.Count(
+                                c => provinceGroup.Value.Any(m => m.Code == c))
+                            / @provinceGroup.Value.Count selected
+                        </span>
+                    </div>
+
+                    <div class="row g-2">
+                        @foreach (var muni in provinceGroup.Value.OrderBy(m => m.Name))
+                        {
+                            <div class="col-md-4 col-sm-6">
+                                <div class="form-check">
+                                    <input type="checkbox"
+                                           class="form-check-input"
+                                           id="muni-@muni.Code"
+                                           checked="@_selectedMunicipalities.Contains(muni.Code)"
+                                           @onchange="() => ToggleMunicipality(muni.Code)" />
+                                    <label class="form-check-label small"
+                                           for="muni-@muni.Code">
+                                        @muni.Name
+                                    </label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="alert alert-info py-2 small mt-2">
+                <i class="bi bi-check-circle me-1"></i>
+                <strong>@_selectedMunicipalities.Count</strong>
+                municipality(ies) selected
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <div class="d-flex justify-content-between align-items-center w-100">
+            <button class="btn btn-sm btn-outline-secondary"
+                    @onclick="ClearAllMunicipalities">
+                Clear All
+            </button>
+            <div class="d-flex gap-2">
+                <HxButton Color="ThemeColor.Secondary"
+                          @onclick="() => _jurisdictionModal.HideAsync()">
+                    Cancel
+                </HxButton>
+                <HxButton Color="ThemeColor.Primary"
+                          @onclick="SaveJurisdictionsAsync"
+                          Disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    <span>Save Jurisdictions</span>
+                </HxButton>
+            </div>
+        </div>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    // ── Page state ────────────────────────────────────────────────────────────
+    private bool _initialized = false;   // ✅ false until OnAfterRenderAsync runs
+    private bool _authorized  = false;
+    private bool _isLoading   = false;
+    private bool _isSaving    = false;
+    private string _activeTab = "Pending";
+    private List<UserListDto> _users = new();
+    private UserListDto? _selectedUser;
+
+    // ── Approve modal ─────────────────────────────────────────────────────────
+    private HxModal  _approveModal   = default!;
+    private string   _approveRole    = "Viewer";
+    private string?  _approveRemarks;
+
+    // ── Reject modal ──────────────────────────────────────────────────────────
+    private HxModal  _rejectModal    = default!;
+    private string?  _rejectRemarks;
+
+    // ── Jurisdiction modal ────────────────────────────────────────────────────
+    private HxModal  _jurisdictionModal       = default!;
+    private bool     _isLoadingJurisdictions  = false;
+    private HashSet<int> _selectedMunicipalities = new();
+    private Dictionary<string, List<(int Code, string Name)>>
+        _availableProvinces = new();
+
+    // ── Computed ──────────────────────────────────────────────────────────────
+    private int PendingCount => _users.Count(u => u.ApprovalStatus == 0);
+
+    private IEnumerable<UserListDto> FilteredUsers => _activeTab switch
+    {
+        "Pending"  => _users.Where(u => u.ApprovalStatus == 0),
+        "Approved" => _users.Where(u => u.ApprovalStatus == 1),
+        "Rejected" => _users.Where(u => u.ApprovalStatus == 2),
+        _          => _users
+    };
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+        _authorized  = AuthService.IsSuperAdmin();
+        _initialized = true;   // ✅ now the markup knows we've checked
+
+        if (_authorized)
+            await LoadUsersAsync();
+
+        StateHasChanged();
+    }
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+    private async Task LoadUsersAsync()
+    {
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            _users = await Http.GetFromJsonAsync<List<UserListDto>>(
+                "api/user-management") ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load users: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Approve ───────────────────────────────────────────────────────────────
+    private async Task OpenApproveModal(UserListDto user)
+    {
+        _selectedUser   = user;
+        _approveRole    = user.Role;
+        _approveRemarks = user.Remarks;
+        await _approveModal.ShowAsync();
+    }
+
+    private async Task ConfirmApproveAsync()
+    {
+        if (_selectedUser is null) return;
+        try
+        {
+            _isSaving = true;
+            var response = await Http.PostAsJsonAsync(
+                $"api/user-management/{_selectedUser.Id}/approve",
+                new ApproveUserRequestDto
+                {
+                    Role    = _approveRole,
+                    Remarks = _approveRemarks
+                });
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess(
+                    $"{_selectedUser.FullName} approved as {_approveRole}.");
+                await _approveModal.HideAsync();
+                await LoadUsersAsync();
+
+                // ✅ Auto-open jurisdiction modal when approving as PDO
+                if (_approveRole == "PDO")
+                {
+                    var updated = _users.FirstOrDefault(
+                        u => u.Id == _selectedUser.Id);
+                    if (updated is not null)
+                        await OpenJurisdictionModal(updated);
+                }
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+        finally { _isSaving = false; }
+    }
+
+    // ── Reject ────────────────────────────────────────────────────────────────
+    private async Task OpenRejectModal(UserListDto user)
+    {
+        _selectedUser  = user;
+        _rejectRemarks = null;
+        await _rejectModal.ShowAsync();
+    }
+
+    private async Task ConfirmRejectAsync()
+    {
+        if (_selectedUser is null) return;
+        try
+        {
+            _isSaving = true;
+            var response = await Http.PostAsJsonAsync(
+                $"api/user-management/{_selectedUser.Id}/reject",
+                new RejectUserRequestDto { Remarks = _rejectRemarks });
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess($"{_selectedUser.FullName} rejected.");
+                await _rejectModal.HideAsync();
+                await LoadUsersAsync();
+            }
+            else { toast.ShowError(await response.Content.ReadAsStringAsync()); }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+        finally { _isSaving = false; }
+    }
+
+    // ── Jurisdiction ──────────────────────────────────────────────────────────
+    private async Task OpenJurisdictionModal(UserListDto user)
+    {
+        _selectedUser = user;
+        _selectedMunicipalities = new HashSet<int>(
+            user.Jurisdictions.Select(j => j.PsgcCodeMunicipality));
+        _availableProvinces     = new();
+        _isLoadingJurisdictions = true;
+
+        await _jurisdictionModal.ShowAsync();
+        StateHasChanged();
+
+        try
+        {
+            // ✅ Load all provinces for the PSGC region dropdown
+            var provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                "api/Province") ?? new();
+
+            foreach (var province in provinces.OrderBy(p => p.Name))
+            {
+                var munis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                    $"api/Municipality/by-province/{province.PsgcCodeProvince}")
+                    ?? new();
+
+                if (munis.Any())
+                    _availableProvinces[province.Name ?? "Unknown"] = munis
+                        .Select(m => (m.PsgcCodeMunicipality, m.Name ?? string.Empty))
+                        .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load municipalities: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingJurisdictions = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleMunicipality(int code)
+    {
+        if (!_selectedMunicipalities.Remove(code))
+            _selectedMunicipalities.Add(code);
+        StateHasChanged();
+    }
+
+    private void ToggleProvince(
+        List<(int Code, string Name)> munis, bool check)
+    {
+        foreach (var m in munis)
+        {
+            if (check) _selectedMunicipalities.Add(m.Code);
+            else       _selectedMunicipalities.Remove(m.Code);
+        }
+        StateHasChanged();
+    }
+
+    private bool IsProvinceAllChecked(List<(int Code, string Name)> munis)
+        => munis.Any() && munis.All(m => _selectedMunicipalities.Contains(m.Code));
+
+    private void ClearAllMunicipalities()
+    {
+        _selectedMunicipalities.Clear();
+        StateHasChanged();
+    }
+
+    private async Task SaveJurisdictionsAsync()
+    {
+        if (_selectedUser is null) return;
+        try
+        {
+            _isSaving = true;
+            var response = await Http.PostAsJsonAsync(
+                $"api/user-management/{_selectedUser.Id}/jurisdictions",
+                new AssignJurisdictionRequestDto
+                {
+                    MunicipalityCodes = _selectedMunicipalities.ToList()
+                });
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess(
+                    $"Jurisdictions saved — {_selectedMunicipalities.Count} " +
+                    "municipality(ies) assigned.");
+                await _jurisdictionModal.HideAsync();
+                await LoadUsersAsync();
+            }
+            else { toast.ShowError(await response.Content.ReadAsStringAsync()); }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+        finally { _isSaving = false; }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private static string GetRoleBadgeClass(string role) => role switch
+    {
+        "SuperAdmin" => "bg-dark",
+        "Admin"      => "bg-danger",
+        "PDO"        => "bg-primary",
+        "Viewer"     => "bg-secondary",
+        _            => "bg-secondary"
+    };
+
+    private static string GetStatusBadgeClass(int status) => status switch
+    {
+        0 => "bg-warning text-dark",
+        1 => "bg-success",
+        2 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string GetStatusLabel(int status) => status switch
+    {
+        0 => "Pending",
+        1 => "Approved",
+        2 => "Rejected",
+        _ => "Unknown"
+    };
+
+    private static string GetRoleDescription(string role) => role switch
+    {
+        "SuperAdmin" =>
+            "Full access including user management. Only one or two people should have this.",
+        "Admin" =>
+            "Full operational access: create, edit, delete, bulk operations, payroll.",
+        "PDO" =>
+            "Project Development Officer: create/import records within assigned municipalities only.",
+        "Viewer" =>
+            "Read-only: view records, export Excel, upload documents.",
+        _ => string.Empty
+    };
+}

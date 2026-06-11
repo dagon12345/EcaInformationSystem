@@ -38,7 +38,13 @@ namespace EcaInformationSystem.Application.Services
             }
 
             //Generate the token using the Token Service
-            var token = _tokenService.GenerateToken(user.UserName, user.FullName, user.Role);
+            var token = _tokenService.GenerateToken(
+                user.UserName,
+                user.FullName,
+                user.Role,
+                user.Role == "PDO"
+                    ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
+                    : null);
 
 
 
@@ -72,7 +78,7 @@ namespace EcaInformationSystem.Application.Services
                 ReviewedAt = DateTime.UtcNow,
                 ReviewedBy = "System",
                 Remarks = "Auto-approved internal registration",
-                Role = request.Role 
+                Role = request.Role
             };
             user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
             await _pendingUserRegistrationRepository.AddAsync(user, cancellationToken);

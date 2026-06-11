@@ -36,25 +36,66 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             int maxPairs = 50,
             CancellationToken cancellationToken = default)
         {
-            // ✅ REUSE your existing BuildBeneficiaryFilteredQuery
-            // This applies ALL active filters — province, payment status,
-            // municipality, barangay, eligibility, compliance, etc.
-            // Now the scan only sees the same records the grid shows
-            var candidates = await BuildBeneficiaryFilteredQuery(filter)
-                .Select(x => new
-                {
-                    x.Beneficiary.Id,
-                    x.Beneficiary.FirstName,
-                    x.Beneficiary.LastName,
-                    x.Beneficiary.MiddleName,
-                    x.Beneficiary.BirthDate,
-                    x.Beneficiary.OscaIdNumber,
-                    x.Beneficiary.PaymentStatus,
-                    MunicipalityName = x.Municipality,
-                    BarangayName = x.Barangay
-                })
-                .Distinct()
-                .ToListAsync(cancellationToken);
+            // ✅ Clone the filter and strip name fields so the duplicate scan
+            // sees all records matching the non-name criteria (location, status, etc.)
+            // Name-based matching is done in-memory via ComputeNameSimilarity below.
+            var scanFilter = new BeneficiaryFilterDto
+            {
+                // ── Location ──────────────────────────────────────────────────
+                PsgcCodeRegion = filter.PsgcCodeRegion,
+                PsgcCodeProvince = filter.PsgcCodeProvince,
+                PsgcCodeMunicipality = filter.PsgcCodeMunicipality,
+                PsgcCodeBarangay = filter.PsgcCodeBarangay,
+                // ── Status ────────────────────────────────────────────────────
+                PaymentStatus = filter.PaymentStatus,
+                PaymentDate = filter.PaymentDate,
+                PaymentDateFrom = filter.PaymentDateFrom,
+                PaymentDateTo = filter.PaymentDateTo,
+                IsEligible = filter.IsEligible,
+                EligibilityMode = filter.EligibilityMode,
+                IsCompliant = filter.IsCompliant,
+                ComplianceMode = filter.ComplianceMode,
+                CoStatus = filter.CoStatus,
+                FindingStatus = filter.FindingStatus,
+                Sex = filter.Sex,
+                FilterModeOfPayment = filter.FilterModeOfPayment,
+                // ── Age / Birthday ────────────────────────────────────────────
+                SpecificAge = filter.SpecificAge,
+                MilestoneYear = filter.MilestoneYear,
+                SpecificBirthday = filter.SpecificBirthday,
+                BirthdayFrom = filter.BirthdayFrom,
+                BirthdayTo = filter.BirthdayTo,
+                // ── Reference number ──────────────────────────────────────────
+                FilterQuarter = filter.FilterQuarter,
+                FilterBatch = filter.FilterBatch,
+                FilterRefYear = filter.FilterRefYear,
+                FilterRegionRoman = filter.FilterRegionRoman,
+                // ── Date Added ────────────────────────────────────────────────
+                DateAddedFrom = filter.DateAddedFrom,
+                DateAddedTo = filter.DateAddedTo,
+                // ── Deliberately excluded ─────────────────────────────────────
+                // LastName, FirstName, FullName, GeneralSearch, Validator, BatchCode
+                // are intentionally NOT copied — name filtering narrows the pool
+                // and would prevent cross-name duplicate detection
+                PageNumber = 1,
+                PageSize = int.MaxValue
+            };
+
+            var candidates = await BuildBeneficiaryFilteredQuery(scanFilter)
+                        .Select(x => new
+                        {
+                            x.Beneficiary.Id,
+                            x.Beneficiary.FirstName,
+                            x.Beneficiary.LastName,
+                            x.Beneficiary.MiddleName,
+                            x.Beneficiary.BirthDate,
+                            x.Beneficiary.OscaIdNumber,
+                            x.Beneficiary.PaymentStatus,
+                            MunicipalityName = x.Municipality,
+                            BarangayName = x.Barangay
+                        })
+                        .Distinct()
+                        .ToListAsync(cancellationToken);
 
             // ✅ Need at least 2 records to form a pair
             if (candidates.Count < 2)
@@ -1377,7 +1418,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoDateApproved = x.Beneficiary.CoDateApproved,
                     RowVersion = x.Beneficiary.RowVersion,
                     HasDocuments = _context.BeneficiaryDocuments
-                    .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted)});
+                    .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted)
+                });
         }
 
         // ── Mapper: call this AFTER .ToListAsync() ───────────────────────────────────

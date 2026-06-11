@@ -1,6 +1,8 @@
 ﻿using System.Text.Json;
 using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Api.Extensions;
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -14,8 +16,12 @@ namespace EcaInformationSystem.Api.Controllers
     public class BeneficiaryController : ControllerBase
     {
         private readonly IBeneficiaryInformationService _service;
-        public BeneficiaryController(IBeneficiaryInformationService service)
-            => _service = service;
+        private readonly IJurisdictionGuardService _jurisdictionGuardService;
+        public BeneficiaryController(IBeneficiaryInformationService service, IJurisdictionGuardService jurisdictionGuardService)
+        {
+            _service = service;
+            _jurisdictionGuardService = jurisdictionGuardService;
+        }
 
         [HttpPost("bulk-assign-refnumber")]
         [Authorize(Policy = "AdminOrPDO")]
@@ -57,8 +63,7 @@ namespace EcaInformationSystem.Api.Controllers
 
         [HttpPost("create")]
         [Authorize(Policy = "AdminOrPDO")]
-        public async Task<IActionResult> Create(
-            [FromBody] CreateBeneficiaryInformationDto dto)
+        public async Task<IActionResult> Create([FromBody] CreateBeneficiaryInformationDto dto)
         {
             try
             {
@@ -98,13 +103,20 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Policy = "AdminOnly")] 
+        [Authorize(Policy = "AdminOrPDO")] // Admin and PDO can edit but the PDO have jurisdiction restrictions
         public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             var userName = User.Identity?.Name ?? "Unknown";
+            var role = User.GetRole();
+
+            //Jurisdiction check
+            var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, dto.PsgcCodeMunicipality);
+
+            if(jurisdictionError is not null)
+                return StatusCode(403, jurisdictionError);
 
             try
             {
@@ -122,7 +134,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpDelete("soft-delete/{id:guid}")]
-        [Authorize(Policy = "AdminOnly")] 
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> Delete(Guid id)
         {
             await _service.SoftDeleteAsync(id, User.Identity?.Name ?? "System");
@@ -143,6 +155,7 @@ namespace EcaInformationSystem.Api.Controllers
                 $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx");
         }
         [HttpPost("import/preview")]
+        [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> PreviewImport(
      IFormFile file, [FromForm] string sheetName)
         {
@@ -152,6 +165,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
         // BeneficiaryController.cs
         [HttpPost("import/confirm")]
+        [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> ConfirmImport(
             IFormFile file,
             [FromForm] string sheetName,
@@ -173,6 +187,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
         [HttpPost("import/sheets")]
         [Consumes("multipart/form-data")]
+        [Authorize(Policy = "AdminOrPDO")]
         [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetImportExcelSheets([FromForm] ImportBeneficiaryExcelSheetRequestDto request)
@@ -197,6 +212,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
         [HttpPost("update-excel")]
         [Consumes("multipart/form-data")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> UpdateFromExcel([FromForm] UpdateBeneficiaryExcelRequestDto request)
         {
             // 1. Validation
@@ -260,7 +276,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("bulk-payment-status")]
-        [Authorize(Policy = "AdminOnly")] 
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> BulkUpdatePaymentStatus([FromBody] BulkUpdatePaymentStatusRequestDto request)
         {
             try
@@ -288,7 +304,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpPost("bulk-co-status")]
-        [Authorize(Policy = "AdminOnly")] 
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> BulkUpdateCoStatus([FromBody] BulkUpdateCoStatusRequestDto dto)
         {
             try

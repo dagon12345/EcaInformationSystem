@@ -37,5 +37,6 @@ namespace EcaInformationSystem.Api.Controllers.AddressControllers
             var result = await _municipalityService.GetByProvinceIdsAsync(request.Ids);
             return Ok(result);
         }
+        
     }
 }

@@ -73,6 +73,7 @@ builder.Services
         };
     });
 
+// In Program.cs — replace the AddAuthorization block
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthPolicies.CookieOrJwt, policy =>
@@ -81,11 +82,18 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser();
     });
 
-    // New role policies
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
-    options.AddPolicy("AdminOrPDO", policy => policy.RequireRole("Admin", "PDO"));
-});
+    // ✅ SuperAdmin — user management only
+    options.AddPolicy("SuperAdminOnly",
+        policy => policy.RequireRole("SuperAdmin"));
 
+    // ✅ Admin — all operational features
+    options.AddPolicy("AdminOnly",
+        policy => policy.RequireRole("Admin", "SuperAdmin"));
+
+    // ✅ PDO — can create and assign ref numbers
+    options.AddPolicy("AdminOrPDO",
+        policy => policy.RequireRole("Admin", "PDO", "SuperAdmin"));
+});
 // ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
 {
@@ -142,6 +150,7 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
+    await SuperAdminSeeder.SeedAsync(dbContext);
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────

@@ -1,14 +1,18 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
+@inject AuthService AuthService
+@inject HttpClient Http
 
 <div class="sidebar-brand">
-       <NavLink href="" Match="NavLinkMatch.All">
-             <div class="brand-icon">
-                 <img src="/images/ncsc-seal.png" alt="NCSC"
-                      style="width:32px;height:32px;border-radius:50%;object-fit:cover;  background: white"
-                      onerror="this.style.display='none'"  />
-             </div>
+    <NavLink href="" Match="NavLinkMatch.All">
+        <div class="brand-icon">
+            <img src="/images/ncsc-seal.png" alt="NCSC"
+                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white"
+                 onerror="this.style.display='none'" />
+        </div>
     </NavLink>
     <span class="brand-text">ECAReS</span>
 </div>
@@ -21,20 +25,38 @@
         <span class="nav-label">Dashboard</span>
     </NavLink>
 
-    <NavLink class="nav-item" href="beneficiary-create">
-        <span class="nav-icon"><i class="bi bi-person-plus"></i></span>
-        <span class="nav-label">Create Record</span>
-    </NavLink>
+    @* ── Create Record — Admin + PDO only ── *@
+    @if (_isAdmin || _isPdo)
+    {
+        <NavLink class="nav-item" href="beneficiary-create">
+            <span class="nav-icon"><i class="bi bi-person-plus"></i></span>
+            <span class="nav-label">Create Record</span>
+        </NavLink>
+    }
 
     <NavLink class="nav-item" href="beneficiary-records">
         <span class="nav-icon"><i class="bi bi-file-text"></i></span>
         <span class="nav-label">Records</span>
     </NavLink>
 
-    <NavLink class="nav-item" href="liquidation">
-        <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
-        <span class="nav-label">Liquidation</span>
-    </NavLink>
+    @* ── Liquidation — Admin only ── *@
+    @if (_isAdmin)
+    {
+        <NavLink class="nav-item" href="liquidation">
+            <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
+            <span class="nav-label">Liquidation</span>
+        </NavLink>
+    }
+
+    @* ── Administration section — SuperAdmin only ── *@
+    @if (_isSuperAdmin)
+    {
+        <div class="nav-section-label">Administration</div>
+        <NavLink class="nav-item" href="user-management">
+            <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+            <span class="nav-label">User Management</span>
+        </NavLink>
+    }
 
     <div class="nav-section-label mt-2">System</div>
 
@@ -43,6 +65,81 @@
         <span class="nav-label">Settings</span>
     </NavLink>
 </nav>
+
+@* ── Permission Legend ─────────────────────────────────────────────────────── *@
+@if (!Collapsed && _roleLoaded)
+{
+    <div class="sidebar-legend">
+
+        @* ── Role badge ── *@
+        <div class="legend-role-badge @GetRoleBadgeClass(_role)">
+            <i class="bi @GetRoleIcon(_role) me-1"></i>
+            @GetRoleLabel(_role)
+        </div>
+
+        @* ── Permission rows ── *@
+        <div class="legend-title">Your Permissions</div>
+
+        @foreach (var item in GetPermissionRows())
+        {
+            <div class="legend-row">
+                <span class="legend-action" style="color:#fff; font-size:10px;">
+                    @item.Action
+                </span>
+                @if (item.Allowed)
+                {
+                    <i class="bi bi-check-circle-fill legend-icon legend-icon--yes" style="color:#4ade80;"></i>
+                }
+                else
+                {
+                    <i class="bi bi-x-circle-fill legend-icon legend-icon--no" style="color:#f87171;"></i>
+                }
+            </div>
+        }
+
+        @* ── Jurisdiction list — PDO only ── *@
+        @if (_isPdo && _jurisdictions.Any())
+        {
+            <div class="legend-title mt-2">
+                <i class="bi bi-geo-alt me-1"></i>Your Jurisdictions
+            </div>
+            <div class="legend-jurisdictions">
+                @foreach (var name in _jurisdictionNames)
+                {
+                    <div class="legend-jurisdiction-item">
+                        <i class="bi bi-building" style="font-size:10px;"></i>
+                        <span style="color:#fff; font-size:10px;">@name</span>
+                    </div>
+                }
+            </div>
+        }
+        else if (_isPdo && !_jurisdictions.Any())
+        {
+            <div class="legend-title mt-2">
+                <i class="bi bi-geo-alt me-1"></i>Jurisdictions
+            </div>
+            <div style="font-size:10px; color:#fbbf24; background:rgba(251,191,36,0.1);
+                border:1px solid rgba(251,191,36,0.3); border-radius:6px;
+                padding:4px 8px; margin-top:4px;">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                No municipalities assigned. Contact your administrator.
+            </div>
+        }
+        else if (_isAdmin)
+        {
+            <div class="legend-title mt-2">
+                <i class="bi bi-geo-alt me-1"></i>Jurisdictions
+            </div>
+            <div class="legend-jurisdiction-item">
+                <i class="bi bi-globe" style="font-size:10px;"></i>
+                <span style="color:#4ade80; font-size:10px;">
+                    All municipalities
+                </span>
+            </div>
+        }
+
+    </div>
+}
 
 <div class="sidebar-footer">
     <div class="user-card">
@@ -63,33 +160,127 @@
     [Parameter] public bool Collapsed { get; set; }
     [Parameter] public string UserName { get; set; } = "User";
 
-    // ✅ Resolved display name — FullName claim first, fallback to UserName parameter
     private string DisplayName = "User";
+    private bool _isSuperAdmin;
+    private bool _isAdmin;
+    private bool _isPdo;
+    private bool _isViewer;
+    private bool _roleLoaded;
+    private string _role = string.Empty;
+    private List<int> _jurisdictions = new();
+    private List<string> _jurisdictionNames = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+
+        _isSuperAdmin = AuthService.IsSuperAdmin();
+        _isAdmin = AuthService.IsAdmin();
+        _isPdo = AuthService.IsPDO();
+        _isViewer = AuthService.IsViewer();
+        _role = AuthService.GetRole() ?? string.Empty;
+        _roleLoaded = true;
+
+        // ── Load jurisdiction names for PDO ───────────────────────────────
+        if (_isPdo)
+        {
+            _jurisdictions = AuthService.GetJurisdictionCodes();
+            await LoadJurisdictionNamesAsync();
+        }
+
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-
-        // ✅ Same claim key you use in LiquidationModal
         var fullName = user.FindFirst("FullName")?.Value;
-
-        DisplayName = !string.IsNullOrWhiteSpace(fullName)
-            ? fullName
-            : UserName; // fallback to whatever the parent passed
+        DisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : UserName;
     }
+
+    private async Task LoadJurisdictionNamesAsync()
+    {
+        if (!_jurisdictions.Any()) return;
+
+        try
+        {
+            var allMunis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                "api/Municipality") ?? new();
+
+            // ── Filter to only the PDO's assigned codes ───────────────────────
+            _jurisdictionNames = allMunis
+                .Where(m => _jurisdictions.Contains(m.PsgcCodeMunicipality))
+                .OrderBy(m => m.Name)
+                .Select(m => m.Name ?? $"Municipality #{m.PsgcCodeMunicipality}")
+                .ToList();
+
+            // ── Fallback if nothing matched ───────────────────────────────────
+            if (!_jurisdictionNames.Any())
+            {
+                _jurisdictionNames = _jurisdictions
+                    .Select(c => $"Municipality #{c}")
+                    .ToList();
+            }
+        }
+        catch
+        {
+            _jurisdictionNames = _jurisdictions
+                .Select(c => $"Municipality #{c}")
+                .ToList();
+        }
+    }
+    // ── Permission matrix based on the summary table image ───────────────────
+    private List<(string Action, bool Allowed)> GetPermissionRows() =>
+        new()
+        {
+            ("View / Filter", true),
+            ("Export Excel", true),
+            ("Upload PDF", true),
+            ("Create record", _isAdmin || _isPdo),
+            ("Bulk Ref Number", _isAdmin || _isPdo),
+            ("Edit record", _isAdmin),
+            ("Delete record", _isAdmin),
+            ("Bulk Payment", _isAdmin),
+            ("Bulk CO Status", _isAdmin),
+            ("Bulk Eligibility",_isAdmin),
+            ("Generate Payroll",_isAdmin),
+        };
 
     private string GetInitials(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "U";
-
-        var parts = name.Trim().Split(' ',
-            StringSplitOptions.RemoveEmptyEntries);
-
-        if (parts.Length == 1)
-            return parts[0][0].ToString().ToUpper();
-
-        // First letter of first and last word
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
         return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
     }
+
+    private static string GetRoleBadgeClass(string role) => role switch
+    {
+        "SuperAdmin" => "legend-role-badge--superadmin",
+        "Admin" => "legend-role-badge--admin",
+        "PDO" => "legend-role-badge--pdo",
+        "Viewer" => "legend-role-badge--viewer",
+        _ => "legend-role-badge--viewer"
+    };
+
+    private static string GetRoleIcon(string role) => role switch
+    {
+        "SuperAdmin" => "bi-shield-fill-exclamation",
+        "Admin" => "bi-shield-fill-check",
+        "PDO" => "bi-person-badge-fill",
+        "Viewer" => "bi-eye-fill",
+        _ => "bi-person-fill"
+    };
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        "SuperAdmin" => "Super Administrator",
+        "Admin" => "Administrator",
+        "PDO" => "Project Development Officer",
+        "Viewer" => "Viewer",
+        _ => role
+    };
 }
