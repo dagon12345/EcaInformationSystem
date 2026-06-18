@@ -921,23 +921,33 @@ namespace EcaInformationSystem.Application.Services
             ref int continousNo,
             ref int cgpPageNumber)
         {
-            const int COLS = 19;
+            const int COLS = 18;
             const int FONT_SIZE = 14;
-            const double PAGE_TWO_PLUS_HT = 210.0;
 
-            // Page 1 layout budget (Excel row-height units, legal landscape 0.5" margins):
-            //   Header rows 1–14  ≈ 237 units
-            //   Signatory block   ≈ 330 units  (with generous signing space)
-            //   Subtotal + gap    ≈  36 units
-            //   Available for data rows = total page capacity − 237 − 330 − 36 = 1097
-            const double PAGE1_DATA_BUDGET = 1097.0;
+            // Legal paper landscape = 14" x 8.5"
+            // Margins: Top 0.5" + Bottom 0.5" = 1.0" total used
+            // Calibrated empirically against actual print output.
+            const double TOTAL_PRINTABLE_HEIGHT = 1097.0;
 
-            // ── Page capacity constants ───────────────────────────────────────────────
-            // Page 1: maximum 5 data rows (hard cap so footer always fits at full height)
-            // Page 2+: maximum 7 data rows
-            // LAST PAGE: always exactly 1 data row — guaranteed alongside the footer
-            const int PAGE1_MAX = 5;
+            // Fixed heights for non-data rows
+            const double CGP_ROW_HEIGHT = 20.0;
+            const double SUBTOTAL_HEIGHT = 18.0;
+
+            const int PAGE1_MAX = 6;
             const int PAGE2_MAX = 7;
+
+            // ✅ Single shared data-row height, derived from page 2's budget
+            // (CGP row is the only fixed content there, so it gives the
+            // truest "pure data row" height). Page 1 reuses this SAME
+            // height instead of computing its own shorter value — page 1
+            // naturally has less room for data because it carries the
+            // header block, CGP number block, subtotal, and signatory
+            // block on the same physical page. That's expected: rows
+            // should look consistent across pages, not artificially
+            // squeezed on page 1 to "use up" space that's actually
+            // occupied by the header/signatory content.
+            double dataRowHeight = (TOTAL_PRINTABLE_HEIGHT - CGP_ROW_HEIGHT) / PAGE2_MAX;
+            dataRowHeight = Math.Max(60.0, Math.Min(192.0, dataRowHeight));
 
             var first = records.FirstOrDefault();
             var municipality = first?.MunicipalityName ?? "";
@@ -947,62 +957,28 @@ namespace EcaInformationSystem.Application.Services
             // =========================================================================
             // BUILD PAGE PLAN UPFRONT
             // =========================================================================
-            // Rule: the very last page ALWAYS has exactly 1 record alongside the footer.
-            // Working backwards:
-            //   - Reserve 1 record for the last page.
-            //   - Distribute the rest: page 1 gets up to PAGE1_MAX, page 2+ get PAGE2_MAX.
-            //   - The last page then always gets exactly 1.
-            //
-            // Special case: if there is only 1 record total, it stays on page 1 alone
-            // (we cannot split a single record) and the footer prints with it.
-            //
-            // Examples (records → page sizes):
-            //   1  → [1]              (single page: 1 row + footer)
-            //   2  → [1, 1]           (page1: 1 row  | page2: 1 row + footer)
-            //   3  → [2, 1]           (page1: 2 rows | page2: 1 row + footer)
-            //   6  → [5, 1]           (page1: 5 rows | page2: 1 row + footer)
-            //   7  → [5, 1, 1]        (page1: 5 rows | page2: 1 row | page3: 1 row + footer)
-            //   8  → [5, 2, 1]        (page1: 5 rows | page2: 2 rows | page3: 1 row + footer)
-            //  13  → [5, 7, 1]        (page1: 5 rows | page2: 7 rows | page3: 1 row + footer)
-            //  14  → [5, 7, 1, 1]     (page1: 5 rows | page2: 7 rows | page3: 1 | page4: 1 + footer)
-            //  20  → [5, 7, 7, 1]     (page1: 5 rows | page2: 7 | page3: 7 | page4: 1 + footer)
-            //  21  → [5, 7, 7, 1, 1]  (page1: 5 | page2: 7 | page3: 7 | page4: 1 | page5: 1 + footer)
-            // =========================================================================
             var pagePlan = new List<int>();
 
             if (records.Count <= 1)
             {
-                // Single record — keep on page 1, footer prints with it
                 pagePlan.Add(records.Count);
             }
             else
             {
                 int remaining = records.Count;
-
-                // Page 1
-                int p1 = Math.Min(remaining - 1, PAGE1_MAX); // always leave at least 1
+                int p1 = Math.Min(remaining - 1, PAGE1_MAX);
                 pagePlan.Add(p1);
                 remaining -= p1;
 
-                // Middle pages — keep going until only 1 left
                 while (remaining > 1)
                 {
-                    int take = Math.Min(remaining - 1, PAGE2_MAX); // always leave at least 1
+                    int take = Math.Min(remaining - 1, PAGE2_MAX);
                     pagePlan.Add(take);
                     remaining -= take;
                 }
 
-                // Last page — always exactly 1
-                pagePlan.Add(remaining); // remaining is always 1 here
+                pagePlan.Add(remaining);
             }
-
-            // ── Dynamic page 1 row height ─────────────────────────────────────────────
-            // Divide the data budget by however many rows page 1 will hold.
-            // Capped at 192 (baseline for 6 rows), floored at 60 (readability).
-            int p1Count = pagePlan.Count > 0 ? pagePlan[0] : 1;
-            double page1RowHeight = p1Count > 0
-                ? Math.Max(60.0, Math.Min(192.0, Math.Floor(PAGE1_DATA_BUDGET / p1Count)))
-                : 192.0;
 
             // ── Helpers ───────────────────────────────────────────────────────────────
             void NavyHeader(IXLRange r, string text)
@@ -1034,113 +1010,109 @@ namespace EcaInformationSystem.Application.Services
             }
 
             void DataCell(int row, int col, object? val,
-                          XLAlignmentHorizontalValues align = XLAlignmentHorizontalValues.Left)
+                          XLAlignmentHorizontalValues align = XLAlignmentHorizontalValues.Left,
+                          int fontSize = 16,
+                          string? numberFormat = null,
+                          bool shrinkToFit = false)
             {
                 if (val != null) ws.Cell(row, col).Value = XLCellValue.FromObject(val);
-                ws.Cell(row, col).Style.Font.FontSize = 16;
+                ws.Cell(row, col).Style.Font.FontSize = fontSize;
                 ws.Cell(row, col).Style.Font.FontName = CommonConstants.Arial;
                 ws.Cell(row, col).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 ws.Cell(row, col).Style.Alignment.Horizontal = align;
-                ws.Cell(row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                ws.Cell(row, col).Style.Alignment.WrapText = true;
+                ws.Cell(row, col).Style.Alignment.WrapText = !shrinkToFit;
+                ws.Cell(row, col).Style.Alignment.ShrinkToFit = shrinkToFit;
+
+                if (!string.IsNullOrEmpty(numberFormat))
+                    ws.Cell(row, col).Style.NumberFormat.Format = numberFormat;
             }
 
             void CgpCell(int row, string text)
             {
-                ws.Cell(row, 19).Value = text;
-                ws.Cell(row, 19).Style.Font.Bold = false;
-                ws.Cell(row, 19).Style.Font.FontSize = FONT_SIZE;
-                ws.Cell(row, 19).Style.Font.FontName = CommonConstants.Arial;
-                ws.Cell(row, 19).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                ws.Cell(row, 19).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                ws.Cell(row, 19).Style.Border.OutsideBorder = XLBorderStyleValues.None;
+                ws.Cell(row, 18).Value = text;
+                ws.Cell(row, 18).Style.Font.Bold = false;
+                ws.Cell(row, 18).Style.Font.FontSize = FONT_SIZE;
+                ws.Cell(row, 18).Style.Font.FontName = CommonConstants.Arial;
+                ws.Cell(row, 18).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                ws.Cell(row, 18).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                ws.Cell(row, 18).Style.Border.OutsideBorder = XLBorderStyleValues.None;
             }
 
             // =========================================================================
             // SECTION 1: HEADER
             // =========================================================================
             ws.Row(3).Height = 24;
-            MergeCenter(3, 11, 11, CommonConstants.NCSC, bold: true);
+            MergeCenter(3, 10, 10, CommonConstants.NCSC, bold: true);
 
             ws.Row(4).Height = 24;
             string municipalityDisplay = municipality.Contains("City", StringComparison.OrdinalIgnoreCase)
                 ? municipality
                 : $"{CommonConstants.MunicipalityOf} {municipality}";
-            MergeCenter(4, 11, 11, $"{CommonConstants.RegionalOfficeProvinceOf} {province}, {municipalityDisplay}");
+            MergeCenter(4, 10, 10, $"{CommonConstants.RegionalOfficeProvinceOf} {province}, {municipalityDisplay}");
 
             ws.Row(5).Height = 21.75;
-            MergeCenter(5, 11, 11, CommonConstants.Act);
+            MergeCenter(5, 10, 10, CommonConstants.Act);
 
             ws.Row(6).Height = 10.5;
             ws.Row(7).Height = 10.5;
 
             ws.Row(8).Height = 18.75;
-            MergeCenter(8, 11, 11, CommonConstants.CashGiftPayroll, bold: true);
+            MergeCenter(8, 10, 10, CommonConstants.CashGiftPayroll, bold: true);
 
             ws.Row(9).Height = 14.25;
 
             // Row 10: A. PURPOSE + CGP page 1
             ws.Row(10).Height = 23.25;
-            ws.Cell(10, 2).Value = CommonConstants.Apurpose;
-            ws.Cell(10, 2).Style.Font.Bold = true;
-            ws.Cell(10, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(10, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(10, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            ws.Cell(10, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            ws.Cell(10, 1).Value = CommonConstants.Apurpose;
+            ws.Cell(10, 1).Style.Font.Bold = true;
+            ws.Cell(10, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(10, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(10, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Cell(10, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-            ws.Range(10, 4, 10, 15).Merge();
-            ws.Cell(10, 4).Value = CommonConstants.PayrollPurpose;
-            ws.Cell(10, 4).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(10, 4).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(10, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-            ws.Cell(10, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            ws.Cell(10, 4).Style.Alignment.WrapText = true;
+            ws.Range(10, 3, 10, 14).Merge();
+            ws.Cell(10, 3).Value = CommonConstants.PayrollPurpose;
+            ws.Cell(10, 3).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(10, 3).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(10, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            ws.Cell(10, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Cell(10, 3).Style.Alignment.WrapText = true;
 
             CgpCell(10, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
             cgpPageNumber++;
 
             ws.Row(11).Height = 11.25;
 
-            // After AddCenteredTitle(4, ...)
-            PayrollLogos.AddLogos(
-              ws,
-              anchorRow: 1,
-              leftCol: 1,
-              rightCol: 19,   // ✅ col 19 (S) — right edge of table
-              widthPx: 95,
-              heightPx: 95,
-              offsetLeft: 4,
-              offsetRight: 251); // ✅ right-aligns logo within col 19
-                                 // =========================================================================
-                                 // SECTION 2: COLUMN HEADERS rows 12–14
-                                 // =========================================================================
+            // =========================================================================
+            // SECTION 2: COLUMN HEADERS rows 12–14
+            // =========================================================================
             ws.Row(12).Height = 14.25;
             ws.Row(13).Height = 24.75;
-            ws.Row(14).Height = 108.75;
+            ws.Row(14).Height = 60.0;
 
-            NavyHeader(ws.Range(12, 2, 14, 2), CommonConstants.BatchCode.ToTitleCase());
-            NavyHeader(ws.Range(12, 3, 14, 3), CommonConstants.Number);
-            NavyHeader(ws.Range(12, 4, 13, 7), CommonConstants.FullNameOfBeneficiary);
-            NavyHeader(ws.Range(14, 4, 14, 4), CommonConstants.LastName.ToTitleCase());
-            NavyHeader(ws.Range(14, 5, 14, 5), CommonConstants.FirstName.ToTitleCase());
-            NavyHeader(ws.Range(14, 6, 14, 6), CommonConstants.MiddleName.ToTitleCase());
-            NavyHeader(ws.Range(14, 7, 14, 7), CommonConstants.Ext);
-            NavyHeader(ws.Range(12, 8, 14, 8), CommonConstants.PayrollBirthdate);
-            NavyHeader(ws.Range(12, 9, 14, 9), CommonConstants.Age.ToTitleCase());
-            NavyHeader(ws.Range(12, 10, 14, 10), CommonConstants.Sex.ToTitleCase());
-            NavyHeader(ws.Range(12, 11, 14, 11), CommonConstants.Barangay.ToTitleCase());
-            NavyHeader(ws.Range(12, 12, 14, 12), CommonConstants.Amount);
-            NavyHeader(ws.Range(12, 13, 14, 13), CommonConstants.AmountReceived);
-            NavyHeader(ws.Range(12, 14, 13, 15), CommonConstants.BeneficiaryAuthRepresentative);
-            NavyHeader(ws.Range(14, 14, 14, 14), CommonConstants.SignatureOverPrintedName);
-            NavyHeader(ws.Range(14, 15, 14, 15), CommonConstants.Thumbmark);
-            NavyHeader(ws.Range(12, 16, 14, 16), CommonConstants.ForAuthRep);
-            NavyHeader(ws.Range(12, 17, 14, 17), CommonConstants.DateOfDeath);
-            NavyHeader(ws.Range(12, 18, 14, 18), CommonConstants.DateReceived);
-            NavyHeader(ws.Range(12, 19, 14, 19), CommonConstants.Remarks.ToTitleCase());
+            NavyHeader(ws.Range(12, 1, 14, 1), CommonConstants.BatchCode.ToTitleCase());
+            NavyHeader(ws.Range(12, 2, 14, 2), CommonConstants.Number);
+            NavyHeader(ws.Range(12, 3, 13, 6), CommonConstants.FullNameOfBeneficiary);
+            NavyHeader(ws.Range(14, 3, 14, 3), CommonConstants.LastName.ToTitleCase());
+            NavyHeader(ws.Range(14, 4, 14, 4), CommonConstants.FirstName.ToTitleCase());
+            NavyHeader(ws.Range(14, 5, 14, 5), CommonConstants.MiddleName.ToTitleCase());
+            NavyHeader(ws.Range(14, 6, 14, 6), CommonConstants.Ext);
+            NavyHeader(ws.Range(12, 7, 14, 7), CommonConstants.PayrollBirthdate);
+            NavyHeader(ws.Range(12, 8, 14, 8), CommonConstants.Age.ToTitleCase());
+            NavyHeader(ws.Range(12, 9, 14, 9), CommonConstants.Sex.ToTitleCase());
+            NavyHeader(ws.Range(12, 10, 14, 10), CommonConstants.Barangay.ToTitleCase());
+            NavyHeader(ws.Range(12, 11, 14, 11), CommonConstants.Amount);
+            NavyHeader(ws.Range(12, 12, 14, 12), CommonConstants.AmountReceived);
+            NavyHeader(ws.Range(12, 13, 13, 14), CommonConstants.BeneficiaryAuthRepresentative);
+            NavyHeader(ws.Range(14, 13, 14, 13), CommonConstants.SignatureOverPrintedName);
+            NavyHeader(ws.Range(14, 14, 14, 14), CommonConstants.Thumbmark);
+            NavyHeader(ws.Range(12, 15, 14, 15), CommonConstants.ForAuthRep);
+            NavyHeader(ws.Range(12, 16, 14, 16), CommonConstants.DateOfDeath);
+            NavyHeader(ws.Range(12, 17, 14, 17), CommonConstants.DateReceived);
+            NavyHeader(ws.Range(12, 18, 14, 18), CommonConstants.Remarks.ToTitleCase());
 
             // =========================================================================
-            // SECTION 3: DATA ROWS — driven by the pre-built pagePlan
+            // SECTION 3: DATA ROWS
             // =========================================================================
             int currentRow = 15;
             int processed = 0;
@@ -1151,48 +1123,46 @@ namespace EcaInformationSystem.Application.Services
                 var pageRecs = records.Skip(processed).Take(pageSize).ToList();
                 bool isFirstPage = pageIndex == 0;
 
-                // ── Pages 2+: manual page break then CGP row ──────────────────────
-                // AddHorizontalPageBreak(row) ends the page AFTER that row number,
-                // so our CGP row becomes the very first row of the new page —
-                // it will never appear at the bottom of the previous page.
                 if (!isFirstPage)
                 {
                     ws.PageSetup.AddHorizontalPageBreak(currentRow - 1);
 
                     CgpCell(currentRow, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
                     cgpPageNumber++;
-                    ws.Row(currentRow).Height = 23.25;
+                    ws.Row(currentRow).Height = CGP_ROW_HEIGHT;
                     currentRow++;
                 }
 
+                // ✅ Same row height on every page — page 1's smaller data
+                // budget is absorbed by its larger header/signatory
+                // footprint, not by shrinking the rows themselves.
                 foreach (var rec in pageRecs)
                 {
                     int dr = currentRow;
                     decimal cashGiftAmount = PayrollSettingsDto.CalculateCashGiftAmount(rec.Age);
-                    // Page 1: dynamic height so the footer never overflows.
-                    // Page 2+: fixed taller height for comfortable reading/signing.
-                    ws.Row(dr).Height = isFirstPage ? page1RowHeight : PAGE_TWO_PLUS_HT;
 
-                    DataCell(dr, 2, (rec.BatchCode ?? "").ToUpperInvariant());
-                    DataCell(dr, 3, continousNo++, XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 4, (rec.LastName ?? "").ToUpperInvariant());
-                    DataCell(dr, 5, (rec.FirstName ?? "").ToUpperInvariant());
-                    DataCell(dr, 6, (rec.MiddleName ?? "").ToUpperInvariant());
-                    DataCell(dr, 7, (rec.Extension ?? "").ToUpperInvariant());
-                    DataCell(dr, 8, rec.BirthDate.ToStandardDate(), XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 9, rec.Age, XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 10, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female,
+                    ws.Row(dr).Height = dataRowHeight;
+
+                    DataCell(dr, 1, (rec.BatchCode ?? "").ToUpperInvariant());
+                    DataCell(dr, 2, continousNo++, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 3, (rec.LastName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
+                    DataCell(dr, 4, (rec.FirstName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
+                    DataCell(dr, 5, (rec.MiddleName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
+                    DataCell(dr, 6, (rec.Extension ?? "").ToUpperInvariant());
+                    DataCell(dr, 7, rec.BirthDate.ToStandardDate(), XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 8, rec.Age, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 9, rec.Sex == 1 ? CommonConstants.Male : CommonConstants.Female,
                                      XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 11, rec.BarangayName.ToUpperInvariant(), XLAlignmentHorizontalValues.Center);
-                    DataCell(dr, 12, cashGiftAmount, XLAlignmentHorizontalValues.Center); //If age >= 100, 100k; else 10k
-                    ws.Cell(dr, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
+                    DataCell(dr, 10, rec.BarangayName.ToUpperInvariant(), XLAlignmentHorizontalValues.Center, 14, null, true);
+                    DataCell(dr, 11, cashGiftAmount, XLAlignmentHorizontalValues.Center, 12, "₱#,##0.00");
+                    DataCell(dr, 12, "", XLAlignmentHorizontalValues.Center);
 
                     if (rec.IsDeceased && rec.DateOfDeath.HasValue)
-                        DataCell(dr, 17, rec.DateOfDeath.Value.ToStandardDate(),
+                        DataCell(dr, 16, rec.DateOfDeath.Value.ToStandardDate(),
                                          XLAlignmentHorizontalValues.Center);
 
-                    ws.Range(dr, 2, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                    ws.Range(dr, 2, dr, COLS).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                    ws.Range(dr, 1, dr, COLS).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    ws.Range(dr, 1, dr, COLS).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
                     currentRow++;
                 }
@@ -1205,216 +1175,238 @@ namespace EcaInformationSystem.Application.Services
             // =========================================================================
             int subtotalRow = currentRow + 1;
             int dataStartRow = 15;
-            ws.Row(subtotalRow).Height = 18;
+            ws.Row(subtotalRow).Height = SUBTOTAL_HEIGHT;
 
-            ws.Range(subtotalRow, 2, subtotalRow, 9).Merge();
-            ws.Cell(subtotalRow, 2).Value = CommonConstants.SubTotal;
-            ws.Cell(subtotalRow, 2).Style.Font.Bold = true;
-            ws.Cell(subtotalRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(subtotalRow, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(subtotalRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            ws.Range(subtotalRow, 1, subtotalRow, 8).Merge();
+            ws.Cell(subtotalRow, 1).Value = CommonConstants.SubTotal;
+            ws.Cell(subtotalRow, 1).Style.Font.Bold = true;
+            ws.Cell(subtotalRow, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(subtotalRow, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(subtotalRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-            ws.Cell(subtotalRow, 12).FormulaA1 = $"=SUM(L{dataStartRow}:L{subtotalRow - 2})";
-            ws.Cell(subtotalRow, 12).Style.Font.Bold = true;
-            ws.Cell(subtotalRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(subtotalRow, 12).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(subtotalRow, 12).Style.NumberFormat.Format = CommonConstants.NumberFormat;
-            ws.Cell(subtotalRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            ws.Cell(subtotalRow, 11).FormulaA1 = $"=SUM(K{dataStartRow}:K{subtotalRow - 2})";
+            ws.Cell(subtotalRow, 11).Style.Font.Bold = true;
+            ws.Cell(subtotalRow, 11).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(subtotalRow, 11).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(subtotalRow, 11).Style.NumberFormat.Format = "₱#,##0.00";
+            ws.Cell(subtotalRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
-            ws.Range(subtotalRow, 13, subtotalRow, COLS).Merge();
+            ws.Range(subtotalRow, 12, subtotalRow, COLS).Merge();
 
             currentRow = subtotalRow + 2;
 
             // =========================================================================
             // SECTION 5: SIGNATORIES
-            // Layout (A–L):
-            //   A) Cert italic text B–I                        18 pt
-            //   B) Gap                                         14 pt
-            //   C) "Approved for Payment:" L–P                 18 pt
-            //   D) Signing space ×3                            28 pt each
-            //   E) Name row underlined — Sig1 | Sig2           22 pt
-            //   F) Position row                                 18 pt
-            //   G) Gap before oath                              8 pt
-            //   H) Oath text B–I                               52 pt
-            //   I) Signing space ×2                            28 pt each
-            //   J) Sig3 name underlined | Officer1 | Officer2  22 pt
-            //   K) SDO label | "Printed Name and Sig of" ×2    21 pt
-            //   L) "other officer present during Payout" ×2    18 pt
             // =========================================================================
 
             // A)
-            ws.Range(currentRow, 2, currentRow, 9).Merge();
-            ws.Cell(currentRow, 2).Value = s.Signatory1Label;
-            ws.Cell(currentRow, 2).Style.Font.Italic = true;
-            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
-            ws.Cell(currentRow, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            ws.Row(currentRow).Height = 18;
+            ws.Range(currentRow, 1, currentRow, 8).Merge();
+            ws.Cell(currentRow, 1).Value = s.Signatory1Label;
+            ws.Cell(currentRow, 1).Style.Font.Italic = true;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(currentRow, 1).Style.Alignment.WrapText = true;
+            ws.Cell(currentRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(currentRow).Height = 16;
             currentRow++;
 
             // B)
-            ws.Row(currentRow).Height = 14.25;
-            currentRow++;
-
-            // C)
-            ws.Range(currentRow, 12, currentRow, 16).Merge();
-            ws.Cell(currentRow, 12).Value = s.Signatory2Label;
-            ws.Cell(currentRow, 12).Style.Font.Bold = true;
-            ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 12).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Cell(currentRow, 12).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            ws.Row(currentRow).Height = 18;
-            currentRow++;
-
-            // D) Signing space — 3 rows at 28 pt for actual room to sign
-            ws.Row(currentRow).Height = 28; currentRow++;
-            ws.Row(currentRow).Height = 28; currentRow++;
-            ws.Row(currentRow).Height = 28; currentRow++;
-
-            // E) Names underlined
-            int sigNamesRow = currentRow;
-            ws.Row(sigNamesRow).Height = 22;
-
-            ws.Range(sigNamesRow, 2, sigNamesRow, 5).Merge();
-            ws.Cell(sigNamesRow, 2).Value = s.Signatory1Name;
-            ws.Cell(sigNamesRow, 2).Style.Font.Bold = true;
-            ws.Cell(sigNamesRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sigNamesRow, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(sigNamesRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Range(sigNamesRow, 2, sigNamesRow, 5).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-
-            ws.Range(sigNamesRow, 12, sigNamesRow, 16).Merge();
-            ws.Cell(sigNamesRow, 12).Value = s.Signatory2Name;
-            ws.Cell(sigNamesRow, 12).Style.Font.Bold = true;
-            ws.Cell(sigNamesRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sigNamesRow, 12).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(sigNamesRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Range(sigNamesRow, 12, sigNamesRow, 16).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
-            currentRow++;
-
-            // F) Positions
-            ws.Range(currentRow, 2, currentRow, 5).Merge();
-            ws.Cell(currentRow, 2).Value = s.Signatory1Position;
-            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(currentRow, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-
-            ws.Range(currentRow, 12, currentRow, 16).Merge();
-            ws.Cell(currentRow, 12).Value = s.Signatory2Position;
-            ws.Cell(currentRow, 12).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 12).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(currentRow, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Row(currentRow).Height = 18;
-            currentRow++;
-
-            // G)
             ws.Row(currentRow).Height = 8;
             currentRow++;
 
+            // C)
+            ws.Range(currentRow, 11, currentRow, 15).Merge();
+            ws.Cell(currentRow, 11).Value = s.Signatory2Label;
+            ws.Cell(currentRow, 11).Style.Font.Bold = true;
+            ws.Cell(currentRow, 11).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 11).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(currentRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(currentRow, 11).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            ws.Row(currentRow).Height = 16;
+            currentRow++;
+
+            // D) Signing space
+            ws.Row(currentRow).Height = 20; currentRow++;
+            ws.Row(currentRow).Height = 20; currentRow++;
+            ws.Row(currentRow).Height = 20; currentRow++;
+
+            // E) Names underlined
+            int sigNamesRow = currentRow;
+            ws.Row(sigNamesRow).Height = 20;
+
+            ws.Range(sigNamesRow, 1, sigNamesRow, 4).Merge();
+            ws.Cell(sigNamesRow, 1).Value = s.Signatory1Name;
+            ws.Cell(sigNamesRow, 1).Style.Font.Bold = true;
+            ws.Cell(sigNamesRow, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sigNamesRow, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(sigNamesRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sigNamesRow, 1, sigNamesRow, 4).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+            ws.Range(sigNamesRow, 11, sigNamesRow, 15).Merge();
+            ws.Cell(sigNamesRow, 11).Value = s.Signatory2Name;
+            ws.Cell(sigNamesRow, 11).Style.Font.Bold = true;
+            ws.Cell(sigNamesRow, 11).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sigNamesRow, 11).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(sigNamesRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sigNamesRow, 11, sigNamesRow, 15).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            currentRow++;
+
+            // F) Positions
+            ws.Range(currentRow, 1, currentRow, 4).Merge();
+            ws.Cell(currentRow, 1).Value = s.Signatory1Position;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(currentRow, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            ws.Range(currentRow, 11, currentRow, 15).Merge();
+            ws.Cell(currentRow, 11).Value = s.Signatory2Position;
+            ws.Cell(currentRow, 11).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 11).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(currentRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Row(currentRow).Height = 16;
+            currentRow++;
+
+            // G)
+            ws.Row(currentRow).Height = 4;
+            currentRow++;
+
             // H) Oath text
-            ws.Range(currentRow, 2, currentRow, 9).Merge();
-            ws.Cell(currentRow, 2).Value =
+            ws.Range(currentRow, 1, currentRow, 8).Merge();
+            ws.Cell(currentRow, 1).Value =
                 "R. I/we certify on my/our official oath that on ______________________________________," +
                 " I/we have paid in cash to each individual on the payroll, the amount set opposite to each name," +
                 " having presented himself/herself, established identity and affixed his/her signature or" +
                 " thumbmark on the space provided.";
-            ws.Cell(currentRow, 2).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(currentRow, 2).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(currentRow, 2).Style.Alignment.WrapText = true;
-            ws.Cell(currentRow, 2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-            ws.Row(currentRow).Height = 52;
+            ws.Cell(currentRow, 1).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(currentRow, 1).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(currentRow, 1).Style.Alignment.WrapText = true;
+            ws.Cell(currentRow, 1).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+            ws.Row(currentRow).Height = 36;
             currentRow++;
 
-            // I) Signing space — 2 rows at 28 pt
-            ws.Row(currentRow).Height = 28; currentRow++;
-            ws.Row(currentRow).Height = 28; currentRow++;
+            // I) Signing space
+            ws.Row(currentRow).Height = 20; currentRow++;
+            ws.Row(currentRow).Height = 20; currentRow++;
 
             // J) Bottom sig row
             int sig3Row = currentRow;
             int labelRow1 = currentRow + 1;
             int labelRow2 = currentRow + 2;
 
-            ws.Row(sig3Row).Height = 22;
+            ws.Row(sig3Row).Height = 20;
 
-            ws.Range(sig3Row, 3, sig3Row, 10).Merge();
-            ws.Cell(sig3Row, 3).Value = s.Signatory3Name;
-            ws.Cell(sig3Row, 3).Style.Font.Bold = true;
-            ws.Cell(sig3Row, 3).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(sig3Row, 3).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(sig3Row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-            ws.Range(sig3Row, 3, sig3Row, 10).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            ws.Range(sig3Row, 2, sig3Row, 9).Merge();
+            ws.Cell(sig3Row, 2).Value = s.Signatory3Name;
+            ws.Cell(sig3Row, 2).Style.Font.Bold = true;
+            ws.Cell(sig3Row, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(sig3Row, 2).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(sig3Row, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(sig3Row, 2, sig3Row, 9).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            ws.Range(sig3Row, 14, sig3Row, 15).Merge();
-            ws.Range(sig3Row, 14, sig3Row, 15).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            ws.Range(sig3Row, 12, sig3Row, 14).Merge();
+            ws.Range(sig3Row, 12, sig3Row, 14).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            ws.Range(sig3Row, 16, sig3Row, 17).Merge();
-            ws.Range(sig3Row, 16, sig3Row, 17).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+            ws.Range(sig3Row, 15, sig3Row, 17).Merge();
+            ws.Range(sig3Row, 15, sig3Row, 17).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
 
-            // K)
-            ws.Row(labelRow1).Height = 21;
+            // K) Labels
+            ws.Row(labelRow1).Height = 18;
 
-            ws.Range(labelRow1, 3, labelRow1, 10).Merge();
-            ws.Cell(labelRow1, 3).Value = s.Signatory3Position;
-            ws.Cell(labelRow1, 3).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 3).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(labelRow1, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(labelRow1, 2, labelRow1, 9).Merge();
+            ws.Cell(labelRow1, 2).Value = s.Signatory3Position;
+            ws.Cell(labelRow1, 2).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 2).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(labelRow1, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-            ws.Range(labelRow1, 14, labelRow1, 15).Merge();
-            ws.Cell(labelRow1, 14).Value = CommonConstants.PrintedNameAndSignatureOf;
-            ws.Cell(labelRow1, 14).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 14).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(labelRow1, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(labelRow1, 12, labelRow1, 14).Merge();
+            ws.Cell(labelRow1, 12).Value = CommonConstants.PrintedNameAndSignatureOf;
+            ws.Cell(labelRow1, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 12).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(labelRow1, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(labelRow1, 12).Style.Alignment.WrapText = true;
 
-            ws.Range(labelRow1, 16, labelRow1, 17).Merge();
-            ws.Cell(labelRow1, 16).Value = CommonConstants.PrintedNameAndSignatureOf;
-            ws.Cell(labelRow1, 16).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow1, 16).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(labelRow1, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(labelRow1, 15, labelRow1, 17).Merge();
+            ws.Cell(labelRow1, 15).Value = CommonConstants.PrintedNameAndSignatureOf;
+            ws.Cell(labelRow1, 15).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow1, 15).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(labelRow1, 15).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(labelRow1, 15).Style.Alignment.WrapText = true;
 
-            // L)
-            ws.Row(labelRow2).Height = 18;
+            // L) Positions
+            ws.Row(labelRow2).Height = 16;
 
-            ws.Range(labelRow2, 14, labelRow2, 15).Merge();
-            ws.Cell(labelRow2, 14).Value = s.Signatory4Position;
-            ws.Cell(labelRow2, 14).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow2, 14).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(labelRow2, 14).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(labelRow2, 15, labelRow2, 17).Merge();
+            ws.Cell(labelRow2, 15).Value = s.Signatory4Position;
+            ws.Cell(labelRow2, 15).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow2, 15).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(labelRow2, 15).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(labelRow2, 15).Style.Alignment.WrapText = true;
 
-            ws.Range(labelRow2, 16, labelRow2, 17).Merge();
-            ws.Cell(labelRow2, 16).Value = s.Signatory4Position;
-            ws.Cell(labelRow2, 16).Style.Font.FontSize = FONT_SIZE;
-            ws.Cell(labelRow2, 16).Style.Font.FontName = CommonConstants.Arial;
-            ws.Cell(labelRow2, 16).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Range(labelRow2, 12, labelRow2, 14).Merge();
+            ws.Cell(labelRow2, 12).Value = s.Signatory4Position;
+            ws.Cell(labelRow2, 12).Style.Font.FontSize = FONT_SIZE;
+            ws.Cell(labelRow2, 12).Style.Font.FontName = CommonConstants.Arial;
+            ws.Cell(labelRow2, 12).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws.Cell(labelRow2, 12).Style.Alignment.WrapText = true;
 
             // =========================================================================
             // SECTION 6: COLUMN WIDTHS + PAGE SETUP
             // =========================================================================
             double[] colWidths =
             {
-         1.82, 25.82,  8.0,  33.18, 28.82, 27.46, 12.82, 17.82,  8.72,
-        13.27, 22.82, 16.46, 15.72, 39.0,  32.18, 48.0,  14.27, 15.72, 50.0
+        18.82, // A  - Batch Code
+        5.0,   // B  - Number
+        25.18, // C  - Last Name
+        20.82, // D  - First Name
+        19.46, // E  - Middle Name
+        7.82,  // F  - Ext
+        16.0,  // G  - Birthdate
+        6.72,  // H  - Age
+        12.0,  // I  - Sex
+        20.0,  // J  - Barangay
+        16.0,  // K  - Amount
+        14.0,  // L  - Amount Received
+        46.0,  // M  - Signature Over Printed Name
+        46.0,  // N  - Thumbmark
+        22.0,  // O  - For Auth Rep
+        12.0,  // P  - Date of Death
+        12.0,  // Q  - Date Received
+        20.82  // R  - Remarks
     };
+
             for (int c = 1; c <= colWidths.Length; c++)
                 ws.Column(c).Width = colWidths[c - 1];
 
+            // Calculate right offset based on column 18 width
+            double column18WidthPx = colWidths[17] * 7;
+            double logoWidthPx = 95;
+            double padding = 8;
+            double offsetRight = Math.Max(0, column18WidthPx - logoWidthPx - padding);
+
+            PayrollLogos.AddLogos(
+              ws,
+              anchorRow: 1,
+              leftCol: 1,
+              rightCol: 18,
+              widthPx: 95,
+              heightPx: 95,
+              offsetLeft: 4,
+              offsetRight: (int)offsetRight);
+
             ws.PageSetup.PaperSize = XLPaperSize.LegalPaper;
             ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+
+            ws.PageSetup.Margins.Left = 1;
+            ws.PageSetup.Margins.Right = 0.25;
             ws.PageSetup.Margins.Top = 0.5;
             ws.PageSetup.Margins.Bottom = 0.5;
-            ws.PageSetup.Margins.Left = 0.5;
-            ws.PageSetup.Margins.Right = 0.5;
 
-            // ✅ FitToPages(1, 0):
-            //   - Width  = 1: columns always fit on one page wide (no horizontal overflow)
-            //   - Height = 0: free — rows flow across as many pages as needed
-            // This is what allows AddHorizontalPageBreak to control page splits correctly.
-            // Each worksheet is independent so page numbering (&P of &N) resets per sheet,
-            // giving "1 of N" per municipality automatically.
-            ws.PageSetup.FitToPages(1, 0);
+            ws.PageSetup.CenterHorizontally = false;
+            ws.PageSetup.CenterVertically = false;
 
-            // Page number footer — resets to "1 of N" for each worksheet independently
+            // Alternative: Use FitToPages with (wide, tall) parameters
+            ws.PageSetup.FitToPages(1, 0);  // 1 page wide, auto height
+
             ws.PageSetup.Footer.Center.AddText(CommonConstants.Page);
             ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber);
             ws.PageSetup.Footer.Center.AddText(CommonConstants.Of);
