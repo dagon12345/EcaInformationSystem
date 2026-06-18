@@ -2,12 +2,14 @@
 using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Common.Extensions;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
 using System.IO.Compression;
 
@@ -22,9 +24,11 @@ namespace EcaInformationSystem.Application.Services
         private readonly IBarangayRepository _barangayRepository;
         private readonly ILogRepository _logRepository;
         private readonly IMemoryCache _memoryCache;
+        private readonly IPayrollJobTracker _payrollJobTracker;
+        private readonly IBackgroundTaskQueue _backgroundTaskQueue;
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
             , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
-            ILogRepository logRepository, IMemoryCache memoryCache)
+            ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker, IBackgroundTaskQueue backgroundTaskQueue)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -33,6 +37,8 @@ namespace EcaInformationSystem.Application.Services
             _barangayRepository = barangayRepository;
             _logRepository = logRepository;
             _memoryCache = memoryCache;
+            _payrollJobTracker = payrollJobTracker;
+            _backgroundTaskQueue = backgroundTaskQueue;
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
@@ -783,6 +789,43 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
         #region Excel Updating/Importing and creating Payroll - START
+        public async Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings)
+        {
+            if (settings?.Ids == null || !settings.Ids.Any())
+                throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
+
+            var jobId = _payrollJobTracker.CreateJob(settings.Ids.Count);
+
+            _backgroundTaskQueue.QueueBackgroundWorkItem(async (serviceProvider, cancellationToken) =>
+            {
+                _payrollJobTracker.MarkProcessing(jobId);
+
+                try
+                {
+                    // ✅ Resolve a FRESH instance from the job's own DI scope.
+                    // The original `this` instance belongs to the HTTP request's scope,
+                    // which is disposed (along with its DbContext) by the time this runs.
+                    var scopedService = serviceProvider.GetRequiredService<IBeneficiaryInformationService>();
+                    var fileBytes = await scopedService.GeneratePayrollAsync(settings);
+
+                    // ✅ Application layer asks Infrastructure to persist the result —
+                    // it doesn't touch System.IO directly, keeping file-system specifics
+                    // out of the Application layer per your DDD boundary.
+                    var fileStorage = serviceProvider.GetRequiredService<IPayrollFileStorageService>();
+                    var dateStamp = DateTime.Now.ToString("yyyy-MM-dd");
+                    var displayFileName = $"CashGiftPayroll_{dateStamp}.zip";
+                    var storedFilePath = await fileStorage.SaveAsync(jobId, fileBytes, cancellationToken);
+
+                    _payrollJobTracker.MarkCompleted(jobId, storedFilePath, displayFileName);
+                }
+                catch (Exception ex)
+                {
+                    _payrollJobTracker.MarkFailed(jobId, ex.Message);
+                }
+            });
+
+            return jobId;
+        }
 
         // ============================================================
         // Drop-in replacement for BuildPayrollSheet + GeneratePayrollAsync

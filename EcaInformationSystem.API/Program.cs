@@ -128,6 +128,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // This prevents IIS from killing the process for exceeding startupTimeLimit
 // when the database is empty on first deployment.
 builder.Services.AddHostedService<PsgcSeederBackgroundService>();
+builder.Services.AddHostedService<PayrollQueueProcessor>(); // ✅ new
 
 builder.Services.Configure<FormOptions>(options =>
 {

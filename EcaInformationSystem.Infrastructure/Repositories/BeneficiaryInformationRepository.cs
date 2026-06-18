@@ -1530,95 +1530,110 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
         public async Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids)
         {
-            // Step 1: Fetch the raw data with joins (no JsonElement in projection)
-            var raw = await (
-                from b in _context.BeneficiaryInformations
+            if (ids == null || !ids.Any())
+                return new List<BeneficiaryInformationDto>();
 
-                join region in _context.Regions
-                    on b.Region equals region.PsgcCodeRegion into regionJoin
-                from region in regionJoin.DefaultIfEmpty()
+            // ✅ Batch the ID list. A WHERE IN clause with thousands of GUID
+            // parameters (one per ID) blows past SQL Server's parameter ceiling
+            // and causes severe query-plan/timeout degradation — this is what
+            // was producing the 503 at 2000-3000 records while 1000 worked fine.
+            // 500 per batch keeps each query's parameter count comfortably low
+            // regardless of how large the overall selection gets.
+            const int batchSize = 500;
+            var distinctIds = ids.Distinct().ToList();
+            var allRaw = new List<GetByIdsRawDto>();
 
-                join province in _context.Provinces
-                    on b.Province equals province.PsgcCodeProvince into provinceJoin
-                from province in provinceJoin.DefaultIfEmpty()
+            for (int i = 0; i < distinctIds.Count; i += batchSize)
+            {
+                var batch = distinctIds.Skip(i).Take(batchSize).ToList();
 
-                join municipality in _context.Municipalities
-                    on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
-                from municipality in municipalityJoin.DefaultIfEmpty()
+                var raw = await (
+                    from b in _context.BeneficiaryInformations
 
-                join barangay in _context.Barangays
-                    on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
-                from barangay in barangayJoin.DefaultIfEmpty()
+                    join region in _context.Regions
+                        on b.Region equals region.PsgcCodeRegion into regionJoin
+                    from region in regionJoin.DefaultIfEmpty()
 
-                where ids.Contains(b.Id) && !b.IsDeleted
+                    join province in _context.Provinces
+                        on b.Province equals province.PsgcCodeProvince into provinceJoin
+                    from province in provinceJoin.DefaultIfEmpty()
 
-                select new
-                {
-                    b.Id,
-                    b.Quarter,
-                    b.Batch,
-                    b.RefYear,
-                    b.RefCode,
-                    b.BatchCode,
-                    b.OscaIdNumber,
-                    b.OscaIdDateIssued,
-                    b.NcscRrn,
-                    b.LastName,
-                    b.FirstName,
-                    b.MiddleName,
-                    b.Extension,
-                    b.BirthDate,
-                    b.Sex,
-                    b.IsIndigenousPeople,
-                    b.IsPersonWithDisability,
-                    b.CivilStatus,
-                    b.Citizenship,
-                    b.IsCompliant,
-                    b.Validator,
-                    b.ValidationDate,
-                    b.PaymentStatus,
-                    b.ModeOfPayment,
-                    b.PaymentDate,
-                    b.IsDeceased,
-                    b.DateOfDeath,
-                    b.IsEligible,
-                    b.AssessmentRemarks,
-                    b.EligibilityRemarks,
-                    b.RemarkCategory,
-                    b.Remarks,
-                    b.DateAdded,
-                    b.CoStatus,
-                    b.CoDateEndorsed,
-                    b.CoDateApproved,
-                    b.IsDeleted,
-                    b.DateApplied,
-                    b.DateEndorsed,
-                    b.PhoneNumber,
-                    PsgcCodeRegion = b.Region,
-                    PsgcCodeProvince = b.Province,
-                    PsgcCodeMunicipality = b.Municipality,
-                    PsgcCodeBarangay = b.Barangay,
-                    RegionName = region != null ? region.Name : null,
-                    ProvinceName = province != null ? province.Name : null,
-                    MunicipalityName = municipality != null ? municipality.Name : null,
-                    BarangayName = barangay != null ? barangay.Name : null,
-                    b.RowVersion
-                }
-            ).AsNoTracking().ToListAsync();
+                    join municipality in _context.Municipalities
+                        on b.Municipality equals municipality.PsgcCodeMunicipality into municipalityJoin
+                    from municipality in municipalityJoin.DefaultIfEmpty()
 
-            // Step 2: Deduplicate raw rows by beneficiary Id before mapping.
-            // The LEFT JOINs on Provinces/Municipalities/Barangays can produce multiple
-            // rows per beneficiary when the lookup table contains duplicate codes
-            // (e.g. legacy DB codes co-existing with PSGC-seeded codes for the same province).
-            // Keeping the first occurrence is safe because all duplicate rows carry the same
-            // beneficiary fields; only the joined name columns might differ, and they're
-            // the same value (same province name for the same code).
-            var deduped = raw
+                    join barangay in _context.Barangays
+                        on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
+                    from barangay in barangayJoin.DefaultIfEmpty()
+
+                    where batch.Contains(b.Id) && !b.IsDeleted
+
+                    select new GetByIdsRawDto
+                    {
+                        Id = b.Id,
+                        Quarter = b.Quarter,
+                        Batch = b.Batch,
+                        RefYear = b.RefYear,
+                        RefCode = b.RefCode,
+                        BatchCode = b.BatchCode,
+                        OscaIdNumber = b.OscaIdNumber,
+                        OscaIdDateIssued = b.OscaIdDateIssued,
+                        NcscRrn = b.NcscRrn,
+                        LastName = b.LastName,
+                        FirstName = b.FirstName,
+                        MiddleName = b.MiddleName,
+                        Extension = b.Extension,
+                        BirthDate = b.BirthDate,
+                        Sex = b.Sex,
+                        IsIndigenousPeople = b.IsIndigenousPeople,
+                        IsPersonWithDisability = b.IsPersonWithDisability,
+                        CivilStatus = b.CivilStatus,
+                        Citizenship = b.Citizenship,
+                        IsCompliant = b.IsCompliant,
+                        Validator = b.Validator,
+                        ValidationDate = b.ValidationDate,
+                        PaymentStatus = b.PaymentStatus,
+                        ModeOfPayment = b.ModeOfPayment,
+                        PaymentDate = b.PaymentDate,
+                        IsDeceased = b.IsDeceased,
+                        DateOfDeath = b.DateOfDeath,
+                        IsEligible = b.IsEligible,
+                        AssessmentRemarks = b.AssessmentRemarks,
+                        EligibilityRemarks = b.EligibilityRemarks,
+                        RemarkCategory = b.RemarkCategory,
+                        Remarks = b.Remarks,
+                        DateAdded = b.DateAdded,
+                        CoStatus = b.CoStatus,
+                        CoDateEndorsed = b.CoDateEndorsed,
+                        CoDateApproved = b.CoDateApproved,
+                        IsDeleted = b.IsDeleted,
+                        DateApplied = b.DateApplied,
+                        DateEndorsed = b.DateEndorsed,
+                        PhoneNumber = b.PhoneNumber,
+                        PsgcCodeRegion = b.Region,
+                        PsgcCodeProvince = b.Province,
+                        PsgcCodeMunicipality = b.Municipality,
+                        PsgcCodeBarangay = b.Barangay,
+                        RegionName = region != null ? region.Name : null,
+                        ProvinceName = province != null ? province.Name : null,
+                        MunicipalityName = municipality != null ? municipality.Name : null,
+                        BarangayName = barangay != null ? barangay.Name : null,
+                        RowVersion = b.RowVersion
+                    }
+                ).AsNoTracking().ToListAsync();
+
+                allRaw.AddRange(raw);
+            }
+
+            // Deduplicate across all batches by beneficiary Id — same reasoning as
+            // before: LEFT JOINs can produce duplicate rows per beneficiary when
+            // lookup tables contain duplicate codes for the same name.
+            var deduped = allRaw
                 .GroupBy(x => x.Id)
                 .Select(g => g.First())
                 .ToList();
 
-            // Step 3: Map to DTO in-memory (safe to use JsonSerializer here)
+            // Map to DTO in-memory — unchanged logic from your existing version
             var result = deduped.Select(x => new BeneficiaryInformationDto
             {
                 Id = x.Id,
@@ -1650,13 +1665,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 PsgcCodeProvince = x.PsgcCodeProvince,
                 PsgcCodeMunicipality = x.PsgcCodeMunicipality,
                 PsgcCodeBarangay = x.PsgcCodeBarangay,
-
-                // ✅ Wrap string → JsonElement so the type matches JsonElement?
                 Region = x.RegionName != null ? JsonSerializer.SerializeToElement(x.RegionName) : null,
                 Province = x.ProvinceName != null ? JsonSerializer.SerializeToElement(x.ProvinceName) : null,
                 Municipality = x.MunicipalityName != null ? JsonSerializer.SerializeToElement(x.MunicipalityName) : null,
                 Barangay = x.BarangayName != null ? JsonSerializer.SerializeToElement(x.BarangayName) : null,
-
                 IsCompliant = x.IsCompliant,
                 Validator = x.Validator ?? string.Empty,
                 ValidationDate = x.ValidationDate,
@@ -1667,7 +1679,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 DateOfDeath = x.DateOfDeath,
                 IsEligible = x.IsEligible,
                 AssessmentRemarks = x.AssessmentRemarks,
-                EligibilityRemarks = x.EligibilityRemarks,  // ✅
+                EligibilityRemarks = x.EligibilityRemarks,
                 RemarkCategory = x.RemarkCategory,
                 Remarks = x.Remarks,
                 DateAdded = x.DateAdded,
@@ -1676,7 +1688,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 CoDateApproved = x.CoDateApproved,
                 IsDeleted = x.IsDeleted,
                 RowVersion = x.RowVersion,
-
                 MilestoneYear =
                     (x.BirthDate.Year + 100) <= DateTime.Today.Year && (x.BirthDate.Year + 100) >= 2024 ? x.BirthDate.Year + 100 :
                     (x.BirthDate.Year + 95) <= DateTime.Today.Year && (x.BirthDate.Year + 95) >= 2024 ? x.BirthDate.Year + 95 :
@@ -1690,6 +1701,61 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
 
         #region Private functions
+        // Add this private nested class near your other private helper classes
+        // (e.g., next to BeneficiaryRawDto) — gives batches a stable, named type
+        // instead of relying on anonymous-type identity across loop iterations.
+        private sealed class GetByIdsRawDto
+        {
+            public Guid Id { get; set; }
+            public int? Quarter { get; set; }
+            public string? Batch { get; set; }
+            public int? RefYear { get; set; }
+            public string? RefCode { get; set; }
+            public string? BatchCode { get; set; }
+            public string? OscaIdNumber { get; set; }
+            public DateTime? OscaIdDateIssued { get; set; }
+            public int? NcscRrn { get; set; }
+            public string? LastName { get; set; }
+            public string? FirstName { get; set; }
+            public string? MiddleName { get; set; }
+            public string? Extension { get; set; }
+            public DateTime BirthDate { get; set; }
+            public int Sex { get; set; }
+            public bool IsIndigenousPeople { get; set; }
+            public bool IsPersonWithDisability { get; set; }
+            public int? CivilStatus { get; set; }
+            public int? Citizenship { get; set; }
+            public bool IsCompliant { get; set; }
+            public string? Validator { get; set; }
+            public DateTime ValidationDate { get; set; }
+            public int PaymentStatus { get; set; }
+            public int ModeOfPayment { get; set; }
+            public DateTime? PaymentDate { get; set; }
+            public bool IsDeceased { get; set; }
+            public DateTime? DateOfDeath { get; set; }
+            public bool IsEligible { get; set; }
+            public string? AssessmentRemarks { get; set; }
+            public string? EligibilityRemarks { get; set; }
+            public int? RemarkCategory { get; set; }
+            public string? Remarks { get; set; }
+            public DateTime DateAdded { get; set; }
+            public int? CoStatus { get; set; }
+            public DateTime? CoDateEndorsed { get; set; }
+            public DateTime? CoDateApproved { get; set; }
+            public bool IsDeleted { get; set; }
+            public DateTime? DateApplied { get; set; }
+            public DateTime? DateEndorsed { get; set; }
+            public string? PhoneNumber { get; set; }
+            public int PsgcCodeRegion { get; set; }
+            public int PsgcCodeProvince { get; set; }
+            public int PsgcCodeMunicipality { get; set; }
+            public int PsgcCodeBarangay { get; set; }
+            public string? RegionName { get; set; }
+            public string? ProvinceName { get; set; }
+            public string? MunicipalityName { get; set; }
+            public string? BarangayName { get; set; }
+            public byte[]? RowVersion { get; set; }
+        }
         private static string FormatDuplicateName(
             string? lastName, string? firstName, string? middleName)
         {

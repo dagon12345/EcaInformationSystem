@@ -10,6 +10,7 @@
    - MilestoneYear read-only (derived from BirthDate, not user input)
    - Stats bar in preview (records, provinces, municipalities, pages)
    - Records-per-page shown as read-only informational field
+   - Background job queue/poll/download for large batches (no IIS timeout)
    ============================================================ *@
 
 @using EcaInformationSystem.Client.Services
@@ -47,6 +48,14 @@
                 </button>
             </li>
         </ul>
+
+        @if (!string.IsNullOrWhiteSpace(_payrollJobError))
+        {
+            <div class="alert alert-danger py-2 mb-3 small">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                Last generation failed: @_payrollJobError
+            </div>
+        }
 
         @* ── SETTINGS TAB ─────────────────────────────────────────────────── *@
         @if (_activeTab == "settings")
@@ -299,24 +308,24 @@
                         @* ── COLUMN HEADERS ── *@
                         <table style="width:100%; border-collapse:collapse; font-size:7pt;">
                             <colgroup>
-                                <col style="width:10%" />@* Batch Code *@
-                                <col style="width:3%" /> @* No *@
-                                <col style="width:6%" /> @* Last *@
-                                <col style="width:6%" /> @* First *@
-                                <col style="width:6%" /> @* Middle *@
-                                <col style="width:3%" /> @* Ext *@
-                                <col style="width:7%" /> @* BDate *@
-                                <col style="width:3%" /> @* Age *@
-                                <col style="width:5%" /> @* Sex *@
-                                <col style="width:7%" /> @* Barangay *@
-                                <col style="width:6%" /> @* Amount *@
-                                <col style="width:6%" /> @* Amt Rcvd *@
-                                <col style="width:7%" /> @* Signature *@
-                                <col style="width:5%" /> @* Thumbmark *@
-                                <col style="width:8%" /> @* Auth Rep *@
-                                <col style="width:5%" /> @* Date Death *@
-                                <col style="width:5%" /> @* Date Rcvd *@
-                                <col style="width:7%" /> @* Remarks *@
+                                <col style="width:10%" />
+                                <col style="width:3%" />
+                                <col style="width:6%" />
+                                <col style="width:6%" />
+                                <col style="width:6%" />
+                                <col style="width:3%" />
+                                <col style="width:7%" />
+                                <col style="width:3%" />
+                                <col style="width:5%" />
+                                <col style="width:7%" />
+                                <col style="width:6%" />
+                                <col style="width:6%" />
+                                <col style="width:7%" />
+                                <col style="width:5%" />
+                                <col style="width:8%" />
+                                <col style="width:5%" />
+                                <col style="width:5%" />
+                                <col style="width:7%" />
                             </colgroup>
                             <tr style="background:#1F3864; color:white; font-weight:bold; height:14pt;">
                                 <th style="border:1px solid #555; text-align:center; padding:2px;" rowspan="3">Batch Code</th>
@@ -438,14 +447,35 @@
                                             </tr>
                                         }
                                         prevMuni = rec?.MunicipalityName;
-                                        decimal newTotal = PayrollSettingsDto.CalculateCashGiftAmount(rec?.Age ?? 0);   
+                                        decimal newTotal = PayrollSettingsDto.CalculateCashGiftAmount(rec?.Age ?? 0);
                                         total += newTotal;
 
                                         @* ✅ Deceased rows highlighted *@
                                         bool isDeceased = rec?.IsDeceased == true;
+
+                                        // ✅ Pre-computed full style strings instead of embedding
+                                        // @(...) ternaries inside multi-line HTML attributes.
+                                        // This avoids the Razor formatter's "changes must not
+                                        // overlap" crash, which is triggered when the C# formatter
+                                        // and HTML formatter both try to reformat overlapping spans
+                                        // around an inline expression sitting inside an attribute.
                                         string rowStyle = isDeceased
                                             ? "height:25pt; vertical-align:middle; background:#fff5f5;"
                                             : "height:25pt; vertical-align:middle;";
+
+                                        string dateOfDeathCellStyle = isDeceased
+                                            ? "border:1px solid #ccc; padding:2px; text-align:center; color:#c0392b; font-weight:bold;"
+                                            : "border:1px solid #ccc; padding:2px; text-align:center;";
+
+                                        string remarksCellStyle = isDeceased
+                                            ? "border:1px solid #ccc; padding:2px; font-size:6.5pt; color:#c0392b;"
+                                            : "border:1px solid #ccc; padding:2px; font-size:6.5pt;";
+
+                                        string dateOfDeathText = isDeceased && rec?.DateOfDeath != null
+                                            ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy")
+                                            : string.Empty;
+
+                                        string remarksText = isDeceased ? "Deceased" : string.Empty;
 
                                         <tr style="@rowStyle">
                                             <td style="border:1px solid #ccc; padding:2px;">
@@ -485,18 +515,12 @@
                                             <td style="border:1px solid #ccc; padding:2px;"></td>
                                             <td style="border:1px solid #ccc; padding:2px;"></td>
                                             <td style="border:1px solid #ccc; padding:2px;"></td>
-                                            @* Date of Death — colored red if deceased *@
-                                            <td style="border:1px solid #ccc; padding:2px; text-align:center;
-                                                @(isDeceased ? "color:#c0392b; font-weight:bold;" : "")">
-                                                @(isDeceased && rec?.DateOfDeath != null
-                                                    ? rec.DateOfDeath.Value.ToString("MM/dd/yyyy")
-                                                    : "")
+                                            <td style="@dateOfDeathCellStyle">
+                                                @dateOfDeathText
                                             </td>
                                             <td style="border:1px solid #ccc; padding:2px;"></td>
-                                            @* Remarks — flag deceased *@
-                                            <td style="border:1px solid #ccc; padding:2px; font-size:6.5pt;
-                                                @(isDeceased ? "color:#c0392b;" : "")">
-                                                @(isDeceased ? "Deceased" : "")
+                                            <td style="@remarksCellStyle">
+                                                @remarksText
                                             </td>
                                         </tr>
 
@@ -598,7 +622,7 @@
 
     <FooterTemplate>
         <div class="d-flex justify-content-between w-100">
-            <HxButton Color="ThemeColor.Secondary" @onclick="() => _modal.HideAsync()">
+            <HxButton Color="ThemeColor.Secondary" @onclick="CancelAndClose">
                 Cancel
             </HxButton>
             <div class="d-flex gap-2">
@@ -613,7 +637,7 @@
                           Disabled="@_isDownloading">
                     @if (_isDownloading)
                     {
-                        <span>Generating…</span>
+                        <span>@GetProgressLabel()</span>
                     }
                     else
                     {
@@ -631,6 +655,11 @@
     private bool _isLoadingPreview;
     private bool _isDownloading;
     private int _selectedCount;
+
+    // ✅ Background job progress state
+    private string _payrollJobState = string.Empty;   // "", "Queued", "Processing", "Completed", "Failed"
+    private string? _payrollJobError;
+    private CancellationTokenSource? _pollCts;
 
     // Computed preview stats
     private int _provinceCount;
@@ -651,6 +680,19 @@
         var year = milestoneYear ?? 0;
         var yearStr = year > 0 ? year.ToString() : "YYYY";
         return $"CGP No.: {_settings.RegionCode}-{yearStr}{_settings.Month}-{_settings.FixedSegment}-{_settings.ShortenYear}-{pageNum:D4}";
+    }
+
+    private string GetProgressLabel() => _payrollJobState switch
+    {
+        "Queued" => "Queued…",
+        "Processing" => $"Generating {_selectedCount} record(s)…",
+        _ => "Starting…"
+    };
+
+    private async Task CancelAndClose()
+    {
+        _pollCts?.Cancel();
+        await _modal.HideAsync();
     }
 
     public async Task ShowAsync(List<Guid> selectedIds)
@@ -749,29 +791,99 @@
             return;
         }
 
+        _pollCts?.Cancel();
+        _pollCts = new CancellationTokenSource();
+
         try
         {
             _isDownloading = true;
+            _payrollJobState = "Queued";
+            _payrollJobError = null;
             StateHasChanged();
 
             _settings.Ids = _settings.Ids.Distinct().ToList();
 
-            var response = await Http.PostAsJsonAsync("api/payroll/generate-payroll", _settings);
+            // 1️⃣ Queue the job — returns almost instantly, no IIS timeout risk
+            var queueResponse = await Http.PostAsJsonAsync("api/payroll/queue-payroll", _settings);
 
-            if (!response.IsSuccessStatusCode)
+            if (!queueResponse.IsSuccessStatusCode)
             {
-                var err = await response.Content.ReadAsStringAsync();
-                Toast.ShowError($"Payroll generation failed: {err}");
+                var err = await queueResponse.Content.ReadAsStringAsync();
+                Toast.ShowError($"Failed to start payroll generation: {err}");
                 return;
             }
 
-            var bytes = await response.Content.ReadAsByteArrayAsync();
-            var base64 = Convert.ToBase64String(bytes);
-            var file = $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.zip";
-            await JS.InvokeVoidAsync("downloadFile", file, base64);
+            var queued = await queueResponse.Content.ReadFromJsonAsync<PayrollJobQueuedResponse>();
+            if (queued is null)
+            {
+                Toast.ShowError("Unexpected response while queuing payroll generation.");
+                return;
+            }
 
-            await _modal.HideAsync();
-            Toast.ShowSuccess($"Payroll downloaded — {_previewData.Count} record(s).");
+            var jobId = queued.JobId;
+
+            // 2️⃣ Poll status every 2s until Completed or Failed
+            while (!_pollCts.IsCancellationRequested)
+            {
+                await Task.Delay(2000, _pollCts.Token);
+
+                var statusResponse = await Http.GetAsync($"api/payroll/status/{jobId}");
+
+                if (statusResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Toast.ShowError("Lost track of the payroll job (server may have restarted). Please try again.");
+                    return;
+                }
+
+                if (!statusResponse.IsSuccessStatusCode)
+                {
+                    Toast.ShowError("Failed to check payroll job status.");
+                    return;
+                }
+
+                var status = await statusResponse.Content.ReadFromJsonAsync<PayrollJobStatusResponse>();
+                if (status is null) continue;
+
+                _payrollJobState = status.State;
+                StateHasChanged();
+
+                if (status.State == "Completed")
+                {
+                    var fileResponse = await Http.GetAsync(
+                        $"api/payroll/download/{jobId}",
+                        HttpCompletionOption.ResponseHeadersRead);
+
+                    if (!fileResponse.IsSuccessStatusCode)
+                    {
+                        var err = await fileResponse.Content.ReadAsStringAsync();
+                        Toast.ShowError($"Payroll generation finished, but download failed: {err}");
+                        return;
+                    }
+
+                    var fileStream = await fileResponse.Content.ReadAsStreamAsync();
+                    using var streamRef = new DotNetStreamReference(stream: fileStream, leaveOpen: false);
+
+                    var fileName = $"CashGiftPayroll_{DateTime.Now:yyyy-MM-dd}.zip";
+                    await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+
+                    await _modal.HideAsync();
+                    Toast.ShowSuccess($"Payroll downloaded — {_previewData.Count} record(s).");
+                    return;
+                }
+
+                if (status.State == "Failed")
+                {
+                    _payrollJobError = status.ErrorMessage ?? "Unknown error.";
+                    Toast.ShowError($"Payroll generation failed: {_payrollJobError}");
+                    return;
+                }
+
+                // else "Queued" or "Processing" — keep polling
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Modal closed or a new generation started — silently stop polling
         }
         catch (Exception ex)
         {
@@ -780,6 +892,22 @@
         finally
         {
             _isDownloading = false;
+            _payrollJobState = string.Empty;
+            StateHasChanged();
         }
+    }
+
+    // ✅ Lightweight response shapes matching PayrollController's JSON
+    private class PayrollJobQueuedResponse
+    {
+        public Guid JobId { get; set; }
+    }
+
+    private class PayrollJobStatusResponse
+    {
+        public Guid JobId { get; set; }
+        public string State { get; set; } = string.Empty;
+        public int TotalRecords { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 }

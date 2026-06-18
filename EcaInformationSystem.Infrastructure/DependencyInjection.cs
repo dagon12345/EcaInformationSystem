@@ -51,6 +51,12 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();
             services.AddScoped<IBeneficiaryDocumentRepository, BeneficiaryDocumentRepository>();
 
+            // ✅ Payroll background processing — singletons, must outlive any single HTTP request scope
+            services.AddSingleton<IPayrollJobTracker, PayrollJobTracker>();
+            services.AddSingleton<IPayrollFileStorageService, PayrollFileStorageService>();
+            services.AddSingleton<BackgroundTaskQueue>();
+            services.AddSingleton<IBackgroundTaskQueue>(sp => sp.GetRequiredService<BackgroundTaskQueue>());
+
             // Increase form limits for large PDF uploads
             services.Configure<FormOptions>(options =>
             {
