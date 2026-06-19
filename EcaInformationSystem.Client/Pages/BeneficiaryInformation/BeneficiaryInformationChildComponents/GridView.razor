@@ -125,19 +125,19 @@
                         <button class="btn btn-sm btn-outline-info" @onclick="GoToDashboardSummary">
                             Dashboard Summary
                         </button>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="OnGenerateCoeClicked"
-                                disabled="@(!checkedIds.Any() || IsGeneratingCoe)">
-                            @if (IsGeneratingCoe)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                                <span>Opening...</span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-pdf me-1"></i>
-                                <span>Generate COE</span>
-                            }
-                        </button>
+                    <button class="btn btn-sm btn-primary" @onclick="OnGenerateCoeClicked"
+        disabled="@(!checkedIds.Any() || IsGeneratingCoe)">
+    @if (IsGeneratingCoe)
+    {
+        <span class="spinner-border spinner-border-sm me-1"></span>
+        <span>Opening...</span>
+    }
+    else
+    {
+        <i class="bi bi-file-earmark-word me-1"></i>
+        <span>Generate COE</span>
+    }
+</button>
 
                         @* ✅ Always visible — API enforces Admin/SuperAdmin only *@
                         <button class="btn btn-sm btn-warning" @onclick="OnGeneratePayrollClicked"

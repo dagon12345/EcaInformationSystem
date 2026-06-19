@@ -37,10 +37,10 @@ namespace EcaInformationSystem.Application.Services
                 return AuthResult.Failed("Invalid username or password.");
             }
 
-            //Generate the token using the Token Service
             var token = _tokenService.GenerateToken(
                 user.UserName,
                 user.FullName,
+                user.Position,                              // ✅ inserted, matches new parameter order
                 user.Role,
                 user.Role == "PDO"
                     ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()

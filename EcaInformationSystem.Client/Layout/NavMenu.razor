@@ -14,7 +14,8 @@
                  onerror="this.style.display='none'" />
         </div>
     </NavLink>
-    <span class="brand-text">ECAReS</span>
+    <!-- ✅ CHANGED: brand text -->
+    <span class="brand-text">ECA-InFORMS</span>
 </div>
 
 <nav class="sidebar-nav">
@@ -261,6 +262,7 @@
             ("Bulk CO Status", _isAdmin),
             ("Bulk Eligibility",_isAdmin),
             ("Generate Payroll",_isAdmin),
+            ("Generate COE", _isAdmin || _isPdo),
         };
 
     private string GetInitials(string name)

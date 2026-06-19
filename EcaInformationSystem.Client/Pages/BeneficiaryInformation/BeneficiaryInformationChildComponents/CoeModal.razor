@@ -1,6 +1,11 @@
 @* CoeModal.razor *@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ToastService Toast
+@inject AuthenticationStateProvider AuthStateProvider
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject ToastService Toast
@@ -9,8 +14,8 @@
     <HeaderTemplate>
         <div class="d-flex align-items-center gap-2">
             <div class="rounded-2 d-flex align-items-center justify-content-center"
-                 style="width:32px;height:32px;background:#FCE8E6;">
-                <i class="bi bi-file-earmark-pdf text-danger"></i>
+                 style="width:32px;height:32px;background:#b9c0ff;">
+                <i class="bi bi-file-earmark-word me-1"></i>
             </div>
             <div>
                 <h5 class="modal-title mb-0">Generate Certificate of Eligibility</h5>
@@ -232,6 +237,21 @@
     public async Task ShowAsync(List<Guid> selectedIds)
     {
         _settings = new CoeSettingsDto { Ids = selectedIds.Distinct().ToList() };
+
+        // ✅ Auto-fill "Prepared by" from the logged-in user's claims,
+        // same pattern as LiquidationModal's AccountableOfficerName/
+        // OfficialDesignation auto-fill. Still editable afterward in
+        // the Settings tab in case the actual preparer differs from
+        // whoever is logged in.
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        var fullName = user.FindFirst("FullName")?.Value ?? string.Empty;
+        var position = user.FindFirst("Position")?.Value ?? string.Empty;
+
+        _settings.PreparedByName = fullName;
+        _settings.PreparedByPosition = position;
+
         _activeTab = "settings";
         _previewGroups = null;
         await _modal.ShowAsync();

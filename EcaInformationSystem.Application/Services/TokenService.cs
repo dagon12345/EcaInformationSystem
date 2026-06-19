@@ -14,7 +14,10 @@ public class TokenService
         _config = config;
     }
 
-    public string GenerateToken(string userName, string fullName, string role, List<int>? jurisdictionCodes = null)
+    // ✅ Added 'position' parameter — distinct from 'role'. Role gates
+    // permissions (Admin/PDO/Viewer); Position is the real job title
+    // ("Project Development Officer I") that belongs on signature lines.
+    public string GenerateToken(string userName, string fullName, string position, string role, List<int>? jurisdictionCodes = null)
     {
         var key = new SymmetricSecurityKey(
                           Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
@@ -26,6 +29,7 @@ public class TokenService
             {
                 new(ClaimTypes.Name,            userName),
                 new("FullName",                 fullName),
+                new("Position",                 position),   // ✅ new custom claim
                 new(ClaimTypes.Role,            role),
                 new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new(JwtRegisteredClaimNames.Iat,

@@ -318,7 +318,7 @@
         var user = authState.User;
 
         var fullName = user.FindFirst("FullName")?.Value ?? string.Empty;
-        var position = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+        var position = user.FindFirst("Position")?.Value ?? string.Empty; 
 
         // ✅ Auto-fill settings from user claims
         _settings.AccountableOfficerName = fullName;
