@@ -1143,7 +1143,7 @@ namespace EcaInformationSystem.Application.Services
                     ws.Row(dr).Height = dataRowHeight;
 
                     DataCell(dr, 1, (rec.BatchCode ?? "").ToUpperInvariant());
-                    DataCell(dr, 2, continousNo++, XLAlignmentHorizontalValues.Center);
+                    DataCell(dr, 2, continousNo++, XLAlignmentHorizontalValues.Center, 16, null, true);
                     DataCell(dr, 3, (rec.LastName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
                     DataCell(dr, 4, (rec.FirstName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
                     DataCell(dr, 5, (rec.MiddleName ?? "").ToUpperInvariant(), XLAlignmentHorizontalValues.Left, 14, null, true);
@@ -1354,7 +1354,7 @@ namespace EcaInformationSystem.Application.Services
             double[] colWidths =
             {
         18.82, // A  - Batch Code
-        5.0,   // B  - Number
+        9.0,   // B  - Number
         25.18, // C  - Last Name
         20.82, // D  - First Name
         19.46, // E  - Middle Name
