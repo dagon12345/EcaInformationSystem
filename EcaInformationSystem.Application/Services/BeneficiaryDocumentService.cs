@@ -1,4 +1,4 @@
-using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;

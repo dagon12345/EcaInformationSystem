@@ -1,6 +1,5 @@
 ﻿
 
-using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces

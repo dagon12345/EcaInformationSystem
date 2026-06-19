@@ -1,6 +1,4 @@
-﻿using System.Security.Authentication.ExtendedProtection;
-using EcaInformationSystem.Application.Interfaces;
-using EcaInformationSystem.Application.Interfaces.Repositories;
+﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +23,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IPdfCompressionService, PdfCompressionService>();
             services.AddScoped<IUserManagementService, UserManagementService>();
             services.AddScoped<IJurisdictionGuardService, JurisdictionGuardService>();
+            services.AddScoped<ICoeService, CoeService>();
             return services;
         }
     }

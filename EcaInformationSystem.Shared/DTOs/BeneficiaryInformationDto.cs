@@ -1,7 +1,5 @@
-﻿using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using EcaInformationSystem.Shared.Helpers;
 
 namespace EcaInformationSystem.Shared.DTOs

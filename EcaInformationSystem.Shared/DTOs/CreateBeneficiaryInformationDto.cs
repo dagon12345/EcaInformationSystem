@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using EcaInformationService.Shared.DTOs;
 
 namespace EcaInformationSystem.Shared.DTOs
 {

@@ -1,4 +1,4 @@
-using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Http;
 
 namespace EcaInformationSystem.Application.Interfaces.Services

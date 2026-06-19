@@ -1,4 +1,4 @@
-namespace EcaInformationService.Shared.DTOs
+namespace EcaInformationSystem.Shared.DTOs
 {
     // DTO
     public class BulkRefNumberRequestDto

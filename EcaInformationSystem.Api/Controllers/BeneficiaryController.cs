@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using EcaInformationService.Shared.DTOs;
 using EcaInformationSystem.Api.Extensions;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Services;

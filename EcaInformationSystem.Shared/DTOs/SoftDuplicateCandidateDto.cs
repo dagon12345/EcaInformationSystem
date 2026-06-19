@@ -1,6 +1,5 @@
-using EcaInformationSystem.Shared.DTOs;
 
-namespace EcaInformationService.Shared.DTOs
+namespace EcaInformationSystem.Shared.DTOs
 {
     public class SoftDuplicateCandidateDto
     {

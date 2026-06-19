@@ -1,5 +1,4 @@
-﻿using EcaInformationService.Shared.DTOs;
-using EcaInformationSystem.Application.Interfaces;
+﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Infrastructure.Persistence;

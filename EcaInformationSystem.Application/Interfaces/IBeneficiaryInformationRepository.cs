@@ -1,5 +1,4 @@
-﻿using EcaInformationService.Shared.DTOs;
-using EcaInformationSystem.Domain.Entities;
+﻿using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Interfaces

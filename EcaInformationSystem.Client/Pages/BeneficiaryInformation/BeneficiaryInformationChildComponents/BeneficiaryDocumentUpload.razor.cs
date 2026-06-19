@@ -1,5 +1,5 @@
 using System.Net.Http.Json;
-using EcaInformationService.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs;
 using Havit.Blazor.Components.Web;
 using Havit.Blazor.Components.Web.Bootstrap;
 using Microsoft.AspNetCore.Components;

@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EcaInformationService.Shared\EcaInformationSystem.Shared.csproj" />
     <ProjectReference Include="..\EcaInformationSystem.Domain\EcaInformationSystem.Domain.csproj" />
+    <ProjectReference Include="..\EcaInformationSystem.Shared\EcaInformationSystem.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="itext7" Version="9.6.0" />
     <PackageReference Include="itext7.bouncy-castle-adapter" Version="9.6.0" />
@@ -29,6 +31,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="5.0.17" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.6" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="QuestPDF" Version="2026.6.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
   </ItemGroup>
 

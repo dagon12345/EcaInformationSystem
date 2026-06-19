@@ -746,7 +746,7 @@
     private HxModal _paymentConfirmModal = default!;
 
     //Soft duplicate state
-    private List<EcaInformationService.Shared.DTOs.SoftDuplicateCandidateDto> _softDuplicates = new();
+    private List<SoftDuplicateCandidateDto> _softDuplicates = new();
     private bool _showSoftDuplicateModal = false;
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
@@ -1401,7 +1401,7 @@
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 var conflictResult = await response.Content
-                    .ReadFromJsonAsync<EcaInformationService.Shared.DTOs.CreateBeneficiaryResultDto>();
+                    .ReadFromJsonAsync<CreateBeneficiaryResultDto>();
 
                 _softDuplicates = conflictResult?.SoftDuplicates ?? new();
                 _showSoftDuplicateModal = true;

@@ -1,5 +1,4 @@
-﻿@using EcaInformationService.Shared.DTOs
-@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
+﻿@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.Helpers
@@ -126,6 +125,19 @@
                         <button class="btn btn-sm btn-outline-info" @onclick="GoToDashboardSummary">
                             Dashboard Summary
                         </button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="OnGenerateCoeClicked"
+                                disabled="@(!checkedIds.Any() || IsGeneratingCoe)">
+                            @if (IsGeneratingCoe)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Opening...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-pdf me-1"></i>
+                                <span>Generate COE</span>
+                            }
+                        </button>
 
                         @* ✅ Always visible — API enforces Admin/SuperAdmin only *@
                         <button class="btn btn-sm btn-warning" @onclick="OnGeneratePayrollClicked"
@@ -212,8 +224,8 @@
                                        @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                     disabled="@(!checkedIds.Any() || bulkPaymentStatus == null
-                                                                                                                                                                                                                || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                || IsBulkUpdating)">
+                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                                                                                                                                                                                                                    || IsBulkUpdating)">
                                 @if (IsBulkUpdating)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -239,9 +251,9 @@
                                    @bind:event="oninput" />
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkOtherUpdateModal"
                                     disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                || (string.IsNullOrWhiteSpace(bulkBatchCode)
-                                                                                                                                                                                                                    && string.IsNullOrWhiteSpace(bulkIsEligible))
-                                                                                                                                                                                                                || IsBulkUpdatingOther)">
+                                                                                                                                                                                                                                                    || (string.IsNullOrWhiteSpace(bulkBatchCode)
+                                                                                                                                                                                                                                                        && string.IsNullOrWhiteSpace(bulkIsEligible))
+                                                                                                                                                                                                                                                    || IsBulkUpdatingOther)">
                                 @if (IsBulkUpdatingOther)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -272,10 +284,10 @@
                             }
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkCoStatusModal"
                                     disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                || string.IsNullOrWhiteSpace(bulkCoStatus)
-                                                                                                                                                                                                                || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
-                                                                                                                                                                                                                || (bulkCoStatus == "2" && bulkCoDateApproved == null)
-                                                                                                                                                                                                                || IsBulkUpdatingCoStatus)">
+                                                                                                                                                                                                                                                    || string.IsNullOrWhiteSpace(bulkCoStatus)
+                                                                                                                                                                                                                                                    || (bulkCoStatus == "1" && bulkCoDateEndorsed == null)
+                                                                                                                                                                                                                                                    || (bulkCoStatus == "2" && bulkCoDateApproved == null)
+                                                                                                                                                                                                                                                    || IsBulkUpdatingCoStatus)">
                                 @if (IsBulkUpdatingCoStatus)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -304,10 +316,10 @@
                                    placeholder="Year e.g. 26" @bind="bulkRefYear" />
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkRefNumberModal"
                                     disabled="@(!checkedIds.Any()
-                                                                                                                                                                                                                || string.IsNullOrWhiteSpace(bulkRefQuarter)
-                                                                                                                                                                                                                || string.IsNullOrWhiteSpace(bulkRefBatch)
-                                                                                                                                                                                                                || bulkRefYear == null
-                                                                                                                                                                                                                || IsBulkUpdatingRefNumber)">
+                                                                                                                                                                                                                                                    || string.IsNullOrWhiteSpace(bulkRefQuarter)
+                                                                                                                                                                                                                                                    || string.IsNullOrWhiteSpace(bulkRefBatch)
+                                                                                                                                                                                                                                                    || bulkRefYear == null
+                                                                                                                                                                                                                                                    || IsBulkUpdatingRefNumber)">
                                 @if (IsBulkUpdatingRefNumber)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -1000,26 +1012,26 @@
             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Identity Information</h6>
             <div class="row g-2 mb-4">
                 <div class="col-6"><small class="text-muted d-block">Last Name</small><span>@(selectedDetails.LastName ??
-                                                                                                                                                                                                                          "—")</span></div>
+                                                                                                                                                                                                                                              "—")</span></div>
                     <div class="col-6"><small class="text-muted d-block">First
                         Name</small><span>@selectedDetails.FirstName</span></div>
                         <div class="col-6"><small class="text-muted d-block">Middle Name</small><span>@(selectedDetails.MiddleName
-                                                                                                                                                                                                                                                                                                            ?? "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                        ?? "—")</span></div>
                             <div class="col-6"><small class="text-muted d-block">Extension</small><span>@(selectedDetails.Extension ??
-                                                                                                                                                                                                                                                                                                                                                   "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                   "—")</span></div>
                                 <div class="col-6"><small class="text-muted d-block">Birth
                                     Date</small><span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span></div>
                                     <div class="col-6"><small class="text-muted d-block">Age</small><span>@selectedDetails.Age</span></div>
                                     <div class="col-6"><small
                                         class="text-muted d-block">Sex</small><span>@GetSexText(selectedDetails.Sex)</span></div>
                                         <div class="col-6"><small class="text-muted d-block">Phone Number</small><span>@(selectedDetails.PhoneNumber
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ?? "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ?? "—")</span></div>
                                             <div class="col-6"><small class="text-muted d-block">OSCA ID
                                                 Number</small><span>@(selectedDetails.OscaIdNumber ?? "—")</span></div>
                                                 <div class="col-6"><small class="text-muted d-block">NCSC
                                                     RRN</small><span>@(selectedDetails.NcscRrn?.ToString() ?? "—")</span></div>
                                                     <div class="col-6"><small class="text-muted d-block">Batch Code</small><span>@(selectedDetails.BatchCode ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           "—")</span></div>
                                                         <div class="col-6"><small class="text-muted d-block">Date
                                                             Applied</small><span>@(selectedDetails.DateApplied?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
                                                             <div class="col-6"><small class="text-muted d-block">Date
@@ -1057,7 +1069,7 @@
                                                                             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
                                                                             <div class="row g-2 mb-4">
                                                                                 <div class="col-6"><small class="text-muted d-block">Validator</small><span>@(selectedDetails.Validator ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      "—")</span></div>
                                                                                     <div class="col-6"><small class="text-muted d-block">Validation
                                                                                         Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
                                                                                         <div class="col-6">
@@ -1071,7 +1083,7 @@
                                                                                             <div class="col-6"><small class="text-muted d-block">Mode of
                                                                                                 Payment</small><span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span></div>
                                                                                                 <div class="col-12"><small class="text-muted d-block">Remarks</small><span>@(selectedDetails.Remarks ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     "—")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         "—")</span></div>
                                                                                                 </div>
 
                                                                                                 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
@@ -1115,7 +1127,7 @@
                                                                                                 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
                                                                                                 <div class="row g-2 mb-4">
                                                                                                     <div class="col-6"><small class="text-muted d-block">Is Deceased</small><span>@(selectedDetails.IsDeceased ?
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   "Yes" : "No")</span></div>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           "Yes" : "No")</span></div>
                                                                                                         <div class="col-6"><small class="text-muted d-block">Date of
                                                                                                             Death</small><span>@(selectedDetails.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
                                                                                                             <div class="col-6"><small class="text-muted d-block">Date
@@ -1373,7 +1385,8 @@
                                                                                                                                         _duplicateViewingId == pair.Record2Id;
 
                                                                                                                                     <tr class="@(hasPaid ? "table-danger" : "")
-                                                                                                                                        @(isViewing ? "table-primary" : "")" style="cursor:pointer;">
+                                                                                                                                        @(isViewing ? "table-primary" : "")"
+                                                                                                                                        style="cursor:pointer;">
                                                                                                                                         <td class="text-center text-muted small">
                                                                                                                                             @idx
                                                                                                                                         </td>
@@ -1852,8 +1865,11 @@
                                                                                                         </div>
                                                                                                     </FooterTemplate>
                                                                                                 </HxModal>
+<CoeModal @ref="_coeModal" />
 
 @code {
+    private bool IsGeneratingCoe;
+    private CoeModal _coeModal = default!;
     private Action? _stateChangeHandler;
     private string? errorMessage;
     private bool IsExporting;
@@ -1924,6 +1940,24 @@
             StateHasChanged();
         };
         State.OnChange += _stateChangeHandler;
+    }
+    private async Task OnGenerateCoeClicked()
+    {
+        if (!checkedIds.Any())
+        {
+            toast.ShowError("No records selected.");
+            return;
+        }
+        try
+        {
+            IsGeneratingCoe = true;
+            StateHasChanged();
+            await _coeModal.ShowAsync(checkedIds.ToList());
+        }
+        finally 
+        { 
+            IsGeneratingCoe = false; 
+        }
     }
 
     // ✅ Keep OnAfterRenderAsync but remove role reading

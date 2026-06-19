@@ -1,7 +1,7 @@
 ﻿@* BeneficiaryImporting.razor — with advanced duplicate detection modal *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
-@using EcaInformationService.Shared.DTOs
+using EcaInformationSystem.Shared.DTOs;
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject AuthService AuthService
@@ -488,7 +488,7 @@
     private bool isUpdating;
     private BeneficiaryImportResultDto? updateResult;
     private bool isPreviewing;
-    private EcaInformationService.Shared.DTOs.BeneficiaryPreviewResultDto? previewResult;
+    private BeneficiaryPreviewResultDto? previewResult;
     private HashSet<string> skipRows = new();
     private HxModal duplicateModal = default!;
 
