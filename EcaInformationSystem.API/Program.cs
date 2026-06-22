@@ -1,6 +1,7 @@
 using EcaInformationSystem.Api.BackgroundServices;
 using EcaInformationSystem.Application;
 using EcaInformationSystem.Infrastructure;
+using EcaInformationSystem.Infrastructure.Caching;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
@@ -122,7 +123,7 @@ builder.Services.AddResponseCompression(options =>
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-
+builder.Services.AddHostedService<PsgcCacheRefreshBackgroundService>();
 // ─── PSGC Background Seeder ──────────────────────────────────────────────────
 // Runs geography seeding AFTER the web server has started (not during startup).
 // This prevents IIS from killing the process for exceeding startupTimeLimit
@@ -152,6 +153,11 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
     await SuperAdminSeeder.SeedAsync(dbContext);
+
+    // ✅ Warm the PSGC cache so the FIRST real grid request after deploy
+    // isn't the one paying the cold-cache cost.
+    var psgcCache = scope.ServiceProvider.GetRequiredService<IPsgcNameCache>();
+    await psgcCache.RefreshAsync();
 }
 
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────

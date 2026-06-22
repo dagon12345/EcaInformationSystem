@@ -3366,8 +3366,34 @@ namespace EcaInformationSystem.Application.Services
             }
         }
         #endregion Payroll Liquidation - End
+        public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
+        {
+            const int MaxPageSize = 5000;
+            filter.PageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
+            filter.PageNumber = Math.Max(filter.PageNumber, 1);
+            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
+
+            return await _repo.GetPagedListAsync(filter);
+        }
+
+        public async Task<int> GetMatchingCountAsync(BeneficiaryFilterDto filter)
+        {
+            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
+            return await _repo.CountMatchingAsync(filter);
+        }
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
+            // WHY: [FromQuery]/[FromBody] model binding does zero validation on
+            // PageSize. Your Blazor dropdown caps it at 5000, but that's a UI
+            // constraint, not a server guarantee — anyone hitting the API directly
+            // (Swagger, a future client, a bug) could request an unbounded page.
+
+            const int MaxPageSize = 5000;
+            filter.PageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
+            filter.PageNumber = Math.Max(filter.PageNumber, 1);
+
+            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
+
             var cacheKey = BuildPaginatedCacheKey(filter);
 
             if (_memoryCache.TryGetValue(cacheKey, out PagedResultDto<BeneficiaryInformationDto>? cached)

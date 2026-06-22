@@ -7,221 +7,221 @@
 @inject BeneficiaryStateService State
 
 <div class="sf-wrap">
-    <div class="sf-card">
+<div class="sf-card">
 
-        <div class="sf-header" @onclick="ToggleCollapse">
-            <div class="sf-header-left">
-                <div class="sf-header-icon">
-                    <i class="bi bi-funnel-fill"></i>
-                </div>
-                <div>
-                    <p class="sf-header-title">Filter Paid Records</p>
-                    <p class="sf-header-sub">Filter by region, province and payment date range</p>
-                </div>
+    <div class="sf-header" @onclick="ToggleCollapse">
+        <div class="sf-header-left">
+            <div class="sf-header-icon">
+                <i class="bi bi-funnel-fill"></i>
             </div>
-            <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
+            <div>
+                <p class="sf-header-title">Filter Paid Records</p>
+                <p class="sf-header-sub">Filter by region, province and payment date range</p>
+            </div>
         </div>
+        <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
+    </div>
 
-        @if (!_collapsed)
-        {
-            <div class="sf-body">
+    @if (!_collapsed)
+    {
+        <div class="sf-body">
 
-                <div class="sf-grid">
+            <div class="sf-grid">
 
-                    <!-- Region -->
-                    <div class="sf-field">
-                        <label>Region</label>
-                        <select value="@_selectedRegionId"
-                                @onchange="OnRegionChanged"
-                                disabled="@(_isLoading || _isRegionLoading)">
-                            <option value="0">All Regions</option>
-                            @foreach (var r in _regions)
-                            {
-                                <option value="@r.PsgcCodeRegion">@r.Name</option>
-                            }
-                        </select>
-                        @if (_isRegionLoading)
+                <!-- Region -->
+                <div class="sf-field">
+                    <label>Region</label>
+                    <select value="@_selectedRegionId"
+                            @onchange="OnRegionChanged"
+                            disabled="@(_isLoading || _isRegionLoading)">
+                        <option value="0">All Regions</option>
+                        @foreach (var r in _regions)
                         {
-                            <span class="sf-loading-pill">
-                                <span class="spinner-border spinner-border-sm"></span> Loading...
-                            </span>
+                            <option value="@r.PsgcCodeRegion">@r.Name</option>
                         }
-                    </div>
-
-                    <!-- Province -->
-                    <div class="sf-field">
-                        <label>Province</label>
-                        <select value="@_selectedProvinceId"
-                                @onchange="OnProvinceChanged"
-                                disabled="@(_isLoading || _isProvinceLoading || _selectedRegionId == 0)">
-                            <option value="0">@(_selectedRegionId == 0 ? "Select Region first" : "All Provinces")</option>
-                            @foreach (var p in _provinces)
-                            {
-                                <option value="@p.PsgcCodeProvince">@p.Name</option>
-                            }
-                        </select>
-                        @if (_isProvinceLoading)
-                        {
-                            <span class="sf-loading-pill">
-                                <span class="spinner-border spinner-border-sm"></span> Loading...
-                            </span>
-                        }
-                    </div>
-
-                    <!-- Payment Date From -->
-                    <div class="sf-field">
-                        <label>Payment Date From <span class="text-danger">*</span></label>
-                        <input type="date" @bind="_paymentDateFrom" />
-                    </div>
-
-                    <!-- Payment Date To -->
-                    <div class="sf-field">
-                        <label>Payment Date To <span class="text-danger">*</span></label>
-                        <input type="date" @bind="_paymentDateTo" />
-                    </div>
-
+                    </select>
+                    @if (_isRegionLoading)
+                    {
+                        <span class="sf-loading-pill">
+                            <span class="spinner-border spinner-border-sm"></span> Loading...
+                        </span>
+                    }
                 </div>
 
-                <div class="sf-actions">
-                    <button class="sf-btn sf-btn-clear" @onclick="ClearAsync">
-                        <i class="bi bi-x-circle"></i> Clear
-                    </button>
-                    <button class="sf-btn sf-btn-apply"
-                            @onclick="ApplyAsync"
-                            disabled="@(_isApplying || _isLoading)">
-                        @if (_isApplying)
+                <!-- Province -->
+                <div class="sf-field">
+                    <label>Province</label>
+                    <select value="@_selectedProvinceId"
+                            @onchange="OnProvinceChanged"
+                            disabled="@(_isLoading || _isProvinceLoading || _selectedRegionId == 0)">
+                        <option value="0">@(_selectedRegionId == 0 ? "Select Region first" : "All Provinces")</option>
+                        @foreach (var p in _provinces)
                         {
-                            <span class="spinner-border spinner-border-sm"></span>
-                            <span>Applying...</span>
+                            <option value="@p.PsgcCodeProvince">@p.Name</option>
                         }
-                        else
-                        {
-                            <i class="bi bi-search"></i>
-                            <span>Apply Filters</span>
-                        }
-                    </button>
+                    </select>
+                    @if (_isProvinceLoading)
+                    {
+                        <span class="sf-loading-pill">
+                            <span class="spinner-border spinner-border-sm"></span> Loading...
+                        </span>
+                    }
+                </div>
+
+                <!-- Payment Date From -->
+                <div class="sf-field">
+                    <label>Payment Date From <span class="text-danger">*</span></label>
+                    <input type="date" @bind="_paymentDateFrom" />
+                </div>
+
+                <!-- Payment Date To -->
+                <div class="sf-field">
+                    <label>Payment Date To <span class="text-danger">*</span></label>
+                    <input type="date" @bind="_paymentDateTo" />
                 </div>
 
             </div>
-        }
-    </div>
+
+            <div class="sf-actions">
+                <button class="sf-btn sf-btn-clear" @onclick="ClearAsync">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+                <button class="sf-btn sf-btn-apply"
+                        @onclick="ApplyAsync"
+                        disabled="@(_isApplying || _isLoading)">
+                    @if (_isApplying)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                        <span>Applying...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search"></i>
+                        <span>Apply Filters</span>
+                    }
+                </button>
+            </div>
+
+        </div>
+    }
+</div>
 </div>
 
 @code {
-    private bool _collapsed;
-    private bool _isLoading = false;
-    private bool _isApplying;
-    private bool _isRegionLoading;
-    private bool _isProvinceLoading;
+private bool _collapsed;
+private bool _isLoading = false;
+private bool _isApplying;
+private bool _isRegionLoading;
+private bool _isProvinceLoading;
 
-    private int _selectedRegionId;
-    private int _selectedProvinceId;
-    private DateTime? _paymentDateFrom;
-    private DateTime? _paymentDateTo;
+private int _selectedRegionId;
+private int _selectedProvinceId;
+private DateTime? _paymentDateFrom;
+private DateTime? _paymentDateTo;
 
-    private List<RegionLookupDto> _regions = new();
-    private List<ProvinceLookupDto> _provinces = new();
+private List<RegionLookupDto> _regions = new();
+private List<ProvinceLookupDto> _provinces = new();
 
-    protected override async Task OnInitializedAsync()
+protected override async Task OnInitializedAsync()
+{
+    await LoadRegionsAsync();
+}
+
+private void ToggleCollapse() => _collapsed = !_collapsed;
+
+private async Task LoadRegionsAsync()
+{
+    if (_regions.Any()) return;
+    try
     {
-        await LoadRegionsAsync();
+        _isRegionLoading = true;
+        _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
     }
-
-    private void ToggleCollapse() => _collapsed = !_collapsed;
-
-    private async Task LoadRegionsAsync()
+    finally
     {
-        if (_regions.Any()) return;
-        try
-        {
-            _isRegionLoading = true;
-            _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
-        }
-        finally
-        {
-            _isRegionLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task LoadProvincesAsync(int regionCode)
-    {
-        try
-        {
-            _isProvinceLoading = true;
-            _provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
-                $"api/Province/by-region/{regionCode}") ?? new();
-        }
-        finally
-        {
-            _isProvinceLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task OnRegionChanged(ChangeEventArgs e)
-    {
-        _selectedRegionId  = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        _selectedProvinceId = 0;
-        _provinces.Clear();
-
-        if (_selectedRegionId > 0)
-            await LoadProvincesAsync(_selectedRegionId);
-    }
-
-    private void OnProvinceChanged(ChangeEventArgs e)
-    {
-        _selectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-    }
-
-    private async Task ApplyAsync()
-    {
-        if (_isLoading || _isApplying) return;
-
-        if (_paymentDateFrom == null && _paymentDateTo == null &&
-            _selectedProvinceId == 0 && _selectedRegionId == 0)
-        {
-            toast.ShowError("Please select at least one filter (Region, Province, or Payment Date).");
-            return;
-        }
-
-        _isApplying = true;
-
-        try
-        {
-            State.Filter = new BeneficiaryFilterDto
-            {
-                PageNumber       = 1,
-                PageSize         = 1000,
-                PaymentStatus    = 2,                                                   // always Paid
-                PaymentDate      = null,
-                PaymentDateFrom  = _paymentDateFrom,
-                PaymentDateTo    = _paymentDateTo,
-                PsgcCodeRegion   = _selectedRegionId   > 0 ? _selectedRegionId   : null,
-                PsgcCodeProvince = _selectedProvinceId > 0 ? _selectedProvinceId : null,
-            };
-
-            await State.LoadAsync();
-
-            if (State.ErrorMessage is not null)
-                toast.ShowError(State.ErrorMessage);
-        }
-        finally
-        {
-            _isApplying = false;
-        }
-    }
-
-    private async Task ClearAsync()
-    {
-        _selectedRegionId   = 0;
-        _selectedProvinceId = 0;
-        _paymentDateFrom    = null;
-        _paymentDateTo      = null;
-        _provinces.Clear();
-
-        State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
-        State.ClearData();
+        _isRegionLoading = false;
         StateHasChanged();
     }
+}
+
+private async Task LoadProvincesAsync(int regionCode)
+{
+    try
+    {
+        _isProvinceLoading = true;
+        _provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+            $"api/Province/by-region/{regionCode}") ?? new();
+    }
+    finally
+    {
+        _isProvinceLoading = false;
+        StateHasChanged();
+    }
+}
+
+private async Task OnRegionChanged(ChangeEventArgs e)
+{
+    _selectedRegionId  = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+    _selectedProvinceId = 0;
+    _provinces.Clear();
+
+    if (_selectedRegionId > 0)
+        await LoadProvincesAsync(_selectedRegionId);
+}
+
+private void OnProvinceChanged(ChangeEventArgs e)
+{
+    _selectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+}
+
+private async Task ApplyAsync()
+{
+    if (_isLoading || _isApplying) return;
+
+    if (_paymentDateFrom == null && _paymentDateTo == null &&
+        _selectedProvinceId == 0 && _selectedRegionId == 0)
+    {
+        toast.ShowError("Please select at least one filter (Region, Province, or Payment Date).");
+        return;
+    }
+
+    _isApplying = true;
+
+    try
+    {
+        State.Filter = new BeneficiaryFilterDto
+        {
+            PageNumber       = 1,
+            PageSize         = 1000,
+            PaymentStatus    = 2,                                                   // always Paid
+            PaymentDate      = null,
+            PaymentDateFrom  = _paymentDateFrom,
+            PaymentDateTo    = _paymentDateTo,
+            PsgcCodeRegion   = _selectedRegionId   > 0 ? _selectedRegionId   : null,
+            PsgcCodeProvince = _selectedProvinceId > 0 ? _selectedProvinceId : null,
+        };
+
+        await State.LoadAsync();
+
+        if (State.ErrorMessage is not null)
+            toast.ShowError(State.ErrorMessage);
+    }
+    finally
+    {
+        _isApplying = false;
+    }
+}
+
+private async Task ClearAsync()
+{
+    _selectedRegionId   = 0;
+    _selectedProvinceId = 0;
+    _paymentDateFrom    = null;
+    _paymentDateTo      = null;
+    _provinces.Clear();
+
+    State.Filter = new BeneficiaryFilterDto { PageNumber = 1, PageSize = 10 };
+    State.ClearData();
+    StateHasChanged();
+}
 }

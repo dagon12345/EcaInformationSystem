@@ -36,7 +36,7 @@ namespace EcaInformationSystem.Shared.Helpers
         /// </summary>
         public static string GenerateRefCode()
         {
-            return Random.Shared.Next(10000, 99999).ToString();
+            return Random.Shared.Next(100000, 999999).ToString();
         }
 
         /// <summary>
@@ -59,7 +59,7 @@ namespace EcaInformationSystem.Shared.Helpers
 
             var roman = GetRoman(psgcCodeRegion);
             return $"Q{quarter}B{batch}-{refYear:D2}-{refCode}-{roman}";
-            // Example: Q1B1-26-12345-XIII
+            // Example: Q1B1-26-123456-XIII
         }
 
         public static List<int> GetRegionCodesForRoman(string roman)

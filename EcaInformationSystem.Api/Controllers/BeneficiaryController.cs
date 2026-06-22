@@ -52,9 +52,21 @@ namespace EcaInformationSystem.Api.Controllers
             if (result is null) return NotFound();
             return Ok(result);
         }
-        [HttpGet("paged")]
-        public async Task<IActionResult> GetPaged([FromQuery] BeneficiaryFilterDto filter)
+        // Change this one line — method attribute and parameter binding only,
+        // nothing else in the action changes.
+        [HttpPost("paged")]// was: [HttpGet("paged")]
+        public async Task<IActionResult> GetPaged([FromBody] BeneficiaryFilterDto filter) // was: [FromQuery]
             => Ok(await _service.GetPaginatedAsync(filter));
+
+        // New endpoint, additive — your existing "paged" endpoint stays untouched
+        // so you can compare behavior/perf side-by-side before fully switching over.
+        [HttpPost("paged-list")]
+        public async Task<IActionResult> GetPagedList([FromBody] BeneficiaryFilterDto filter)
+            => Ok(await _service.GetPagedListAsync(filter));
+
+        [HttpPost("count-matching")]
+        public async Task<IActionResult> CountMatching([FromBody] BeneficiaryFilterDto filter)
+            => Ok(await _service.GetMatchingCountAsync(filter));
 
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary([FromQuery] BeneficiaryFilterDto filter)
@@ -114,7 +126,7 @@ namespace EcaInformationSystem.Api.Controllers
             //Jurisdiction check
             var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, dto.PsgcCodeMunicipality);
 
-            if(jurisdictionError is not null)
+            if (jurisdictionError is not null)
                 return StatusCode(403, jurisdictionError);
 
             try
@@ -269,6 +281,12 @@ namespace EcaInformationSystem.Api.Controllers
         {
             if (ids == null || ids.Count == 0)
                 return Ok(new List<BeneficiaryInformationDto>());
+            // Add a cap to GetByIds — independent of the repository's internal 500-chunk
+            // batching, which protects SQL's parameter limit but not against an
+            // unreasonable TOTAL request size.
+            const int MaxIdsPerRequest = 5000;
+            if (ids.Count > MaxIdsPerRequest)
+                return BadRequest($"Cannot request more than {MaxIdsPerRequest} records in a single call.");
 
             var results = await _service.GetByIdsAsync(ids.Distinct().ToList());
             return Ok(results);

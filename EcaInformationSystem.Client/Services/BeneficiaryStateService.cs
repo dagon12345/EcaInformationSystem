@@ -32,7 +32,7 @@ public class BeneficiaryStateService
         PageSize = 10
     };
 
-    public List<BeneficiaryInformationDto> Beneficiaries { get; private set; } = new();
+    public List<BeneficiaryListItemDto> Beneficiaries { get; private set; } = new();
     public int TotalCount { get; private set; }
     public int TotalPages { get; private set; }
     public bool IsLoading { get; private set; }
@@ -40,7 +40,7 @@ public class BeneficiaryStateService
 
     // ✅ Add these two
     public DateTime? LastLoaded { get; private set; }
-    public void SetBeneficiaries(List<BeneficiaryInformationDto> items)
+    public void SetBeneficiaries(List<BeneficiaryListItemDto> items)
     {
         Beneficiaries = items;
         NotifyStateChanged();
@@ -58,7 +58,7 @@ public class BeneficiaryStateService
     // ✅ Add this method
     public void ClearData()
     {
-        Beneficiaries = new List<BeneficiaryInformationDto>();
+        Beneficiaries = new List<BeneficiaryListItemDto>();
         TotalCount = 0;
         TotalPages = 0;
         LastLoaded = null;
@@ -76,13 +76,13 @@ public class BeneficiaryStateService
         {
 
 
-            var query = GetQueryString(Filter);
-            var response = await _http.GetAsync($"api/beneficiary/paged?{query}");
+            var response = await _http.PostAsJsonAsync("api/beneficiary/paged-list", Filter);
+            var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryListItemDto>>();
+
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryInformationDto>>();
-                Beneficiaries = result?.Items?.ToList() ?? new();
+                Beneficiaries = result?.Items ?? new List<BeneficiaryListItemDto>();
                 TotalCount = result?.TotalCount ?? 0;
                 TotalPages = result?.TotalPages ?? 0;
             }

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Http.Features;
+using EcaInformationSystem.Infrastructure.Caching;
 
 namespace EcaInformationSystem.Infrastructure
 {
@@ -56,6 +57,8 @@ namespace EcaInformationSystem.Infrastructure
             services.AddSingleton<IPayrollFileStorageService, PayrollFileStorageService>();
             services.AddSingleton<BackgroundTaskQueue>();
             services.AddSingleton<IBackgroundTaskQueue>(sp => sp.GetRequiredService<BackgroundTaskQueue>());
+            //Psgc caching
+            services.AddSingleton<IPsgcNameCache, PsgcNameCache>();
 
             // Increase form limits for large PDF uploads
             services.Configure<FormOptions>(options =>

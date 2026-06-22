@@ -537,42 +537,42 @@
                                                 <td>
                                                     @{
                                                         var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
-                                                    item.EligibilityRemarks);
+                                                    item.EligibilityRemarksPreview);
                                                         var eligLabel = GetEligibilityLabel(item.IsEligible,
-                                                    item.EligibilityRemarks);
+                                                    item.EligibilityRemarksPreview);
                                                     }
-                                                    <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarks">
+                                                    <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarksPreview">
                                                         @Highlight(eligLabel)
                                                     </span>
                                                     @if (item.IsEligible &&
-                                                    !string.IsNullOrWhiteSpace(item.EligibilityRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.EligibilityRemarksPreview))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
                                                             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @Highlight(item.EligibilityRemarks)
+                                                            @Highlight(item.EligibilityRemarksPreview)
                                                         </small>
                                                     }
                                                 </td>
                                                 <td>
                                                     @{
                                                         var compBadge = GetComplianceBadgeClass(item.IsCompliant,
-                                                    item.AssessmentRemarks);
+                                                    item.AssessmentRemarksPreview);
                                                         var compLabel = GetComplianceLabel(item.IsCompliant,
-                                                    item.AssessmentRemarks);
+                                                    item.AssessmentRemarksPreview);
                                                     }
-                                                    <span class="tbl-badge @compBadge" title="@item.AssessmentRemarks">
+                                                    <span class="tbl-badge @compBadge" title="@item.AssessmentRemarksPreview">
                                                         @Highlight(compLabel)
                                                     </span>
                                                     @if (item.IsCompliant &&
-                                                    !string.IsNullOrWhiteSpace(item.AssessmentRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.AssessmentRemarksPreview))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
                                                             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @Highlight(item.AssessmentRemarks)
+                                                            @Highlight(item.AssessmentRemarksPreview)
                                                         </small>
                                                     }
                                                 </td>
@@ -581,17 +581,17 @@
                                                         var findBadge = GetFindingBadgeClass(item.FindingStatus);
                                                         var findLabel = GetFindingStatusText(item.FindingStatus);
                                                     }
-                                                    <span class="tbl-badge @findBadge" title="@item.FindingRemarks">
+                                                    <span class="tbl-badge @findBadge" title="@item.FindingRemarksPreview">
                                                         @Highlight(findLabel)
                                                     </span>
                                                     @if (item.FindingStatus == 2 &&
-                                                    !string.IsNullOrWhiteSpace(item.FindingRemarks))
+                                                    !string.IsNullOrWhiteSpace(item.FindingRemarksPreview))
                                                     {
                                                         <br />
                                                         <small class="text-muted"
                                                                style="font-size:10px; max-width:120px; display:inline-block;
                                                             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @Highlight(item.FindingRemarks)
+                                                            @Highlight(item.FindingRemarksPreview)
                                                         </small>
                                                     }
                                                 </td>
@@ -1929,7 +1929,7 @@
     private bool _isDuplicateDetailLoading;
     private BeneficiaryInformationDto? _duplicateRecord1;
     private BeneficiaryInformationDto? _duplicateRecord2;
-    private List<BeneficiaryInformationDto>? _cachedBeneficiaries;
+    private List<BeneficiaryListItemDto>? _cachedBeneficiaries;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     protected override void OnInitialized()
@@ -2348,7 +2348,7 @@
     }
 
     private List<BeneficiaryInformationDto>? _cachedBeneficiaries2; // removed — using _cachedBeneficiaries
-    private List<BeneficiaryInformationDto> FilteredBeneficiaries
+    private List<BeneficiaryListItemDto> FilteredBeneficiaries
     {
         get
         {
@@ -2357,11 +2357,27 @@
         }
     }
 
-    private async Task OpenDetailsPanel(BeneficiaryInformationDto item)
+    private async Task OpenDetailsPanel(BeneficiaryListItemDto item)
     {
-        selectedDetails = item;
-        StateHasChanged();
-        await detailsOffcanvas.ShowAsync();
+        try
+        {
+            var fullDetails = await Http.GetFromJsonAsync<BeneficiaryInformationDto>(
+                $"api/beneficiary/edit/{item.Id}");
+
+            if (fullDetails is null)
+            {
+                toast.ShowError("Record not found — it may have been deleted.");
+                return;
+            }
+
+            selectedDetails = fullDetails;
+            StateHasChanged();
+            await detailsOffcanvas.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load details: {ex.Message}");
+        }
     }
 
     private async Task OpenPayrollModal()

@@ -1,6 +1,7 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Exceptions;
+using EcaInformationSystem.Infrastructure.Caching;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
@@ -13,10 +14,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
     public class BeneficiaryInformationRepository : IBeneficiaryInformationRepository
     {
         private readonly AppDbContext _context;
+        private readonly IPsgcNameCache _psgcNameCache;
 
-        public BeneficiaryInformationRepository(AppDbContext context)
+        public BeneficiaryInformationRepository(AppDbContext context, IPsgcNameCache psgcNameCache)
         {
             _context = context;
+            _psgcNameCache = psgcNameCache;
         }
 
         public async Task AddAsync(BeneficiaryInformation beneficiaryInformation)
@@ -780,6 +783,158 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     $"{conflictedNames}. Please refresh and try again.", ex);
             }
         }
+        // WHY THIS QUERY IS FASTER THAN GetPagedAsync:
+        //
+        // 1. NO JOINS to Region/Province/Municipality/Barangay. Names resolved
+        //    in-memory via _psgcCache AFTER the query returns. This removes the
+        //    join-fanout that previously forced an in-memory DistinctBy() — at the
+        //    SQL level there is exactly one row per beneficiary now, because there
+        //    is nothing left in the query that can multiply rows per beneficiary
+        //    (the Finding join is 1:1, enforced by your unique index on
+        //    BeneficiaryInformationId in BeneficiaryFinding).
+        //
+        // 2. NARROW SELECT — no full Remarks text, only SQL-side truncated previews
+        //    via Substring(), which EF translates to SQL Server's SUBSTRING().
+        //
+        // 3. COUNT runs against the SAME narrow, join-free filtered query, so the
+        //    count itself is cheap too — not just the page fetch.
+        //
+        // 4. Combined with the Step 1 composite indexes, a filtered+sorted page
+        //    fetch becomes a single ordered index seek with Skip/Take, no separate
+        //    Sort operator, no join cost.
+        public async Task<int> CountMatchingAsync(BeneficiaryFilterDto filter)
+        {
+            var query = await BuildNarrowFilterQuery(filter);
+            return await query.CountAsync();
+        }
+        public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
+        {
+            var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
+            var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
+
+            var baseQuery = await BuildNarrowFilterQuery(filter);
+
+            var totalCount = await baseQuery.CountAsync();
+
+            string sortColumn = filter.SortColumn?.ToLower() ?? "default";
+            bool isAscending = filter.SortAscending;
+
+            IQueryable<BeneficiaryInformation> sorted = sortColumn switch
+            {
+                "birthdate" => isAscending
+                    ? baseQuery.OrderBy(b => b.BirthDate).ThenBy(b => b.LastName).ThenBy(b => b.FirstName)
+                    : baseQuery.OrderByDescending(b => b.BirthDate).ThenBy(b => b.LastName).ThenBy(b => b.FirstName),
+                "batchcode" => isAscending
+                    ? baseQuery.OrderBy(b => b.BatchCode).ThenBy(b => b.LastName).ThenBy(b => b.FirstName)
+                    : baseQuery.OrderByDescending(b => b.BatchCode).ThenBy(b => b.LastName).ThenBy(b => b.FirstName),
+                _ => baseQuery.OrderBy(b => b.LastName).ThenBy(b => b.FirstName).ThenBy(b => b.MiddleName)
+            };
+
+            // ── Single LEFT JOIN to Finding only (1:1, won't multiply rows).
+            // HasDocuments via EXISTS-style Any() — reliably translates to SQL
+            // Server's EXISTS(...), generally the fastest pattern for "does at
+            // least one related row exist."
+            var pageRaw = await sorted
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .GroupJoin(
+                    _context.BeneficiaryFindings,
+                    b => b.Id,
+                    f => f.BeneficiaryInformationId,
+                    (b, findings) => new { b, finding = findings.FirstOrDefault() })
+                .Select(x => new
+                {
+                    x.b.Id,
+                    x.b.Quarter,
+                    x.b.Batch,
+                    x.b.RefYear,
+                    x.b.RefCode,
+                    x.b.BatchCode,
+                    x.b.PhoneNumber,
+                    x.b.LastName,
+                    x.b.FirstName,
+                    x.b.MiddleName,
+                    x.b.Extension,
+                    x.b.BirthDate,
+                    x.b.Sex,
+                    x.b.Region,
+                    x.b.Province,
+                    x.b.Municipality,
+                    x.b.Barangay,
+                    x.b.Validator,
+                    x.b.PaymentStatus,
+                    x.b.ModeOfPayment,
+                    x.b.PaymentDate,
+                    x.b.IsEligible,
+                    x.b.IsCompliant,
+                    x.b.CoStatus,
+                    x.b.CoDateEndorsed,
+                    x.b.CoDateApproved,
+                    x.b.RowVersion,
+                    HasDocuments = _context.BeneficiaryDocuments
+                        .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
+                    FindingStatus = x.finding != null ? x.finding.FindingStatus : (int?)null,
+                    EligibilityRemarksPreview = x.b.EligibilityRemarks != null && x.b.EligibilityRemarks.Length > 80
+                        ? x.b.EligibilityRemarks.Substring(0, 80) : x.b.EligibilityRemarks,
+                    AssessmentRemarksPreview = x.b.AssessmentRemarks != null && x.b.AssessmentRemarks.Length > 80
+                        ? x.b.AssessmentRemarks.Substring(0, 80) : x.b.AssessmentRemarks,
+                    FindingRemarksPreview = x.finding != null && x.finding.FindingRemarks != null
+                                             && x.finding.FindingRemarks.Length > 80
+                        ? x.finding.FindingRemarks.Substring(0, 80)
+                        : (x.finding != null ? x.finding.FindingRemarks : null)
+                })
+                .ToListAsync();
+
+            // ── Name resolution in C#, zero SQL cost, via the cache from Step 4.
+            var items = pageRaw.Select(x => new BeneficiaryListItemDto
+            {
+                Id = x.Id,
+                Quarter = x.Quarter,
+                Batch = x.Batch,
+                RefYear = x.RefYear,
+                RefCode = x.RefCode,
+                BatchCode = x.BatchCode,
+                PhoneNumber = x.PhoneNumber,
+                LastName = x.LastName,
+                FirstName = x.FirstName ?? string.Empty,
+                MiddleName = x.MiddleName,
+                Extension = x.Extension,
+                BirthDate = x.BirthDate,
+                Age = ComputeAge(x.BirthDate),
+                MilestoneYear = ComputeMilestoneYear(x.BirthDate),
+                Sex = x.Sex,
+                PsgcCodeRegion = x.Region,
+                PsgcCodeProvince = x.Province,
+                PsgcCodeMunicipality = x.Municipality,
+                PsgcCodeBarangay = x.Barangay,
+                MunicipalityName = _psgcNameCache.GetMunicipalityName(x.Municipality),
+                BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
+                Validator = x.Validator,
+                PaymentStatus = x.PaymentStatus,
+                ModeOfPayment = x.ModeOfPayment,
+                PaymentDate = x.PaymentDate,
+                IsEligible = x.IsEligible,
+                IsCompliant = x.IsCompliant,
+                FindingStatus = x.FindingStatus,
+                CoStatus = x.CoStatus,
+                CoDateEndorsed = x.CoDateEndorsed,
+                CoDateApproved = x.CoDateApproved,
+                HasDocuments = x.HasDocuments,
+                EligibilityRemarksPreview = x.EligibilityRemarksPreview,
+                AssessmentRemarksPreview = x.AssessmentRemarksPreview,
+                FindingRemarksPreview = x.FindingRemarksPreview,
+                RowVersion = x.RowVersion
+            }).ToList();
+
+            return new PagedResultDto<BeneficiaryListItemDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter)
         {
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
@@ -1503,6 +1658,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // - e.g. age 81 born 1944 → 85th is 2029, not reached → 0
             return 0;
         }
+        private static int ComputeAge(DateTime birthDate)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - birthDate.Year;
+            if (birthDate.Date > today.AddYears(-age)) age--;
+            return age;
+        }
 
         public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate)
         {
@@ -1700,6 +1862,328 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
 
         #region Private functions
+        // ── Shared filter-building, used by GetPagedListAsync, CountMatchingAsync,
+        // and the bulk-by-filter methods in Step 8. One source of truth for "what
+        // matches this filter" — no joins, operates directly on
+        // IQueryable<BeneficiaryInformation>.
+        private async Task<IQueryable<BeneficiaryInformation>> BuildNarrowFilterQuery(BeneficiaryFilterDto filter)
+        {
+            var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
+
+            if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
+                query = query.Where(b => b.Region == filter.PsgcCodeRegion.Value);
+
+            if (filter.PsgcCodeProvince.HasValue)
+                query = query.Where(b => b.Province == filter.PsgcCodeProvince.Value);
+
+            if (filter.PsgcCodeMunicipality.HasValue)
+                query = query.Where(b => b.Municipality == filter.PsgcCodeMunicipality.Value);
+
+            if (filter.PsgcCodeBarangay.HasValue)
+                query = query.Where(b => b.Barangay == filter.PsgcCodeBarangay.Value);
+
+            if (filter.Sex.HasValue && filter.Sex.Value > 0)
+                query = query.Where(b => b.Sex == filter.Sex.Value);
+
+            if (filter.PaymentStatus.HasValue && filter.PaymentStatus.Value >= 0)
+                query = query.Where(b => b.PaymentStatus == filter.PaymentStatus.Value);
+
+            if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
+                query = query.Where(b => b.ModeOfPayment == filter.FilterModeOfPayment.Value);
+
+            if (filter.PaymentDate.HasValue)
+            {
+                var start = filter.PaymentDate.Value.Date;
+                var end = start.AddDays(1);
+                query = query.Where(b => b.PaymentDate >= start && b.PaymentDate < end);
+            }
+
+            if (filter.PaymentDateFrom.HasValue)
+                query = query.Where(b => b.PaymentDate >= filter.PaymentDateFrom.Value.Date);
+
+            if (filter.PaymentDateTo.HasValue)
+                query = query.Where(b => b.PaymentDate < filter.PaymentDateTo.Value.Date.AddDays(1));
+
+            if (!string.IsNullOrWhiteSpace(filter.ComplianceMode))
+            {
+                query = filter.ComplianceMode switch
+                {
+                    "compliant" => query.Where(b => b.IsCompliant == true),
+                    "noncompliant" => query.Where(b => b.IsCompliant == false),
+                    "withfindings" => query.Where(b => b.IsCompliant == true
+                        && b.AssessmentRemarks != null && b.AssessmentRemarks != string.Empty),
+                    _ => query
+                };
+            }
+            else if (filter.IsCompliant.HasValue)
+                query = query.Where(b => b.IsCompliant == filter.IsCompliant.Value);
+
+            if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
+            {
+                query = filter.EligibilityMode switch
+                {
+                    "eligible" => query.Where(b => b.IsEligible == true),
+                    "ineligible" => query.Where(b => b.IsEligible == false),
+                    "withfindings" => query.Where(b => b.IsEligible == true
+                        && b.EligibilityRemarks != null && b.EligibilityRemarks != string.Empty),
+                    _ => query
+                };
+            }
+            else if (filter.IsEligible.HasValue)
+                query = query.Where(b => b.IsEligible == filter.IsEligible.Value);
+
+            if (filter.CoStatus.HasValue && filter.CoStatus.Value >= 0)
+            {
+                query = filter.CoStatus.Value == 0
+                    ? query.Where(b => b.CoStatus == null || b.CoStatus == 0)
+                    : query.Where(b => b.CoStatus == filter.CoStatus.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.LastName))
+                query = query.Where(b => b.LastName != null && b.LastName.Contains(filter.LastName));
+
+            if (!string.IsNullOrWhiteSpace(filter.FirstName))
+                query = query.Where(b => b.FirstName.Contains(filter.FirstName));
+
+            if (!string.IsNullOrWhiteSpace(filter.FullName))
+            {
+                var name = filter.FullName.Trim().ToLower();
+                query = query.Where(b =>
+                    (b.LastName + " " + b.FirstName + " " + b.MiddleName).ToLower().Contains(name) ||
+                    (b.FirstName + " " + b.MiddleName + " " + b.LastName).ToLower().Contains(name));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.BatchCode))
+            {
+                var codes = filter.BatchCode.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(c => c.Trim()).Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+
+                query = codes.Count == 1
+                    ? query.Where(b => b.BatchCode != null && b.BatchCode.Contains(codes[0]))
+                    : query.Where(b => b.BatchCode != null && codes.Contains(b.BatchCode));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Validator))
+                query = query.Where(b => b.Validator != null && b.Validator.Contains(filter.Validator));
+
+            if (filter.FilterQuarter.HasValue)
+                query = query.Where(b => b.Quarter == filter.FilterQuarter.Value);
+
+            if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
+                query = query.Where(b => b.Batch != null && b.Batch.Contains(filter.FilterBatch.Trim()));
+
+            if (filter.FilterRefYear.HasValue)
+                query = query.Where(b => b.RefYear == filter.FilterRefYear.Value);
+
+            if (filter.DateAddedFrom.HasValue)
+                query = query.Where(b => b.DateAdded >= filter.DateAddedFrom.Value.Date);
+
+            if (filter.DateAddedTo.HasValue)
+                query = query.Where(b => b.DateAdded < filter.DateAddedTo.Value.Date.AddDays(1));
+
+            if (filter.SpecificAge.HasValue)
+            {
+                var end = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
+                var start = DateTime.Today.AddYears(-filter.SpecificAge.Value - 1).Date;
+                query = query.Where(b => b.BirthDate > start && b.BirthDate <= end);
+            }
+
+            if (filter.SpecificBirthday.HasValue)
+            {
+                var month = filter.SpecificBirthday.Value.Month;
+                var day = filter.SpecificBirthday.Value.Day;
+                query = query.Where(b => b.BirthDate.Month == month && b.BirthDate.Day == day);
+            }
+
+            if (filter.MilestoneYear.HasValue)
+            {
+                var milestoneYear = filter.MilestoneYear.Value;
+                var milestones = new[] { 80, 85, 90, 95, 100 };
+                var today = DateTime.Today;
+
+                if (milestoneYear == 0)
+                {
+                    query = query.Where(b => !milestones.Any(m =>
+                        (b.BirthDate.Year + m) >= 2024 &&
+                        ((b.BirthDate.Year + m) < today.Year ||
+                         ((b.BirthDate.Year + m) == today.Year && b.BirthDate.DayOfYear <= today.DayOfYear))));
+                }
+                else
+                {
+                    query = query.Where(b => milestones.Any(m =>
+                        b.BirthDate.Year + m == milestoneYear && b.BirthDate.Year + m >= 2024));
+                }
+            }
+            // Add this inside BuildNarrowFilterQuery, replacing the comment placeholder
+            // from Step 6. This needs IPsgcNameCache, already injected via the
+            // constructor change from Step 6.
+            //
+            // WHY THIS DOESN'T NEED A JOIN:
+            // Searching "Butuan" as free text against Municipality.Name requires either
+            // a join (cost we removed) or a separate query. Instead: search the cache
+            // (already in memory, already loaded) for any PSGC codes whose name
+            // contains the search term, THEN add "Municipality IN (those codes)" to
+            // the SQL WHERE clause. The SQL only ever filters on the already-indexed
+            // integer PSGC code columns — never on joined text.
+
+            if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
+            {
+                var term = filter.GeneralSearch.Trim().ToLower();
+
+                // ── Resolve mapped keyword values, same as your original logic ──────
+                int? sexMatch = term switch { "male" => 1, "female" => 2, _ => null };
+                int? paymentMatch = term switch
+                {
+                    "paid" => 2,
+                    "unpaid" => 1,
+                    "pending" => 3,
+                    "n/a" => 0,
+                    _ => null
+                };
+                int? citizenshipMatch = term switch
+                {
+                    "filipino" => 1,
+                    "dual citizenship" => 2,
+                    "dual" => 2,
+                    _ => null
+                };
+                int? coStatusMatch = term switch { "endorsed" => 1, "approved" => 2, _ => null };
+                int? modeOfPaymentMatch = term switch
+                {
+                    "cash advance" => 1,
+                    "cash advance by sdo" => 1,
+                    "bank transfer" => 2,
+                    _ => null
+                };
+                bool searchCoNotSet = term == "not set";
+                int.TryParse(term, out var yearTerm);
+
+                // ── Resolve location name matches via the IN-MEMORY cache, not SQL.
+                // GetCodesByNameContains is a new lookup method added to IPsgcNameCache
+                // (see below) — it scans the cached dictionaries in C# memory, which
+                // for a few thousand entries total is effectively instantaneous, and
+                // produces a small list of int codes to filter by.
+                var matchingProvinceCodes = _psgcNameCache.GetProvinceCodesByNameContains(term);
+                var matchingMunicipalityCodes = _psgcNameCache.GetMunicipalityCodesByNameContains(term);
+                var matchingBarangayCodes = _psgcNameCache.GetBarangayCodesByNameContains(term);
+                var matchingRegionCodes = _psgcNameCache.GetRegionCodesByNameContains(term);
+
+                query = query.Where(b =>
+                    // ── Name fields ──────────────────────────────────────────────
+                    (b.LastName != null && b.LastName.ToLower().Contains(term)) ||
+                    b.FirstName.ToLower().Contains(term) ||
+                    (b.MiddleName != null && b.MiddleName.ToLower().Contains(term)) ||
+                    (b.Extension != null && b.Extension.ToLower().Contains(term)) ||
+
+                    // ── ID / code fields ─────────────────────────────────────────
+                    (b.OscaIdNumber != null && b.OscaIdNumber.ToLower().Contains(term)) ||
+                    (b.BatchCode != null && b.BatchCode.ToLower().Contains(term)) ||
+                    (b.PhoneNumber != null && b.PhoneNumber.ToLower().Contains(term)) ||
+                    (b.NcscRrn != null && b.NcscRrn.ToString()!.Contains(term)) ||
+
+                    // ── Location — matched via cache-resolved codes, NOT joined text
+                    matchingProvinceCodes.Contains(b.Province) ||
+                    matchingMunicipalityCodes.Contains(b.Municipality) ||
+                    matchingBarangayCodes.Contains(b.Barangay) ||
+                    matchingRegionCodes.Contains(b.Region) ||
+
+                    // ── Validator / remarks (own columns, no join needed) ─────────
+                    (b.Validator != null && b.Validator.ToLower().Contains(term)) ||
+                    (b.Remarks != null && b.Remarks.ToLower().Contains(term)) ||
+                    (b.AssessmentRemarks != null && b.AssessmentRemarks.ToLower().Contains(term)) ||
+                    (b.EligibilityRemarks != null && b.EligibilityRemarks.ToLower().Contains(term)) ||
+
+                    // ── Mapped integer fields ──────────────────────────────────────
+                    (sexMatch.HasValue && b.Sex == sexMatch.Value) ||
+                    (paymentMatch.HasValue && b.PaymentStatus == paymentMatch.Value) ||
+                    (citizenshipMatch.HasValue && b.Citizenship == citizenshipMatch.Value) ||
+                    (modeOfPaymentMatch.HasValue && b.ModeOfPayment == modeOfPaymentMatch.Value) ||
+                    (coStatusMatch.HasValue && b.CoStatus == coStatusMatch.Value) ||
+                    (searchCoNotSet && (b.CoStatus == null || b.CoStatus == 0)) ||
+
+                    (yearTerm > 0 && b.CoDateEndorsed.HasValue && b.CoDateEndorsed.Value.Year == yearTerm) ||
+                    (yearTerm > 0 && b.CoDateApproved.HasValue && b.CoDateApproved.Value.Year == yearTerm) ||
+                    (yearTerm > 0 && b.BirthDate.Year == yearTerm) ||
+
+                    (b.Batch != null && b.Batch.ToLower().Contains(term)) ||
+                    (yearTerm > 0 && b.RefYear == yearTerm) ||
+                    (b.RefCode != null && b.RefCode.ToLower().Contains(term))
+                );
+
+                // ── FindingRemarks intentionally NOT included here — it lives on a
+                // different table (BeneficiaryFindings) and needs its own join.
+                // Folding it into the SAME query.Where() as everything else above
+                // would force EF to add the Findings join unconditionally just to
+                // support this one optional field, defeating the purpose of the
+                // narrow base query for every request, search or not. Instead, if
+                // GeneralSearch is active, we do a SEPARATE small query to find which
+                // beneficiary IDs have a matching FindingRemarks, then OR that into
+                // the filter as an ID list — see below.
+                var matchingFindingIds = await _context.BeneficiaryFindings
+                    .Where(f => f.FindingRemarks != null && f.FindingRemarks.ToLower().Contains(term))
+                    .Select(f => f.BeneficiaryInformationId)
+                    .ToListAsync();
+
+                if (matchingFindingIds.Any())
+                {
+                    var idSet = matchingFindingIds.ToHashSet();
+                    query = query.Union(
+                        _context.BeneficiaryInformations.AsNoTracking()
+                            .Where(b => !b.IsDeleted && idSet.Contains(b.Id)));
+                    // Note: Union here re-applies !IsDeleted on the finding-matched
+                    // side too, and EF/SQL Server will deduplicate via UNION's
+                    // distinct semantics — so no DistinctBy() needed afterward.
+                }
+            }
+            // ── FindingStatus filter — see below, this DOES need the join,
+            // but only when explicitly requested.
+            if (filter.FindingStatus.HasValue && filter.FindingStatus.Value != 3)
+            {
+                var matchingIds = await BuildFindingStatusIdQueryAsync(filter.FindingStatus.Value);
+                query = query.Where(b => matchingIds.Contains(b.Id));
+            }
+
+            return query;
+        }
+        // WHY A SEPARATE QUERY INSTEAD OF A JOIN:
+        // FindingStatus = 0 needs special handling (matches NULL finding OR an
+        // explicit FindingStatus=0 row) which is awkward to express cleanly across
+        // a LEFT JOIN's null-coalescing in LINQ-to-SQL. A small standalone query
+        // against BeneficiaryFindings (which itself has its own FindingStatus
+        // index from your AppDbContext) resolving to a HashSet<Guid> of matching
+        // IDs, then filtered via .Contains() against the base query, is simpler
+        // to read, easier to verify correctness on, and still avoids the 4-table
+        // join entirely — only ever touches BeneficiaryFindings, a small table.
+
+        private async Task<HashSet<Guid>> BuildFindingStatusIdQueryAsync(int status)
+        {
+            if (status == 0)
+            {
+                // "N/A" = beneficiaries with NO finding row at all, OR an explicit
+                // FindingStatus = 0 row. Two separate small queries, unioned in C#
+                // — clearer than trying to express "LEFT JOIN ... WHERE x IS NULL
+                // OR x = 0" in one LINQ expression.
+                var explicitZero = await _context.BeneficiaryFindings
+                    .Where(f => f.FindingStatus == 0)
+                    .Select(f => f.BeneficiaryInformationId)
+                    .ToListAsync();
+
+                var hasNoFindingRow = await _context.BeneficiaryInformations
+                    .Where(b => !b.IsDeleted && !_context.BeneficiaryFindings
+                        .Any(f => f.BeneficiaryInformationId == b.Id))
+                    .Select(b => b.Id)
+                    .ToListAsync();
+
+                return explicitZero.Concat(hasNoFindingRow).ToHashSet();
+            }
+
+            var matching = await _context.BeneficiaryFindings
+                .Where(f => f.FindingStatus == status)
+                .Select(f => f.BeneficiaryInformationId)
+                .ToListAsync();
+
+            return matching.ToHashSet();
+        }
         // Add this private nested class near your other private helper classes
         // (e.g., next to BeneficiaryRawDto) — gives batches a stable, named type
         // instead of relying on anonymous-type identity across loop iterations.

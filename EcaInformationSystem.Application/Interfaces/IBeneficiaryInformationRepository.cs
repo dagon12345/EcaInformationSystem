@@ -6,6 +6,8 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface IBeneficiaryInformationRepository
     {
         Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync();
+        Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter);
+        Task<int> CountMatchingAsync(BeneficiaryFilterDto filter);
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter);
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
         Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id);
@@ -34,6 +36,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
-        Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter,int maxPairs = 50, CancellationToken cancellationToken = default);
+        Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
     }
 }
