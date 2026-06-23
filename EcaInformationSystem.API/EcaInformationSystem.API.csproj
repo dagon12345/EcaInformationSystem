@@ -7,6 +7,9 @@
 	  <WasmFingerprintAssets>false</WasmFingerprintAssets>
 	  <PlatformTarget>x64</PlatformTarget>
 
+    <!-- EcaInformationSystem.Api.csproj — add inside the existing <PropertyGroup> -->
+<ServerGarbageCollection>false</ServerGarbageCollection>
+
   </PropertyGroup>
 
   <ItemGroup>
