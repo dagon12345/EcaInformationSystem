@@ -122,10 +122,6 @@
         if (user.Identity?.IsAuthenticated == true)
         {
             userName = user.Identity.Name ?? "User";
-
-            // ✅ ADDED — the ONE place the global scan is triggered per login.
-            // Internally guarded so it never re-fetches after the first success.
-            _ = State.EnsureGlobalDuplicateSummaryLoadedAsync(Http);
         }
 
         StateHasChanged();

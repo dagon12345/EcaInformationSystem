@@ -1,5 +1,6 @@
 @inject BeneficiaryStateService State
 @inject NavigationManager Navigation
+@inject HttpClient Http
 @implements IDisposable
 
 <div class="position-relative me-2">
@@ -17,11 +18,20 @@
     @if (_showDropdown)
     {
         <div class="duplicate-dropdown">
+
+            @* ── Status line — reflects current known state, never triggers anything itself ── *@
             @if (State.IsFetchingGlobalDuplicateSummary)
             {
                 <div class="duplicate-dropdown-item duplicate-dropdown-empty">
                     <span class="spinner-border spinner-border-sm me-2"></span>
-                    Checking for duplicates...
+                    Scanning...
+                </div>
+            }
+            else if (!State.HasFetchedGlobalDuplicateSummary)
+            {
+                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Not scanned yet this session
                 </div>
             }
             else if (State.DuplicatePairCount > 0)
@@ -40,6 +50,23 @@
                     No possible duplicates detected
                 </div>
             }
+
+            @* ── The actual scan trigger — distinct button, separated visually ── *@
+            <div class="duplicate-dropdown-scan-wrap">
+                <button class="duplicate-scan-btn" @onclick="OnRescanClicked"
+                        disabled="@State.IsFetchingGlobalDuplicateSummary">
+                    @if (State.IsFetchingGlobalDuplicateSummary)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Scanning...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search me-2"></i>
+                        <span>Scan for duplicates</span>
+                    }
+                </button>
+            </div>
         </div>
     }
 </div>
@@ -59,13 +86,6 @@
 
     private void ToggleDropdown() => _showDropdown = !_showDropdown;
 
-    // WHY THIS CHANGES: navigating to a URL you're already on doesn't remount
-    // the page component, so the grid's OnAfterRenderAsync(firstRender: true)
-    // never re-fires, and _hasCheckedAutoOpenDuplicateModal (still true on the
-    // EXISTING instance) blocks the check from ever running again. The fix:
-    // detect "already on this page" and skip navigation, going straight to
-    // signaling the open-request — combined with a grid-side fix that doesn't
-    // rely solely on firstRender to notice the flag.
     private void OnReviewClicked()
     {
         _showDropdown = false;
@@ -78,6 +98,12 @@
         {
             Navigation.NavigateTo("/beneficiary-records");
         }
+    }
+
+    private async Task OnRescanClicked()
+    {
+        // ✅ Http is now correctly injected above — this compiles
+        await State.RefreshGlobalDuplicateSummaryAsync(Http);
     }
 
     public void CloseDropdown() => _showDropdown = false;

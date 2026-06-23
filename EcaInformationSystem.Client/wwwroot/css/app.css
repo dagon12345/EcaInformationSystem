@@ -24,6 +24,72 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.duplicate-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 8px;
+        min-width: 280px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 1000;
+        overflow: hidden;
+    }
+
+    .duplicate-dropdown-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 13px;
+        text-align: left;
+        border: none;
+        background: none;
+    }
+
+    .duplicate-dropdown-clickable {
+        cursor: pointer;
+    }
+
+    .duplicate-dropdown-clickable:hover {
+        background: #f9fafb;
+    }
+
+    .duplicate-dropdown-empty {
+        color: #6b7280;
+    }
+
+    .duplicate-dropdown-scan-wrap {
+        padding: 8px;
+        border-top: 1px solid #e5e7eb;
+        background: #fafafa;
+    }
+
+    .duplicate-scan-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #fff;
+        background: #2563eb;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .duplicate-scan-btn:hover:not(:disabled) {
+        background: #1d4ed8;
+    }
+
+    .duplicate-scan-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
 /* ── Permission denied banner + duplicate dropdown styles ───────────────── */
 .permission-banner {
         display: flex;
