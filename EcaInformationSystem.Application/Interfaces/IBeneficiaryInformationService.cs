@@ -41,5 +41,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);
         Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(BeneficiaryFilterDto filter);
         Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings);
+        Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
     }
 }

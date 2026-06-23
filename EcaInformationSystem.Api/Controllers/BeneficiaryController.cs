@@ -368,6 +368,12 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        [HttpGet("global-duplicate-summary")]
+        public async Task<IActionResult> GetGlobalDuplicateSummary()
+        {
+            var result = await _service.GetGlobalDuplicateSummaryAsync();
+            return Ok(result);
+        }
 
     }
 }

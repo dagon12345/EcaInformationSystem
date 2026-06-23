@@ -161,4 +161,88 @@ public class BeneficiaryStateService
     }
 
     private void NotifyStateChanged() => OnChange?.Invoke();
+
+    // WHY: currently the service only stores DuplicatePairCount (an int) —
+    // the bell badge needs nothing more than that. But the GRID'S MODAL needs
+    // the full Pairs list to render the table, and was making its own
+    // redundant fetch to get it. Storing the full summary here means BOTH
+    // the bell and the modal read from the SAME already-fetched data —
+    // one network call serves both, instead of two separate calls doing
+    // almost the same work.
+    public PossibleDuplicateSummaryDto? GlobalDuplicateSummary { get; private set; }
+    public int DuplicatePairCount => GlobalDuplicateSummary?.TotalPairs ?? 0;
+    // ✅ DuplicatePairCount is now a computed property derived from the full
+    // summary, not a separately-tracked field — impossible for the two to
+    // drift out of sync with each other.
+    public bool HasFetchedGlobalDuplicateSummary { get; set; }
+    public bool IsFetchingGlobalDuplicateSummary { get; set; }
+    public bool ShouldAutoOpenDuplicateModal { get; set; }
+
+    public async Task EnsureGlobalDuplicateSummaryLoadedAsync(HttpClient http)
+    {
+        // ✅ The actual "only once" guard — once this flips true, no caller,
+        // from any page, at any time, will trigger another fetch. The ONLY
+        // way the count updates after this is via RefreshGlobalDuplicateSummaryAsync,
+        // called explicitly after a data-changing action.
+        if (HasFetchedGlobalDuplicateSummary || IsFetchingGlobalDuplicateSummary)
+            return;
+
+        await RefreshGlobalDuplicateSummaryAsync(http);
+        HasFetchedGlobalDuplicateSummary = true;
+    }
+    public async Task RefreshGlobalDuplicateSummaryAsync(HttpClient http)
+    {
+        try
+        {
+            IsFetchingGlobalDuplicateSummary = true;
+            NotifyStateChanged();
+
+            GlobalDuplicateSummary = await http.GetFromJsonAsync<PossibleDuplicateSummaryDto>(
+                "api/beneficiary/global-duplicate-summary");
+        }
+        catch (Exception ex)
+        {
+
+            Console.WriteLine($"Global duplicate summary fetch failed: {ex.Message}");
+        }
+        finally
+        {
+            IsFetchingGlobalDuplicateSummary = false;
+            NotifyStateChanged();
+        }
+    }
+    // ✅ Call this when the user logs OUT, so the NEXT login starts fresh
+    // rather than carrying over a stale flag from a previous session that
+    // might belong to a different user with different visible data.
+    public void ResetGlobalDuplicateState()
+    {
+        HasFetchedGlobalDuplicateSummary = false;
+        GlobalDuplicateSummary = null;
+    }
+    public void RequestDuplicateModalOpen()
+    {
+        ShouldAutoOpenDuplicateModal = true;
+        NotifyStateChanged();
+    }
+    public void ClearDuplicateModalOpenRequest()
+    {
+        ShouldAutoOpenDuplicateModal = false;
+    }
+    // WHY THIS IS SEPARATE: this tracks "has a mutation happened that the
+    // CURRENTLY LOADED grid page might not reflect" — independent of
+    // duplicates entirely. A bulk payment update, a CO status change, a
+    // soft delete — any of these could leave the on-screen grid stale even
+    // though the user hasn't navigated away. This flag is the signal for that.
+    public bool GridDataMayBeStale { get; set; }
+
+    public void MarkGridDataStale()
+    {
+        GridDataMayBeStale = true;
+        NotifyStateChanged();
+    }
+
+    public void ClearGridDataStaleFlag()
+    {
+        GridDataMayBeStale = false;
+    }
 }

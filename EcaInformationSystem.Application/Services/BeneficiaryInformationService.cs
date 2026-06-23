@@ -25,6 +25,7 @@ namespace EcaInformationSystem.Application.Services
         private readonly IMemoryCache _memoryCache;
         private readonly IPayrollJobTracker _payrollJobTracker;
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
+        private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
             , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
             ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker, IBackgroundTaskQueue backgroundTaskQueue)
@@ -1190,6 +1191,26 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(subtotalRow, 11).Style.NumberFormat.Format = "₱#,##0.00";
             ws.Cell(subtotalRow, 11).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
+            // ✅ Force ClosedXML to recalculate the formula NOW (at generation time,
+            // not just when Excel later opens the file), so we can measure the
+            // actual resulting text length and widen the column if needed —
+            // without this, the formula's displayed text doesn't exist yet to
+            // measure against, since ClosedXML doesn't evaluate formulas by default.
+            ws.Workbook.RecalculateAllFormulas();
+
+            // ✅ Auto-widen ONLY column K (Amount), and only if the subtotal's
+            // rendered text needs more room than your hand-tuned 16.0 width
+            // already provides. This preserves your deliberate column balance
+            // for every other column, while making column K resilient to
+            // unpredictable subtotal magnitudes (more records summed = more
+            // digits = wider text), instead of hardcoding a guess that could
+            // break again later.
+            double subtotalTextWidth = EstimateTextWidth(
+                ws.Cell(subtotalRow, 11).GetFormattedString(), FONT_SIZE);
+
+            if (subtotalTextWidth > ws.Column(11).Width)
+                ws.Column(11).Width = subtotalTextWidth + 2.0; // small padding buffer
+
             ws.Range(subtotalRow, 12, subtotalRow, COLS).Merge();
 
             currentRow = subtotalRow + 2;
@@ -1959,9 +1980,33 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // ── Region ───────────────────────────────────────────────────
-                    var region = string.IsNullOrWhiteSpace(regionName)
-                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
-                        : FindBestNameMatch(regions, x => x.Name, regionName);
+                    var region = FindBestNameMatch(regions, x => x.Name, regionName);
+
+                    if (string.IsNullOrWhiteSpace(regionName))
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = "Region is required and cannot be left blank.",
+                            RawValue = regionName
+                        });
+                        rowHasHardError = true;
+                    }
+                    else if (region == null)
+                    {
+                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = CommonConstants.RegionNotFound,
+                            RawValue = regionName,
+                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
+                                ? $"{CommonConstants.PossibleMatch} '{sr}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasHardError = true;
+                    }
 
                     if (region == null)
                     {
@@ -2360,9 +2405,33 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // ── Region ────────────────────────────────────────────────────
-                    var region = string.IsNullOrWhiteSpace(regionName)
-                        ? regions.FirstOrDefault(x => x.PsgcCodeRegion == CaragaEnum.DefaultRegionCode)
-                        : FindBestNameMatch(regions, x => x.Name, regionName);
+                    var region = FindBestNameMatch(regions, x => x.Name, regionName);
+
+                    if (string.IsNullOrWhiteSpace(regionName))
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = "Region is required and cannot be left blank.",
+                            RawValue = regionName
+                        });
+                        rowHasError = true;
+                    }
+                    else if (region == null)
+                    {
+                        result.Errors.Add(new BeneficiaryImportErrorDto
+                        {
+                            RowNumber = rowNumber,
+                            Field = CommonConstants.Region,
+                            Message = CommonConstants.RegionNotFound,
+                            RawValue = regionName,
+                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
+                                ? $"{CommonConstants.PossibleMatch} '{sr}'"
+                                : CommonConstants.CheckSpelling
+                        });
+                        rowHasError = true;
+                    }
 
                     if (region == null)
                     {
@@ -3371,14 +3440,29 @@ namespace EcaInformationSystem.Application.Services
             const int MaxPageSize = 5000;
             filter.PageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
             filter.PageNumber = Math.Max(filter.PageNumber, 1);
-            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
 
-            return await _repo.GetPagedListAsync(filter);
+            var cacheKey = BuildPaginatedCacheKey(filter);
+
+            if (_memoryCache.TryGetValue(cacheKey, out PagedResultDto<BeneficiaryListItemDto>? cached)
+                && cached is not null)
+            {
+                return cached;
+            }
+
+            var pagedResult = await _repo.GetPagedListAsync(filter);
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            };
+
+            _memoryCache.Set(cacheKey, pagedResult, cacheOptions);
+
+            return pagedResult;
         }
 
         public async Task<int> GetMatchingCountAsync(BeneficiaryFilterDto filter)
         {
-            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
             return await _repo.CountMatchingAsync(filter);
         }
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
@@ -3391,8 +3475,6 @@ namespace EcaInformationSystem.Application.Services
             const int MaxPageSize = 5000;
             filter.PageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
             filter.PageNumber = Math.Max(filter.PageNumber, 1);
-
-            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
 
             var cacheKey = BuildPaginatedCacheKey(filter);
 
@@ -3414,9 +3496,82 @@ namespace EcaInformationSystem.Application.Services
 
             return pagedResult;
         }
+        // WHY THIS IS SEPARATE FROM GetPossibleDuplicatesAsync:
+        // That method's cache key is built FROM the filter — every distinct filter
+        // combination gets its own cache entry, which is correct for "scan what
+        // I'm currently looking at." This method is filter-INDEPENDENT by design:
+        // one cache entry, system-wide, representing "are there any possible
+        // duplicates anywhere in the active (non-deleted) dataset right now."
+        // That's what a navbar bell should reflect — not whatever the user
+        // happens to have filtered on the grid page at this moment.
+        public async Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync()
+        {
+            if (_memoryCache.TryGetValue(GlobalDuplicateScanCacheKey, out PossibleDuplicateSummaryDto? cached) && cached is not null)
+            {
+                return cached;
+            }
+            //Empty filter = scan the entire non-deleted population, no narrowing.
+            var unfiltered = new BeneficiaryFilterDto
+            {
+                PageNumber = 1,
+                PageSize = int.MinValue
+            };
 
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            //Longer timeout than the filtered scan (15s) since this covers our ENTIRE dataset
+            //rater than a filtered subste - give it more room
+            //before giving up, since this only runs once per login, not per click.
 
+            List<PossibleDuplicatePairDto> pairs;
+            bool timedOut = false;
+            try
+            {
+                pairs = await _repo.FindAllPossibleDuplicatesAsync(
+                    unfiltered, maxPairs: 100, cancellationToken: cts.Token);
+                //maxPairs raised to 100 (vs 50 for filtered scans) since this is
+                // the authorative system-wide count the bell badge displays -
+                //worth capturing more before truncating, given it runs rarely.
+
+            }
+            catch (OperationCanceledException)
+            {
+                pairs = new List<PossibleDuplicatePairDto>();
+                timedOut = true;
+            }
+
+            var summary = new PossibleDuplicateSummaryDto
+            {
+                TotalPairs = pairs.Count(),
+                Pairs = pairs,
+                TimedOut = timedOut
+            };
+
+            // ✅ No fixed expiration — this cache is invalidated EXPLICITLY by
+            // InvalidateGlobalDuplicateCache() below, called from every mutation
+            // path (Create/Update/BulkUpdate/SoftDelete). NeverRemove priority
+            // matches the pattern you already use for SummaryCacheVersionKey.
+            _memoryCache.Set(GlobalDuplicateScanCacheKey, summary, new MemoryCacheEntryOptions
+            {
+                Priority = CacheItemPriority.NeverRemove
+            });
+
+            return summary;
+
+        }
         #region Private helpers
+        // Rough but reliable estimate: Excel's "column width units" approximate
+        // the number of default-font characters that fit, plus a little padding.
+        // Bold currency text needs slightly more room per character than this
+        // naive 1:1 mapping, so we apply a small multiplier calibrated against
+        // what you've already observed empirically in this codebase (e.g. your
+        // earlier fix doubling the No. column from 5.0 to 9.0 for 3-digit numbers
+        // roughly matches a ~1.1x-per-character correction factor for bold text).
+        private static double EstimateTextWidth(string text, int fontSize)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            const double charWidthFactor = 1.15; // bold + currency symbol padding
+            return text.Length * charWidthFactor;
+        }
         private static string CoStatusLabel(int status) => status switch
         {
             1 => "Endorsed",
@@ -3596,6 +3751,18 @@ namespace EcaInformationSystem.Application.Services
 
             return bestMatch?.Name;
         }
+        // ✅ Call this from the SAME places InvalidateSummaryCache() is already
+        // called — Create, Update, BulkUpdate*, SoftDelete. A new/edited/deleted
+        // record can change whether a duplicate pair exists, so the cache must
+        // be explicitly cleared, not just left to expire on a timer.
+        private void InvalidateGlobalDuplicateCache()
+        {
+            _memoryCache.Remove(GlobalDuplicateScanCacheKey);
+        }
+        // Wire InvalidateGlobalDuplicateCache() into InvalidateSummaryCache()
+        // itself, since every call site that already calls the summary invalidation
+        // should also invalidate this — one method, one call site per mutation,
+        // no risk of forgetting one or the other.
 
         private void InvalidateSummaryCache()
         {
@@ -3609,6 +3776,9 @@ namespace EcaInformationSystem.Application.Services
             _memoryCache.Set(
                 CommonConstants.DuplicateScanCacheVersionKey,
                 Guid.NewGuid().ToString());
+
+            //New - bust the global (navbar bell) duplicate cache too
+            InvalidateGlobalDuplicateCache();
         }
 
         private string GetCurrentSummaryCacheVersion()

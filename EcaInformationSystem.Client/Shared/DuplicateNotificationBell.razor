@@ -1,0 +1,89 @@
+@inject BeneficiaryStateService State
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="position-relative me-2">
+    <button class="icon-btn position-relative" @onclick="ToggleDropdown" title="Possible duplicate records">
+        <i class="bi bi-bell"></i>
+        @if (State.DuplicatePairCount > 0)
+        {
+            <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle"
+                  style="font-size:9px;">
+                @State.DuplicatePairCount
+            </span>
+        }
+    </button>
+
+    @if (_showDropdown)
+    {
+        <div class="duplicate-dropdown">
+            @if (State.IsFetchingGlobalDuplicateSummary)
+            {
+                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    Checking for duplicates...
+                </div>
+            }
+            else if (State.DuplicatePairCount > 0)
+            {
+                <button class="duplicate-dropdown-item duplicate-dropdown-clickable" @onclick="OnReviewClicked">
+                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                    <span>
+                        <strong>@State.DuplicatePairCount</strong> possible duplicate match@(State.DuplicatePairCount == 1 ? "" : "es") found
+                    </span>
+                </button>
+            }
+            else
+            {
+                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    No possible duplicates detected
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _showDropdown = false;
+
+    protected override void OnInitialized()
+    {
+        // ✅ This component (NOT MainLayout) subscribes — so a duplicate-
+        // state change only re-renders THIS small component, never the
+        // grid or the rest of @Body.
+        State.OnChange += HandleStateChange;
+    }
+
+    private void HandleStateChange() => InvokeAsync(StateHasChanged);
+
+    private void ToggleDropdown() => _showDropdown = !_showDropdown;
+
+    // WHY THIS CHANGES: navigating to a URL you're already on doesn't remount
+    // the page component, so the grid's OnAfterRenderAsync(firstRender: true)
+    // never re-fires, and _hasCheckedAutoOpenDuplicateModal (still true on the
+    // EXISTING instance) blocks the check from ever running again. The fix:
+    // detect "already on this page" and skip navigation, going straight to
+    // signaling the open-request — combined with a grid-side fix that doesn't
+    // rely solely on firstRender to notice the flag.
+    private void OnReviewClicked()
+    {
+        _showDropdown = false;
+        var currentPath = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
+        bool alreadyOnRecordsPage = currentPath.Equals("/beneficiary-records", StringComparison.OrdinalIgnoreCase);
+
+        State.RequestDuplicateModalOpen();
+
+        if (!alreadyOnRecordsPage)
+        {
+            Navigation.NavigateTo("/beneficiary-records");
+        }
+    }
+
+    public void CloseDropdown() => _showDropdown = false;
+
+    public void Dispose()
+    {
+        State.OnChange -= HandleStateChange;
+    }
+}

@@ -10,95 +10,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject BeneficiaryStateService State
 @inject AuthService AuthService
-
-@* ── No scan yet ─────────────────────────────────────────────────────────── *@
-@if (_duplicateSummary is null && !_isLoadingDuplicates)
-{
-    <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3 py-2">
-        <i class="bi bi-info-circle flex-shrink-0 text-muted"></i>
-        <span class="small text-muted">
-            Apply a filter above to scan for possible duplicate records.
-            You can also
-            <button class="btn btn-link btn-sm p-0 align-baseline" @onclick="RunDuplicateScanAsync">
-                scan all records manually
-            </button>
-            (may be slow on large datasets).
-        </span>
-    </div>
-}
-
-@* ── Scanning indicator ───────────────────────────────────────────────────── *@
-@if (_isLoadingDuplicates)
-{
-    <div class="alert alert-info d-flex align-items-center gap-2 mb-3 py-2">
-        <span class="spinner-border spinner-border-sm flex-shrink-0"></span>
-        <span class="small">Scanning for possible duplicate records...</span>
-    </div>
-}
-
-@* ── Timeout warning ──────────────────────────────────────────────────────── *@
-@if (_duplicateSummary is not null && _duplicateSummary.TimedOut && !_dismissedDuplicateBanner)
-{
-    <div class="alert alert-secondary d-flex align-items-center gap-3 mb-3 py-2" role="alert">
-        <i class="bi bi-clock-history fs-5 flex-shrink-0"></i>
-        <div class="flex-grow-1">
-            <strong>Duplicate scan timed out</strong>
-            <p class="mb-0 small text-muted">
-                The dataset is too large to scan all at once.
-                Try filtering by province first, then rescan.
-            </p>
-        </div>
-        <div class="d-flex gap-2 flex-shrink-0">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="RescanDuplicatesAsync">
-                <i class="bi bi-arrow-clockwise me-1"></i>Rescan
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _dismissedDuplicateBanner = true">
-                Dismiss
-            </button>
-        </div>
-    </div>
-}
-
-@* ── Results banner ───────────────────────────────────────────────────────── *@
-@if (_duplicateSummary is not null && !_duplicateSummary.TimedOut
-     && _duplicateSummary.TotalPairs > 0 && !_dismissedDuplicateBanner)
-{
-    <div class="alert alert-warning d-flex align-items-center gap-3 mb-3 shadow-sm py-2" role="alert">
-        <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
-        <div class="flex-grow-1">
-            <strong>Possible duplicate records detected</strong>
-            <p class="mb-0 small text-muted">
-                Found <strong>@_duplicateSummary.TotalPairs</strong>
-                possible duplicate pair(s) in the current filtered results.
-                Please review to ensure data accuracy.
-            </p>
-        </div>
-        <div class="d-flex gap-2 flex-shrink-0">
-            <button class="btn btn-sm btn-warning fw-semibold" @onclick="OpenDuplicateReviewModal">
-                <i class="bi bi-search me-1"></i>Review
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _dismissedDuplicateBanner = true">
-                Dismiss
-            </button>
-        </div>
-    </div>
-}
-
-@* ── No duplicates found ──────────────────────────────────────────────────── *@
-@if (_duplicateSummary is not null && !_duplicateSummary.TimedOut
-     && _duplicateSummary.TotalPairs == 0 && !_dismissedDuplicateBanner)
-{
-    <div class="alert alert-success d-flex align-items-center gap-3 mb-3 py-2">
-        <i class="bi bi-check-circle-fill flex-shrink-0"></i>
-        <div class="flex-grow-1 small">
-            No possible duplicate records found in the current filtered results.
-        </div>
-        <button class="btn btn-sm btn-outline-secondary flex-shrink-0" @onclick="() => _dismissedDuplicateBanner = true">
-            Dismiss
-        </button>
-    </div>
-}
-
+@implements IDisposable
 <!-- List/Grid Section -->
 <div class="row">
     <div class="col-12">
@@ -661,176 +573,6 @@
         </div>
     </div>
 </div>
-
-@* ─────────────────────────── MODALS ────────────────────────────────────────
-
-<HxModal @ref="_duplicateModal" Size="ModalSize.ExtraLarge">
-    <HeaderTemplate>
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
-            <h5 class="mb-0">
-                Possible Duplicate Records
-                @if (_duplicateSummary is not null)
-                {
-                    <span class="badge bg-warning text-dark ms-2 fw-normal">
-                        @_duplicateSummary.TotalPairs pair(s) found
-                    </span>
-                }
-            </h5>
-        </div>
-    </HeaderTemplate>
-    <BodyTemplate>
-        @if (_duplicateSummary?.Pairs is null || !_duplicateSummary.Pairs.Any())
-        {
-            <div class="alert alert-success mb-0">
-                <i class="bi bi-check-circle-fill me-2"></i>No possible duplicates found.
-            </div>
-        }
-        else
-        {
-            <p class="text-muted small mb-3">
-                Click <strong>Edit</strong> on either record to review and correct it.
-                Rows highlighted in
-                <span class="badge bg-danger bg-opacity-25 text-danger">red</span>
-                have at least one <strong>Paid</strong> record — resolve those first.
-            </p>
-            <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
-                <div class="input-group input-group-sm" style="max-width:240px;">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" class="form-control" placeholder="Search name..." @bind="_duplicateSearchTerm"
-                           @bind:event="oninput" />
-                </div>
-                <select class="form-select form-select-sm w-auto" @bind="_duplicateReasonFilter">
-                    <option value="">All reasons</option>
-                    <option value="same birthdate">Same birthdate</option>
-                    <option value="birthdate">Similar birthdate (±)</option>
-                </select>
-                <span class="text-muted small ms-auto">
-                    Showing @FilteredDuplicatePairs.Count() of @_duplicateSummary.Pairs.Count pair(s)
-                </span>
-            </div>
-            <div style="max-height:500px; overflow-y:auto;">
-                <table class="table table-sm table-bordered align-middle mb-0">
-                    <thead class="table-warning" style="position:sticky; top:0; z-index:1;">
-                        <tr>
-                            <th style="width:36px;">#</th>
-                            <th style="width:110px;">Reason</th>
-                            <th style="width:64px;">Match</th>
-                            <th>Record 1</th>
-                            <th>Record 2</th>
-                            <th style="width:130px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @{
-                            var filteredPairs = FilteredDuplicatePairs.ToList();
-                        }
-                        @if (!filteredPairs.Any())
-                        {
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-3">
-                                    No pairs match your filter.
-                                </td>
-                            </tr>
-                        }
-                        @foreach (var (pair, idx) in filteredPairs.Select((p, i) => (p, i + 1)))
-                        {
-                            bool hasPaid = pair.Record1PaymentStatus == 2 || pair.Record2PaymentStatus == 2;
-                            <tr class="@(hasPaid ? "table-danger" : "")">
-                                <td class="text-center text-muted small">@idx</td>
-                                <td>
-                                    <span class="badge @GetDuplicateReasonBadgeClass(pair.MatchReason) small">
-                                        @pair.MatchReason
-                                    </span>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-warning text-dark">
-                                        @((pair.MatchScore * 100).ToString("F0"))%
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold small">@pair.Record1FullName</div>
-                                    <div class="text-muted" style="font-size:11px;">@pair.Record1BirthDate</div>
-                                    <div class="text-muted" style="font-size:11px;">
-                                        @pair.Record1Municipality
-                                        @if (!string.IsNullOrWhiteSpace(pair.Record1Barangay))
-                                        {
-                                            <span> — @pair.Record1Barangay</span>
-                                        }
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(pair.Record1OscaId))
-                                    {
-                                        <div class="text-muted" style="font-size:11px;">OSCA: @pair.Record1OscaId</div>
-                                    }
-                                    @if (pair.Record1PaymentStatus == 2)
-                                    {
-                                        <span class="badge bg-success" style="font-size:10px;">Paid</span>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="fw-semibold small">@pair.Record2FullName</div>
-                                    <div class="text-muted" style="font-size:11px;">@pair.Record2BirthDate</div>
-                                    <div class="text-muted" style="font-size:11px;">
-                                        @pair.Record2Municipality
-                                        @if (!string.IsNullOrWhiteSpace(pair.Record2Barangay))
-                                        {
-                                            <span> — @pair.Record2Barangay</span>
-                                        }
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(pair.Record2OscaId))
-                                    {
-                                        <div class="text-muted" style="font-size:11px;">OSCA: @pair.Record2OscaId</div>
-                                    }
-                                    @if (pair.Record2PaymentStatus == 2)
-                                    {
-                                        <span class="badge bg-success" style="font-size:10px;">Paid</span>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column gap-1">
-                                        <button class="btn btn-xs btn-outline-primary btn-sm"
-                                                @onclick="async () => await NavigateToDuplicateEdit(pair.Record1Id)">
-                                            <i class="bi bi-pencil-square me-1"></i>Edit #1
-                                        </button>
-                                        <button class="btn btn-xs btn-outline-primary btn-sm"
-                                                @onclick="async () => await NavigateToDuplicateEdit(pair.Record2Id)">
-                                            <i class="bi bi-pencil-square me-1"></i>Edit #2
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </BodyTemplate>
-    <FooterTemplate>
-        <div class="d-flex justify-content-between align-items-center w-100">
-            <small class="text-muted">
-                <i class="bi bi-info-circle me-1"></i>
-                After editing a record, click <strong>Rescan</strong> to refresh results.
-            </small>
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" @onclick="RescanDuplicatesAsync"
-                        disabled="@_isLoadingDuplicates">
-                    @if (_isLoadingDuplicates)
-                    {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-arrow-clockwise me-1"></i>
-                    }
-                    Rescan
-                </button>
-                <HxButton Color="ThemeColor.Secondary" @onclick="() => _duplicateModal.HideAsync()">
-                    Close
-                </HxButton>
-            </div>
-        </div>
-    </FooterTemplate>
-</HxModal> *@
 
 <HxModal @ref="bulkRefNumberModal">
     <HeaderTemplate>
@@ -1840,28 +1582,11 @@
                                                                                                         <div class="d-flex justify-content-between align-items-center w-100">
                                                                                                             <small class="text-muted">
                                                                                                                 <i class="bi bi-info-circle me-1"></i>
-                                                                                                                Fields highlighted in
-                                                                                                                <span class="badge bg-danger bg-opacity-25 text-danger">red</span>
-                                                                                                                differ between the two records.
-                                                                                                                After editing, click <strong>Rescan</strong> to refresh.
+                                                                                                                After editing a record, use the bell to rescan and refresh results.
                                                                                                             </small>
-                                                                                                            <div class="d-flex gap-2">
-                                                                                                                <button class="btn btn-sm btn-outline-secondary" @onclick="RescanDuplicatesAsync"
-                                                                                                                        disabled="@_isLoadingDuplicates">
-                                                                                                                    @if (_isLoadingDuplicates)
-                                                                                                                    {
-                                                                                                                        <span class="spinner-border spinner-border-sm me-1"></span>
-                                                                                                                    }
-                                                                                                                    else
-                                                                                                                    {
-                                                                                                                        <i class="bi bi-arrow-clockwise me-1"></i>
-                                                                                                                    }
-                                                                                                                    Rescan
-                                                                                                                </button>
-                                                                                                                <HxButton Color="ThemeColor.Secondary" @onclick="CloseDuplicateModal">
-                                                                                                                    Close
-                                                                                                                </HxButton>
-                                                                                                            </div>
+                                                                                                            <HxButton Color="ThemeColor.Secondary" @onclick="CloseDuplicateModal">
+                                                                                                                Close
+                                                                                                            </HxButton>
                                                                                                         </div>
                                                                                                     </FooterTemplate>
                                                                                                 </HxModal>
@@ -1921,7 +1646,6 @@
     // ── Duplicate state ───────────────────────────────────────────────────────
     private PossibleDuplicateSummaryDto? _duplicateSummary;
     private bool _isLoadingDuplicates;
-    private bool _dismissedDuplicateBanner;
     private HxModal _duplicateModal = default!;
     private string _duplicateSearchTerm = string.Empty;
     private string _duplicateReasonFilter = string.Empty;
@@ -1930,17 +1654,25 @@
     private BeneficiaryInformationDto? _duplicateRecord1;
     private BeneficiaryInformationDto? _duplicateRecord2;
     private List<BeneficiaryListItemDto>? _cachedBeneficiaries;
+    private bool _hasCheckedAutoOpenDuplicateModal = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
-    protected override void OnInitialized()
+protected override void OnInitialized()
+{
+    _stateChangeHandler = () =>
     {
-        _stateChangeHandler = () =>
+        _cachedBeneficiaries = null;
+
+        if (State.ShouldAutoOpenDuplicateModal)
         {
-            _cachedBeneficiaries = null;
-            StateHasChanged();
-        };
-        State.OnChange += _stateChangeHandler;
-    }
+            State.ClearDuplicateModalOpenRequest();
+            OpenGlobalDuplicateModal();
+        }
+
+        InvokeAsync(StateHasChanged);
+    };
+    State.OnChange += _stateChangeHandler;
+}
     private async Task OnGenerateCoeClicked()
     {
         if (!checkedIds.Any())
@@ -1963,22 +1695,46 @@
     // ✅ Keep OnAfterRenderAsync but remove role reading
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if(!firstRender) return;
 
-        // ✅ Default tab — always start on payment
         activeBulkTab = "payment";
 
-        if (State.HasActiveFilter && State.IsStale())
+        if(State.HasActiveFilter && State.IsStale())
             await State.LoadAsync();
-
-        StateHasChanged();
     }
+// BeneficiaryRecordsGrid.razor — make this safe to actually see failures,
+// and defer the modal-show to AFTER the current render/event cycle settles,
+// rather than trying to show it synchronously from inside another
+// component's event handler chain.
 
-    public void Dispose()
+private void OpenGlobalDuplicateModal()
+{
+    _duplicateSummary = State.GlobalDuplicateSummary;
+    _duplicateSearchTerm = string.Empty;
+    _duplicateReasonFilter = string.Empty;
+
+    // ✅ Defer to the next render cycle via InvokeAsync, and actually
+    // observe/log any exception instead of discarding the task.
+    _ = InvokeAsync(async () =>
     {
-        if (_stateChangeHandler is not null)
-            State.OnChange -= _stateChangeHandler;
-    }
+        try
+        {
+            StateHasChanged(); // ensure _duplicateSummary is rendered into the DOM first
+            await Task.Yield(); // let the render actually commit
+            await _duplicateModal.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GRID] _duplicateModal.ShowAsync() FAILED: {ex}");
+        }
+    });
+}
+
+public void Dispose()
+{
+    if (_stateChangeHandler is not null)
+        State.OnChange -= _stateChangeHandler;
+}
 
     // ✅ Replace OnGeneratePayrollClicked — no client role check
     private async Task OnGeneratePayrollClicked()
@@ -2046,79 +1802,32 @@
         .OrderByDescending(p => p.MatchScore)
         ?? Enumerable.Empty<PossibleDuplicatePairDto>();
 
-    public async Task RunDuplicateScanAsync()
-    {
-        try
-        {
-            _duplicateSummary = null;
-            _dismissedDuplicateBanner = false;
-            _isLoadingDuplicates = true;
-            StateHasChanged();
-
-            var scanFilter = new BeneficiaryFilterDto
-            {
-                PsgcCodeRegion = State.Filter.PsgcCodeRegion,
-                PsgcCodeProvince = State.Filter.PsgcCodeProvince,
-                PsgcCodeMunicipality = State.Filter.PsgcCodeMunicipality,
-                PsgcCodeBarangay = State.Filter.PsgcCodeBarangay,
-                Validator = State.Filter.Validator,
-                BatchCode = State.Filter.BatchCode,
-                PaymentStatus = State.Filter.PaymentStatus,
-                PaymentDate = State.Filter.PaymentDate,
-                PaymentDateFrom = State.Filter.PaymentDateFrom,
-                PaymentDateTo = State.Filter.PaymentDateTo,
-                IsEligible = State.Filter.IsEligible,
-                EligibilityMode = State.Filter.EligibilityMode,
-                IsCompliant = State.Filter.IsCompliant,
-                ComplianceMode = State.Filter.ComplianceMode,
-                CoStatus = State.Filter.CoStatus,
-                FindingStatus = State.Filter.FindingStatus,
-                Sex = State.Filter.Sex,
-                FilterModeOfPayment = State.Filter.FilterModeOfPayment,
-                SpecificAge = State.Filter.SpecificAge,
-                MilestoneYear = State.Filter.MilestoneYear,
-                SpecificBirthday = State.Filter.SpecificBirthday,
-                BirthdayFrom = State.Filter.BirthdayFrom,
-                BirthdayTo = State.Filter.BirthdayTo,
-                FilterQuarter = State.Filter.FilterQuarter,
-                FilterBatch = State.Filter.FilterBatch,
-                FilterRefYear = State.Filter.FilterRefYear,
-                FilterRegionRoman = State.Filter.FilterRegionRoman,
-                DateAddedFrom = State.Filter.DateAddedFrom,
-                DateAddedTo = State.Filter.DateAddedTo,
-                PageNumber = 1,
-                PageSize = int.MaxValue
-            };
-
-            var response = await Http.PostAsJsonAsync("api/beneficiary/possible-duplicates", scanFilter);
-
-            if (response.IsSuccessStatusCode)
-                _duplicateSummary = await response.Content.ReadFromJsonAsync<PossibleDuplicateSummaryDto>();
-            else
-                Console.WriteLine($"Duplicate scan HTTP error: {response.StatusCode}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Duplicate scan failed: {ex.Message}");
-        }
-        finally
-        {
-            _isLoadingDuplicates = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task OpenDuplicateReviewModal()
-    {
-        _duplicateSearchTerm = string.Empty;
-        _duplicateReasonFilter = string.Empty;
-        await _duplicateModal.ShowAsync();
-    }
-
-    private async Task RescanDuplicatesAsync() => await RunDuplicateScanAsync();
+    // Simple, honest approach: don't try to silently validate every record
+    // in the pairs list (expensive, and still racy). Instead, when a navigate-
+    // to-edit fails because the record is gone, tell the user clearly AND
+    // proactively suggest the fix — Rescan — rather than leaving them in an
+    // ambiguous broken state.
 
     private async Task NavigateToDuplicateEdit(Guid id)
     {
+        try
+        {
+            var check = await Http.GetAsync($"api/beneficiary/edit/{id}");
+            if (!check.IsSuccessStatusCode)
+            {
+                toast.ShowError(
+                    "This record no longer exists in the system — it was likely deleted " +
+                    "after this duplicate list was last refreshed. Use the bell's " +
+                    "\"Rescan now\" to update the list.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Could not verify record: {ex.Message}");
+            return;
+        }
+
         await _duplicateModal.HideAsync();
         Navigation.NavigateTo($"/beneficiary-edit/{id}");
     }
@@ -2616,8 +2325,6 @@
             State.Filter.FullName = string.IsNullOrWhiteSpace(fullNameFilter) ? null : fullNameFilter.Trim();
             State.Filter.PageNumber = 1;
             await State.LoadAsync();
-            if (_duplicateSummary is not null)
-                _ = RunDuplicateScanAsync();
         }
         catch (TaskCanceledException) { }
     }
@@ -2747,6 +2454,18 @@ Convert.ToBase64String(fileBytes));
         {
             toast.ShowSuccess(successMessage);
             if (onSuccess != null) await onSuccess();
+
+        // ✅ ADDED — note that since this action ALREADY calls
+        // State.LoadAsync() inside most onSuccess callbacks, the grid on
+        // THIS page is already fresh. The stale flag exists for the case
+        // where the user later navigates AWAY and back, or where some
+        // OTHER open tab/session's grid is now stale. If you only ever
+        // care about "this same page, this same session," this flag is
+        // arguably redundant with the existing State.LoadAsync() calls —
+        // see the note below before wiring this in.
+        State.MarkGridDataStale();
+
+
             return;
         }
         toast.ShowError(await response.Content.ReadAsStringAsync());
