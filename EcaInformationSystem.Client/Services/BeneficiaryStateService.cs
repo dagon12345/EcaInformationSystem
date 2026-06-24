@@ -11,11 +11,11 @@ public class BeneficiaryStateService
 
     // ✅ Persist filter UI selections across navigation
     public int SelectedRegionId { get; set; } = 0;
-    public int SelectedProvinceId { get; set; } = 0;
-    public int SelectedMunicipalityId { get; set; } = 0;
+    public List<int> SelectedProvinceIds { get; set; } = new();
+    public List<int> SelectedMunicipalityIds { get; set; } = new();
     public int SelectedBarangayId { get; set; } = 0;
     public int SelectedSex { get; set; }
-    public int SelectedPaymentStatus { get; set; }
+    public List<int> SelectedPaymentStatuses { get; set; } = new();
     public string? ErrorMessage { get; set; }
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation

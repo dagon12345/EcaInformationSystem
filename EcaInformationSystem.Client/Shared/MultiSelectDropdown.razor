@@ -1,0 +1,192 @@
+@typeparam TItem
+
+<div class="msd-wrap" @onclick:stopPropagation="true">
+    <button type="button" class="msd-toggle" @onclick="ToggleOpen" disabled="@Disabled">
+        <span>@DisplayLabel</span>
+        <i class="bi @(_isOpen ? "bi-chevron-up" : "bi-chevron-down")"></i>
+    </button>
+
+    @if (_isOpen)
+    {
+        <div class="msd-panel">
+            <label class="msd-item msd-select-all">
+                <input type="checkbox" checked="@_allBoxesChecked" @onchange="ToggleSelectAll" />
+                <span>Select All</span>
+            </label>
+            <div class="msd-divider"></div>
+            <div class="msd-list">
+                @foreach (var item in Items)
+                {
+                    var id = IdSelector(item);
+                    var label = LabelSelector(item);
+                    var isChecked = SelectedIds.Contains(id);
+
+                    <label class="msd-item">
+                        <input type="checkbox" checked="@isChecked"
+                               @onchange="e => ToggleItem(id, (bool)e.Value!)" />
+                        <span>@label</span>
+                    </label>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .msd-wrap {
+        position: relative;
+        width: 100%;
+    }
+
+    .msd-toggle {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 10px;
+        font-size: 13px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .msd-toggle:disabled {
+        background: #f3f4f6;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    .msd-panel {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        width: 100%;
+        min-width: 220px;
+        max-height: 280px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 1000;
+        padding: 4px 0;
+    }
+
+    .msd-item input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        margin: 0;
+        flex-shrink: 0;
+        accent-color: #2563eb;
+        cursor: pointer;
+    }
+
+    .msd-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px;
+        font-size: 12.5px;
+        line-height: 1.3;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .msd-item span {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .msd-item:hover {
+        background: #f9fafb;
+    }
+
+    .msd-select-all {
+        font-weight: 600;
+        padding: 6px 12px;
+    }
+
+    .msd-divider {
+        border-top: 1px solid #e5e7eb;
+        margin: 2px 0;
+    }
+
+    .msd-list {
+        max-height: 220px;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    [Parameter] public List<TItem> Items { get; set; } = new();
+    [Parameter] public List<int> SelectedIds { get; set; } = new();
+    [Parameter] public EventCallback<List<int>> SelectedIdsChanged { get; set; }
+    [Parameter] public Func<TItem, int> IdSelector { get; set; } = default!;
+    [Parameter] public Func<TItem, string> LabelSelector { get; set; } = default!;
+    [Parameter] public string Placeholder { get; set; } = "Select...";
+    [Parameter] public bool Disabled { get; set; } = false;
+
+    private bool _isOpen = false;
+
+    // ✅ This now means "is the filter unrestricted" — used for the toggle
+    // BUTTON's display label and for filtering semantics. It does NOT
+    // drive individual checkbox visual state anymore — see below.
+    private bool IsFilterUnrestricted => SelectedIds == null || SelectedIds.Count == 0;
+
+    // ✅ NEW — "Select All" checkbox's own checked state is now driven
+    // purely by whether EVERY item is individually checked, exactly like
+    // your grid's header checkbox (AreAllChecked()). When the list is
+    // empty (untouched/default), this is naturally false, since an empty
+    // SelectedIds means zero items are individually checked — matching
+    // "don't show it as pre-selected."
+    private bool _allBoxesChecked => Items.Any() && Items.All(i => SelectedIds.Contains(IdSelector(i)));
+
+    private string DisplayLabel
+    {
+        get
+        {
+            if (IsFilterUnrestricted) return $"All {Placeholder}";
+            if (SelectedIds.Count == 1)
+            {
+                var match = Items.FirstOrDefault(i => IdSelector(i) == SelectedIds[0]);
+                return match != null ? LabelSelector(match) : "1 selected";
+            }
+            return $"{SelectedIds.Count} selected";
+        }
+    }
+
+    private void ToggleOpen() => _isOpen = !_isOpen;
+
+    // ✅ CHANGED — now a genuine two-way toggle, matching grid behavior:
+    // checking it marks every item checked (explicit full selection,
+    // sent to the server as the full ID list — functionally equivalent
+    // to "no filter," but visually shows every box ticked); unchecking
+    // it clears every item back to nothing checked.
+    private async Task ToggleSelectAll(ChangeEventArgs e)
+    {
+        var nowChecked = (bool)e.Value!;
+
+        var newList = nowChecked
+            ? Items.Select(IdSelector).ToList()
+            : new List<int>();
+
+        await SelectedIdsChanged.InvokeAsync(newList);
+    }
+
+    private async Task ToggleItem(int id, bool isChecked)
+    {
+        var newList = new List<int>(SelectedIds);
+
+        if (isChecked && !newList.Contains(id))
+            newList.Add(id);
+        else if (!isChecked)
+            newList.Remove(id);
+
+        await SelectedIdsChanged.InvokeAsync(newList);
+    }
+}

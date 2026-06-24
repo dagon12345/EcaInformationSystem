@@ -54,46 +54,28 @@
                         @* Province *@
                         <div class="sf-field">
                             <label>Province</label>
-                            <select value="@State.SelectedProvinceId" @onchange="OnProvinceChanged"
-                                    disabled="@(IsLoading || IsFilterProvinceLoading || State.SelectedRegionId == 0)">
-                                <option value="0">Select Province</option>
-                                @foreach (var p in State.FilterProvinces)
-                                {
-                                    <option value="@p.PsgcCodeProvince">@p.Name</option>
-                                }
-                            </select>
-                            @if (IsFilterProvinceLoading)
-                            {
-                                <span class="sf-loading-pill">
-                                    <span class="spinner-border spinner-border-sm"></span> Loading...
-                                </span>
-                            }
+                            <MultiSelectDropdown TItem="ProvinceLookupDto" Items="State.FilterProvinces"
+                                                 SelectedIds="State.SelectedProvinceIds" SelectedIdsChanged="OnProvinceMultiSelectChanged"
+                                                 IdSelector="@(p => p.PsgcCodeProvince)" LabelSelector="@(p => p.Name)"
+                                                 Placeholder="Provinces" Disabled="@(IsLoading || State.SelectedRegionId == 0)" />
                         </div>
 
                         @* Municipality *@
                         <div class="sf-field">
                             <label>Municipality</label>
-                            <select value="@State.SelectedMunicipalityId" @onchange="OnMunicipalityChanged"
-                                    disabled="@(IsLoading || State.SelectedProvinceId == 0 || IsFilterMunicipalityLoading)">
-                                <option value="0">Select Municipality</option>
-                                @foreach (var m in State.FilterMunicipalities)
-                                {
-                                    <option value="@m.PsgcCodeMunicipality">@m.Name</option>
-                                }
-                            </select>
-                            @if (IsFilterMunicipalityLoading)
-                            {
-                                <span class="sf-loading-pill">
-                                    <span class="spinner-border spinner-border-sm"></span> Loading...
-                                </span>
-                            }
+                            <MultiSelectDropdown TItem="MunicipalityLookupDto" Items="State.FilterMunicipalities"
+                                                 SelectedIds="State.SelectedMunicipalityIds"
+                                                 SelectedIdsChanged="OnMunicipalityMultiSelectChanged"
+                                                 IdSelector="@(m => m.PsgcCodeMunicipality)" LabelSelector="@(m => m.Name)"
+                                                 Placeholder="Municipalities"
+                                                 Disabled="@(IsLoading || !State.SelectedProvinceIds.Any() && State.FilterProvinces.Any())" />
                         </div>
 
-                        @* Barangay *@
+                        @* Barangay — unchanged, still a native single-select *@
                         <div class="sf-field">
                             <label>Barangay</label>
                             <select value="@State.SelectedBarangayId" @onchange="OnBarangayChanged"
-                                    disabled="@(IsLoading || State.SelectedMunicipalityId == 0 || IsFilterBarangayLoading)">
+                                    disabled="@(IsLoading || !State.FilterBarangays.Any() || IsFilterBarangayLoading)">
                                 <option value="0">Select Barangay</option>
                                 @foreach (var b in State.FilterBarangays)
                                 {
@@ -237,14 +219,11 @@
                     <div class="sf-grid">
                         <div class="sf-field">
                             <label>Payment Status</label>
-                            <select value="@State.Filter.PaymentStatus" @onchange="OnPaymentStatusChanged"
-                                    disabled="@IsLoading">
-                                <option value="-1">Select Payment Status</option>
-                                <option value="0">N/A</option>
-                                <option value="1">Unpaid</option>
-                                <option value="2">Paid</option>
-                                <option value="3">Pending</option>
-                            </select>
+                            <MultiSelectDropdown TItem="PaymentStatusOption" Items="_paymentStatusOptions"
+                                                 SelectedIds="State.SelectedPaymentStatuses"
+                                                 SelectedIdsChanged="@(ids => { State.SelectedPaymentStatuses = ids; })"
+                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payment Statuses"
+                                                 Disabled="@IsLoading" />
                         </div>
                         @* MODE OF PAYMENT *@
                         <div class="sf-field">
@@ -469,7 +448,7 @@
 </div>
 
 @code {
-
+    private record PaymentStatusOption(int Value, string Label);
     // ── Birthday state ────────────────────────────────────────────────
     private int _specificBirthdayMonth = 0;
     private int _specificBirthdayDay = 0;
@@ -599,15 +578,14 @@
     {
         await LoadFilterRegionsAsync();
 
-        // Restore cascade if selections were persisted (e.g. back-navigation)
         if (State.SelectedRegionId > 0 && !State.FilterProvinces.Any())
             await LoadFilterProvincesAsync(State.SelectedRegionId);
 
-        if (State.SelectedProvinceId > 0 && !State.FilterMunicipalities.Any())
-            await LoadMunicipalitiesAsync(State.SelectedProvinceId);
+        if (State.SelectedProvinceIds.Any() && !State.FilterMunicipalities.Any())
+            await LoadMunicipalitiesForProvincesAsync(State.SelectedProvinceIds);
 
-        if (State.SelectedMunicipalityId > 0 && !State.FilterBarangays.Any())
-            await LoadBarangaysAsync(State.SelectedMunicipalityId);
+        if (State.SelectedMunicipalityIds.Any() && !State.FilterBarangays.Any())
+            await FetchAndCacheBarangaysAsync(State.SelectedMunicipalityIds);
     }
 
     private void OnComplianceChanged(ChangeEventArgs e)
@@ -639,8 +617,8 @@
     private async Task OnRegionChanged(ChangeEventArgs e)
     {
         State.SelectedRegionId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        State.SelectedProvinceId = 0;
-        State.SelectedMunicipalityId = 0;
+        State.SelectedProvinceIds = new(); // ✅ clear the list, not the old int
+        State.SelectedMunicipalityIds = new(); // ✅ same
         State.SelectedBarangayId = 0;
         State.FilterProvinces = new();
         State.FilterMunicipalities = new();
@@ -651,25 +629,103 @@
         if (State.SelectedRegionId > 0)
             await LoadFilterProvincesAsync(State.SelectedRegionId);
     }
-
-    private async Task OnProvinceChanged(ChangeEventArgs e)
+    private async Task OnProvinceMultiSelectChanged(List<int> selectedIds)
     {
-        State.SelectedProvinceId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        State.SelectedMunicipalityId = 0;
-        State.SelectedBarangayId = 0;
+        State.SelectedProvinceIds = selectedIds;
+        State.SelectedMunicipalityIds = new();
+        State.SelectedBarangayId = 0; // ✅ ADD — barangay depends on municipality, must reset too
         State.FilterMunicipalities = new();
-        State.FilterBarangays = new();
-        if (State.SelectedProvinceId > 0)
-            await LoadMunicipalitiesAsync(State.SelectedProvinceId);
+        State.FilterBarangays = new(); // ✅ ADD — clear barangay options when province changes
+        filterMunicipalityCache.Clear();
+        filterBarangayCache.Clear();
+
+        // ✅ Cascade: load municipalities for the UNION of all selected
+        // provinces. If selectedIds is empty (= "all provinces"), load
+        // municipalities for every province currently loaded under the
+        // selected region instead.
+        var provinceIdsToLoad = selectedIds.Any()
+            ? selectedIds
+            : State.FilterProvinces.Select(p => p.PsgcCodeProvince).ToList();
+
+        await LoadMunicipalitiesForProvincesAsync(provinceIdsToLoad);
+    }
+    private async Task OnMunicipalityMultiSelectChanged(List<int> newSelectedIds)
+    {
+        var previousIds = State.SelectedMunicipalityIds.ToList();
+        State.SelectedMunicipalityIds = newSelectedIds;
+
+        var removedMunicipalityIds = previousIds.Except(newSelectedIds).ToList();
+        var addedMunicipalityIds = newSelectedIds.Except(previousIds).ToList();
+
+        // ✅ Drop cached barangays for municipalities that were just unchecked
+        foreach (var muniId in removedMunicipalityIds)
+            filterBarangayCache.Remove(muniId);
+
+        // ✅ Fetch barangays only for newly-checked municipalities not already cached
+        if (addedMunicipalityIds.Any())
+            await FetchAndCacheBarangaysAsync(addedMunicipalityIds);
+
+        // ✅ Rebuild the visible Barangay <select> options from the CURRENT
+        // full Municipality selection, pulling only from cache. This is what
+        // actually drops barangays belonging to unchecked municipalities and
+        // adds barangays for newly-checked ones.
+        var idsToShowFrom = newSelectedIds.Any()
+            ? newSelectedIds
+            : State.FilterMunicipalities.Select(m => m.PsgcCodeMunicipality).ToList();
+
+        var combined = new List<BarangayLookupDto>();
+        foreach (var muniId in idsToShowFrom)
+        {
+            if (filterBarangayCache.TryGetValue(muniId, out var cached))
+                combined.AddRange(cached);
+        }
+
+        State.FilterBarangays = combined
+            .DistinctBy(b => b.PsgcCodeBarangay)
+            .OrderBy(b => b.Name)
+            .ToList();
+
+        // ✅ If the currently-selected Barangay no longer exists in the
+        // rebuilt list (its municipality was unchecked), clear the selection
+        if (State.SelectedBarangayId != 0 &&
+            !State.FilterBarangays.Any(b => b.PsgcCodeBarangay == State.SelectedBarangayId))
+        {
+            State.SelectedBarangayId = 0;
+        }
+
+        StateHasChanged();
     }
 
-    private async Task OnMunicipalityChanged(ChangeEventArgs e)
+    // ✅ Fetches and caches barangays ONLY for the municipality IDs passed in.
+    // Does not touch State.FilterBarangays — the caller rebuilds that from
+    // the full current selection afterward, so this stays a pure cache-filler.
+    private async Task FetchAndCacheBarangaysAsync(List<int> municipalityIds)
     {
-        State.SelectedMunicipalityId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        State.SelectedBarangayId = 0;
-        State.FilterBarangays.Clear();
-        if (State.SelectedMunicipalityId > 0)
-            await LoadBarangaysAsync(State.SelectedMunicipalityId);
+        try
+        {
+            IsFilterBarangayLoading = true;
+
+            var response = await Http.PostAsJsonAsync(
+                "api/Barangay/by-municipalities",
+                new LookupMultiRequestDto { Ids = municipalityIds });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+
+                foreach (var muniId in municipalityIds)
+                {
+                    filterBarangayCache[muniId] = result
+                        .Where(b => b.PsgcCodeMunicipality == muniId)
+                        .ToList();
+                }
+            }
+        }
+        finally
+        {
+            IsFilterBarangayLoading = false;
+            StateHasChanged();
+        }
     }
 
     private void OnBarangayChanged(ChangeEventArgs e)
@@ -686,13 +742,6 @@
     {
         State.Filter.FindingStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : 3;
     }
-
-
-    private void OnPaymentStatusChanged(ChangeEventArgs e)
-    {
-        State.Filter.PaymentStatus = int.TryParse(e.Value?.ToString(), out var id) ? id : -1;
-    }
-
     private async Task LoadFilterRegionsAsync()
     {
         if (State.FilterRegions.Any()) return;
@@ -784,10 +833,10 @@
             }
 
             State.Filter.PsgcCodeRegion = State.SelectedRegionId > 0 ? State.SelectedRegionId : null;
-            State.Filter.PsgcCodeProvince = State.SelectedProvinceId > 0 ? State.SelectedProvinceId : null;
-            State.Filter.PsgcCodeMunicipality = State.SelectedMunicipalityId > 0 ? State.SelectedMunicipalityId : null;
+            State.Filter.PsgcCodeProvinces = State.SelectedProvinceIds;
+            State.Filter.PsgcCodeMunicipalities = State.SelectedMunicipalityIds;
             State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
-
+            State.Filter.PaymentStatuses = State.SelectedPaymentStatuses;
             // ── Map month+day selectors → filter DateTime fields ──────────
             State.Filter.SpecificBirthday = BuildMonthDay(_specificBirthdayMonth, _specificBirthdayDay);
             State.Filter.BirthdayFrom = BuildMonthDay(_birthdayFromMonth, _birthdayFromDay);
@@ -817,12 +866,10 @@
     private async Task ClearFilterAsync()
     {
         State.SelectedRegionId = 0;
-        State.SelectedProvinceId = 0;
-        State.SelectedMunicipalityId = 0;
+        State.SelectedProvinceIds = new(); // ✅ ADD
+        State.SelectedMunicipalityIds = new(); // ✅ ADD
         State.SelectedBarangayId = 0;
-        State.FilterProvinces = new();
-        State.FilterMunicipalities = new();
-        State.FilterBarangays = new();
+        State.SelectedPaymentStatuses = new(); // ✅ ADD
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
@@ -885,11 +932,11 @@
     f.MilestoneYear == null &&
     f.PaymentDate == null &&
     f.PsgcCodeRegion == null &&
-    f.PsgcCodeProvince == null &&
-    f.PsgcCodeMunicipality == null &&
+    !State.SelectedProvinceIds.Any() &&
+    !State.SelectedMunicipalityIds.Any() &&
+    !State.SelectedPaymentStatuses.Any() &&
     f.PsgcCodeBarangay == null &&
     f.Sex == null &&
-    f.PaymentStatus == null &&
     f.IsCompliant == null &&
     f.IsEligible == null &&
     f.IsCompliant == null &&
@@ -912,44 +959,35 @@
     State.Filter.DateAddedTo == null &&
     _birthdayToMonth == 0;
 
-    private async Task LoadMunicipalitiesAsync(int provinceId)
+    private async Task LoadMunicipalitiesForProvincesAsync(List<int> provinceIds)
     {
         try
         {
             IsFilterMunicipalityLoading = true;
-            var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
-                $"api/Municipality/by-province/{provinceId}") ?? new();
-            State.FilterMunicipalities = result;
-            if (result.Any()) filterMunicipalityCache[provinceId] = result;
+            var combined = new List<MunicipalityLookupDto>();
+
+            foreach (var provinceId in provinceIds)
+            {
+                if (filterMunicipalityCache.TryGetValue(provinceId, out var cached))
+                {
+                    combined.AddRange(cached);
+                    continue;
+                }
+
+                var result = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                    $"api/Municipality/by-province/{provinceId}") ?? new();
+
+                filterMunicipalityCache[provinceId] = result;
+                combined.AddRange(result);
+            }
+
+            State.FilterMunicipalities = combined
+                .DistinctBy(m => m.PsgcCodeMunicipality)
+                .OrderBy(m => m.Name)
+                .ToList();
         }
         finally { IsFilterMunicipalityLoading = false; StateHasChanged(); }
     }
-
-    private async Task LoadBarangaysAsync(int municipalityId)
-    {
-        if (filterBarangayCache.TryGetValue(municipalityId, out var cached) && cached.Any())
-        {
-            State.FilterBarangays = cached;
-            StateHasChanged();
-            return;
-        }
-        filterBarangayCache.Remove(municipalityId);
-        try
-        {
-            IsFilterBarangayLoading = true;
-            var response = await Http.PostAsJsonAsync(
-                "api/Barangay/by-municipalities",
-                new LookupMultiRequestDto { Ids = new List<int> { municipalityId } });
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
-                State.FilterBarangays = result;
-                if (result.Any()) filterBarangayCache[municipalityId] = result;
-            }
-        }
-        finally { IsFilterBarangayLoading = false; StateHasChanged(); }
-    }
-
     private string GetQueryString(BeneficiaryFilterDto filter)
     {
         var properties = from p in filter.GetType().GetProperties()
@@ -967,4 +1005,11 @@
         }
         return string.Join("&", queryString);
     }
+    private readonly List<PaymentStatusOption> _paymentStatusOptions = new()
+    {
+        new(0, "N/A"),
+        new(1, "Unpaid"),
+        new(2, "Paid"),
+        new(3, "Pending"),
+    };
 }

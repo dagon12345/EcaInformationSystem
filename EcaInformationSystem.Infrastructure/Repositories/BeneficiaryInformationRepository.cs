@@ -32,23 +32,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
                 .ToListAsync();
         }
-        // Infrastructure/Repositories/BeneficiaryInformationRepository.cs
+        // WHY THIS CHANGES: the scan only needs Id, FirstName, LastName, MiddleName,
+        // BirthDate, OscaIdNumber, PaymentStatus, and the resolved Municipality/
+        // Barangay NAMES for display. None of that requires a SQL-level JOIN —
+        // the names can be resolved from _psgcNameCache (already loaded in memory,
+        // already used by the grid) AFTER the narrow query returns. This removes
+        // the 5-table join fan-out entirely from the scan's candidate-gathering
+        // step, which is the same fix that made the grid fast.
+
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
             BeneficiaryFilterDto filter,
             int maxPairs = 50,
             CancellationToken cancellationToken = default)
         {
-            // ✅ Clone the filter and strip name fields so the duplicate scan
-            // sees all records matching the non-name criteria (location, status, etc.)
-            // Name-based matching is done in-memory via ComputeNameSimilarity below.
             var scanFilter = new BeneficiaryFilterDto
             {
-                // ── Location ──────────────────────────────────────────────────
                 PsgcCodeRegion = filter.PsgcCodeRegion,
                 PsgcCodeProvince = filter.PsgcCodeProvince,
                 PsgcCodeMunicipality = filter.PsgcCodeMunicipality,
                 PsgcCodeBarangay = filter.PsgcCodeBarangay,
-                // ── Status ────────────────────────────────────────────────────
                 PaymentStatus = filter.PaymentStatus,
                 PaymentDate = filter.PaymentDate,
                 PaymentDateFrom = filter.PaymentDateFrom,
@@ -61,50 +63,47 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FindingStatus = filter.FindingStatus,
                 Sex = filter.Sex,
                 FilterModeOfPayment = filter.FilterModeOfPayment,
-                // ── Age / Birthday ────────────────────────────────────────────
                 SpecificAge = filter.SpecificAge,
                 MilestoneYear = filter.MilestoneYear,
                 SpecificBirthday = filter.SpecificBirthday,
                 BirthdayFrom = filter.BirthdayFrom,
                 BirthdayTo = filter.BirthdayTo,
-                // ── Reference number ──────────────────────────────────────────
                 FilterQuarter = filter.FilterQuarter,
                 FilterBatch = filter.FilterBatch,
                 FilterRefYear = filter.FilterRefYear,
                 FilterRegionRoman = filter.FilterRegionRoman,
-                // ── Date Added ────────────────────────────────────────────────
                 DateAddedFrom = filter.DateAddedFrom,
                 DateAddedTo = filter.DateAddedTo,
-                // ── Deliberately excluded ─────────────────────────────────────
-                // LastName, FirstName, FullName, GeneralSearch, Validator, BatchCode
-                // are intentionally NOT copied — name filtering narrows the pool
-                // and would prevent cross-name duplicate detection
                 PageNumber = 1,
                 PageSize = int.MaxValue
             };
 
-            var candidates = await BuildBeneficiaryFilteredQuery(scanFilter)
-                        .Select(x => new
-                        {
-                            x.Beneficiary.Id,
-                            x.Beneficiary.FirstName,
-                            x.Beneficiary.LastName,
-                            x.Beneficiary.MiddleName,
-                            x.Beneficiary.BirthDate,
-                            x.Beneficiary.OscaIdNumber,
-                            x.Beneficiary.PaymentStatus,
-                            MunicipalityName = x.Municipality,
-                            BarangayName = x.Barangay
-                        })
-                        .Distinct()
-                        .ToListAsync(cancellationToken);
+            // ✅ CHANGED — use the NARROW, join-free query (BuildNarrowFilterQuery,
+            // an async Task<IQueryable<BeneficiaryInformation>> already built and
+            // used by the grid), not BuildBeneficiaryFilteredQuery. No joins at
+            // the SQL level at all — names resolved from the in-memory cache below.
+            var query = await BuildNarrowFilterQuery(scanFilter);
 
-            // ✅ Need at least 2 records to form a pair
+            var candidates = await query
+                .Select(b => new
+                {
+                    b.Id,
+                    b.FirstName,
+                    b.LastName,
+                    b.MiddleName,
+                    b.BirthDate,
+                    b.OscaIdNumber,
+                    b.PaymentStatus,
+                    b.Municipality,   // ✅ int PSGC code, not a joined name
+                    b.Barangay         // ✅ int PSGC code, not a joined name
+                })
+                .ToListAsync(cancellationToken);
+            // ✅ Distinct() removed — BuildNarrowFilterQuery has no joins capable
+            // of producing duplicate rows per beneficiary, so it's unnecessary here.
+
             if (candidates.Count < 2)
                 return new List<PossibleDuplicatePairDto>();
 
-            // ✅ Group by birth year — same optimization as before
-            // but now only operating on the already-filtered set
             var byBirthYear = candidates
                 .GroupBy(x => x.BirthDate.Year)
                 .Where(g => g.Count() > 1)
@@ -127,33 +126,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         var a = group[i];
                         var b = group[j];
 
-                        var pairKey = string.Join("|",
-                            new[] { a.Id, b.Id }.OrderBy(x => x));
+                        var pairKey = string.Join("|", new[] { a.Id, b.Id }.OrderBy(x => x));
                         if (!seen.Add(pairKey)) continue;
 
-                        // ── Gate 1: Birthdate window ──────────────────────────────
-                        var daysDiff = Math.Abs(
-                            (a.BirthDate - b.BirthDate).TotalDays);
+                        var daysDiff = Math.Abs((a.BirthDate - b.BirthDate).TotalDays);
                         if (daysDiff > 365) continue;
 
-                        // ── Gate 2: Last name ─────────────────────────────────────
-                        var lastNameScore = ComputeNameSimilarity(
-                            a.LastName?.Trim(), b.LastName?.Trim());
+                        var lastNameScore = ComputeNameSimilarity(a.LastName?.Trim(), b.LastName?.Trim());
                         if (lastNameScore < 0.60) continue;
 
-                        // ── Gate 3: First name ────────────────────────────────────
-                        var firstNameScore = ComputeNameSimilarity(
-                            a.FirstName?.Trim(), b.FirstName?.Trim());
+                        var firstNameScore = ComputeNameSimilarity(a.FirstName?.Trim(), b.FirstName?.Trim());
                         if (firstNameScore < 0.60) continue;
 
-                        // ── Gate 4: Middle name analysis ──────────────────────────
                         bool aHasMiddle = !string.IsNullOrWhiteSpace(a.MiddleName);
                         bool bHasMiddle = !string.IsNullOrWhiteSpace(b.MiddleName);
-                        bool bothHaveMiddle = aHasMiddle && bHasMiddle;
                         bool neitherHas = !aHasMiddle && !bHasMiddle;
                         bool oneHas = aHasMiddle ^ bHasMiddle;
 
-                        double middleScore = 1.0;
+                        double middleScore;
                         MiddleNameStatus middleStatus;
 
                         if (neitherHas)
@@ -168,9 +158,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         }
                         else
                         {
-                            middleScore = ComputeNameSimilarity(
-                                a.MiddleName!.Trim(), b.MiddleName!.Trim());
-
+                            middleScore = ComputeNameSimilarity(a.MiddleName!.Trim(), b.MiddleName!.Trim());
                             middleStatus = middleScore >= 0.75
                                 ? MiddleNameStatus.Similar
                                 : middleScore >= 0.40
@@ -178,40 +166,36 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                                     : MiddleNameStatus.Conflicting;
                         }
 
-                        // ── Weighted final score ──────────────────────────────────
                         double finalScore = neitherHas || oneHas
                             ? (lastNameScore * 0.50) + (firstNameScore * 0.50)
-                            : (lastNameScore * 0.40) + (firstNameScore * 0.40)
-                                + (middleScore * 0.20);
+                            : (lastNameScore * 0.40) + (firstNameScore * 0.40) + (middleScore * 0.20);
 
-                        // ✅ Force flag exact first+last with conflicting middle
-                        bool firstLastExact = lastNameScore >= 0.99
-                                           && firstNameScore >= 0.99;
+                        bool firstLastExact = lastNameScore >= 0.99 && firstNameScore >= 0.99;
 
                         if (firstLastExact && middleStatus == MiddleNameStatus.Conflicting)
                             finalScore = Math.Max(finalScore, 0.80);
 
                         if (finalScore < 0.75) continue;
 
-                        var reason = BuildDuplicateReason(
-                            firstLastExact, middleStatus, daysDiff,
-                            a.MiddleName, b.MiddleName);
+                        var reason = BuildDuplicateReason(firstLastExact, middleStatus, daysDiff, a.MiddleName, b.MiddleName);
 
+                        // ✅ Names resolved from the in-memory PSGC cache — zero
+                        // additional SQL cost, same pattern your grid already uses.
                         pairs.Add(new PossibleDuplicatePairDto
                         {
                             Record1Id = a.Id,
                             Record1FullName = FormatDuplicateName(a.LastName, a.FirstName, a.MiddleName),
                             Record1BirthDate = a.BirthDate.ToString("MMMM dd, yyyy"),
-                            Record1Municipality = a.MunicipalityName ?? string.Empty,
-                            Record1Barangay = a.BarangayName ?? string.Empty,
+                            Record1Municipality = _psgcNameCache.GetMunicipalityName(a.Municipality) ?? string.Empty,
+                            Record1Barangay = _psgcNameCache.GetBarangayName(a.Barangay) ?? string.Empty,
                             Record1OscaId = a.OscaIdNumber ?? string.Empty,
                             Record1PaymentStatus = a.PaymentStatus,
 
                             Record2Id = b.Id,
                             Record2FullName = FormatDuplicateName(b.LastName, b.FirstName, b.MiddleName),
                             Record2BirthDate = b.BirthDate.ToString("MMMM dd, yyyy"),
-                            Record2Municipality = b.MunicipalityName ?? string.Empty,
-                            Record2Barangay = b.BarangayName ?? string.Empty,
+                            Record2Municipality = _psgcNameCache.GetMunicipalityName(b.Municipality) ?? string.Empty,
+                            Record2Barangay = _psgcNameCache.GetBarangayName(b.Barangay) ?? string.Empty,
                             Record2OscaId = b.OscaIdNumber ?? string.Empty,
                             Record2PaymentStatus = b.PaymentStatus,
 
@@ -223,13 +207,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
 
         Done:
-            return pairs
-                .OrderByDescending(x => x.MatchScore)
-                .ToList();
-            // ✅ No extra muni/barangay batch queries needed
-            // BuildBeneficiaryFilteredQuery already joins them via x.Municipality / x.Barangay
+            return pairs.OrderByDescending(x => x.MatchScore).ToList();
         }
-
         public async Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365)
         {
             // ✅ Guard: if either name is missing there is nothing meaningful to compare
@@ -1873,20 +1852,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
                 query = query.Where(b => b.Region == filter.PsgcCodeRegion.Value);
 
-            if (filter.PsgcCodeProvince.HasValue)
-                query = query.Where(b => b.Province == filter.PsgcCodeProvince.Value);
+            // ── Province (multi-select) ──────────────────────────────────────────
+            if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+                query = query.Where(b => filter.PsgcCodeProvinces.Contains(b.Province));
 
-            if (filter.PsgcCodeMunicipality.HasValue)
-                query = query.Where(b => b.Municipality == filter.PsgcCodeMunicipality.Value);
+            // ── Municipality (multi-select) ──────────────────────────────────────
+            if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+                query = query.Where(b => filter.PsgcCodeMunicipalities.Contains(b.Municipality));
 
             if (filter.PsgcCodeBarangay.HasValue)
                 query = query.Where(b => b.Barangay == filter.PsgcCodeBarangay.Value);
 
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(b => b.Sex == filter.Sex.Value);
-
-            if (filter.PaymentStatus.HasValue && filter.PaymentStatus.Value >= 0)
-                query = query.Where(b => b.PaymentStatus == filter.PaymentStatus.Value);
+            // ── Payment Status (multi-select) ────────────────────────────────────
+            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+                query = query.Where(b => filter.PaymentStatuses.Contains(b.PaymentStatus));
 
             if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
                 query = query.Where(b => b.ModeOfPayment == filter.FilterModeOfPayment.Value);

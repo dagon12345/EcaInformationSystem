@@ -3617,16 +3617,33 @@ namespace EcaInformationSystem.Application.Services
                 filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
                 filter.PageNumber.ToString(),
                 filter.PageSize.ToString(),
-                filter.PsgcCodeProvince.ToString() ?? CommonConstants.Null,
-                filter.PsgcCodeMunicipality.ToString() ?? CommonConstants.Null,
-                filter.PsgcCodeBarangays.ToString() ?? CommonConstants.Null,
+
+                // ✅ FIXED — properly serialize the actual multi-select contents,
+                // sorted so the same set of IDs always produces the same key
+                // regardless of selection order.
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+                    ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x))
+                    : CommonConstants.Null,
+
+                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+                    ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x))
+                    : CommonConstants.Null,
+
+                filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,  // ✅ this one IS still single-select, per your design — int?.ToString() is fine here
+
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,
                 filter.Validator ?? string.Empty,
                 filter.BatchCode ?? string.Empty,
                 filter.Sex != null ? filter.Sex : CommonConstants.Null,
-                filter.PaymentStatus != null ? filter.PaymentStatus : CommonConstants.Null,
+
+                // ✅ FIXED — PaymentStatus is also now multi-select; this key needs
+                // to reflect PaymentStatuses (plural), not the dead singular field
+                (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+                    ? string.Join(",", filter.PaymentStatuses.OrderBy(x => x))
+                    : CommonConstants.Null,
+
                 filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
                 filter.SpecificAge?.ToString() ?? CommonConstants.Null,
                 filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
@@ -3636,16 +3653,12 @@ namespace EcaInformationSystem.Application.Services
                 filter.PaymentDateFrom?.ToFullDate() ?? CommonConstants.Null,
                 filter.PaymentDateTo?.ToFullDate() ?? CommonConstants.Null,
                 filter.FindingStatus != null ? filter.FindingStatus : CommonConstants.Null,
-                //Sort params added
                 filter.SortColumn ?? CommonConstants.Default,
                 filter.SortAscending.ToString(),
-                //Compliance
                 filter.IsCompliant != null ? filter.IsCompliant.ToString() : CommonConstants.Null,
                 filter.ComplianceMode ?? CommonConstants.Null,
-                //Eligibility
                 filter.IsEligible != null ? filter.IsEligible.ToString() : CommonConstants.Null,
                 filter.EligibilityMode ?? CommonConstants.Null,
-                //General
                 filter.GeneralSearch ?? string.Empty,
                 filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
@@ -3653,7 +3666,6 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
-                // Add at the end of the string.Join(...) list
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null
             );
@@ -3804,7 +3816,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.Sex != null ? filter.Sex : CommonConstants.Null,
-                filter.PaymentStatus != null ? filter.PaymentStatus : CommonConstants.Null,
+                (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+                    ? string.Join(",", filter.PaymentStatuses.OrderBy(x => x))
+                        : CommonConstants.Null,
                 filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
                 filter.SpecificAge?.ToString() ?? CommonConstants.Null,
                 filter.MilestoneYear?.ToString() ?? CommonConstants.Null,

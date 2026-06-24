@@ -34,6 +34,8 @@
         public List<int> PsgcCodeMunicipalities { get; set; } = new();
         public List<int> PsgcCodeBarangays { get; set; } = new();
 
+        public List<int> PaymentStatuses { get; set; } = new();
+
         public DateTime? PaymentDateFrom { get; set; }
         public DateTime? PaymentDateTo { get; set; }
         // Add these alongside your existing PaymentDateFrom/PaymentDateTo
