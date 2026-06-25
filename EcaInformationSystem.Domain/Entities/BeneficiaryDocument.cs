@@ -7,6 +7,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string FileName { get; set; } = string.Empty;
         public string OriginalFileName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
+        public byte[]? FileData { get; set; }
         public long FileSizeBytes { get; set; }
         public long OriginalFileSizeBytes { get; set; }
         public string ContentType { get; set; } = "application/pdf";

@@ -3,7 +3,6 @@ using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -11,18 +10,15 @@ namespace EcaInformationSystem.Application.Services
     {
         private readonly IBeneficiaryDocumentRepository _repo;
         private readonly IPdfCompressionService _compression;
-        private readonly IConfiguration _config;
         private readonly ILogRepository _logRepository;
 
         public BeneficiaryDocumentService(
             IBeneficiaryDocumentRepository repo,
             IPdfCompressionService compression,
-            IConfiguration config,
             ILogRepository logRepository)
         {
             _repo = repo;
             _compression = compression;
-            _config = config;
             _logRepository = logRepository;
         }
 
@@ -32,14 +28,6 @@ namespace EcaInformationSystem.Application.Services
             string userName)
         {
             var results = new List<BeneficiaryDocumentDto>();
-
-            var rootPath = _config["Storage:DocumentPath"]
-                ?? Path.Combine(Directory.GetCurrentDirectory(), "Documents");
-
-            // ✅ Per-beneficiary subfolder — keeps files organized
-            // e.g. \\REDACTED_INTERNAL_IP\EcaresDocuments\33cade31-ae05-42c8-8c0f-6018bc94f584\
-            var storagePath = Path.Combine(rootPath, beneficiaryId.ToString());
-            Directory.CreateDirectory(storagePath);
 
             foreach (var file in files)
             {
@@ -70,8 +58,6 @@ namespace EcaInformationSystem.Application.Services
                     : originalBytes;
 
                 var uniqueName = $"{Guid.NewGuid():N}.pdf";
-                var filePath = Path.Combine(storagePath, uniqueName);
-                await File.WriteAllBytesAsync(filePath, finalBytes);
 
                 var document = new BeneficiaryDocument
                 {
@@ -79,7 +65,7 @@ namespace EcaInformationSystem.Application.Services
                     BeneficiaryInformationId = beneficiaryId,
                     FileName = uniqueName,
                     OriginalFileName = file.FileName,
-                    FilePath = filePath,
+                    FileData = finalBytes,
                     FileSizeBytes = finalBytes.Length,
                     OriginalFileSizeBytes = originalBytes.Length,
                     ContentType = "application/pdf",
@@ -91,7 +77,6 @@ namespace EcaInformationSystem.Application.Services
                 await _repo.AddAsync(document);
                 await _repo.SaveChangesAsync();
 
-                // ✅ Log the upload
                 await AddLogAsync(
                     beneficiaryId,
                     $"Document uploaded: '{file.FileName}' " +
@@ -117,17 +102,13 @@ namespace EcaInformationSystem.Application.Services
         public async Task<(byte[] Bytes, string FileName)> DownloadAsync(
             Guid documentId)
         {
-
             var document = await _repo.GetByIdAsync(documentId)
                 ?? throw new Exception("Document not found.");
 
-            var path = document.FilePath;
+            if (document.FileData is null || document.FileData.Length == 0)
+                throw new Exception("Document data is missing or empty.");
 
-            if (!File.Exists(path))
-                throw new Exception("File not found on server.");
-
-            var bytes = await File.ReadAllBytesAsync(path);
-            return (bytes, document.OriginalFileName);
+            return (document.FileData, document.OriginalFileName);
         }
 
         public async Task SoftDeleteAsync(Guid documentId, string userName)
@@ -136,9 +117,8 @@ namespace EcaInformationSystem.Application.Services
          ?? throw new Exception("Document not found.");
 
             doc.IsDeleted = true;
-            await _repo.UpdateAsync(doc); // ✅ mark entity as modified
+            await _repo.UpdateAsync(doc);
 
-            // ✅ Log the deletion
             await AddLogAsync(
                 doc.BeneficiaryInformationId,
                 $"Document deleted: '{doc.OriginalFileName}' ({FormatSize(doc.FileSizeBytes)})",
@@ -158,7 +138,6 @@ namespace EcaInformationSystem.Application.Services
             UploadedAt = doc.UploadedAt,
             UploadedBy = doc.UploadedBy,
 
-            // ✅ These are used in the razor component
             FileSizeDisplay = FormatSize(doc.FileSizeBytes),
             CompressionDisplay = doc.OriginalFileSizeBytes > 0 && doc.FileSizeBytes < doc.OriginalFileSizeBytes
                 ? $"{(int)(100 - (doc.FileSizeBytes * 100.0 / doc.OriginalFileSizeBytes))}% smaller"
@@ -171,7 +150,7 @@ namespace EcaInformationSystem.Application.Services
             < 1048576 => $"{bytes / 1024.0:F1} KB",
             _ => $"{bytes / 1048576.0:F1} MB"
         };
-        // ✅ Add this private helper — same pattern as BeneficiaryInformationService
+
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)
         {
             var log = new Log
