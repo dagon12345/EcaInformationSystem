@@ -81,16 +81,15 @@ namespace EcaInformationSystem.Api.Controllers
 
         // ── Delete — all roles (document delete is allowed for PDO and Viewer too) ─
         [HttpDelete("delete/{documentId:guid}")]
-        [Authorize(Policy = "AdminOrPDO")] // Admin and PDO can edit but the PDO have jurisdiction restrictions
-        public async Task<IActionResult> Delete(Guid documentId, [FromBody] BeneficiaryInformationDto dto)
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> Delete(Guid documentId, [FromQuery] int psgcCodeMunicipality)
         {
             try
             {
                 var userName = User.Identity?.Name ?? "System";
                 var role = User.GetRole();
 
-                //Jurisdiction check
-                var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, dto.PsgcCodeMunicipality);
+                var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, psgcCodeMunicipality);
 
                 if (jurisdictionError is not null)
                     return StatusCode(403, jurisdictionError);

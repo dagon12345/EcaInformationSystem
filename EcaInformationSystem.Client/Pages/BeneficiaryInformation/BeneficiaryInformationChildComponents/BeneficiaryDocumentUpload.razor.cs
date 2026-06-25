@@ -39,6 +39,7 @@ public partial class BeneficiaryDocumentUpload
     // better: emit an event to the parent to hide the offcanvas
 
     [Parameter] public EventCallback OnRequestHideOffcanvas { get; set; }
+    [Parameter] public int PsgcCodeMunicipality { get; set; }
     // ✅ Add this to read the JWT token
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     // ✅ Stores the blob URL for the iframe so it can be revoked later
@@ -112,7 +113,7 @@ public partial class BeneficiaryDocumentUpload
             StateHasChanged();
 
             var response = await Http.DeleteAsync(
-                $"{ApiBase}/api/beneficiary-documents/delete/{_docToDelete.Id}");
+                $"{ApiBase}/api/beneficiary-documents/delete/{_docToDelete.Id}?psgcCodeMunicipality={PsgcCodeMunicipality}");
 
             if (response.IsSuccessStatusCode)
             {
