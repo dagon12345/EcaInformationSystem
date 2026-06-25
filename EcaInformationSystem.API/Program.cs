@@ -1,7 +1,7 @@
 using EcaInformationSystem.Api.BackgroundServices;
 using EcaInformationSystem.Application;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Infrastructure;
-using EcaInformationSystem.Infrastructure.Caching;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;

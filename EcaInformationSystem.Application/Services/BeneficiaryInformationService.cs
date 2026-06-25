@@ -25,10 +25,12 @@ namespace EcaInformationSystem.Application.Services
         private readonly IMemoryCache _memoryCache;
         private readonly IPayrollJobTracker _payrollJobTracker;
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
+        private readonly IPsgcNameCache _psgcNameCache;
         private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
-            , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
-            ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker, IBackgroundTaskQueue backgroundTaskQueue)
+    , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
+    ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker,
+    IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache) // ✅ ADDED psgcNameCache
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -39,6 +41,7 @@ namespace EcaInformationSystem.Application.Services
             _memoryCache = memoryCache;
             _payrollJobTracker = payrollJobTracker;
             _backgroundTaskQueue = backgroundTaskQueue;
+            _psgcNameCache = psgcNameCache; // ✅ ADDED
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
@@ -292,63 +295,51 @@ namespace EcaInformationSystem.Application.Services
             ws.PageSetup.Margins.Footer = 0.5; // inches — footer distance from bottom edge
 
         }
-        // Application/Services/BeneficiaryInformationService.cs
+        // In BeneficiaryInformationService.cs - Update GetPossibleDuplicatesAsync
 
-        public async Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(
-            BeneficiaryFilterDto filter)
+        public async Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(BeneficiaryFilterDto filter)
         {
-            // ✅ Dedicated cache key — explicitly lists every field
-            // that affects what records the scan sees
-            // Any filter change produces a different key
             var cacheKey = BuildDuplicateScanCacheKey(filter);
 
-            if (_memoryCache.TryGetValue(
-                    cacheKey, out PossibleDuplicateSummaryDto? cached)
-                && cached is not null)
+            if (_memoryCache.TryGetValue(cacheKey, out PossibleDuplicateSummaryDto? cached) && cached is not null)
                 return cached;
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
             List<PossibleDuplicatePairDto> pairs;
+            bool timedOut = false;
 
             try
             {
-                pairs = await _repo.FindAllPossibleDuplicatesAsync(
-                    filter,
-                    maxPairs: 50,
-                    cancellationToken: cts.Token);
+                pairs = await _repo.FindAllPossibleDuplicatesAsync(filter, maxPairs: 50, cancellationToken: cts.Token);
             }
             catch (OperationCanceledException)
             {
-                var empty = new PossibleDuplicateSummaryDto
-                {
-                    TotalPairs = 0,
-                    Pairs = new List<PossibleDuplicatePairDto>(),
-                    TimedOut = true
-                };
-
-                // ✅ Short cache on timeout so user can retry quickly
-                _memoryCache.Set(cacheKey, empty, TimeSpan.FromMinutes(1));
-                return empty;
+                pairs = new List<PossibleDuplicatePairDto>();
+                timedOut = true;
             }
+
+            var description = BuildFilterDescription(filter);
 
             var summary = new PossibleDuplicateSummaryDto
             {
                 TotalPairs = pairs.Count,
                 Pairs = pairs,
-                TimedOut = false
+                TimedOut = timedOut,
+                FilterDescription = description
             };
 
-            _memoryCache.Set(cacheKey, summary,
-                new MemoryCacheEntryOptions
+            if (!timedOut)
+            {
+                _memoryCache.Set(cacheKey, summary, new MemoryCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
                     SlidingExpiration = TimeSpan.FromMinutes(3)
                 });
+            }
 
             return summary;
         }
-
         private string BuildDuplicateScanCacheKey(BeneficiaryFilterDto f)
         {
             var version = _memoryCache.GetOrCreate(
@@ -360,20 +351,24 @@ namespace EcaInformationSystem.Application.Services
                 })!;
 
             static string N(object? v) => v?.ToString() ?? "null";
+            static string ListN<T>(List<T>? list) => list != null && list.Any()
+                ? string.Join(",", list.OrderBy(x => x))
+                : "null";
 
             return string.Join("|",
                 "dup_scan",
                 version,
                 // ── Location ──────────────────────────────────────────────────
                 N(f.PsgcCodeRegion),
-                N(f.PsgcCodeProvince),
-                N(f.PsgcCodeMunicipality),
+                ListN(f.PsgcCodeProvinces),      // ✅ FIX: Use the list
+                ListN(f.PsgcCodeMunicipalities), // ✅ FIX: Use the list
                 N(f.PsgcCodeBarangay),
-                // ✅ No name fields — excluded from scan scope
-                N(f.Validator),
-                N(f.BatchCode),
-                // ── Status ────────────────────────────────────────────────────
-                N(f.PaymentStatus),
+                // ── Name filters ─────────────────────────────────────────────
+                N(f.LastName),                   // ✅ ADDED
+                N(f.FirstName),                  // ✅ ADDED
+                N(f.FullName),                   // ✅ ADDED
+                                                 // ── Status ────────────────────────────────────────────────────
+                ListN(f.PaymentStatuses),        // ✅ FIX: Use the list
                 N(f.PaymentDate),
                 N(f.PaymentDateFrom),
                 N(f.PaymentDateTo),
@@ -397,7 +392,11 @@ namespace EcaInformationSystem.Application.Services
                 N(f.FilterRefYear),
                 N(f.FilterRegionRoman),
                 N(f.DateAddedFrom),
-                N(f.DateAddedTo)
+                N(f.DateAddedTo),
+                // ── Other ─────────────────────────────────────────────────────
+                N(f.Validator),
+                N(f.BatchCode),
+                N(f.GeneralSearch)               // ✅ ADDED - CRITICAL!
             );
         }
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
@@ -568,8 +567,6 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter)
         {
-            filter.PsgcCodeRegion = CaragaEnum.DefaultRegionCode;
-
             var cacheKey = BuildSummaryCacheKey(filter);
             if (_memoryCache.TryGetValue(cacheKey, out BeneficiarySummaryResultDto? cachedSummary)
                 && cachedSummary is not null)
@@ -3496,14 +3493,6 @@ namespace EcaInformationSystem.Application.Services
 
             return pagedResult;
         }
-        // WHY THIS IS SEPARATE FROM GetPossibleDuplicatesAsync:
-        // That method's cache key is built FROM the filter — every distinct filter
-        // combination gets its own cache entry, which is correct for "scan what
-        // I'm currently looking at." This method is filter-INDEPENDENT by design:
-        // one cache entry, system-wide, representing "are there any possible
-        // duplicates anywhere in the active (non-deleted) dataset right now."
-        // That's what a navbar bell should reflect — not whatever the user
-        // happens to have filtered on the grid page at this moment.
         public async Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync()
         {
             if (_memoryCache.TryGetValue(GlobalDuplicateScanCacheKey, out PossibleDuplicateSummaryDto? cached) && cached is not null)
@@ -3559,13 +3548,128 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
-        // Rough but reliable estimate: Excel's "column width units" approximate
-        // the number of default-font characters that fit, plus a little padding.
-        // Bold currency text needs slightly more room per character than this
-        // naive 1:1 mapping, so we apply a small multiplier calibrated against
-        // what you've already observed empirically in this codebase (e.g. your
-        // earlier fix doubling the No. column from 5.0 to 9.0 for 3-digit numbers
-        // roughly matches a ~1.1x-per-character correction factor for bold text).
+        private string BuildFilterDescription(BeneficiaryFilterDto filter)
+        {
+            var parts = new List<string>();
+
+            if (filter.PsgcCodeRegion.HasValue)
+            {
+                var name = _psgcNameCache.GetRegionName(filter.PsgcCodeRegion.Value) ?? filter.PsgcCodeRegion.Value.ToString();
+                parts.Add($"Region: {name}");
+            }
+            if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+            {
+                var names = filter.PsgcCodeProvinces.Select(p => _psgcNameCache.GetProvinceName(p) ?? p.ToString());
+                parts.Add($"Provinces: {string.Join(", ", names)}");
+            }
+            if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+            {
+                var names = filter.PsgcCodeMunicipalities.Select(m => _psgcNameCache.GetMunicipalityName(m) ?? m.ToString());
+                parts.Add($"Municipalities: {string.Join(", ", names)}");
+            }
+            if (filter.PsgcCodeBarangay.HasValue)
+            {
+                var name = _psgcNameCache.GetBarangayName(filter.PsgcCodeBarangay.Value) ?? filter.PsgcCodeBarangay.Value.ToString();
+                parts.Add($"Barangay: {name}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.FullName))
+                parts.Add($"Name: {filter.FullName}");
+            else
+            {
+                if (!string.IsNullOrWhiteSpace(filter.LastName))
+                    parts.Add($"Last: {filter.LastName}");
+                if (!string.IsNullOrWhiteSpace(filter.FirstName))
+                    parts.Add($"First: {filter.FirstName}");
+            }
+
+            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+                parts.Add($"Payment: {string.Join(", ", filter.PaymentStatuses.Select(GetPaymentStatusLabelForDescription))}");
+            if (filter.IsEligible.HasValue)
+                parts.Add($"Eligible: {(filter.IsEligible.Value ? "Yes" : "No")}");
+            if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
+                parts.Add($"Eligibility: {filter.EligibilityMode}");
+            if (filter.IsCompliant.HasValue)
+                parts.Add($"Compliant: {(filter.IsCompliant.Value ? "Yes" : "No")}");
+            if (!string.IsNullOrWhiteSpace(filter.ComplianceMode))
+                parts.Add($"Compliance: {filter.ComplianceMode}");
+            if (filter.Sex.HasValue)
+                parts.Add($"Sex: {(filter.Sex.Value == 1 ? "Male" : "Female")}");
+            if (filter.CoStatus.HasValue)
+                parts.Add($"CO Status: {CoStatusLabel(filter.CoStatus.Value)}");
+            if (filter.FindingStatus.HasValue && filter.FindingStatus != 3)
+                parts.Add($"Findings: {GetFindingStatusLabelForDescription(filter.FindingStatus.Value)}");
+            if (filter.FilterModeOfPayment.HasValue)
+                parts.Add($"Mode of Payment: {GetModeOfPaymentLabelForDescription(filter.FilterModeOfPayment.Value)}");
+
+            if (filter.SpecificAge.HasValue)
+                parts.Add($"Age: {filter.SpecificAge}");
+            if (filter.MilestoneYear.HasValue)
+                parts.Add($"Milestone: {filter.MilestoneYear}");
+            if (filter.SpecificBirthday.HasValue)
+                parts.Add($"Birthday: {filter.SpecificBirthday:MMM dd}");
+            if (filter.BirthdayFrom.HasValue || filter.BirthdayTo.HasValue)
+            {
+                var from = filter.BirthdayFrom?.ToString("MMM dd") ?? "any";
+                var to = filter.BirthdayTo?.ToString("MMM dd") ?? "any";
+                parts.Add($"Birthday Range: {from} - {to}");
+            }
+
+            if (filter.FilterQuarter.HasValue)
+                parts.Add($"Quarter: Q{filter.FilterQuarter}");
+            if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
+                parts.Add($"Batch: {filter.FilterBatch}");
+            if (filter.FilterRefYear.HasValue)
+                parts.Add($"Year: {filter.FilterRefYear}");
+            if (!string.IsNullOrWhiteSpace(filter.FilterRegionRoman))
+                parts.Add($"Region: {filter.FilterRegionRoman}");
+
+            if (filter.PaymentDateFrom.HasValue || filter.PaymentDateTo.HasValue)
+            {
+                var from = filter.PaymentDateFrom?.ToShortDateString() ?? "any";
+                var to = filter.PaymentDateTo?.ToShortDateString() ?? "any";
+                parts.Add($"Payment Date: {from} - {to}");
+            }
+            if (filter.DateAddedFrom.HasValue || filter.DateAddedTo.HasValue)
+            {
+                var from = filter.DateAddedFrom?.ToShortDateString() ?? "any";
+                var to = filter.DateAddedTo?.ToShortDateString() ?? "any";
+                parts.Add($"Date Added: {from} - {to}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Validator))
+                parts.Add($"Validator: {filter.Validator}");
+            if (!string.IsNullOrWhiteSpace(filter.BatchCode))
+                parts.Add($"Batch Code: {filter.BatchCode}");
+            if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
+                parts.Add($"Search: {filter.GeneralSearch}");
+
+            return parts.Count > 0 ? string.Join(", ", parts) : "Full Dataset";
+        }
+
+        private static string GetFindingStatusLabelForDescription(int status) => status switch
+        {
+            0 => "N/A",
+            1 => "Solved",
+            2 => "Unresolved",
+            _ => status.ToString()
+        };
+
+        private static string GetModeOfPaymentLabelForDescription(int mode) => mode switch
+        {
+            1 => "Cash Advance",
+            2 => "Bank Transfer",
+            _ => mode.ToString()
+        };
+
+        private static string GetPaymentStatusLabelForDescription(int status) => status switch
+        {
+            0 => "N/A",
+            1 => "Unpaid",
+            2 => "Paid",
+            3 => "Pending",
+            _ => status.ToString()
+        };
         private static double EstimateTextWidth(string text, int fontSize)
         {
             if (string.IsNullOrEmpty(text)) return 0;

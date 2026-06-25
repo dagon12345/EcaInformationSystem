@@ -1,4 +1,4 @@
-namespace EcaInformationSystem.Infrastructure.Caching
+namespace EcaInformationSystem.Application.Interfaces
 {
     public interface IPsgcNameCache
     {
@@ -6,8 +6,6 @@ namespace EcaInformationSystem.Infrastructure.Caching
         string? GetProvinceName(int code);
         string? GetMunicipalityName(int code);
         string? GetBarangayName(int code);
-        // Infrastructure/Caching/IPsgcNameCache.cs
-        // Add these four methods to the interface.
 
         List<int> GetProvinceCodesByNameContains(string term);
         List<int> GetMunicipalityCodesByNameContains(string term);

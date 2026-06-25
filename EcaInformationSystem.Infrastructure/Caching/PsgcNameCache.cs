@@ -1,15 +1,4 @@
-// WHY THIS EXISTS:
-// BuildBeneficiaryFilteredQuery currently joins Region, Province,
-// Municipality, and Barangay via LEFT JOIN for EVERY grid query, purely to
-// resolve integer PSGC codes into display names. These are reference
-// tables — a few thousand rows total across all four, essentially
-// never written to after initial seeding. Paying a 4-table join cost on
-// every page load of a 5000-row result is waste that's easy to eliminate:
-// load these tables into memory once, resolve names in C# afterward.
-//
-// Registered as a Singleton — one shared cache for the whole app process,
-// refreshed on startup and periodically in the background.
-
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +41,7 @@ namespace EcaInformationSystem.Infrastructure.Caching
 
         public List<int> GetRegionCodesByNameContains(string term) =>
             _regions.Where(kv => kv.Value.ToLower().Contains(term)).Select(kv => kv.Key).ToList();
+
         public async Task RefreshAsync(CancellationToken ct = default)
         {
             await _refreshLock.WaitAsync(ct);
@@ -69,8 +59,6 @@ namespace EcaInformationSystem.Infrastructure.Caching
                 var barangays = await db.Barangays.AsNoTracking()
                     .Select(b => new { b.PsgcCodeBarangay, b.Name }).ToListAsync(ct);
 
-                // Build off to the side, then swap — never serves a
-                // half-populated cache mid-refresh to a concurrent request.
                 _regions = new ConcurrentDictionary<int, string>(
                     regions.Where(r => r.Name != null)
                            .Select(r => new KeyValuePair<int, string>(r.PsgcCodeRegion, r.Name!)));

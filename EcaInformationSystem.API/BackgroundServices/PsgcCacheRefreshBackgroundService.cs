@@ -1,4 +1,4 @@
-using EcaInformationSystem.Infrastructure.Caching;
+using EcaInformationSystem.Application.Interfaces;
 
 namespace EcaInformationSystem.Api.BackgroundServices
 {

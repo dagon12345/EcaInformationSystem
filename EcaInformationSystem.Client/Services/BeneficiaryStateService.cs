@@ -1,11 +1,18 @@
 ﻿using EcaInformationSystem.Shared.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Json;
 
 public class BeneficiaryStateService
 {
     private readonly HttpClient _http;
-    public BeneficiaryStateService(HttpClient http) => _http = http;
+    private readonly IMemoryCache _memoryCache;
+    // ✅ UPDATE CONSTRUCTOR
+    public BeneficiaryStateService(HttpClient http, IMemoryCache memoryCache)
+    {
+        _http = http;
+        _memoryCache = memoryCache;
+    }
 
     public bool HasActiveFilter { get; private set; } = false;
 
@@ -160,12 +167,12 @@ public class BeneficiaryStateService
         return string.Join("&", queryString);
     }
 
-    private void NotifyStateChanged() => OnChange?.Invoke();
+    public void NotifyStateChanged() => OnChange?.Invoke();
 
     // WHY: the bell badge needs the count; the grid's modal needs the full
     // Pairs list. Storing the full summary here means both read from the
     // SAME fetched data — one network call serves both.
-    public PossibleDuplicateSummaryDto? GlobalDuplicateSummary { get; private set; }
+    public PossibleDuplicateSummaryDto? GlobalDuplicateSummary { get; set; }
 
     public int DuplicatePairCount => GlobalDuplicateSummary?.TotalPairs ?? 0;
 
@@ -183,39 +190,6 @@ public class BeneficiaryStateService
 
     public bool IsFetchingGlobalDuplicateSummary { get; private set; }
     public bool ShouldAutoOpenDuplicateModal { get; set; }
-
-    // ✅ Kept for backward compatibility with any caller that still invokes
-    // this — but since HasFetchedGlobalDuplicateSummary is now computed,
-    // this just becomes "fetch once unless already fetched," same as before,
-    // without needing to manually flip a flag afterward.
-    public async Task EnsureGlobalDuplicateSummaryLoadedAsync(HttpClient http)
-    {
-        if (HasFetchedGlobalDuplicateSummary || IsFetchingGlobalDuplicateSummary)
-            return;
-
-        await RefreshGlobalDuplicateSummaryAsync(http);
-    }
-
-    public async Task RefreshGlobalDuplicateSummaryAsync(HttpClient http)
-    {
-        try
-        {
-            IsFetchingGlobalDuplicateSummary = true;
-            NotifyStateChanged();
-
-            GlobalDuplicateSummary = await http.GetFromJsonAsync<PossibleDuplicateSummaryDto>(
-                "api/beneficiary/global-duplicate-summary");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Global duplicate summary fetch failed: {ex.Message}");
-        }
-        finally
-        {
-            IsFetchingGlobalDuplicateSummary = false;
-            NotifyStateChanged();
-        }
-    }
 
     // ✅ Call this when the user logs OUT, so the NEXT login starts fresh
     // rather than carrying over a stale result from a previous session that
@@ -249,9 +223,532 @@ public class BeneficiaryStateService
         GridDataMayBeStale = true;
         NotifyStateChanged();
     }
+    // ✅ ADD THIS MISSING METHOD
+    // In BeneficiaryStateService.cs - Replace the BuildDuplicateScanCacheKey method
 
-    public void ClearGridDataStaleFlag()
+    private string BuildDuplicateScanCacheKey(BeneficiaryFilterDto f)
     {
-        GridDataMayBeStale = false;
+        static string N(object? v) => v?.ToString() ?? "null";
+
+        // ✅ REAL FIX: List<T>.ToString() returns the type name —
+        // "System.Collections.Generic.List`1[System.Int32]" — not the
+        // contents. That means EVERY non-empty list collapsed to the
+        // SAME string regardless of which IDs were inside it, so any
+        // two different multi-select selections (e.g. Surigao del Sur
+        // vs Agusan del Norte) produced an IDENTICAL cache key. The
+        // client's _memoryCache.TryGetValue() then returned whichever
+        // result was cached FIRST under that collapsed key, no matter
+        // what you actually selected afterward. This is why text boxes
+        // and single-selects worked fine (their .ToString() correctly
+        // reflects their value) but every multi-select field (Provinces,
+        // Municipalities, PaymentStatuses) was broken.
+        static string ListN<T>(List<T>? list) => list != null && list.Any()
+            ? string.Join(",", list.OrderBy(x => x))
+            : "null";
+
+        return string.Join("|",
+            "dup_scan_v4",  // ✅ Version bump — invalidates every cache entry
+                            // ever produced by the broken logic above, so old
+                            // poisoned entries can't be coincidentally hit.
+                            // ── Location ──────────────────────────────────────────────────
+            N(f.PsgcCodeRegion),
+            ListN(f.PsgcCodeProvinces),      // ✅ FIX: join actual contents
+            ListN(f.PsgcCodeMunicipalities), // ✅ FIX: join actual contents
+            N(f.PsgcCodeBarangay),
+            // ── Name filters ─────────────────────────────────────────────
+            N(f.LastName),
+            N(f.FirstName),
+            N(f.FullName),
+            // ── Status ────────────────────────────────────────────────────
+            ListN(f.PaymentStatuses),        // ✅ FIX: join actual contents
+            N(f.PaymentDate),
+            N(f.PaymentDateFrom),
+            N(f.PaymentDateTo),
+            N(f.IsEligible),
+            N(f.EligibilityMode),
+            N(f.IsCompliant),
+            N(f.ComplianceMode),
+            N(f.CoStatus),
+            N(f.FindingStatus),
+            N(f.Sex),
+            N(f.FilterModeOfPayment),
+            // ── Age / Birthday ────────────────────────────────────────────
+            N(f.SpecificAge),
+            N(f.MilestoneYear),
+            N(f.SpecificBirthday),
+            N(f.BirthdayFrom),
+            N(f.BirthdayTo),
+            // ── Reference number ──────────────────────────────────────────
+            N(f.FilterQuarter),
+            N(f.FilterBatch),
+            N(f.FilterRefYear),
+            N(f.FilterRegionRoman),
+            // ── Date Added ────────────────────────────────────────────────
+            N(f.DateAddedFrom),
+            N(f.DateAddedTo),
+            // ── Validator ──────────────────────────────────────────────────
+            N(f.Validator),
+            N(f.BatchCode),
+            // ── General Search ────────────────────────────────────────────
+            N(f.GeneralSearch)
+        );
     }
+    public List<DuplicateScanNotificationDto> DuplicateScanNotifications { get; private set; } = new();
+    public bool IsDuplicateScanInProgress { get; set; }
+    private readonly Queue<BeneficiaryFilterDto> _pendingScanQueue = new();
+    public event Action? OnDuplicateNotificationsChanged;
+    private void NotifyDuplicateNotificationsChanged() => OnDuplicateNotificationsChanged?.Invoke();
+    // Call this when a duplicate scan is triggered by a filter change
+    public async Task QueueDuplicateScanforFilterAsync(BeneficiaryFilterDto filter)
+    {
+        var snapshot = CloneFilter(filter);
+        // Create a notification entry immediately (loading state)
+        var notification = new DuplicateScanNotificationDto
+        {
+            Id = Guid.NewGuid(),
+            ScannedAt = DateTime.Now,
+            Filter = snapshot,
+            FilterDescription = BuildFilterDescription(snapshot),
+            IsLoading = true
+        };
+
+        DuplicateScanNotifications.Insert(0, notification); //Newest first
+        NotifyDuplicateNotificationsChanged();
+
+        //Queue the scan
+        _pendingScanQueue.Enqueue(snapshot);
+
+        //If no scan is in progress, start processing the queue
+        if (!IsDuplicateScanInProgress)
+        {
+            _ = ProcessDuplicateScanQueueAsync();
+
+        }
+
+    }
+    private static BeneficiaryFilterDto CloneFilter(BeneficiaryFilterDto f) => new()
+    {
+        PsgcCodeRegion = f.PsgcCodeRegion,
+        PsgcCodeProvinces = f.PsgcCodeProvinces?.ToList(),
+        PsgcCodeMunicipalities = f.PsgcCodeMunicipalities?.ToList(),
+        PsgcCodeBarangay = f.PsgcCodeBarangay,
+        LastName = f.LastName,
+        FirstName = f.FirstName,
+        FullName = f.FullName,
+        PaymentStatuses = f.PaymentStatuses?.ToList(),
+        PaymentDate = f.PaymentDate,
+        PaymentDateFrom = f.PaymentDateFrom,
+        PaymentDateTo = f.PaymentDateTo,
+        IsEligible = f.IsEligible,
+        EligibilityMode = f.EligibilityMode,
+        IsCompliant = f.IsCompliant,
+        ComplianceMode = f.ComplianceMode,
+        CoStatus = f.CoStatus,
+        FindingStatus = f.FindingStatus,
+        Sex = f.Sex,
+        FilterModeOfPayment = f.FilterModeOfPayment,
+        SpecificAge = f.SpecificAge,
+        MilestoneYear = f.MilestoneYear,
+        SpecificBirthday = f.SpecificBirthday,
+        BirthdayFrom = f.BirthdayFrom,
+        BirthdayTo = f.BirthdayTo,
+        FilterQuarter = f.FilterQuarter,
+        FilterBatch = f.FilterBatch,
+        FilterRefYear = f.FilterRefYear,
+        FilterRegionRoman = f.FilterRegionRoman,
+        DateAddedFrom = f.DateAddedFrom,
+        DateAddedTo = f.DateAddedTo,
+        Validator = f.Validator,
+        BatchCode = f.BatchCode,
+        GeneralSearch = f.GeneralSearch,
+        PageNumber = f.PageNumber,
+        PageSize = f.PageSize
+    };
+
+    private async Task ProcessDuplicateScanQueueAsync()
+    {
+        if (IsDuplicateScanInProgress) return;
+
+        IsDuplicateScanInProgress = true;
+        NotifyDuplicateNotificationsChanged();
+
+        try
+        {
+            while (_pendingScanQueue.Count > 0)
+            {
+                var filter = _pendingScanQueue.Dequeue();
+
+                // Find the corresponding notification
+                var notification = DuplicateScanNotifications
+                    .FirstOrDefault(n => n.IsLoading &&
+                        AreFiltersEquivalent(n.Filter, filter));
+
+                if (notification == null)
+                {
+                    notification = new DuplicateScanNotificationDto
+                    {
+                        Id = Guid.NewGuid(),
+                        ScannedAt = DateTime.Now,
+                        Filter = filter,
+                        FilterDescription = BuildFilterDescription(filter),
+                        IsLoading = true
+                    };
+                    DuplicateScanNotifications.Insert(0, notification);
+                    NotifyDuplicateNotificationsChanged();
+                }
+
+                try
+                {
+                    var cacheKey = BuildDuplicateScanCacheKey(filter);
+
+                    // Check cache first
+                    if (_memoryCache.TryGetValue(cacheKey, out PossibleDuplicateSummaryDto? cached) && cached is not null)
+                    {
+                        notification.Result = cached;
+                        notification.TotalPairs = cached.TotalPairs;
+                        notification.IsLoading = false;
+                        NotifyDuplicateNotificationsChanged();
+                        continue;
+                    }
+
+                    // ✅ FIX: Use PostAsJsonAsync with cancellation token
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+                    var response = await _http.PostAsJsonAsync("api/beneficiary/possible-duplicates", filter, cts.Token);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var result = await response.Content.ReadFromJsonAsync<PossibleDuplicateSummaryDto>();
+                        if (result != null)
+                        {
+                            notification.Result = result;
+                            notification.TotalPairs = result.TotalPairs;
+                            notification.IsLoading = false;
+
+                            _memoryCache.Set(cacheKey, result, new MemoryCacheEntryOptions
+                            {
+                                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                                SlidingExpiration = TimeSpan.FromMinutes(3)
+                            });
+                        }
+                    }
+                    else
+                    {
+                        notification.HasError = true;
+                        notification.ErrorMessage = $"Server error: {response.StatusCode}";
+                        notification.IsLoading = false;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    notification.HasError = true;
+                    notification.ErrorMessage = "The duplicate scan timed out. Please try again.";
+                    notification.IsLoading = false;
+                }
+                catch (Exception ex)
+                {
+                    notification.IsLoading = false;
+                    notification.HasError = true;
+                    notification.ErrorMessage = ex.Message;
+                }
+
+                NotifyDuplicateNotificationsChanged();
+            }
+        }
+        finally
+        {
+            IsDuplicateScanInProgress = false;
+            NotifyDuplicateNotificationsChanged();
+        }
+    }
+    // In BeneficiaryStateService.cs - Replace the AreFiltersEquivalent method
+
+    private bool AreFiltersEquivalent(BeneficiaryFilterDto a, BeneficiaryFilterDto b)
+    {
+        // Compare ALL filter properties that affect the scan
+        return
+            // Location
+            a.PsgcCodeRegion == b.PsgcCodeRegion &&
+            AreListsEqual(a.PsgcCodeProvinces, b.PsgcCodeProvinces) &&
+            AreListsEqual(a.PsgcCodeMunicipalities, b.PsgcCodeMunicipalities) &&
+            a.PsgcCodeBarangay == b.PsgcCodeBarangay &&
+
+            // Name filters
+            a.LastName == b.LastName &&
+            a.FirstName == b.FirstName &&
+            a.FullName == b.FullName &&
+
+            // Status
+            AreListsEqual(a.PaymentStatuses, b.PaymentStatuses) &&
+            a.PaymentDate == b.PaymentDate &&
+            a.PaymentDateFrom == b.PaymentDateFrom &&
+            a.PaymentDateTo == b.PaymentDateTo &&
+            a.IsEligible == b.IsEligible &&
+            a.EligibilityMode == b.EligibilityMode &&
+            a.IsCompliant == b.IsCompliant &&
+            a.ComplianceMode == b.ComplianceMode &&
+            a.CoStatus == b.CoStatus &&
+            a.FindingStatus == b.FindingStatus &&
+            a.Sex == b.Sex &&
+            a.FilterModeOfPayment == b.FilterModeOfPayment &&
+
+            // Age / Birthday
+            a.SpecificAge == b.SpecificAge &&
+            a.MilestoneYear == b.MilestoneYear &&
+            a.SpecificBirthday == b.SpecificBirthday &&
+            a.BirthdayFrom == b.BirthdayFrom &&
+            a.BirthdayTo == b.BirthdayTo &&
+
+            // Reference number
+            a.FilterQuarter == b.FilterQuarter &&
+            a.FilterBatch == b.FilterBatch &&
+            a.FilterRefYear == b.FilterRefYear &&
+            a.FilterRegionRoman == b.FilterRegionRoman &&
+
+            // Date Added
+            a.DateAddedFrom == b.DateAddedFrom &&
+            a.DateAddedTo == b.DateAddedTo &&
+
+            // Other
+            a.Validator == b.Validator &&
+            a.BatchCode == b.BatchCode &&
+            a.GeneralSearch == b.GeneralSearch;
+    }
+
+    // Helper method to compare lists
+    private bool AreListsEqual<T>(List<T>? a, List<T>? b)
+    {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        if (a.Count != b.Count) return false;
+        return a.OrderBy(x => x).SequenceEqual(b.OrderBy(x => x));
+    }
+    // In BeneficiaryStateService.cs - Update BuildFilterDescription
+
+    private string BuildFilterDescription(BeneficiaryFilterDto filter)
+    {
+        var parts = new List<string>();
+
+        // ── Location ──────────────────────────────────────────────────────────────
+        if (filter.PsgcCodeRegion.HasValue)
+        {
+            var regionName = GetRegionName(filter.PsgcCodeRegion.Value);
+            parts.Add($"Region: {regionName}");
+        }
+        if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+        {
+            var names = filter.PsgcCodeProvinces
+                .Select(p => GetProvinceName(p))
+                .Where(n => !string.IsNullOrEmpty(n));
+            parts.Add($"Provinces: {string.Join(", ", names)}");
+        }
+        if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+        {
+            var names = filter.PsgcCodeMunicipalities
+                .Select(m => GetMunicipalityName(m))
+                .Where(n => !string.IsNullOrEmpty(n));
+            parts.Add($"Municipalities: {string.Join(", ", names)}");
+        }
+        if (filter.PsgcCodeBarangay.HasValue)
+        {
+            var barangayName = GetBarangayName(filter.PsgcCodeBarangay.Value);
+            parts.Add($"Barangay: {barangayName}");
+        }
+
+        // ── Name filters ──────────────────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(filter.FullName))
+            parts.Add($"Name: {filter.FullName}");
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(filter.LastName))
+                parts.Add($"Last: {filter.LastName}");
+            if (!string.IsNullOrWhiteSpace(filter.FirstName))
+                parts.Add($"First: {filter.FirstName}");
+        }
+
+        // ── Status filters ───────────────────────────────────────────────────────
+        if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
+        {
+            var labels = filter.PaymentStatuses.Select(GetPaymentStatusLabel);
+            parts.Add($"Payment: {string.Join(", ", labels)}");
+        }
+        if (filter.IsEligible.HasValue)
+            parts.Add($"Eligible: {(filter.IsEligible.Value ? "Yes" : "No")}");
+        if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
+            parts.Add($"Eligibility: {filter.EligibilityMode}");
+        if (filter.IsCompliant.HasValue)
+            parts.Add($"Compliant: {(filter.IsCompliant.Value ? "Yes" : "No")}");
+        if (!string.IsNullOrWhiteSpace(filter.ComplianceMode))
+            parts.Add($"Compliance: {filter.ComplianceMode}");
+        if (filter.Sex.HasValue)
+            parts.Add($"Sex: {(filter.Sex.Value == 1 ? "Male" : "Female")}");
+        if (filter.CoStatus.HasValue)
+            parts.Add($"CO Status: {GetCoStatusLabel(filter.CoStatus.Value)}");
+        if (filter.FindingStatus.HasValue && filter.FindingStatus != 3)
+            parts.Add($"Findings: {GetFindingStatusLabel(filter.FindingStatus.Value)}");
+        if (filter.FilterModeOfPayment.HasValue)
+            parts.Add($"Mode of Payment: {GetModeOfPaymentLabel(filter.FilterModeOfPayment.Value)}");
+
+        // ── Age & Birthday ──────────────────────────────────────────────────────
+        if (filter.SpecificAge.HasValue)
+            parts.Add($"Age: {filter.SpecificAge}");
+        if (filter.MilestoneYear.HasValue)
+            parts.Add($"Milestone: {filter.MilestoneYear}");
+        if (filter.SpecificBirthday.HasValue)
+            parts.Add($"Birthday: {filter.SpecificBirthday:MMM dd}");
+        if (filter.BirthdayFrom.HasValue || filter.BirthdayTo.HasValue)
+        {
+            var from = filter.BirthdayFrom?.ToString("MMM dd") ?? "any";
+            var to = filter.BirthdayTo?.ToString("MMM dd") ?? "any";
+            parts.Add($"Birthday Range: {from} - {to}");
+        }
+
+        // ── Reference number ─────────────────────────────────────────────────────
+        if (filter.FilterQuarter.HasValue)
+            parts.Add($"Quarter: Q{filter.FilterQuarter}");
+        if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
+            parts.Add($"Batch: {filter.FilterBatch}");
+        if (filter.FilterRefYear.HasValue)
+            parts.Add($"Year: {filter.FilterRefYear}");
+        if (!string.IsNullOrWhiteSpace(filter.FilterRegionRoman))
+            parts.Add($"Region: {filter.FilterRegionRoman}");
+
+        // ── Date ranges ─────────────────────────────────────────────────────────
+        if (filter.PaymentDateFrom.HasValue || filter.PaymentDateTo.HasValue)
+        {
+            var from = filter.PaymentDateFrom?.ToShortDateString() ?? "any";
+            var to = filter.PaymentDateTo?.ToShortDateString() ?? "any";
+            parts.Add($"Payment Date: {from} - {to}");
+        }
+        if (filter.DateAddedFrom.HasValue || filter.DateAddedTo.HasValue)
+        {
+            var from = filter.DateAddedFrom?.ToShortDateString() ?? "any";
+            var to = filter.DateAddedTo?.ToShortDateString() ?? "any";
+            parts.Add($"Date Added: {from} - {to}");
+        }
+
+        // ── Other ────────────────────────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(filter.Validator))
+            parts.Add($"Validator: {filter.Validator}");
+        if (!string.IsNullOrWhiteSpace(filter.BatchCode))
+            parts.Add($"Batch Code: {filter.BatchCode}");
+        if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
+            parts.Add($"Search: {filter.GeneralSearch}");
+
+        return parts.Count > 0 ? string.Join(", ", parts) : "Full Dataset";
+    }
+
+    // Helper methods for labels
+    private string GetFindingStatusLabel(int status) => status switch
+    {
+        0 => "N/A",
+        1 => "Solved",
+        2 => "Unresolved",
+        _ => status.ToString()
+    };
+
+    private string GetModeOfPaymentLabel(int mode) => mode switch
+    {
+        1 => "Cash Advance",
+        2 => "Bank Transfer",
+        _ => mode.ToString()
+    };
+    // Helper methods to get names from cache
+    private string GetRegionName(int regionCode)
+    {
+        var region = FilterRegions.FirstOrDefault(r => r.PsgcCodeRegion == regionCode);
+        return region?.Name ?? regionCode.ToString();
+    }
+
+    private string GetProvinceName(int provinceCode)
+    {
+        var province = FilterProvinces.FirstOrDefault(p => p.PsgcCodeProvince == provinceCode);
+        return province?.Name ?? provinceCode.ToString();
+    }
+
+    private string GetMunicipalityName(int municipalityCode)
+    {
+        var municipality = FilterMunicipalities.FirstOrDefault(m => m.PsgcCodeMunicipality == municipalityCode);
+        return municipality?.Name ?? municipalityCode.ToString();
+    }
+
+    private string GetBarangayName(int barangayCode)
+    {
+        var barangay = FilterBarangays.FirstOrDefault(b => b.PsgcCodeBarangay == barangayCode);
+        return barangay?.Name ?? barangayCode.ToString();
+    }
+
+    private string GetPaymentStatusLabel(int status) => status switch
+    {
+        0 => "N/A",
+        1 => "Unpaid",
+        2 => "Paid",
+        3 => "Pending",
+        _ => status.ToString()
+    };
+
+    private string GetCoStatusLabel(int status) => status switch
+    {
+        0 => "Not Set",
+        1 => "Endorsed",
+        2 => "Approved",
+        _ => status.ToString()
+    };
+
+    public void ClearDuplicateNotification(Guid notificationId)
+    {
+        var notification = DuplicateScanNotifications.FirstOrDefault(n => n.Id == notificationId);
+        if (notification != null)
+        {
+            DuplicateScanNotifications.Remove(notification);
+            NotifyDuplicateNotificationsChanged();
+        }
+    }
+
+    public void ClearAllDuplicateNotifications()
+    {
+        DuplicateScanNotifications.Clear();
+        NotifyDuplicateNotificationsChanged();
+    }
+
+    public void ClearOldDuplicateNotifications(int keepCount = 50)
+    {
+        if (DuplicateScanNotifications.Count > keepCount)
+        {
+            // Keep the newest ones
+            var toRemove = DuplicateScanNotifications.Skip(keepCount).ToList();
+            foreach (var item in toRemove)
+            {
+                DuplicateScanNotifications.Remove(item);
+            }
+            NotifyDuplicateNotificationsChanged();
+        }
+    }
+
+    // Keep the existing methods but redirect them to use the new queued system
+    // For backward compatibility
+    public async Task EnsureGlobalDuplicateSummaryLoadedAsync()
+    {
+        if (HasFetchedGlobalDuplicateSummary || IsFetchingGlobalDuplicateSummary)
+            return;
+
+        await RefreshGlobalDuplicateSummaryAsync();
+    }
+
+    public async Task RefreshGlobalDuplicateSummaryAsync()
+    {
+        // This is now a special case - the "global" scan (all records)
+        // We'll treat this as a filter with no filters applied
+        var emptyFilter = new BeneficiaryFilterDto
+        {
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        await QueueDuplicateScanforFilterAsync(emptyFilter);
+    }
+    // Total pairs including loading ones
+    public int TotalPendingScans => DuplicateScanNotifications.Count(n => n.IsLoading);
+
+    public bool HasPendingDuplicates => DuplicateScanNotifications.Any(n => !n.IsLoading && n.TotalPairs > 0);
 }

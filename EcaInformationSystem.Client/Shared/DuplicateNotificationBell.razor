@@ -1,109 +1,219 @@
+@using EcaInformationSystem.Shared.DTOs
 @inject BeneficiaryStateService State
 @inject NavigationManager Navigation
 @inject HttpClient Http
 @implements IDisposable
 
-<div class="position-relative me-2">
-    <button class="icon-btn position-relative" @onclick="ToggleDropdown" title="Possible duplicate records">
+<div class="position-relative me-2" @onclick:stopPropagation="true">
+    <button class="icon-btn position-relative" @onclick="ToggleDropdown" title="Duplicate notifications">
         <i class="bi bi-bell"></i>
-        @if (State.DuplicatePairCount > 0)
+        @if (TotalUnreadCount > 0)
         {
             <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle"
-                  style="font-size:9px;">
-                @State.DuplicatePairCount
+                  style="font-size:9px; cursor:pointer;">
+                @TotalUnreadCount
+            </span>
+        }
+        @if (State.TotalPendingScans > 0)
+        {
+            <span class="badge rounded-pill bg-warning position-absolute top-0 start-100 translate-middle"
+                  style="font-size:9px; margin-left: 10px;">
+                <span class="spinner-border spinner-border-sm" style="width:8px;height:8px;"></span>
             </span>
         }
     </button>
 
     @if (_showDropdown)
     {
-        <div class="duplicate-dropdown">
+        <div class="duplicate-dropdown" @onclick:stopPropagation="true">
+            @* ── Header with Clear All button ── *@
+            <div class="duplicate-dropdown-header">
+                <span class="fw-bold">Duplicate Scans</span>
+                @if (State.DuplicateScanNotifications.Any())
+                {
+                    <button class="btn btn-sm btn-outline-danger" @onclick="ConfirmClearAll" @onclick:stopPropagation="true"
+                            title="Clear all notifications">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                }
+            </div>
 
-            @* ── Status line — reflects current known state, never triggers anything itself ── *@
-            @if (State.IsFetchingGlobalDuplicateSummary)
-            {
-                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                    Scanning...
-                </div>
-            }
-            else if (!State.HasFetchedGlobalDuplicateSummary)
-            {
-                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                    <i class="bi bi-info-circle me-2"></i>
-                    Not scanned yet this session
-                </div>
-            }
-            else if (State.DuplicatePairCount > 0)
-            {
-                <button class="duplicate-dropdown-item duplicate-dropdown-clickable" @onclick="OnReviewClicked">
-                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
-                    <span>
-                        <strong>@State.DuplicatePairCount</strong> possible duplicate match@(State.DuplicatePairCount == 1 ? "" : "es") found
-                    </span>
-                </button>
-            }
-            else
-            {
-                <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                    <i class="bi bi-check-circle text-success me-2"></i>
-                    No possible duplicates detected
-                </div>
-            }
+            @* ── Scrollable notification list ── *@
+            <div class="duplicate-dropdown-scroll">
+                @if (!State.DuplicateScanNotifications.Any())
+                {
+                    <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No duplicate scans yet
+                    </div>
+                }
+                else
+                {
+                    @foreach (var notification in State.DuplicateScanNotifications)
+                    {
+                        <div
+                            class="duplicate-dropdown-item @(notification.IsLoading ? "duplicate-dropdown-loading" :
+                                                                                                                     notification.HasError ? "duplicate-dropdown-error" :
+                                                                                                                     notification.TotalPairs > 0 ? "duplicate-dropdown-has-matches" : "")">
 
-            @* ── The actual scan trigger — distinct button, separated visually ── *@
-            <div class="duplicate-dropdown-scan-wrap">
-                <button class="duplicate-scan-btn" @onclick="OnRescanClicked"
-                        disabled="@State.IsFetchingGlobalDuplicateSummary">
-                    @if (State.IsFetchingGlobalDuplicateSummary)
-                    {
-                        <span class="spinner-border spinner-border-sm me-2"></span>
-                        <span>Scanning...</span>
+                            <div class="d-flex justify-content-between align-items-start w-100">
+                                <div class="flex-grow-1" @onclick:stopPropagation="true">
+                                    @if (notification.IsLoading)
+                                    {
+                                        <div>
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                            <span class="text-muted">Scanning...</span>
+                                        </div>
+                                    }
+                                    else if (notification.HasError)
+                                    {
+                                        <div>
+                                            <i class="bi bi-exclamation-circle text-danger me-1"></i>
+                                            <span class="text-danger">Error: @notification.ErrorMessage</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div @onclick="() => OnNotificationClicked(notification)" style="cursor:pointer;"
+                                             @onclick:stopPropagation="true">
+                                            @if (notification.TotalPairs > 0)
+                                            {
+                                                <span>
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                                                    <strong>@notification.TotalPairs</strong> possible duplicate match@(notification.TotalPairs == 1 ? "" : "es")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-check-circle text-success me-1"></i>
+                                                <span class="text-success">No duplicates</span>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="duplicate-dropdown-filter">
+                                        @notification.FilterDescription
+                                    </div>
+
+                                    <div class="duplicate-dropdown-time">
+                                        <i class="bi bi-clock me-1"></i>
+                                        @notification.ScannedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                    </div>
+                                </div>
+
+                                @if (!notification.IsLoading)
+                                {
+                                    <button class="duplicate-dropdown-delete-btn" @onclick="() => DeleteNotification(notification.Id)"
+                                            @onclick:stopPropagation="true" title="Remove notification">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
                     }
-                    else
-                    {
-                        <i class="bi bi-search me-2"></i>
-                        <span>Scan for duplicates</span>
-                    }
-                </button>
+                }
+            </div>
+
+            @* ── Bottom actions ── *@
+            <div class="duplicate-dropdown-footer">
+                @if (State.DuplicateScanNotifications.Count >= 50)
+                {
+                    <button class="duplicate-scan-btn-small" @onclick="ClearOld">
+                        <i class="bi bi-archive me-1"></i>
+                        Clear Old (keep 50)
+                    </button>
+                }
             </div>
         </div>
     }
 </div>
 
+@* ── Clear All Confirmation Modal ── *@
+@if (_showClearAllModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show" style="display:block;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Clear All Notifications</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showClearAllModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear all duplicate scan notifications?</p>
+                    <p class="text-muted small">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showClearAllModal = false">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ClearAllNotifications">Clear All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool _showDropdown = false;
+    private bool _showClearAllModal = false;
 
     protected override void OnInitialized()
     {
-        // ✅ This component (NOT MainLayout) subscribes — so a duplicate-
-        // state change only re-renders THIS small component, never the
-        // grid or the rest of @Body.
+        // ✅ Subscribe to BOTH events
         State.OnChange += HandleStateChange;
+        State.OnDuplicateNotificationsChanged += HandleStateChange;
     }
 
     private void HandleStateChange() => InvokeAsync(StateHasChanged);
 
-    private void ToggleDropdown() => _showDropdown = !_showDropdown;
-
-    private void OnReviewClicked()
+    private void ToggleDropdown()
     {
+        _showDropdown = !_showDropdown;
+        if (_showDropdown)
+        {
+            // When opening, clear old notifications if too many
+            State.ClearOldDuplicateNotifications(100);
+        }
+    }
+
+    private int TotalUnreadCount => State.DuplicateScanNotifications
+        .Count(n => !n.IsLoading && !n.HasError && n.TotalPairs > 0);
+
+    private void OnNotificationClicked(DuplicateScanNotificationDto notification)
+    {
+        if (notification.IsLoading || notification.HasError || notification.Result == null)
+            return;
+
         _showDropdown = false;
+        State.ShouldAutoOpenDuplicateModal = true;
+        State.GlobalDuplicateSummary = notification.Result; // ✅ Now works with public setter
+        State.NotifyStateChanged(); // ✅ Now works with public method
+
         var currentPath = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
-        bool alreadyOnRecordsPage = currentPath.Equals("/beneficiary-records", StringComparison.OrdinalIgnoreCase);
-
-        State.RequestDuplicateModalOpen();
-
-        if (!alreadyOnRecordsPage)
+        if (!currentPath.Equals("/beneficiary-records", StringComparison.OrdinalIgnoreCase))
         {
             Navigation.NavigateTo("/beneficiary-records");
         }
     }
 
-    private async Task OnRescanClicked()
+    private void DeleteNotification(Guid id)
     {
-        // ✅ Http is now correctly injected above — this compiles
-        await State.RefreshGlobalDuplicateSummaryAsync(Http);
+        State.ClearDuplicateNotification(id);
+    }
+
+    private void ConfirmClearAll()
+    {
+        _showClearAllModal = true;
+    }
+
+    private void ClearAllNotifications()
+    {
+        State.ClearAllDuplicateNotifications();
+        _showClearAllModal = false;
+    }
+
+    private void ClearOld()
+    {
+        State.ClearOldDuplicateNotifications(50);
     }
 
     public void CloseDropdown() => _showDropdown = false;
@@ -111,5 +221,6 @@
     public void Dispose()
     {
         State.OnChange -= HandleStateChange;
+        State.OnDuplicateNotificationsChanged -= HandleStateChange;
     }
 }

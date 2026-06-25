@@ -1,7 +1,6 @@
 ﻿using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Exceptions;
-using EcaInformationSystem.Infrastructure.Caching;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
@@ -32,26 +31,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
                 .ToListAsync();
         }
-        // WHY THIS CHANGES: the scan only needs Id, FirstName, LastName, MiddleName,
-        // BirthDate, OscaIdNumber, PaymentStatus, and the resolved Municipality/
-        // Barangay NAMES for display. None of that requires a SQL-level JOIN —
-        // the names can be resolved from _psgcNameCache (already loaded in memory,
-        // already used by the grid) AFTER the narrow query returns. This removes
-        // the 5-table join fan-out entirely from the scan's candidate-gathering
-        // step, which is the same fix that made the grid fast.
-
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
             BeneficiaryFilterDto filter,
             int maxPairs = 50,
             CancellationToken cancellationToken = default)
         {
+            // ✅ Don't modify the filter - use it as-is
+            // The filter already contains ALL the user's filters
+            // Just make sure PageSize is large enough
             var scanFilter = new BeneficiaryFilterDto
             {
+                // Copy all properties from the incoming filter
                 PsgcCodeRegion = filter.PsgcCodeRegion,
-                PsgcCodeProvince = filter.PsgcCodeProvince,
-                PsgcCodeMunicipality = filter.PsgcCodeMunicipality,
+                PsgcCodeProvinces = filter.PsgcCodeProvinces,
+                PsgcCodeMunicipalities = filter.PsgcCodeMunicipalities,
                 PsgcCodeBarangay = filter.PsgcCodeBarangay,
-                PaymentStatus = filter.PaymentStatus,
+                LastName = filter.LastName,
+                FirstName = filter.FirstName,
+                FullName = filter.FullName,
+                PaymentStatuses = filter.PaymentStatuses,
                 PaymentDate = filter.PaymentDate,
                 PaymentDateFrom = filter.PaymentDateFrom,
                 PaymentDateTo = filter.PaymentDateTo,
@@ -74,14 +72,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FilterRegionRoman = filter.FilterRegionRoman,
                 DateAddedFrom = filter.DateAddedFrom,
                 DateAddedTo = filter.DateAddedTo,
+                Validator = filter.Validator,
+                BatchCode = filter.BatchCode,
+                GeneralSearch = filter.GeneralSearch,  // ✅ CRITICAL: Include GeneralSearch
                 PageNumber = 1,
                 PageSize = int.MaxValue
             };
 
-            // ✅ CHANGED — use the NARROW, join-free query (BuildNarrowFilterQuery,
-            // an async Task<IQueryable<BeneficiaryInformation>> already built and
-            // used by the grid), not BuildBeneficiaryFilteredQuery. No joins at
-            // the SQL level at all — names resolved from the in-memory cache below.
+            // ✅ Use BuildNarrowFilterQuery which already handles ALL filters including GeneralSearch
             var query = await BuildNarrowFilterQuery(scanFilter);
 
             var candidates = await query
@@ -94,12 +92,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     b.BirthDate,
                     b.OscaIdNumber,
                     b.PaymentStatus,
-                    b.Municipality,   // ✅ int PSGC code, not a joined name
-                    b.Barangay         // ✅ int PSGC code, not a joined name
+                    b.Municipality,
+                    b.Barangay
                 })
                 .ToListAsync(cancellationToken);
-            // ✅ Distinct() removed — BuildNarrowFilterQuery has no joins capable
-            // of producing duplicate rows per beneficiary, so it's unnecessary here.
 
             if (candidates.Count < 2)
                 return new List<PossibleDuplicatePairDto>();
@@ -179,8 +175,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
                         var reason = BuildDuplicateReason(firstLastExact, middleStatus, daysDiff, a.MiddleName, b.MiddleName);
 
-                        // ✅ Names resolved from the in-memory PSGC cache — zero
-                        // additional SQL cost, same pattern your grid already uses.
                         pairs.Add(new PossibleDuplicatePairDto
                         {
                             Record1Id = a.Id,
@@ -1995,23 +1989,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         b.BirthDate.Year + m == milestoneYear && b.BirthDate.Year + m >= 2024));
                 }
             }
-            // Add this inside BuildNarrowFilterQuery, replacing the comment placeholder
-            // from Step 6. This needs IPsgcNameCache, already injected via the
-            // constructor change from Step 6.
-            //
-            // WHY THIS DOESN'T NEED A JOIN:
-            // Searching "Butuan" as free text against Municipality.Name requires either
-            // a join (cost we removed) or a separate query. Instead: search the cache
-            // (already in memory, already loaded) for any PSGC codes whose name
-            // contains the search term, THEN add "Municipality IN (those codes)" to
-            // the SQL WHERE clause. The SQL only ever filters on the already-indexed
-            // integer PSGC code columns — never on joined text.
-
+            // ── General Search ──────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
             {
                 var term = filter.GeneralSearch.Trim().ToLower();
 
-                // ── Resolve mapped keyword values, same as your original logic ──────
+                // Resolve mapped keyword values
                 int? sexMatch = term switch { "male" => 1, "female" => 2, _ => null };
                 int? paymentMatch = term switch
                 {
@@ -2039,11 +2022,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 bool searchCoNotSet = term == "not set";
                 int.TryParse(term, out var yearTerm);
 
-                // ── Resolve location name matches via the IN-MEMORY cache, not SQL.
-                // GetCodesByNameContains is a new lookup method added to IPsgcNameCache
-                // (see below) — it scans the cached dictionaries in C# memory, which
-                // for a few thousand entries total is effectively instantaneous, and
-                // produces a small list of int codes to filter by.
+                // Resolve location name matches via the in-memory cache
                 var matchingProvinceCodes = _psgcNameCache.GetProvinceCodesByNameContains(term);
                 var matchingMunicipalityCodes = _psgcNameCache.GetMunicipalityCodesByNameContains(term);
                 var matchingBarangayCodes = _psgcNameCache.GetBarangayCodesByNameContains(term);
@@ -2062,13 +2041,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (b.PhoneNumber != null && b.PhoneNumber.ToLower().Contains(term)) ||
                     (b.NcscRrn != null && b.NcscRrn.ToString()!.Contains(term)) ||
 
-                    // ── Location — matched via cache-resolved codes, NOT joined text
+                    // ── Location — matched via cache-resolved codes ─────────────
                     matchingProvinceCodes.Contains(b.Province) ||
                     matchingMunicipalityCodes.Contains(b.Municipality) ||
                     matchingBarangayCodes.Contains(b.Barangay) ||
                     matchingRegionCodes.Contains(b.Region) ||
 
-                    // ── Validator / remarks (own columns, no join needed) ─────────
+                    // ── Validator / remarks ──────────────────────────────────────
                     (b.Validator != null && b.Validator.ToLower().Contains(term)) ||
                     (b.Remarks != null && b.Remarks.ToLower().Contains(term)) ||
                     (b.AssessmentRemarks != null && b.AssessmentRemarks.ToLower().Contains(term)) ||
@@ -2091,15 +2070,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (b.RefCode != null && b.RefCode.ToLower().Contains(term))
                 );
 
-                // ── FindingRemarks intentionally NOT included here — it lives on a
-                // different table (BeneficiaryFindings) and needs its own join.
-                // Folding it into the SAME query.Where() as everything else above
-                // would force EF to add the Findings join unconditionally just to
-                // support this one optional field, defeating the purpose of the
-                // narrow base query for every request, search or not. Instead, if
-                // GeneralSearch is active, we do a SEPARATE small query to find which
-                // beneficiary IDs have a matching FindingRemarks, then OR that into
-                // the filter as an ID list — see below.
+                // ── FindingRemarks — separate query ─────────────────────────────
                 var matchingFindingIds = await _context.BeneficiaryFindings
                     .Where(f => f.FindingRemarks != null && f.FindingRemarks.ToLower().Contains(term))
                     .Select(f => f.BeneficiaryInformationId)
@@ -2111,19 +2082,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     query = query.Union(
                         _context.BeneficiaryInformations.AsNoTracking()
                             .Where(b => !b.IsDeleted && idSet.Contains(b.Id)));
-                    // Note: Union here re-applies !IsDeleted on the finding-matched
-                    // side too, and EF/SQL Server will deduplicate via UNION's
-                    // distinct semantics — so no DistinctBy() needed afterward.
                 }
             }
-            // ── FindingStatus filter — see below, this DOES need the join,
-            // but only when explicitly requested.
+
+            // ── FindingStatus filter ────────────────────────────────────────────────
             if (filter.FindingStatus.HasValue && filter.FindingStatus.Value != 3)
             {
                 var matchingIds = await BuildFindingStatusIdQueryAsync(filter.FindingStatus.Value);
                 query = query.Where(b => matchingIds.Contains(b.Id));
             }
-
             return query;
         }
         // WHY A SEPARATE QUERY INSTEAD OF A JOIN:
@@ -2220,6 +2187,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? BarangayName { get; set; }
             public byte[]? RowVersion { get; set; }
         }
+        // Add this helper method if not already present
         private static string FormatDuplicateName(
             string? lastName, string? firstName, string? middleName)
         {

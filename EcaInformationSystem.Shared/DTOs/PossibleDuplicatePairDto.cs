@@ -29,5 +29,6 @@ namespace EcaInformationSystem.Shared.DTOs
 
         //Tells the uo the scan was cut short
         public bool TimedOut { get; set; }
+        public string FilterDescription { get; set; } = string.Empty;
     }
 }
