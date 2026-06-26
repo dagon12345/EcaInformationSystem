@@ -324,7 +324,9 @@ public partial class BeneficiaryDocumentUpload
 
     private class CapturedPhoto
     {
-        public IBrowserFile File { get; set; } = default!;
+        public byte[] Bytes { get; set; } = Array.Empty<byte>();
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
         public string PreviewUrl { get; set; } = string.Empty;
     }
 
@@ -339,12 +341,18 @@ public partial class BeneficiaryDocumentUpload
             {
                 using var ms = new MemoryStream();
                 await file.OpenReadStream(20_000_000).CopyToAsync(ms);
-                var buffer = ms.ToArray();
+                var bytes = ms.ToArray();   // ✅ captured NOW, safely, while the stream is fresh
 
-                var base64 = Convert.ToBase64String(buffer);
+                var base64 = Convert.ToBase64String(bytes);
                 var previewUrl = $"data:{file.ContentType};base64,{base64}";
 
-                _capturedPhotos.Add(new CapturedPhoto { File = file, PreviewUrl = previewUrl });
+                _capturedPhotos.Add(new CapturedPhoto
+                {
+                    Bytes = bytes,
+                    FileName = file.Name,
+                    ContentType = file.ContentType,
+                    PreviewUrl = previewUrl
+                });
             }
             catch (Exception ex)
             {
@@ -373,11 +381,10 @@ public partial class BeneficiaryDocumentUpload
             using var content = new MultipartFormDataContent();
             foreach (var photo in _capturedPhotos)
             {
-                var stream = photo.File.OpenReadStream(20_000_000);
-                var fileContent = new StreamContent(stream);
-                fileContent.Headers.ContentType =
-                    new System.Net.Http.Headers.MediaTypeHeaderValue(photo.File.ContentType);
-                content.Add(fileContent, "photos", photo.File.Name);
+                var byteContent = new ByteArrayContent(photo.Bytes);
+                byteContent.Headers.ContentType =
+                    new System.Net.Http.Headers.MediaTypeHeaderValue(photo.ContentType);
+                content.Add(byteContent, "photos", photo.FileName);
             }
 
             var response = await Http.PostAsync(
