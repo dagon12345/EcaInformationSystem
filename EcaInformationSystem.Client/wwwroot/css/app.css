@@ -2114,7 +2114,6 @@ textarea.ff-input {
 
 html, body {
     height: 100%;
-    overflow: hidden;
 }
 
 .brand-icon {
@@ -2135,6 +2134,7 @@ html, body {
     height: 100vh;
     background: #f8f9fb;
     font-family: 'DM Sans', sans-serif;
+    overflow: hidden; /* ✅ moved here from html, body */
 }
 
 /* Sidebar */

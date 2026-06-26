@@ -258,7 +258,7 @@ window.revokeBlobUrl = function (url) {
                     return defaultUri;
                 }
                 // ✅ For all other resources (wasm, dll, etc.) bypass SRI check
-                return fetch(defaultUri, { cache: 'no-cache' });
+                return fetch(defaultUri, { cache: 'default' });
             }
         });
     </script>

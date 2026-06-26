@@ -23,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EcaInformationService.Shared\EcaInformationSystem.Shared.csproj" />
     <ProjectReference Include="..\EcaInformationSystem.Application\EcaInformationSystem.Application.csproj" />
 	  <ProjectReference Include="..\EcaInformationSystem.Client\EcaInformationSystem.Client.csproj">
 		  <Private>true</Private>

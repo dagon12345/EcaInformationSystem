@@ -103,10 +103,12 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 builder.Configuration["Cors:WasmOrigin"] ?? "https://REDACTED_INTERNAL_IP",
-                "https://REDACTED_INTERNAL_IP",   // ✅ explicit HTTPS
-                "http://REDACTED_INTERNAL_IP",    // ✅ keep HTTP as fallback
-                "https://localhost:5002",  // ✅ local dev HTTPS
-                "http://localhost:5002"    // ✅ local dev HTTP
+                "https://eca-client.runasp.net",
+                "http://eca-client.runasp.net",   // ✅ add this
+                "https://REDACTED_INTERNAL_IP",
+                "http://REDACTED_INTERNAL_IP",
+                "https://localhost:5002",
+                "http://localhost:5002"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -144,6 +146,11 @@ builder.WebHost.ConfigureKestrel(options =>
 // ════════════════════════════════════════════════════════════════════════════
 var app = builder.Build();
 // ════════════════════════════════════════════════════════════════════════════
+
+// CORS must come before any redirect middleware so that preflight OPTIONS responses
+// always carry Access-Control-Allow-Origin headers.
+app.UseCors("WasmPolicy");
+
 
 app.UseResponseCompression();
 
@@ -224,9 +231,6 @@ else
     });
 }
 
-// CORS must come before any redirect middleware so that preflight OPTIONS responses
-// always carry Access-Control-Allow-Origin headers.
-app.UseCors("WasmPolicy");
 
 // Only redirect to HTTPS in local development (Kestrel with a dev cert).
 // In production the API is hosted by IIS on a plain-HTTP port (8080); issuing an

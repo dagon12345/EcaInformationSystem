@@ -10,6 +10,61 @@
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Login</PageTitle>
+<style>
+    .login-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #042C53;
+        padding: 24px;
+    }
+
+    .login-card {
+        display: flex;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+        width: 720px;
+        max-width: 98vw;
+    }
+
+    .login-left {
+        flex: 1;
+        background: #0C447C;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 36px;
+        position: relative;
+    }
+
+    .login-right {
+        width: 340px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 48px 36px;
+    }
+
+    @@media (max-width: 640px) {
+        .login-card {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .login-left {
+            padding: 32px 20px;
+        }
+
+        .login-right {
+            width: 100%;
+            padding: 28px 24px;
+        }
+    }
+</style>
 
 @if (isCheckingAuth)
 {
@@ -17,23 +72,18 @@
 }
 else
 {
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#042C53;">
-        <div style="display:flex;border-radius:16px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.35);width:720px;max-width:98vw;">
+    <div class="login-wrapper">
+        <div class="login-card">
 
-            <!-- LEFT PANEL — unchanged, keep your existing markup -->
-            <div style="flex: 1; background: #0C447C; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 36px; position: relative;">
+            <div class="login-left">
                 <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 160px; background: #185FA5; border-radius: 0 80px 0 0;"></div>
                 <div style="position: relative; z-index: 1; text-align: center;">
                     <img src="images/ncsc-seal.png" alt="NCSC Seal"
                          style="width: 88px; height: 88px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 20px; background: white;"
                          onerror="this.style.display='none'" />
-                    <!-- ✅ CHANGED: app name -->
                     <div style="font-size: 32px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
                     <div style="font-size: 12px; color: #85B7EB; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px;">Caraga Region</div>
                     <div style="width: 40px; height: 2px; background: #378ADD; margin: 0 auto 16px; border-radius: 2px;"></div>
-                    <!-- ✅ CHANGED: tagline updated to match new acronym expansion
-                         (was "Expanded Centenarian Act Records and Evaluation System",
-                         which described the OLD name's meaning, not the new one) -->
                     <p style="font-size: 12px; color: #B5D4F4; line-height: 1.7; max-width: 210px;">
                         Expanded Centenarian Act - Integrated Financial, Operations, Reporting and Monitoring System
                     </p>
@@ -44,8 +94,7 @@ else
                 </div>
             </div>
 
-            <!-- RIGHT PANEL -->
-            <div style="width:340px;background:#fff;display:flex;flex-direction:column;justify-content:center;padding:48px 36px;">
+            <div class="login-right">
                 <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Secure access</p>
                 <h2 style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Welcome back</h2>
                 <p style="font-size:13px;color:#6b7280;margin-bottom:28px;">Sign in to your ECA-InFORMS account</p>
@@ -56,13 +105,9 @@ else
                         @ErrorMessage
                     </div>
                 }
-         
-                    
-                    <!-- KEY CHANGE: EditForm instead of <form method="post"> -->
+
                 <EditForm Model="model" OnValidSubmit="HandleLoginAsync">
                     <DataAnnotationsValidator />
-
-                    @* Shows all validation errors at once - optional but useful *@
                     <ValidationSummary style="background:#fef2f2;border:0.5px solid #fca5a5;
                     color:#991b1b;padding:10px 14px;border-radius:8px;
                     font-size:12px;margin-bottom:16px;list-style:none;" />
@@ -98,15 +143,12 @@ else
                         @(IsLoading ? "Signing in..." : "Sign in")
                     </button>
                 </EditForm>
-                    <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
-                        No account yet? <a href="register" style="color:#185FA5;font-weight:600;text-decoration:none;">Register here</a>
-                    </p>
-                    <div style="margin-top: 28px; padding-top: 16px; border-top: 0.5px solid #e5e7eb; text-align: center;">
-                        <span style="font-size: 10px; color: #9ca3af;">National Commission of Senior Citizens · Philippine Government</span>
-                    </div>
-             
-
-
+                <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
+                    No account yet? <a href="register" style="color:#185FA5;font-weight:600;text-decoration:none;">Register here</a>
+                </p>
+                <div style="margin-top: 28px; padding-top: 16px; border-top: 0.5px solid #e5e7eb; text-align: center;">
+                    <span style="font-size: 10px; color: #9ca3af;">National Commission of Senior Citizens · Philippine Government</span>
+                </div>
             </div>
         </div>
     </div>
@@ -130,27 +172,35 @@ else
         }
 
         isCheckingAuth = false;
-        StateHasChanged(); // re-render to show the form
+        StateHasChanged();
     }
 
     private async Task HandleLoginAsync()
     {
         IsLoading = true;
         ErrorMessage = null;
+        StateHasChanged();
 
-        var (success, message) = await AuthService.LoginAsync(model.UserName, model.Password);
-
-        if (success)
+        try
         {
-            ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
-            Navigation.NavigateTo("/", true);
-        }
-        else
-        {
-            ErrorMessage = message;
-        }
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var (success, message) = await AuthService.LoginAsync(model.UserName, model.Password, cts.Token);
 
-        IsLoading = false;
+            if (success)
+            {
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+                Navigation.NavigateTo("/", true);
+            }
+            else
+            {
+                ErrorMessage = message;
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     public class LoginModel

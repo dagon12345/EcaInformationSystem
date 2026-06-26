@@ -21,34 +21,74 @@ namespace EcaInformationSystem.Client.Services
             _js = js;
         }
 
-        public async Task<(bool success, string message)> LoginAsync(string userName, string password)
+        public async Task<(bool success, string message)> LoginAsync(
+     string userName, string password, CancellationToken cancellationToken = default)
         {
-            var response = await _http.PostAsJsonAsync("api/auth/login", new { userName, password });
-
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                var error = await response.Content.ReadAsStringAsync();
-                return (false, error);
+                var response = await _http.PostAsJsonAsync(
+                    "api/auth/login",
+                    new { userName, password },
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                    return (false, string.IsNullOrWhiteSpace(error)
+                        ? "Login failed. Please try again."
+                        : error);
+                }
+
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
+
+                if (result is null || string.IsNullOrWhiteSpace(result.Token))
+                {
+                    return (false, "Login failed: unexpected response from server.");
+                }
+
+                await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
+                await _js.InvokeVoidAsync("localStorage.setItem", "fullName", result.FullName);
+                await _js.InvokeVoidAsync("localStorage.setItem", "userName", result.UserName);
+
+                _cachedRole = ParseRoleFromToken(result.Token);
+                await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
+
+                return (true, "Login successful.");
             }
-
-            var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-
-            await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result!.Token);
-            await _js.InvokeVoidAsync("localStorage.setItem", "fullName", result.FullName);
-            await _js.InvokeVoidAsync("localStorage.setItem", "userName", result.UserName);
-
-            // ✅ Parse and cache role immediately at login
-            _cachedRole = ParseRoleFromToken(result.Token);
-            await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
-
-            return (true, "Login successful.");
+            catch (OperationCanceledException)
+            {
+                return (false, "The request took too long. Please check your connection and try again.");
+            }
+            catch (HttpRequestException)
+            {
+                return (false, "Unable to reach the server. Please check your internet connection and try again.");
+            }
+            catch (Exception)
+            {
+                return (false, "An unexpected error occurred. Please try again.");
+            }
         }
 
-        public async Task<(bool success, string message)> RegisterAsync(RegisterRequest request)
+        public async Task<(bool success, string message)> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
         {
-            var response = await _http.PostAsJsonAsync("api/auth/register", request);
-            var message = await response.Content.ReadAsStringAsync();
-            return (response.IsSuccessStatusCode, message);
+            try
+            {
+                var response = await _http.PostAsJsonAsync("api/auth/register", request, cancellationToken);
+                var message = await response.Content.ReadAsStringAsync(cancellationToken);
+                return (response.IsSuccessStatusCode, message);
+            }
+            catch (OperationCanceledException)
+            {
+                return (false, "The request took too long. Please check your connection and try again.");
+            }
+            catch (HttpRequestException)
+            {
+                return (false, "Unable to reach the server. Please check your internet connection and try again.");
+            }
+            catch (Exception)
+            {
+                return (false, "An unexpected error occurred. Please try again.");
+            }
         }
 
         public async Task LogoutAsync()

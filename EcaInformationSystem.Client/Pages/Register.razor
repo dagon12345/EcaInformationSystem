@@ -11,21 +11,102 @@
 
 <PageTitle>Register — ECA-InFORMS Caraga</PageTitle>
 
-<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #042C53; padding: 24px;">
-    <div style="display: flex; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.35); width: 780px; max-width: 98vw;">
+<style>
+    .register-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #042C53;
+        padding: 24px;
+        overflow-y: auto; /* ✅ explicit scroll permission */
+    }
 
-        <!-- LEFT PANEL -->
-        <div style="width: 220px; flex-shrink: 0; background: #0C447C; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; position: relative;">
+    .register-card {
+        display: flex;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+        width: 780px;
+        max-width: 98vw;
+    }
+
+    .register-left {
+        width: 220px;
+        flex-shrink: 0;
+        background: #0C447C;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px;
+        position: relative;
+    }
+
+    .register-right {
+        flex: 1;
+        background: #fff;
+        padding: 40px 44px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .register-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 20px;
+        margin-bottom: 4px;
+    }
+
+    @@media (max-width: 640px) {
+        .register-wrapper {
+            display: block; /* ✅ abandon flex centering entirely on mobile */
+            min-height: 100vh;
+            height: auto;
+            padding: 16px 12px;
+            overflow-y: visible;
+        }
+
+        .register-card {
+            display: block; /* ✅ no flex row/column fighting — just stack naturally */
+            width: 100%;
+            box-shadow: none;
+        }
+
+        .register-left {
+            width: 100%;
+            padding: 24px 16px;
+        }
+
+        .register-right {
+            width: 100%;
+            padding: 24px 20px;
+            display: block;
+        }
+
+        .register-grid {
+            display: block; /* ✅ each field its own full-width block, no grid */
+        }
+
+            .register-grid > div {
+                margin-bottom: 14px;
+            }
+    }
+</style>
+
+<div class="register-wrapper">
+    <div class="register-card">
+
+        <div class="register-left">
             <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 160px; background: #185FA5; border-radius: 0 80px 0 0;"></div>
             <div style="position: relative; z-index: 1; text-align: center;">
                 <img src="images/ncsc-seal.png" alt="NCSC"
                      style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 16px; background: white;"
                      onerror="this.style.display='none'" />
-                <!-- ✅ CHANGED: app name -->
                 <div style="font-size: 26px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
                 <div style="font-size: 11px; color: #85B7EB; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px;">Caraga Region</div>
                 <div style="width: 36px; height: 2px; background: #378ADD; margin: 0 auto 14px; border-radius: 2px;"></div>
-                <!-- ✅ CHANGED: tagline updated to match new acronym expansion -->
                 <p style="font-size: 11px; color: #B5D4F4; line-height: 1.7; max-width: 170px;">
                     Expanded Centenarian Act - Integrated Financial, Operations, Reporting and Monitoring System
                 </p>
@@ -36,13 +117,11 @@
             </div>
         </div>
 
-        <!-- RIGHT PANEL -->
-        <div style="flex: 1; background: #fff; padding: 40px 44px; display: flex; flex-direction: column; justify-content: center;">
+        <div class="register-right">
             <p style="font-size: 11px; letter-spacing: 2px; color: #378ADD; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">Internal account</p>
             <h2 style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">Create your account</h2>
             <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">Register to access the ECA-InFORMS Caraga Information System</p>
 
-            <!-- Notice -->
             <div style="background: #E6F1FB; border: 0.5px solid #85B7EB; color: #0C447C; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 20px; line-height: 1.5;">
                 Your account will require <strong>administrator approval</strong> before you can log in.
             </div>
@@ -60,10 +139,9 @@
             <EditForm Model="model" OnValidSubmit="HandleRegisterAsync">
                 <DataAnnotationsValidator />
 
-                <!-- Personal info section -->
                 <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Personal information</p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; margin-bottom: 4px;">
+                <div class="register-grid">
                     <div>
                         <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Full name</label>
                         <InputText @bind-Value="model.FullName" placeholder="Juan dela Cruz"
@@ -84,10 +162,9 @@
                     </div>
                 </div>
 
-                <!-- Credentials section -->
                 <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Account credentials</p>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; margin-bottom: 20px;">
+                <div class="register-grid" style="margin-bottom: 20px;">
                     <div>
                         <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Username</label>
                         <InputText @bind-Value="model.UserName" placeholder="your.username" autocomplete="username"
@@ -123,44 +200,35 @@
     private bool IsLoading;
 
 
-    // Replace HandleRegisterAsync with:
     private async Task HandleRegisterAsync()
     {
-        try
-        {
-            IsLoading = true;
-            Message = null;
+        IsLoading = true;
+        Message = null;
+        StateHasChanged();
 
-            var request = new RegisterRequest
-            {
-                FullName = model.FullName,
-                Position = model.Position,
-                BirthDate = model.BirthDate ?? DateTime.Today,
-                UserName = model.UserName,
-                Password = model.Password
-            };
-
-            var (success, message) = await AuthService.RegisterAsync(request);
-            IsSuccess = success;
-            Message = success
-                ? "Registration successful! Your account is pending administrator approval."
-                : message;
-
-            if (success)
-            {
-                await Task.Delay(5000);
-                Navigation.NavigateTo("/login");
-            }
-        }
-        catch (Exception ex)
+        var request = new RegisterRequest
         {
-            IsSuccess = false;
-            Message = $"An error occurred: {ex.Message}";
-        }
-        finally
+            FullName = model.FullName,
+            Position = model.Position,
+            BirthDate = model.BirthDate ?? DateTime.Today,
+            UserName = model.UserName,
+            Password = model.Password
+        };
+
+        var (success, message) = await AuthService.RegisterAsync(request);
+        IsSuccess = success;
+        Message = success
+            ? "Registration successful! Your account is pending administrator approval."
+            : message;
+
+        if (success)
         {
-            IsLoading = false;
+            await Task.Delay(5000);
+            Navigation.NavigateTo("/login");
         }
+
+        IsLoading = false;
+        StateHasChanged();
     }
 
     public class RegisterViewModel

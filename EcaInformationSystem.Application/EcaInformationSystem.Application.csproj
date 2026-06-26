@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EcaInformationService.Shared\EcaInformationSystem.Shared.csproj" />
     <ProjectReference Include="..\EcaInformationSystem.Domain\EcaInformationSystem.Domain.csproj" />
     <ProjectReference Include="..\EcaInformationSystem.Shared\EcaInformationSystem.Shared.csproj" />
   </ItemGroup>
