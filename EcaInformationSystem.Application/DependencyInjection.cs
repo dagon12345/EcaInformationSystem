@@ -24,6 +24,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IUserManagementService, UserManagementService>();
             services.AddScoped<IJurisdictionGuardService, JurisdictionGuardService>();
             services.AddScoped<ICoeService, CoeService>();
+            services.AddScoped<IImageToPdfService, ImageToPdfService>();
             return services;
         }
     }

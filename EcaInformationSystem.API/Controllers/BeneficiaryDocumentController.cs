@@ -9,23 +9,27 @@ namespace EcaInformationSystem.Api.Controllers
 {
     [ApiController]
     [Route("api/beneficiary-documents")]
-    [Authorize]  // ✅ base auth — all authenticated users
+    [Authorize]
     public class BeneficiaryDocumentController : ControllerBase
     {
         private readonly IBeneficiaryDocumentService _service;
         private readonly IJurisdictionGuardService _jurisdictionGuardService;
+        private readonly IImageToPdfService _imageToPdfService;   // ✅ new
 
-        public BeneficiaryDocumentController(IBeneficiaryDocumentService service, IJurisdictionGuardService jurisdictionGuardService)
+        public BeneficiaryDocumentController(
+            IBeneficiaryDocumentService service,
+            IJurisdictionGuardService jurisdictionGuardService,
+            IImageToPdfService imageToPdfService)                 // ✅ new
         {
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
+            _imageToPdfService = imageToPdfService;                // ✅ new
         }
 
         // ── Upload — all roles ────────────────────────────────────────────────────
         [HttpPost("{beneficiaryId:guid}/upload")]
         [RequestSizeLimit(209_715_200)]
         [RequestFormLimits(MultipartBodyLengthLimit = 209_715_200)]
-        // ✅ No extra [Authorize] needed — base [Authorize] on class covers all authenticated users
         public async Task<IActionResult> Upload(
             Guid beneficiaryId, [FromForm] List<IFormFile> files)
         {
@@ -37,6 +41,56 @@ namespace EcaInformationSystem.Api.Controllers
                 var userName = User.Identity?.Name ?? "System";
 
                 var result = await _service.UploadAsync(beneficiaryId, files, userName);
+                return Ok(result);
+            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+        // ── Upload from camera — converts photos to one PDF, then reuses
+        //    the existing upload pipeline (compression, FileData storage, logging) ──
+        [HttpPost("{beneficiaryId:guid}/upload-from-camera")]
+        [RequestSizeLimit(209_715_200)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 209_715_200)]
+        public async Task<IActionResult> UploadFromCamera(
+            Guid beneficiaryId, [FromForm] List<IFormFile> photos)
+        {
+            try
+            {
+                if (photos == null || !photos.Any())
+                    return BadRequest("No photos provided.");
+
+                var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png" };
+                var imageBytesList = new List<byte[]>();
+
+                foreach (var photo in photos)
+                {
+                    if (photo.Length == 0)
+                        continue;
+
+                    if (!allowedTypes.Contains(photo.ContentType?.ToLowerInvariant()))
+                        return BadRequest($"'{photo.FileName}' is not a supported image type.");
+
+                    using var ms = new MemoryStream();
+                    await photo.CopyToAsync(ms);
+                    imageBytesList.Add(ms.ToArray());
+                }
+
+                if (!imageBytesList.Any())
+                    return BadRequest("No valid photos to process.");
+
+                var pdfBytes = await _imageToPdfService.ConvertToPdfAsync(imageBytesList);
+
+                var fileName = $"Camera_Scan_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+                using var pdfStream = new MemoryStream(pdfBytes);
+                var pdfFormFile = new FormFile(pdfStream, 0, pdfBytes.Length, "file", fileName)
+                {
+                    Headers = new HeaderDictionary(),
+                    ContentType = "application/pdf"
+                };
+
+                var userName = User.Identity?.Name ?? "System";
+                var result = await _service.UploadAsync(beneficiaryId, new List<IFormFile> { pdfFormFile }, userName);
+
                 return Ok(result);
             }
             catch (Exception ex) { return BadRequest(ex.Message); }

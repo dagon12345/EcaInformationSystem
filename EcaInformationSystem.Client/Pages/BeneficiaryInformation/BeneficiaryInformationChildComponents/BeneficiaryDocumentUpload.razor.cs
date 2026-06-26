@@ -321,4 +321,88 @@ public partial class BeneficiaryDocumentUpload
         < 1048576 => $"{bytes / 1024.0:F1} KB",
         _ => $"{bytes / 1048576.0:F1} MB"
     };
+
+    private class CapturedPhoto
+    {
+        public IBrowserFile File { get; set; } = default!;
+        public string PreviewUrl { get; set; } = string.Empty;
+    }
+
+    private List<CapturedPhoto> _capturedPhotos = new();
+    private bool _isUploadingFromCamera;
+
+    private async Task OnCameraPhotosChanged(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            try
+            {
+                using var ms = new MemoryStream();
+                await file.OpenReadStream(20_000_000).CopyToAsync(ms);
+                var buffer = ms.ToArray();
+
+                var base64 = Convert.ToBase64String(buffer);
+                var previewUrl = $"data:{file.ContentType};base64,{base64}";
+
+                _capturedPhotos.Add(new CapturedPhoto { File = file, PreviewUrl = previewUrl });
+            }
+            catch (Exception ex)
+            {
+                Messenger.AddError($"Failed to load photo '{file.Name}': {ex.Message}");
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void RemoveCapturedPhoto(CapturedPhoto photo)
+    {
+        _capturedPhotos.Remove(photo);
+        StateHasChanged();
+    }
+
+    private async Task ConfirmCameraUploadAsync()
+    {
+        if (!_capturedPhotos.Any()) return;
+
+        try
+        {
+            _isUploadingFromCamera = true;
+            StateHasChanged();
+
+            using var content = new MultipartFormDataContent();
+            foreach (var photo in _capturedPhotos)
+            {
+                var stream = photo.File.OpenReadStream(20_000_000);
+                var fileContent = new StreamContent(stream);
+                fileContent.Headers.ContentType =
+                    new System.Net.Http.Headers.MediaTypeHeaderValue(photo.File.ContentType);
+                content.Add(fileContent, "photos", photo.File.Name);
+            }
+
+            var response = await Http.PostAsync(
+                $"{ApiBase}/api/beneficiary-documents/{EditId}/upload-from-camera", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Messenger.AddInformation($"{_capturedPhotos.Count} photo(s) combined and uploaded as PDF.");
+                _capturedPhotos.Clear();
+                await LoadDocumentsAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Messenger.AddError($"Upload failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Messenger.AddError($"Camera upload error: {ex.Message}");
+        }
+        finally
+        {
+            _isUploadingFromCamera = false;
+            StateHasChanged();
+        }
+    }
 }

@@ -1,4 +1,40 @@
 ﻿<div class="doc-panel">
+    <div class="camera-capture-section mb-3">
+        <label class="btn btn-outline-primary w-100" style="cursor:pointer;">
+            <i class="bi bi-camera-fill me-2"></i>
+            Take Photo
+            <InputFile OnChange="OnCameraPhotosChanged" multiple accept="image/*" capture="environment"
+                       style="display:none;" />
+        </label>
+
+        @if (_capturedPhotos.Any())
+        {
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                @foreach (var photo in _capturedPhotos)
+                {
+                    <div class="position-relative" style="width:80px;">
+                        <img src="@photo.PreviewUrl" style="width:80px; height:80px; object-fit:cover; border-radius:4px;" />
+                        <button type="button"
+                                class="btn-close btn-close-white position-absolute top-0 end-0 bg-danger rounded-circle p-1"
+                                style="font-size:8px;" @onclick="() => RemoveCapturedPhoto(photo)"></button>
+                    </div>
+                }
+            </div>
+
+            <button class="btn btn-sm btn-primary w-100 mt-2" Enabled="@(!_isUploadingFromCamera)"
+                    @onclick="ConfirmCameraUploadAsync">
+                @if (_isUploadingFromCamera)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    <span>Processing & Uploading...</span>
+                }
+                else
+                {
+                    <span>Upload @_capturedPhotos.Count Photo(s) as PDF</span>
+                }
+            </button>
+        }
+    </div>
 
     <HxInputFileDropZone @ref="_dropZone" OnChange="OnFilesChanged" Accept=".pdf" Multiple="true" CssClass="mb-3" />
     @if (!string.IsNullOrWhiteSpace(_fileValidationError))

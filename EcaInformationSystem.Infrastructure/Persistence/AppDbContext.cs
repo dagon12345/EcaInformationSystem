@@ -204,24 +204,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             .IsRowVersion();
 
             modelBuilder.Entity<BeneficiaryDocument>(entity =>
-                        {
-                            entity.HasKey(e => e.Id);
+            {
+                entity.HasKey(e => e.Id);
 
-                            entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
-                            entity.Property(e => e.OriginalFileName).IsRequired().HasMaxLength(500);
-                            entity.Property(e => e.FilePath).HasMaxLength(1000);              // ⚠️ TEMPORARY — IsRequired() removed so old rows stay valid; column dropped in Step 7
-                            entity.Property(e => e.FileData).HasColumnType("varbinary(max)"); // ✅ NEW — nullable for now, tightened to required in Step 7
-                            entity.Property(e => e.ContentType).HasMaxLength(100);
-                            entity.Property(e => e.UploadedBy).HasMaxLength(200);
+                entity.Property(e => e.FileName).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.OriginalFileName).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.FileData).IsRequired().HasColumnType("varbinary(max)");
+                entity.Property(e => e.ContentType).HasMaxLength(100);
+                entity.Property(e => e.UploadedBy).HasMaxLength(200);
 
-                            entity.HasOne(e => e.BeneficiaryInformation)
-                                .WithMany()
-                                .HasForeignKey(e => e.BeneficiaryInformationId)
-                                .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.BeneficiaryInformation)
+                    .WithMany()
+                    .HasForeignKey(e => e.BeneficiaryInformationId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
-                            entity.HasIndex(e => e.BeneficiaryInformationId);
-                            entity.HasIndex(e => e.IsDeleted);
-                        });
+                entity.HasIndex(e => e.BeneficiaryInformationId);
+                entity.HasIndex(e => e.IsDeleted);
+            });
             modelBuilder.Entity<PdoJurisdiction>(entity =>
             {
                 entity.HasKey(x => x.Id);
