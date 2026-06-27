@@ -251,16 +251,76 @@ window.revokeBlobUrl = function (url) {
     </script>
     <script src="_framework/blazor.webassembly.js" autostart="false"></script>
     <script>
-        Blazor.start({
-            loadBootResource: function (type, name, defaultUri, integrity) {
-                // ✅ dotnetjs type must return a URI string, not a fetch promise
-                if (type === 'dotnetjs') {
-                    return defaultUri;
+        (function () {
+            let totalBytes = 0;
+            let loadedBytes = 0;
+            let resourceCount = 0;
+            let resourcesDone = 0;
+            const progressBar = document.querySelector('.progress-bar');
+            const loadingText = document.querySelector('.loading-text');
+
+            function updateUI() {
+                const pct = totalBytes > 0
+                    ? Math.min(100, Math.round((loadedBytes / totalBytes) * 100))
+                    : Math.round((resourcesDone / Math.max(resourceCount, 1)) * 100);
+                if (progressBar) {
+                    progressBar.style.animation = 'none';
+                    progressBar.style.width = pct + '%';
                 }
-                // ✅ For all other resources (wasm, dll, etc.) bypass SRI check
-                return fetch(defaultUri, { cache: 'default' });
+                if (loadingText) {
+                    loadingText.firstChild.textContent = 'Loading ' + pct + '% ';
+                }
             }
-        });
+
+            async function trackedFetch(url) {
+                resourceCount++;
+                const response = await fetch(url, { cache: 'default' });
+                const contentLength = response.headers.get('content-length');
+                const size = contentLength ? parseInt(contentLength, 10) : 0;
+                if (size > 0) totalBytes += size;
+
+                if (!response.body || !window.ReadableStream) {
+                    resourcesDone++;
+                    if (size > 0) loadedBytes += size;
+                    updateUI();
+                    return response;
+                }
+
+                const reader = response.body.getReader();
+                const chunks = [];
+                let received = 0;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    received += value.length;
+                    loadedBytes += value.length;
+                    updateUI();
+                }
+                resourcesDone++;
+                const blob = new Blob(chunks);
+                return new Response(blob, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                });
+            }
+
+            Blazor.start({
+                loadBootResource: function (type, name, defaultUri, integrity) {
+                    if (type === 'dotnetjs') {
+                        return defaultUri;
+                    }
+                    return trackedFetch(defaultUri);
+                }
+            }).then(function () {
+                const splash = document.getElementById('blazor-loading');
+                if (splash) {
+                    splash.style.opacity = '0';
+                    setTimeout(function () { splash.remove(); }, 400);
+                }
+            });
+        })();
     </script>
     <!-- Add your script here for downloading the template -->
     <script src="js/fileDownload.js"></script>
