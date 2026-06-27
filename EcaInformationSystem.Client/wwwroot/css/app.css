@@ -24,6 +24,481 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+/* ── Mobile responsive — sidebar becomes off-canvas drawer ─────────────── */
+.mobile-menu-btn {
+    display: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #eaecf0;
+    background: white;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #6b7280;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+    .mobile-menu-btn:hover {
+        background: #f3f4f6;
+        color: #111;
+    }
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1090;
+}
+/* ── Mobile card view for the beneficiary grid ──────────────────────────── */
+.beneficiary-card-list {
+    display: none;
+}
+/* Desktop: show table, hide cards (default state) */
+.user-table-desktop {
+    display: block;
+}
+
+.user-card-list {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* ── Liquidation preview header: stack instead of squeeze ──────────── */
+    .card-header.d-flex.justify-content-between.align-items-center {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 6px;
+    }
+
+        .card-header.d-flex.justify-content-between.align-items-center small {
+            white-space: normal;
+        }
+    /* Mobile: hide table, show cards */
+    .user-table-desktop {
+        display: none;
+    }
+    .user-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .user-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: white;
+        padding: 14px 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .user-card-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+
+    .user-card-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+
+        .user-card-meta code {
+            font-size: 11px;
+            background: #f1f5f9;
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+
+    .user-card-badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 8px 0 10px;
+    }
+
+        .user-card-badges .badge {
+            white-space: nowrap;
+            font-size: 11px;
+            padding: 4px 9px;
+        }
+
+    .user-card-requested {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+
+    .user-card-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+        .user-card-actions .btn-details {
+            flex: 1 1 calc(50% - 3px);
+            min-width: 0;
+            justify-content: center;
+        }
+
+    .user-card-btn-approve {
+        border-color: #198754 !important;
+        color: #198754 !important;
+    }
+
+        .user-card-btn-approve:hover {
+            background: #198754 !important;
+            color: white !important;
+        }
+
+    .user-card-btn-reject {
+        border-color: #dc3545 !important;
+        color: #dc3545 !important;
+    }
+
+        .user-card-btn-reject:hover {
+            background: #dc3545 !important;
+            color: white !important;
+        }
+    /* ── Liquidation CDR preview: horizontal scroll, sticky # column ──── */
+    .liquidation-tbl-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+        .liquidation-tbl-wrap table {
+            min-width: 640px;
+        }
+
+    /* ── User Management: horizontal scroll, sticky first column ──────── */
+    .user-tbl-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+        .user-tbl-wrap table {
+            min-width: 720px;
+        }
+
+        .user-tbl-wrap thead th:first-child {
+            background: #f8f9fa; /* matches table-light */
+        }
+
+    .beneficiary-card-list {
+        position: relative;
+        min-height: 200px;
+    }
+
+    .beneficiary-card-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,.88);
+        backdrop-filter: blur(2px);
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        border-radius: 12px;
+        padding-top: 60px;
+    }
+
+        .beneficiary-card-overlay .ov-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--navy);
+            letter-spacing: .3px;
+        }
+
+    .navbar-actions {
+        gap: 4px;
+    }
+
+        /* Username + role badge: shrink and let badge wrap below name if needed */
+        .navbar-actions .d-flex.flex-column.align-items-end {
+            max-width: 110px;
+        }
+
+            .navbar-actions .d-flex.flex-column.align-items-end span:first-child {
+                font-size: 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 110px;
+            }
+
+        .navbar-actions .badge {
+            font-size: 8px !important;
+            padding: 1px 5px !important;
+        }
+
+    .icon-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 16px;
+    }
+
+    /* Duplicate-scan bell dropdown: anchor to viewport instead of the
+       button, so it can't overflow off the left edge on narrow screens */
+    .duplicate-dropdown {
+        position: fixed;
+        top: 56px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+    }
+    /* Hide desktop table, bulk bar, and select-all checkbox column */
+    .tbl-container {
+        display: none;
+    }
+
+    .beneficiary-card-selectall {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .beneficiary-card-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 2px;
+    }
+
+    .beneficiary-card-check {
+        margin-top: 3px;
+        flex-shrink: 0;
+    }
+
+    .beneficiary-card--checked {
+        border-color: var(--accent);
+        background: #eff6ff;
+    }
+
+    /* Bulk bar: stays visible, but reflows for narrow screens */
+    .bulk-bar {
+        gap: 6px;
+        padding: 8px 10px;
+    }
+
+        .bulk-bar .btn-group {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+            .bulk-bar .btn-group .btn {
+                flex: 1 1 calc(50% - 4px);
+                font-size: 11px;
+                padding: 6px 4px;
+            }
+
+        .bulk-bar select,
+        .bulk-bar input[type="date"] {
+            width: 100%;
+        }
+
+        .bulk-bar .btn-primary,
+        .bulk-bar .btn-outline-secondary {
+            width: 100%;
+        }
+
+    .beneficiary-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .beneficiary-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: white;
+        padding: 12px 14px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+
+    .beneficiary-card-name {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-main);
+        margin-bottom: 2px;
+    }
+
+    .beneficiary-card-batch {
+        font-size: 11px;
+        color: var(--navy);
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .beneficiary-card-location {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+    }
+
+    .beneficiary-card-badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    .beneficiary-card .btn-details {
+        width: 100%;
+        justify-content: center;
+        padding: 8px 0;
+    }
+
+    /* Pagination: hide Prev/Next on mobile — page size + scrolling replaces them */
+    .pag-bar .pag-btn,
+    .pag-bar .pag-controls > span {
+        display: none;
+    }
+    /* Pagination bar: stack and center on narrow screens */
+    .pag-bar {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+        .pag-bar .pag-controls {
+            justify-content: center;
+            width: 100%;
+        }
+
+            .pag-bar .pag-controls select {
+                width: 100%;
+            }
+
+    /* ── Filter panel: tighter grid + slightly denser controls ──────── */
+    .sf-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .sf-card,
+    .sf-body {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .sf-header-title {
+        font-size: 12px;
+    }
+
+    .sf-header-sub {
+        display: none; /* "Search and narrow down records" — drop on mobile, it's just noise */
+    }
+
+    /* Inline month/day pairs (Specific Birthday, Birthday From/To) need
+       their own row — two 2-col grids would make these illegible */
+    .sf-field:has(.sf-inline) {
+        grid-column: 1 / -1;
+    }
+
+    .sf-inline select {
+        font-size: 12px;
+    }
+
+    /* General search + action buttons always full-width regardless of grid */
+    .sf-general-search,
+    .sf-actions {
+        grid-column: 1 / -1;
+    }
+
+    .sf-actions {
+        flex-direction: column-reverse;
+    }
+
+        .sf-actions .sf-btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+    .mobile-menu-btn {
+        display: flex;
+    }
+
+    .top-navbar {
+        padding: 0 12px;
+        gap: 8px;
+    }
+
+    .breadcrumb-area {
+        font-size: 12px;
+    }
+
+    /* Sidebar becomes a fixed off-canvas drawer, hidden by default */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 240px;
+        min-width: 240px;
+        z-index: 1100;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+    }
+
+        /* Ignore the desktop "collapsed" state entirely on mobile —
+           collapsed/expanded only matters for the off-canvas open state */
+        .sidebar.collapsed {
+            width: 240px;
+            min-width: 240px;
+        }
+
+            .sidebar.collapsed .brand-text,
+            .sidebar.collapsed .nav-label,
+            .sidebar.collapsed .nav-badge,
+            .sidebar.collapsed .user-info,
+            .sidebar.collapsed .toggle-btn span {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+
+    .sidebar-backdrop.show {
+        display: block;
+    }
+
+    /* main-area always takes full width on mobile */
+    .main-area {
+        width: 100%;
+    }
+
+    .content-area {
+        padding: 14px;
+    }
+
+    /* The desktop collapse toggle button is meaningless on mobile —
+       hide it so it doesn't confuse users inside the drawer */
+    .sidebar-footer .toggle-btn {
+        display: none;
+    }
+}
 /* Bell Dropdown Styles */
 .duplicate-dropdown {
     position: absolute;
@@ -55,23 +530,23 @@
     padding: 4px 0;
 }
 
-.duplicate-dropdown-scroll::-webkit-scrollbar {
-    width: 6px;
-}
+    .duplicate-dropdown-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
 
-.duplicate-dropdown-scroll::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-}
+    .duplicate-dropdown-scroll::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
 
-.duplicate-dropdown-scroll::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
-}
+    .duplicate-dropdown-scroll::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
 
-.duplicate-dropdown-scroll::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
+        .duplicate-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
 
 .duplicate-dropdown-item {
     padding: 10px 14px;
@@ -80,21 +555,21 @@
     font-size: 13px;
 }
 
-.duplicate-dropdown-item:last-child {
-    border-bottom: none;
-}
+    .duplicate-dropdown-item:last-child {
+        border-bottom: none;
+    }
 
-.duplicate-dropdown-item:hover {
-    background: #f8f9fa;
-}
+    .duplicate-dropdown-item:hover {
+        background: #f8f9fa;
+    }
 
 .duplicate-dropdown-has-matches {
     border-left: 4px solid #ffc107;
 }
 
-.duplicate-dropdown-has-matches:hover {
-    background: #fff8e1;
-}
+    .duplicate-dropdown-has-matches:hover {
+        background: #fff8e1;
+    }
 
 .duplicate-dropdown-loading {
     border-left: 4px solid #0d6efd;
@@ -136,18 +611,19 @@
     margin-left: 8px;
 }
 
-.duplicate-dropdown-delete-btn:hover {
-    background: #f8d7da;
-    color: #dc3545;
-}
+    .duplicate-dropdown-delete-btn:hover {
+        background: #f8d7da;
+        color: #dc3545;
+    }
 
 .duplicate-dropdown-footer {
     display: flex;
-    justify-content: flex-end;  /* Changed from space-between */
+    justify-content: flex-end; /* Changed from space-between */
     padding: 8px 14px;
     border-top: 1px solid #e9ecef;
     background: #f8f9fa;
 }
+
 .duplicate-scan-btn-small {
     background: transparent;
     border: none;
@@ -159,14 +635,14 @@
     transition: background 0.15s ease;
 }
 
-.duplicate-scan-btn-small:hover {
-    background: #e9ecef;
-}
+    .duplicate-scan-btn-small:hover {
+        background: #e9ecef;
+    }
 
-.duplicate-scan-btn-small:disabled {
-    color: #adb5bd;
-    cursor: not-allowed;
-}
+    .duplicate-scan-btn-small:disabled {
+        color: #adb5bd;
+        cursor: not-allowed;
+    }
 
 /* Scan trigger button (the "Scan for duplicates" button) */
 .duplicate-scan-wrap {
@@ -187,14 +663,14 @@
     transition: background 0.2s ease;
 }
 
-.duplicate-scan-btn:hover {
-    background: #0b5ed7;
-}
+    .duplicate-scan-btn:hover {
+        background: #0b5ed7;
+    }
 
-.duplicate-scan-btn:disabled {
-    background: #6c757d;
-    cursor: not-allowed;
-}
+    .duplicate-scan-btn:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
 
 /* Icon button styling */
 .icon-btn {
@@ -209,15 +685,15 @@
     transition: background 0.2s ease;
 }
 
-.icon-btn:hover {
-    background: #e9ecef;
-}
+    .icon-btn:hover {
+        background: #e9ecef;
+    }
 
-.icon-btn .badge {
-    font-size: 10px;
-    padding: 2px 6px;
-    min-width: 18px;
-}
+    .icon-btn .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        min-width: 18px;
+    }
 
 /* Modal backdrop fix for inline modal */
 .modal-backdrop {
@@ -233,63 +709,64 @@
 .modal {
     z-index: 1050;
 }
+
 .duplicate-dropdown {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 8px;
-        min-width: 280px;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        z-index: 1000;
-        overflow: hidden;
-    }
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    min-width: 280px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 1000;
+    overflow: hidden;
+}
 
-    .duplicate-dropdown-item {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        padding: 12px 14px;
-        font-size: 13px;
-        text-align: left;
-        border: none;
-        background: none;
-    }
+.duplicate-dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 13px;
+    text-align: left;
+    border: none;
+    background: none;
+}
 
-    .duplicate-dropdown-clickable {
-        cursor: pointer;
-    }
+.duplicate-dropdown-clickable {
+    cursor: pointer;
+}
 
     .duplicate-dropdown-clickable:hover {
         background: #f9fafb;
     }
 
-    .duplicate-dropdown-empty {
-        color: #6b7280;
-    }
+.duplicate-dropdown-empty {
+    color: #6b7280;
+}
 
-    .duplicate-dropdown-scan-wrap {
-        padding: 8px;
-        border-top: 1px solid #e5e7eb;
-        background: #fafafa;
-    }
+.duplicate-dropdown-scan-wrap {
+    padding: 8px;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
+}
 
-    .duplicate-scan-btn {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 12px;
-        font-size: 13px;
-        font-weight: 500;
-        color: #fff;
-        background: #2563eb;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-    }
+.duplicate-scan-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    background: #2563eb;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
 
     .duplicate-scan-btn:hover:not(:disabled) {
         background: #1d4ed8;
@@ -301,51 +778,51 @@
     }
 /* ── Permission denied banner + duplicate dropdown styles ───────────────── */
 .permission-banner {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: 8px 16px 0;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-size: 13px;
-        animation: slideDown 0.2s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 16px 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
     }
 
-    @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-6px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
+}
 
-    .permission-banner--error {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #991b1b;
-    }
+.permission-banner--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
 
-    .permission-banner--warning {
-        background: #fffbeb;
-        border: 1px solid #fde68a;
-        color: #92400e;
-    }
+.permission-banner--warning {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+}
 
-    .permission-banner__icon {
-        font-size: 16px;
-        flex-shrink: 0;
-    }
+.permission-banner__icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
 
-    .permission-banner__body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-    }
+.permission-banner__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
 
     .permission-banner__body strong {
         font-weight: 600;
@@ -355,57 +832,57 @@
         opacity: 0.85;
     }
 
-    .permission-banner__close {
-        background: none;
-        border: none;
-        cursor: pointer;
-        opacity: 0.6;
-        font-size: 12px;
-        padding: 2px 4px;
-        flex-shrink: 0;
-    }
+.permission-banner__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 12px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+}
 
     .permission-banner__close:hover {
         opacity: 1;
     }
 
-    /* ── Duplicate notification dropdown ──────────────────────────────── */
-    .duplicate-dropdown {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        margin-top: 8px;
-        min-width: 280px;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        z-index: 1000;
-        overflow: hidden;
-    }
+/* ── Duplicate notification dropdown ──────────────────────────────── */
+.duplicate-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    min-width: 280px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 1000;
+    overflow: hidden;
+}
 
-    .duplicate-dropdown-item {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        padding: 12px 14px;
-        font-size: 13px;
-        text-align: left;
-        border: none;
-        background: none;
-    }
+.duplicate-dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 13px;
+    text-align: left;
+    border: none;
+    background: none;
+}
 
-    .duplicate-dropdown-clickable {
-        cursor: pointer;
-    }
+.duplicate-dropdown-clickable {
+    cursor: pointer;
+}
 
     .duplicate-dropdown-clickable:hover {
         background: #f9fafb;
     }
 
-    .duplicate-dropdown-empty {
-        color: #6b7280;
-    }
+.duplicate-dropdown-empty {
+    color: #6b7280;
+}
 /* ── Jurisdiction Modal ─────────────────────────────────── */
 .jur-sticky-bar {
     position: sticky;
@@ -464,17 +941,17 @@
     transition: background 0.1s;
 }
 
-.jur-muni-item:hover {
-    background: #f0f4ff;
-}
+    .jur-muni-item:hover {
+        background: #f0f4ff;
+    }
 
 .jur-muni-item--checked {
     background: #e8f4e8;
 }
 
-.jur-muni-item--checked:hover {
-    background: #d4edda;
-}
+    .jur-muni-item--checked:hover {
+        background: #d4edda;
+    }
 
 .jur-muni-item label {
     cursor: pointer;
@@ -485,7 +962,7 @@
 .sidebar-legend {
     margin: 0 8px 8px;
     padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.7);  /* ← darker black */
+    background: rgba(0, 0, 0, 0.7); /* ← darker black */
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;
     font-size: 11px;
@@ -550,9 +1027,9 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.legend-row:last-of-type {
-    border-bottom: none;
-}
+    .legend-row:last-of-type {
+        border-bottom: none;
+    }
 
 .legend-action {
     font-size: 10px;
@@ -598,10 +1075,10 @@
     gap: 4px;
 }
 
-.legend-jurisdiction-item i {
-    color: #9dc3ff !important;
-    flex-shrink: 0;
-}
+    .legend-jurisdiction-item i {
+        color: #9dc3ff !important;
+        flex-shrink: 0;
+    }
 
 /* Scrollbar for jurisdiction list */
 .legend-jurisdictions::-webkit-scrollbar {
@@ -616,14 +1093,22 @@
     background: rgba(255, 255, 255, 0.25);
     border-radius: 2px;
 }
+
 .delete-confirm-box {
     background: #fff5f5;
     animation: fadeIn 0.15s ease;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 /* ═══════════════════════════════════════════════════════════
    FIX: Offcanvas backdrop blocks modal clicks
@@ -654,12 +1139,22 @@ body:has(.modal.show) .modal-backdrop {
    ═══════════════════════════════════════════════════════════ */
 
 /* Offcanvas — keep LOW */
-.offcanvas          { z-index: 1045 !important; }
-.offcanvas-backdrop { z-index: 1044 !important; }
+.offcanvas {
+    z-index: 1045 !important;
+}
+
+.offcanvas-backdrop {
+    z-index: 1044 !important;
+}
 
 /* Modal — must be HIGHER than offcanvas + its backdrop */
-.modal              { z-index: 1200 !important; }
-.modal-backdrop     { z-index: 1199 !important; }
+.modal {
+    z-index: 1200 !important;
+}
+
+.modal-backdrop {
+    z-index: 1199 !important;
+}
 
 /* ── Document Panel ────────────────────────────────────── */
 .doc-panel {
@@ -717,10 +1212,10 @@ body:has(.modal.show) .modal-backdrop {
     background: #fff;
 }
 
-.doc-item:hover {
-    background: #f8f9fa;
-    border-color: #1F3864;
-}
+    .doc-item:hover {
+        background: #f8f9fa;
+        border-color: #1F3864;
+    }
 
 .doc-item--active {
     border-color: #1F3864;
@@ -763,8 +1258,9 @@ body:has(.modal.show) .modal-backdrop {
     display: block;
     background: #525659;
 }
+
 .tbl-scroll {
-    height: 600px;       /* ✅ fixed height required for Virtualize */
+    height: 600px; /* ✅ fixed height required for Virtualize */
     overflow-y: auto;
     overflow-x: auto;
 }
@@ -781,6 +1277,7 @@ body:has(.modal.show) .modal-backdrop {
     height: 40px;
     opacity: 0.6;
 }
+
 .tbl-badge.ref-no {
     background: #e8f4fd;
     color: #1F3864;
@@ -823,7 +1320,9 @@ body:has(.modal.show) .modal-backdrop {
     line-height: 1;
 }
 
-.udp-nav-btn:hover { color: #0d6efd; }
+    .udp-nav-btn:hover {
+        color: #0d6efd;
+    }
 
 .udp-nav-label {
     font-weight: 600;
@@ -867,7 +1366,10 @@ body:has(.modal.show) .modal-backdrop {
     transition: background 0.15s;
 }
 
-.udp-day:hover { background: #e9f0ff; color: #1F3864; }
+    .udp-day:hover {
+        background: #e9f0ff;
+        color: #1F3864;
+    }
 
 .udp-day--selected {
     background: #1F3864 !important;
@@ -880,7 +1382,9 @@ body:has(.modal.show) .modal-backdrop {
     font-weight: 600;
 }
 
-.udp-day--empty { pointer-events: none; }
+.udp-day--empty {
+    pointer-events: none;
+}
 
 .udp-year-row {
     margin-top: 8px;
@@ -906,7 +1410,9 @@ body:has(.modal.show) .modal-backdrop {
     justify-content: center;
 }
 
-.udp-year-btn:hover { background: #e9f0ff; }
+    .udp-year-btn:hover {
+        background: #e9f0ff;
+    }
 
 .udp-year-input {
     width: 70px;
@@ -973,6 +1479,7 @@ body:has(.modal.show) .modal-backdrop {
 .udp-picker-portal {
     position: fixed !important; /* keep fixed for viewport escape */
 }
+
 .sf-general-search {
     padding: 0 16px;
 }
@@ -1002,11 +1509,11 @@ body:has(.modal.show) .modal-backdrop {
     transition: border-color 0.2s;
 }
 
-.sf-search-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.08);
-}
+    .sf-search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.08);
+    }
 
 .sf-search-clear {
     position: absolute;
@@ -1020,13 +1527,13 @@ body:has(.modal.show) .modal-backdrop {
     border-radius: 4px;
 }
 
-.sf-search-clear:hover {
-    color: var(--danger);
-    background: var(--bg-hover);
-}
+    .sf-search-clear:hover {
+        color: var(--danger);
+        background: var(--bg-hover);
+    }
 /* ── General search highlight ── */
 .search-highlight {
-    background-color: #fff176;   /* bright yellow */
+    background-color: #fff176; /* bright yellow */
     color: #1a1a1a;
     border-radius: 2px;
     padding: 0 2px;
@@ -1041,10 +1548,10 @@ body:has(.modal.show) .modal-backdrop {
     }
 }
 /* -Sortable header base---------- */
-.sortable-th{
-    cursor:pointer;
-    user-select:none;
-    white-space:nowrap;
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
     transition: background-color 0.15s ease;
 }
 /* Disabled state */
@@ -1052,13 +1559,15 @@ body:has(.modal.show) .modal-backdrop {
     cursor: not-allowed;
     opacity: 0.3;
 }
+
 .sort-header {
     display: flex;
-    align-items:center;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
 }
-.sort-icon-wrap{
+
+.sort-icon-wrap {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1068,12 +1577,14 @@ body:has(.modal.show) .modal-backdrop {
     flex-shrink: 0;
     transition: background-color 0.15s ease;
 }
-.sort-icon-active{
+
+.sort-icon-active {
     font-size: 0.8rem;
     color: #ffffff;
-    filter:drop-shadow(0 0 3px rgba(255, 255, 255, 0.55));
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.55));
 }
-.sort-icon-hidden{
+
+.sort-icon-hidden {
     visibility: hidden;
 }
 /* ── Page header bar ─────────────────────────────────────────── */
@@ -1103,6 +1614,7 @@ body:has(.modal.show) .modal-backdrop {
     font-size: 16px;
     flex-shrink: 0;
 }
+
 .sf-inline {
     display: flex;
     gap: 6px;
@@ -1263,6 +1775,7 @@ body:has(.modal.show) .modal-backdrop {
     margin-bottom: 3px;
     letter-spacing: .2px;
 }
+
 .ff-input {
     height: var(--input-ht);
     font-size: 12px;
@@ -1492,8 +2005,8 @@ textarea.ff-input {
         opacity: .5;
         cursor: not-allowed;
     }
- 
- 
+
+
 /* ── Bulk bar ──────────────────────────────────────────── */
 .bulk-bar {
     display: flex;
@@ -1778,22 +2291,22 @@ textarea.ff-input {
         color: #92400e;
     }
 /* Duplication preview modal */
- .dup-modal-summary {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
+.dup-modal-summary {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
 
-    .dup-modal-summary-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        min-width: 110px;
-        font-size: .9rem;
-    }
+.dup-modal-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-width: 110px;
+    font-size: .9rem;
+}
 /* details button */
 .btn-details {
     display: inline-flex;
@@ -2408,6 +2921,6 @@ html, body {
     overflow-y: auto;
 }
 
-.form-label{
+.form-label {
     color: black
 }

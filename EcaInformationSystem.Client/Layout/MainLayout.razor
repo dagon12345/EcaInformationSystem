@@ -12,11 +12,16 @@
 @implements IDisposable
 
 <div class="app-shell">
-    <div class="sidebar @(collapsed ? "collapsed" : "")">
+    <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
+
+    <div class="sidebar @(collapsed ? "collapsed" : "") @(mobileOpen ? "mobile-open" : "")">
         <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" UserName="@userName" />
     </div>
     <div class="main-area">
         <div class="top-navbar">
+            <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
+                <i class="bi bi-list"></i>
+            </button>
             <div class="breadcrumb-area">
                 <span>ECA</span>
                 <span class="separator">›</span>
@@ -25,7 +30,7 @@
             <div class="navbar-actions">
 
                 @* ── Duplicate notification bell ─────────────────────────── *@
-                <DuplicateNotificationBell @ref="_duplicateBell"/>
+                <DuplicateNotificationBell @ref="_duplicateBell" />
 
                 <AuthorizeView>
                     <Authorized>
@@ -77,6 +82,7 @@
 
 @code {
     private bool collapsed = false;
+    private bool mobileOpen = false;   // ✅ new — controls mobile off-canvas drawer
     private string userName = string.Empty;
     private string currentPage = "Dashboard";
     private string? _userRole;
@@ -89,6 +95,10 @@
 
     // ── Expose so child components can trigger the banner ─────────────────────
     public static MainLayout? Current { get; private set; }
+
+    private void ToggleMobileSidebar() => mobileOpen = !mobileOpen;
+
+    private void CloseMobileSidebar() => mobileOpen = false;
 
     private static readonly Dictionary<string, string> PageNames = new()
     {
@@ -205,6 +215,7 @@
     {
         UpdateCurrentPage(e.Location);
         DismissBanner();
+        mobileOpen = false;   // ✅ new — close drawer after navigating
         _duplicateBell?.CloseDropdown(); //Replaces the old _showDuplicateDropdown = false
         InvokeAsync(StateHasChanged);
     }

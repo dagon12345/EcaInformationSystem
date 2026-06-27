@@ -567,6 +567,69 @@
                             </table>
                         </div>
                     </div>
+                    @* ── MOBILE CARD LIST — only visible below 768px via CSS ──────────────── *@
+                    <div class="beneficiary-card-list">
+                     <div class="beneficiary-card-selectall">
+                        <input type="checkbox" class="form-check-input" checked="@AreAllChecked()" @onchange="ToggleSelectAll" />
+                        <span>Select all on this page</span>
+                    </div>
+                    @if (State.IsLoading)
+                    {
+                        <div class="beneficiary-card-overlay">
+                            <HxSpinner Color="ThemeColor.Primary" Size="SpinnerSize.Regular" />
+                            <span class="ov-text">Loading records...</span>
+                        </div>
+                    }
+                   <Virtualize Items="@FilteredBeneficiaries.ToList()" Context="item" ItemSize="120" OverscanCount="5">
+                            <ItemContent>
+                                <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
+                            <div class="beneficiary-card-top">
+                                <input type="checkbox" class="form-check-input beneficiary-card-check"
+                                       checked="@checkedIds.Contains(item.Id)"
+                                       @onchange="() => ToggleCheck(item.Id)" />
+                                <div class="beneficiary-card-name">
+                                    @item.LastName, @item.FirstName
+                                    @if (!string.IsNullOrWhiteSpace(item.MiddleName))
+                                    {
+                                        <span>&nbsp;@item.MiddleName</span>
+                                    }
+                                </div>
+                            </div>
+                        
+                            @if (!string.IsNullOrWhiteSpace(item.BatchCode))
+                            {
+                                <div class="beneficiary-card-batch">
+                                    <i class="bi bi-tag-fill me-1"></i>@item.BatchCode
+                                </div>
+                            }
+                        
+                            <div class="beneficiary-card-location">
+                                <i class="bi bi-geo-alt me-1"></i>@item.MunicipalityName — @item.BarangayName
+                            </div>
+                        
+                            <div class="beneficiary-card-badges">
+                                <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">Age @item.Age</span>
+                                <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
+                                    @GetPaymentStatusText(item.PaymentStatus)
+                                </span>
+                                @if (item.HasDocuments)
+                                {
+                                    <span class="tbl-badge yes-b"><i class="bi bi-paperclip me-1"></i>PDF</span>
+                                }
+                            </div>
+                        
+                            <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
+                                <i class="bi bi-info-circle"></i> Details
+                            </button>
+                        </div>
+                            </ItemContent>
+                        </Virtualize>
+
+                        @if (!FilteredBeneficiaries.Any() && !State.IsLoading)
+                        {
+                            <div class="text-center text-muted py-4">No records found.</div>
+                        }
+                    </div>
 
                 </div>
             </div>
