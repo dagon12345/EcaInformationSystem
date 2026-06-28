@@ -14,6 +14,28 @@
     <link href="css/app.css" rel="stylesheet" />
     <script type="importmap"></script>
     <style>
+        .first-load-note {
+            font-size: 10px;
+            color: #6FA8DC;
+            text-align: center;
+            line-height: 1.5;
+            margin-bottom: 18px;
+            letter-spacing: 0.3px;
+        }
+
+        .loading-resource {
+            font-size: 10px;
+            color: #6b8db5;
+            margin-top: 6px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            max-width: 220px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-height: 14px;
+        }
+
         #blazor-loading {
             position: fixed;
             inset: 0;
@@ -171,20 +193,21 @@
                                 stroke="#378ADD" stroke-width="2"
                                 stroke-dasharray="60 166" stroke-linecap="round" />
                     </svg>
-                    <!-- Unchanged — "ECA" stays accurate under either name -->
                     <div class="logo-inner">ECA</div>
                 </div>
-                <!-- ✅ CHANGED: loading screen app name -->
                 <div class="app-name">ECA-InFORMS</div>
                 <div class="app-sub">Caraga Region</div>
+
+                <div class="first-load-note">
+                    Please wait — first-time loading.<br />Future visits will be instant.
+                </div>
+
                 <div class="progress-track">
                     <div class="progress-bar"></div>
                 </div>
-                <div class="loading-text">
-                    Loading<span class="dots">
-                        <span>.</span><span>.</span><span>.</span>
-                    </span>
-                </div>
+
+                <div class="loading-text" id="loading-pct">Loading 0%</div>
+                <div class="loading-resource" id="loading-resource">Starting up...</div>
             </div>
         </div>
     </div>
@@ -193,51 +216,51 @@
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
     </div>
-    
+
     <!-- Add inside <body> in wwwroot/index.html -->
-<script>
-window.triggerFileDownload = async function (url, fileName, token) {
-    const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: {
-            "Authorization": "Bearer " + token  // ✅ attach JWT
-        }
-    });
+    <script>
+        window.triggerFileDownload = async function (url, fileName, token) {
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Authorization": "Bearer " + token  // ✅ attach JWT
+                }
+            });
 
-    if (!response.ok) {
-        console.error("Download failed:", response.status, response.statusText);
-        return;
-    }
+            if (!response.ok) {
+                console.error("Download failed:", response.status, response.statusText);
+                return;
+            }
 
-    const blob = await response.blob();
-    const objectUrl = window.URL.createObjectURL(blob);
+            const blob = await response.blob();
+            const objectUrl = window.URL.createObjectURL(blob);
 
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(objectUrl);
-};
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(objectUrl);
+        };
 
-// ✅ Creates a blob URL from base64 PDF data — no auth needed for iframe
-window.createPdfBlobUrl = function (base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    return URL.createObjectURL(blob);
-};
+        // ✅ Creates a blob URL from base64 PDF data — no auth needed for iframe
+        window.createPdfBlobUrl = function (base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: "application/pdf" });
+            return URL.createObjectURL(blob);
+        };
 
-// ✅ Revokes blob URL to free memory when viewer is closed
-window.revokeBlobUrl = function (url) {
-    URL.revokeObjectURL(url);
-};
-</script>
+        // ✅ Revokes blob URL to free memory when viewer is closed
+        window.revokeBlobUrl = function (url) {
+            URL.revokeObjectURL(url);
+        };
+    </script>
 
     <script>
         window.downloadFile = function (fileName, base64) {
@@ -256,24 +279,39 @@ window.revokeBlobUrl = function (url) {
             let loadedBytes = 0;
             let resourceCount = 0;
             let resourcesDone = 0;
-            const progressBar = document.querySelector('.progress-bar');
-            const loadingText = document.querySelector('.loading-text');
 
-            function updateUI() {
+            const progressBar = document.querySelector('.progress-bar');
+            const pctText = document.getElementById('loading-pct');
+            const resourceText = document.getElementById('loading-resource');
+
+            function shortName(url) {
+                // Strip query string and path, keep just the filename
+                const clean = url.split('?')[0];
+                return clean.substring(clean.lastIndexOf('/') + 1);
+            }
+
+            function updateUI(currentFile) {
                 const pct = totalBytes > 0
                     ? Math.min(100, Math.round((loadedBytes / totalBytes) * 100))
                     : Math.round((resourcesDone / Math.max(resourceCount, 1)) * 100);
+
                 if (progressBar) {
                     progressBar.style.animation = 'none';
                     progressBar.style.width = pct + '%';
                 }
-                if (loadingText) {
-                    loadingText.firstChild.textContent = 'Loading ' + pct + '% ';
+                if (pctText) {
+                    pctText.textContent = 'Loading ' + pct + '%';
+                }
+                if (resourceText && currentFile) {
+                    resourceText.textContent = currentFile;
                 }
             }
 
             async function trackedFetch(url) {
                 resourceCount++;
+                const fileName = shortName(url);
+                updateUI(fileName);
+
                 const response = await fetch(url, { cache: 'default' });
                 const contentLength = response.headers.get('content-length');
                 const size = contentLength ? parseInt(contentLength, 10) : 0;
@@ -282,20 +320,18 @@ window.revokeBlobUrl = function (url) {
                 if (!response.body || !window.ReadableStream) {
                     resourcesDone++;
                     if (size > 0) loadedBytes += size;
-                    updateUI();
+                    updateUI(fileName);
                     return response;
                 }
 
                 const reader = response.body.getReader();
                 const chunks = [];
-                let received = 0;
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     chunks.push(value);
-                    received += value.length;
                     loadedBytes += value.length;
-                    updateUI();
+                    updateUI(fileName);
                 }
                 resourcesDone++;
                 const blob = new Blob(chunks);
@@ -314,6 +350,7 @@ window.revokeBlobUrl = function (url) {
                     return trackedFetch(defaultUri);
                 }
             }).then(function () {
+                if (resourceText) resourceText.textContent = 'Ready!';
                 const splash = document.getElementById('blazor-loading');
                 if (splash) {
                     splash.style.opacity = '0';

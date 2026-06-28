@@ -64,8 +64,39 @@
 .user-card-list {
     display: none;
 }
+/* Desktop default: hide Back button, show X close */
+.duplicate-compare-back {
+    display: none;
+}
 
 @media (max-width: 768px) {
+
+    /* ── Duplicate compare modal: master/detail pattern ──────────────── */
+    .duplicate-compare-wrap {
+        flex-direction: column;
+    }
+
+    .duplicate-compare-detail {
+        width: 100% !important;
+        border-left: none !important;
+        padding-left: 0 !important;
+    }
+
+    /* When viewing a comparison, hide the pairs list entirely */
+    .duplicate-compare-wrap--viewing .duplicate-compare-list {
+        display: none;
+    }
+
+    /* Show Back button, hide the small X close button on mobile */
+    .duplicate-compare-back {
+        display: inline-flex !important;
+    }
+
+    .duplicate-compare-close {
+        display: none !important;
+    }
+
+
     /* ── Liquidation preview header: stack instead of squeeze ──────────── */
     .card-header.d-flex.justify-content-between.align-items-center {
         flex-direction: column;

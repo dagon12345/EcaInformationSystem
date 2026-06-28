@@ -1,11 +1,11 @@
 @typeparam TItem
 
-@if(_isOpen)
+@if (_isOpen)
 {
     <div class="msd-backdrop" @onclick="CloseDropDown"></div>
 }
 
-<div class="msd-wrap" @onclick:stopPropagation="true">
+<div class="msd-wrap @(_isOpen ? "msd-wrap--open" : "")" @onclick:stopPropagation="true">
     <button type="button" class="msd-toggle" @onclick="ToggleOpen" disabled="@Disabled">
         <span>@DisplayLabel</span>
         <i class="bi @(_isOpen ? "bi-chevron-up" : "bi-chevron-down")"></i>
@@ -47,12 +47,11 @@
     .msd-wrap {
         position: relative;
         width: 100%;
-        z-index: 1000;
+        z-index: 1;
     }
 
-    .msd-wrap {
-        position: relative;
-        width: 100%;
+    .msd-wrap--open {
+        z-index: 1001;
     }
 
     .msd-toggle {
@@ -69,11 +68,11 @@
         text-align: left;
     }
 
-    .msd-toggle:disabled {
-        background: #f3f4f6;
-        cursor: not-allowed;
-        opacity: 0.7;
-    }
+        .msd-toggle:disabled {
+            background: #f3f4f6;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
 
     .msd-panel {
         position: absolute;
@@ -112,16 +111,16 @@
         margin: 0;
     }
 
-    .msd-item span {
-        flex: 1;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+        .msd-item span {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
-    .msd-item:hover {
-        background: #f9fafb;
-    }
+        .msd-item:hover {
+            background: #f9fafb;
+        }
 
     .msd-select-all {
         font-weight: 600;
