@@ -780,6 +780,42 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var query = await BuildNarrowFilterQuery(filter);
             return await query.CountAsync();
         }
+        // WHY THIS IS CHEAP: reuses BuildNarrowFilterQuery (no joins, no name
+        // resolution) and does the counting entirely in SQL via GroupBy().CountAsync().
+        // No BeneficiaryInformation rows are ever materialized into memory — only
+        // the small (Status, Count) aggregate rows come back. Safe to call on every
+        // dashboard load regardless of total record count.
+        public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter)
+        {
+            var query = await BuildNarrowFilterQuery(filter);
+
+            var paymentCounts = await query
+                .GroupBy(b => b.PaymentStatus)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            var total = paymentCounts.Sum(x => x.Count);
+
+            // ── Disbursement total — only need BirthDate for Paid records, nothing else.
+            // Still narrow: no joins, no name resolution, just one scalar column.
+            var paidBirthDates = await query
+                .Where(b => b.PaymentStatus == 2)
+                .Select(b => b.BirthDate)
+                .ToListAsync();
+
+            var totalDisbursement = paidBirthDates
+                .Sum(bd => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(bd)));
+
+            return new DashboardSummaryDto
+            {
+                TotalBeneficiaries = total,
+                PaidCount = paymentCounts.FirstOrDefault(x => x.Status == 2)?.Count ?? 0,
+                UnpaidCount = paymentCounts.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
+                PendingCount = paymentCounts.FirstOrDefault(x => x.Status == 3)?.Count ?? 0,
+                NotApplicableCount = paymentCounts.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
+                TotalDisbursement = totalDisbursement
+            };
+        }
         public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
         {
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;

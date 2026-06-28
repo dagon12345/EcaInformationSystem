@@ -1,9 +1,268 @@
 ﻿@page "/"
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize]
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="dash-welcome">
+    <div>
+        <h4 class="dash-welcome-title">Welcome back, @_displayName</h4>
+        <p class="dash-welcome-sub">
+            @GetRoleLabel(_role)
+            @if (_isPdo && _jurisdictionNames.Any())
+            {
+                <span> &middot; @string.Join(", ", _jurisdictionNames)</span>
+            }
+            else if (_isAdmin || _isSuperAdmin)
+            {
+                <span> &middot; All municipalities</span>
+            }
+        </p>
+    </div>
+</div>
 
-Welcome to your new app.
+@if (_isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-2 text-muted small">Loading dashboard...</p>
+    </div>
+}
+else if (_loadError is not null)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>@_loadError
+        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="LoadDashboardAsync">Retry</button>
+    </div>
+}
+else
+{
+    @* ── Stat cards ──────────────────────────────────────────────────── *@
+    <div class="dash-stat-grid">
+        <div class="dash-stat-card dash-stat-card--navy">
+            <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
+            <div class="dash-stat-value">@_summary.TotalBeneficiaries.ToString("N0")</div>
+            <div class="dash-stat-label">Total Beneficiaries</div>
+        </div>
+        <div class="dash-stat-card dash-stat-card--green">
+            <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div class="dash-stat-value">@_summary.PaidCount.ToString("N0")</div>
+            <div class="dash-stat-label">Paid</div>
+        </div>
+        <div class="dash-stat-card dash-stat-card--red">
+            <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+            <div class="dash-stat-value">@_summary.UnpaidCount.ToString("N0")</div>
+            <div class="dash-stat-label">Unpaid</div>
+        </div>
+        <div class="dash-stat-card dash-stat-card--amber">
+            <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
+            <div class="dash-stat-value">₱@_summary.TotalDisbursement.ToString("N0")</div>
+            <div class="dash-stat-label">Total Disbursed</div>
+        </div>
+    </div>
+
+    <div class="dash-row">
+        @* ── Payment status chart ────────────────────────────────────── *@
+        <div class="dash-card mt-3">
+            <div class="dash-card-header">
+                <i class="bi bi-bar-chart-fill me-2"></i>Payment Status
+            </div>
+            <div class="dash-card-body">
+                @{
+                    var maxVal = Math.Max(1, new[] { _summary.PaidCount, _summary.UnpaidCount, _summary.PendingCount, _summary.NotApplicableCount }.Max());
+                }
+                <div class="dash-chart">
+                    <div class="dash-chart-bar-wrap">
+                        <span class="dash-chart-bar-value">@_summary.PaidCount.ToString("N0")</span>
+                        <div class="dash-chart-bar dash-chart-bar--green"
+                             style="height:@(GetBarHeight(_summary.PaidCount, maxVal))%;"></div>
+                        <span class="dash-chart-bar-label">Paid</span>
+                    </div>
+                    <div class="dash-chart-bar-wrap">
+                        <span class="dash-chart-bar-value">@_summary.UnpaidCount.ToString("N0")</span>
+                        <div class="dash-chart-bar dash-chart-bar--red"
+                             style="height:@(GetBarHeight(_summary.UnpaidCount, maxVal))%;"></div>
+                        <span class="dash-chart-bar-label">Unpaid</span>
+                    </div>
+                    <div class="dash-chart-bar-wrap">
+                        <span class="dash-chart-bar-value">@_summary.PendingCount.ToString("N0")</span>
+                        <div class="dash-chart-bar dash-chart-bar--amber"
+                             style="height:@(GetBarHeight(_summary.PendingCount, maxVal))%;"></div>
+                        <span class="dash-chart-bar-label">Pending</span>
+                    </div>
+                    <div class="dash-chart-bar-wrap">
+                        <span class="dash-chart-bar-value">@_summary.NotApplicableCount.ToString("N0")</span>
+                        <div class="dash-chart-bar dash-chart-bar--gray"
+                             style="height:@(GetBarHeight(_summary.NotApplicableCount, maxVal))%;"></div>
+                        <span class="dash-chart-bar-label">N/A</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Quick actions ────────────────────────────────────────────────── *@
+    <div class="dash-card mt-3">
+        <div class="dash-card-header">
+            <i class="bi bi-lightning-fill me-2"></i>Quick Actions
+        </div>
+        <div class="dash-quick-actions">
+            @if (_isAdmin || _isPdo)
+            {
+                <button class="dash-action-card" @onclick='() => Navigation.NavigateTo("/beneficiary-create")'>
+                    <i class="bi bi-person-plus"></i>
+                    <span>Create Record</span>
+                </button>
+            }
+            <button class="dash-action-card" @onclick='() => Navigation.NavigateTo("/beneficiary-records")'>
+                <i class="bi bi-file-text"></i>
+                <span>Records</span>
+            </button>
+            @if (_isAdmin)
+            {
+                <button class="dash-action-card" @onclick='() => Navigation.NavigateTo("/beneficiary-records")'>
+                    <i class="bi bi-file-earmark-excel"></i>
+                    <span>Generate Payroll</span>
+                </button>
+            }
+            @if (_isAdmin || _isPdo)
+            {
+                <button class="dash-action-card" @onclick='() => Navigation.NavigateTo("/beneficiary-records")'>
+                    <i class="bi bi-file-earmark-word"></i>
+                    <span>Generate COE</span>
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _loadError;
+    private DashboardSummaryDto _summary = new();
+
+    private string _displayName = "User";
+    private string _role = string.Empty;
+    private bool _isSuperAdmin;
+    private bool _isAdmin;
+    private bool _isPdo;
+    private List<string> _jurisdictionNames = new();
+
+    private bool _isLoadingDuplicates = true;
+    private int _duplicatePairCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _role = AuthService.GetRole() ?? string.Empty;
+        _isSuperAdmin = AuthService.IsSuperAdmin();
+        _isAdmin = AuthService.IsAdmin();
+        _isPdo = AuthService.IsPDO();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var fullName = user.FindFirst("FullName")?.Value;
+        _displayName = !string.IsNullOrWhiteSpace(fullName)
+            ? fullName
+            : (user.Identity?.Name ?? "User");
+
+        if (_isPdo)
+            await LoadJurisdictionNamesAsync();
+
+        await LoadDashboardAsync();
+        _ = LoadDuplicateSummaryAsync(); // fire-and-forget, doesn't block the rest of the dashboard
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "api/beneficiary/dashboard-summary", new BeneficiaryFilterDto());
+
+            if (response.IsSuccessStatusCode)
+            {
+                _summary = await response.Content.ReadFromJsonAsync<DashboardSummaryDto>() ?? new();
+            }
+            else
+            {
+                _loadError = "Failed to load dashboard summary. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task LoadDuplicateSummaryAsync()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<PossibleDuplicateSummaryDto>(
+                "api/beneficiary/global-duplicate-summary");
+            _duplicatePairCount = result?.TotalPairs ?? 0;
+        }
+        catch
+        {
+            _duplicatePairCount = 0;
+        }
+        finally
+        {
+            _isLoadingDuplicates = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadJurisdictionNamesAsync()
+    {
+        try
+        {
+            var codes = AuthService.GetJurisdictionCodes();
+            if (!codes.Any()) return;
+
+            var allMunis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>("api/Municipality") ?? new();
+            _jurisdictionNames = allMunis
+                .Where(m => codes.Contains(m.PsgcCodeMunicipality))
+                .OrderBy(m => m.Name)
+                .Select(m => m.Name ?? string.Empty)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .ToList();
+        }
+        catch
+        {
+            // Non-critical — dashboard still works without jurisdiction names
+        }
+    }
+
+    private async Task ReviewDuplicatesAsync()
+    {
+        Navigation.NavigateTo("/beneficiary-records");
+        await Task.CompletedTask;
+    }
+
+    private static int GetBarHeight(int value, int max) =>
+        max == 0 ? 0 : Math.Max(4, (int)Math.Round((double)value / max * 100));
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        "SuperAdmin" => "Super Administrator",
+        "Admin" => "Administrator",
+        "PDO" => "Project Development Officer",
+        "Viewer" => "Viewer",
+        _ => role
+    };
+}

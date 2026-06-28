@@ -585,6 +585,23 @@ namespace EcaInformationSystem.Application.Services
 
             return summary;
         }
+        public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter)
+        {
+            var cacheKey = BuildDashboardSummaryCacheKey(filter);
+
+            if (_memoryCache.TryGetValue(cacheKey, out DashboardSummaryDto? cached) && cached is not null)
+                return cached;
+
+            var summary = await _repo.GetDashboardSummaryAsync(filter);
+
+            _memoryCache.Set(cacheKey, summary, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
+
+            return summary;
+        }
 
         public async Task SoftDeleteAsync(Guid Id, string userName)
         {
@@ -3548,6 +3565,25 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
+        // ── Cache key reuses the same version-token pattern as BuildSummaryCacheKey,
+        // so InvalidateSummaryCache() (already called from every Create/Update/Bulk*/
+        // SoftDelete path) automatically busts this too — no new invalidation wiring.
+        private string BuildDashboardSummaryCacheKey(BeneficiaryFilterDto filter)
+        {
+            var version = GetCurrentSummaryCacheVersion();
+
+            return string.Join("|",
+                version,
+                "dashboard_summary",
+                filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
+                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
+                    ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x))
+                    : CommonConstants.Null,
+                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
+                    ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x))
+                    : CommonConstants.Null
+            );
+        }
         private string BuildFilterDescription(BeneficiaryFilterDto filter)
         {
             var parts = new List<string>();
@@ -3916,9 +3952,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
                 (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : CommonConstants.Null),
                 (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : CommonConstants.Null),
-                (filter.PsgcCodeBarangays != null && filter.PsgcCodeBarangays.Any() ? string.Join(",", filter.PsgcCodeBarangays.OrderBy(x => x)) : CommonConstants.Null),
+                filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,   // ✅ FIX: singular, matches actual query field
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
+                filter.FullName ?? string.Empty,                              // ✅ ADDED
                 filter.Sex != null ? filter.Sex : CommonConstants.Null,
                 (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
                     ? string.Join(",", filter.PaymentStatuses.OrderBy(x => x))
@@ -3941,7 +3978,12 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
-                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null
+                filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
+                filter.Validator ?? string.Empty,                             // ✅ ADDED
+                filter.BatchCode ?? string.Empty,                             // ✅ ADDED
+                filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one
+                filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,  // ✅ ADDED
+                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null    // ✅ ADDED
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.

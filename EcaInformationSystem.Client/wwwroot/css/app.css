@@ -24,6 +24,200 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+/* ── Dashboard ───────────────────────────────────────────────────────── */
+.dash-welcome {
+    margin-bottom: 16px;
+}
+
+.dash-welcome-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 2px;
+}
+
+.dash-welcome-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 0;
+}
+
+.dash-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.dash-stat-card {
+    border-radius: 12px;
+    padding: 16px 18px;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.dash-stat-card--navy {
+    background: var(--navy);
+}
+
+.dash-stat-card--green {
+    background: #15803d;
+}
+
+.dash-stat-card--red {
+    background: #b91c1c;
+}
+
+.dash-stat-card--amber {
+    background: #b45309;
+}
+
+.dash-stat-icon {
+    font-size: 20px;
+    opacity: .85;
+    margin-bottom: 8px;
+}
+
+.dash-stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.dash-stat-label {
+    font-size: 12px;
+    opacity: .85;
+    margin-top: 2px;
+}
+
+.dash-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 14px;
+}
+
+.dash-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
+}
+
+.dash-card-header {
+    background: var(--navy);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    padding: 10px 16px;
+}
+
+.dash-card-body {
+    padding: 18px;
+}
+
+.dash-card-body--center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 180px;
+}
+
+
+/* ── CSS-only bar chart ──────────────────────────────────────────────── */
+.dash-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 180px;
+    gap: 24px;
+    padding-top: 8px;
+}
+
+.dash-chart-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    flex: 1;
+}
+
+.dash-chart-bar {
+    width: 100%;
+    max-width: 64px;
+    border-radius: 6px 6px 0 0;
+    transition: height 0.4s ease;
+    min-height: 4px;
+}
+.dash-chart-bar--gray {
+    background: #94a3b8;
+}
+
+.dash-chart-bar--green {
+    background: #22c55e;
+}
+
+.dash-chart-bar--red {
+    background: #ef4444;
+}
+
+.dash-chart-bar--amber {
+    background: #f59e0b;
+}
+
+.dash-chart-bar-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 4px;
+}
+
+.dash-chart-bar-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-weight: 600;
+}
+
+/* ── Quick actions ───────────────────────────────────────────────────── */
+.dash-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 16px;
+}
+
+.dash-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+    .dash-action-card i {
+        font-size: 22px;
+    }
+
+    .dash-action-card:hover {
+        background: var(--navy);
+        color: white;
+        border-color: var(--navy);
+    }
 /* ── Mobile responsive — sidebar becomes off-canvas drawer ─────────────── */
 .mobile-menu-btn {
     display: none;
@@ -70,6 +264,31 @@
 }
 
 @media (max-width: 768px) {
+    .dash-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .dash-stat-card {
+        padding: 12px 14px;
+    }
+
+    .dash-stat-value {
+        font-size: 20px;
+    }
+
+    .dash-row {
+        grid-template-columns: 1fr;
+    }
+
+    .dash-quick-actions {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dash-chart {
+        height: 140px;
+        gap: 12px;
+    }
 
     /* ── Duplicate compare modal: master/detail pattern ──────────────── */
     .duplicate-compare-wrap {

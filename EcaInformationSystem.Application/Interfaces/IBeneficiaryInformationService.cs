@@ -42,5 +42,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(BeneficiaryFilterDto filter);
         Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings);
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
+        Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
     }
 }
