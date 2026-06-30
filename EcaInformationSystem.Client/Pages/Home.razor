@@ -141,9 +141,132 @@ else
             }
         </div>
     </div>
+    @* ── Province breakdown ──────────────────────────────────────────────── *@
+    @if (_summary.ProvinceBreakdowns.Any())
+    {
+        <div class="dash-card mt-3">
+            <div class="dash-card-header">
+                <i class="bi bi-map-fill me-2"></i>Breakdown by Province
+                <small class="ms-2 fw-normal opacity-75">
+                    Click a row to expand
+                </small>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0" style="font-size:13px;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Province</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">Paid</th>
+                            <th class="text-center">Unpaid</th>
+                            <th class="text-center">Pending</th>
+                            <th class="text-center">N/A</th>
+                            <th class="text-end">Disbursed</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in _summary.ProvinceBreakdowns)
+                        {
+                            var isExpanded = _expandedProvince == p.ProvinceName;
+                            <tr style="cursor:pointer;" @onclick="() => ToggleProvince(p.ProvinceName)">
+                                <td class="fw-semibold">@p.ProvinceName</td>
+                                <td class="text-center">@p.TotalCount.ToString("N0")</td>
+                                <td class="text-center text-success fw-semibold">
+                                    @p.PaidCount.ToString("N0")
+                                </td>
+                                <td class="text-center text-danger">@p.UnpaidCount.ToString("N0")</td>
+                                <td class="text-center text-warning">@p.PendingCount.ToString("N0")</td>
+                                <td class="text-center text-muted">@p.NotApplicableCount.ToString("N0")</td>
+                                <td class="text-end fw-semibold">
+                                    ₱@p.TotalDisbursement.ToString("N0")
+                                </td>
+                                <td class="text-center">
+                                    <i class="bi @(isExpanded ? "bi-chevron-up" : "bi-chevron-down")
+                                    text-muted"></i>
+                                </td>
+                            </tr>
+                            @if (isExpanded)
+                            {
+                                <tr class="table-light">
+                                    <td colspan="8" class="px-3 py-3">
+                                        <div class="dash-stat-grid" style="--cols:5;">
+                                            <div class="dash-stat-card dash-stat-card--navy"
+                                                 style="padding:10px 14px;">
+                                                <div class="dash-stat-icon" style="font-size:14px;">
+                                                    <i class="bi bi-people-fill"></i>
+                                                </div>
+                                                <div class="dash-stat-value" style="font-size:18px;">
+                                                    @p.TotalCount.ToString("N0")
+                                                </div>
+                                                <div class="dash-stat-label">Total</div>
+                                            </div>
+                                            <div class="dash-stat-card dash-stat-card--green"
+                                                 style="padding:10px 14px;">
+                                                <div class="dash-stat-icon" style="font-size:14px;">
+                                                    <i class="bi bi-check-circle-fill"></i>
+                                                </div>
+                                                <div class="dash-stat-value" style="font-size:18px;">
+                                                    @p.PaidCount.ToString("N0")
+                                                </div>
+                                                <div class="dash-stat-label">Paid</div>
+                                            </div>
+                                            <div class="dash-stat-card dash-stat-card--red"
+                                                 style="padding:10px 14px;">
+                                                <div class="dash-stat-icon" style="font-size:14px;">
+                                                    <i class="bi bi-x-circle-fill"></i>
+                                                </div>
+                                                <div class="dash-stat-value" style="font-size:18px;">
+                                                    @p.UnpaidCount.ToString("N0")
+                                                </div>
+                                                <div class="dash-stat-label">Unpaid</div>
+                                            </div>
+                                            <div class="dash-stat-card dash-stat-card--amber"
+                                                 style="padding:10px 14px;">
+                                                <div class="dash-stat-icon" style="font-size:14px;">
+                                                    <i class="bi bi-hourglass-split"></i>
+                                                </div>
+                                                <div class="dash-stat-value" style="font-size:18px;">
+                                                    @p.PendingCount.ToString("N0")
+                                                </div>
+                                                <div class="dash-stat-label">Pending</div>
+                                            </div>
+                                            <div class="dash-stat-card"
+                                                 style="padding:10px 14px; background:#64748b;">
+                                                <div class="dash-stat-icon" style="font-size:14px;">
+                                                    <i class="bi bi-cash-stack"></i>
+                                                </div>
+                                                <div class="dash-stat-value" style="font-size:16px;">
+                                                    ₱@p.TotalDisbursement.ToString("N0")
+                                                </div>
+                                                <div class="dash-stat-label">Disbursed</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                    <tfoot class="table-secondary fw-bold">
+                        <tr>
+                            <td>TOTAL</td>
+                            <td class="text-center">@_summary.TotalBeneficiaries.ToString("N0")</td>
+                            <td class="text-center text-success">@_summary.PaidCount.ToString("N0")</td>
+                            <td class="text-center text-danger">@_summary.UnpaidCount.ToString("N0")</td>
+                            <td class="text-center text-warning">@_summary.PendingCount.ToString("N0")</td>
+                            <td class="text-center text-muted">@_summary.NotApplicableCount.ToString("N0")</td>
+                            <td class="text-end">₱@_summary.TotalDisbursement.ToString("N0")</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
 }
 
 @code {
+    private string? _expandedProvince;
     private bool _isLoading = true;
     private string? _loadError;
     private DashboardSummaryDto _summary = new();
@@ -157,6 +280,9 @@ else
 
     private bool _isLoadingDuplicates = true;
     private int _duplicatePairCount;
+
+    private void ToggleProvince(string name) =>
+    _expandedProvince = _expandedProvince == name ? null : name;
 
     protected override async Task OnInitializedAsync()
     {
@@ -177,7 +303,6 @@ else
             await LoadJurisdictionNamesAsync();
 
         await LoadDashboardAsync();
-        _ = LoadDuplicateSummaryAsync(); // fire-and-forget, doesn't block the rest of the dashboard
     }
 
     private async Task LoadDashboardAsync()
@@ -205,25 +330,6 @@ else
         finally
         {
             _isLoading = false;
-        }
-    }
-
-    private async Task LoadDuplicateSummaryAsync()
-    {
-        try
-        {
-            var result = await Http.GetFromJsonAsync<PossibleDuplicateSummaryDto>(
-                "api/beneficiary/global-duplicate-summary");
-            _duplicatePairCount = result?.TotalPairs ?? 0;
-        }
-        catch
-        {
-            _duplicatePairCount = 0;
-        }
-        finally
-        {
-            _isLoadingDuplicates = false;
-            StateHasChanged();
         }
     }
 

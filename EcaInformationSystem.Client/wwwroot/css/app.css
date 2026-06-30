@@ -264,6 +264,10 @@
 }
 
 @media (max-width: 768px) {
+    /* Province expanded mini-cards: wrap to 2-col on mobile */
+    .dash-stat-grid[style*="--cols:5"] {
+        grid-template-columns: repeat(2, 1fr);
+    }
     .dash-stat-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;

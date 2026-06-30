@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Client.Services;
 using Havit.Blazor.Components.Web;
 using Havit.Blazor.Components.Web.Bootstrap;
 using Microsoft.AspNetCore.Components;
@@ -10,21 +11,21 @@ using Microsoft.JSInterop;
 namespace EcaInformationSystem.Client.Pages.BeneficiaryInformation
     .BeneficiaryInformationChildComponents;
 
-public partial class BeneficiaryDocumentUpload
+public partial class BeneficiaryDocumentUpload : IDisposable
 {
     [Parameter] public Guid EditId { get; set; }
 
     [Inject] private HttpClient Http { get; set; } = default!;
     [Inject] private IHxMessengerService Messenger { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
-
-    // ✅ Add this — reads the API base URL from config (same source as Program.cs)
     [Inject] private IConfiguration Configuration { get; set; } = default!;
-    // ✅ REMOVE this — no longer needed
-    // [Parameter] public EventCallback OnRequestHideOffcanvas { get; set; }
+    [Inject] private DocumentUploadQueueService UploadQueue { get; set; } = default!;
 
-    // ✅ KEEP this — still useful to reopen offcanvas after delete
     [Parameter] public EventCallback OnDeleteComplete { get; set; }
+    [Parameter] public EventCallback OnRequestHideOffcanvas { get; set; }
+    [Parameter] public int PsgcCodeMunicipality { get; set; }
+
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
     private HxInputFileDropZone _dropZone = default!;
     private bool _isDeleting;
@@ -33,35 +34,63 @@ public partial class BeneficiaryDocumentUpload
     private BeneficiaryDocumentDto? _docToDelete;
     private List<IBrowserFile> _pendingFiles = new();
     private bool _isLoading;
-    private bool _isUploading;
-    // Add this parameter so the component can hide the offcanvas
-    // Actually, simpler — just hide the modal backdrop via JS, or
-    // better: emit an event to the parent to hide the offcanvas
-
-    [Parameter] public EventCallback OnRequestHideOffcanvas { get; set; }
-    [Parameter] public int PsgcCodeMunicipality { get; set; }
-    // ✅ Add this to read the JWT token
-    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
-    // ✅ Stores the blob URL for the iframe so it can be revoked later
     private string? _blobUrl;
     private string? _fileValidationError;
+
+    // ── Per-component upload tracking (fed from the queue service) ────────────
+    // True while ANY job for THIS beneficiary is queued/uploading/retrying.
+    private bool _isCameraJobActive;
+    private bool _isPdfJobActive;
+    // Tracks the most recent queued job IDs for this component instance
+    // so we can tell the queue to notify us specifically when they finish.
+    private Guid? _lastCameraJobId;
+    private Guid? _lastPdfJobId;
 
     private string ApiBase =>
         (Http.BaseAddress?.ToString() ?? Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080")
         .TrimEnd('/');
 
-    private string UploadButtonText => _isUploading
-        ? "Uploading & Compressing..."
+    private string UploadButtonText => _isPdfJobActive
+        ? "Uploading in background..."
         : $"Upload {_pendingFiles.Count} File(s)";
 
     protected override async Task OnInitializedAsync()
-        => await LoadDocumentsAsync();
+    {
+        // Subscribe to queue changes so we can update local state + refresh list
+        UploadQueue.OnChanged += OnQueueChanged;
+        UploadQueue.OnJobCompleted += OnJobCompleted;
+        await LoadDocumentsAsync();
+    }
 
+    // ── Called whenever queue state changes ───────────────────────────────────
+    private void OnQueueChanged()
+    {
+        // Update local "is uploading" flags based on jobs for this beneficiary
+        _isCameraJobActive = _lastCameraJobId.HasValue &&
+            UploadQueue.IsJobActive(_lastCameraJobId.Value);
+
+        _isPdfJobActive = _lastPdfJobId.HasValue &&
+            UploadQueue.IsJobActive(_lastPdfJobId.Value);
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Called by queue service when a job for THIS beneficiary succeeds ──────
+    private async void OnJobCompleted(Guid beneficiaryId, string uploadedFileName)
+    {
+        if (beneficiaryId != EditId) return;
+
+        // Refresh the document list so the new PDF appears immediately
+        await InvokeAsync(async () =>
+        {
+            await LoadDocumentsAsync();
+            StateHasChanged();
+        });
+    }
 
     private async Task<string?> GetTokenAsync()
-    {
-        return await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-    }
+        => await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+
     private async Task SelectDocumentAsync(BeneficiaryDocumentDto doc)
     {
         if (_selectedDoc?.Id == doc.Id)
@@ -71,8 +100,6 @@ public partial class BeneficiaryDocumentUpload
         }
 
         _selectedDoc = doc;
-
-        // ✅ Revoke previous blob URL before loading new one
         var previousUrl = _blobUrl;
         _blobUrl = null;
         StateHasChanged();
@@ -80,18 +107,13 @@ public partial class BeneficiaryDocumentUpload
         if (!string.IsNullOrEmpty(previousUrl))
         {
             await Task.Delay(500);
-            try
-            {
-                await JS.InvokeVoidAsync("revokeBlobUrl", previousUrl);
-            }
-            catch { }
+            try { await JS.InvokeVoidAsync("revokeBlobUrl", previousUrl); } catch { }
         }
 
         try
         {
             var bytes = await Http.GetByteArrayAsync(
                 $"{ApiBase}/api/beneficiary-documents/stream/{doc.Id}");
-
             _blobUrl = await JS.InvokeAsync<string>(
                 "createPdfBlobUrl", Convert.ToBase64String(bytes));
         }
@@ -103,10 +125,10 @@ public partial class BeneficiaryDocumentUpload
 
         StateHasChanged();
     }
+
     private async Task ExecuteDeleteAsync()
     {
         if (_docToDelete is null) return;
-
         try
         {
             _isDeleting = true;
@@ -118,10 +140,8 @@ public partial class BeneficiaryDocumentUpload
             if (response.IsSuccessStatusCode)
             {
                 Messenger.AddInformation("Document deleted successfully.");
-
                 if (_selectedDoc?.Id == _docToDelete.Id)
                     await CloseViewerAsync();
-
                 _docToDelete = null;
                 await LoadDocumentsAsync();
                 await OnDeleteComplete.InvokeAsync();
@@ -144,31 +164,26 @@ public partial class BeneficiaryDocumentUpload
 
     private Task ConfirmDeleteAsync(BeneficiaryDocumentDto doc)
     {
-        if (doc == null || doc.Id == Guid.Empty)
-            return Task.CompletedTask;
-
+        if (doc == null || doc.Id == Guid.Empty) return Task.CompletedTask;
         _docToDelete = doc;
         StateHasChanged();
         return Task.CompletedTask;
     }
+
     private void CancelDelete()
     {
         _docToDelete = null;
         StateHasChanged();
     }
+
     private async Task LoadDocumentsAsync()
     {
         try
         {
             _isLoading = true;
             StateHasChanged();
-
-            // ✅ Use absolute URL
             _documents = await Http.GetFromJsonAsync<List<BeneficiaryDocumentDto>>(
                 $"{ApiBase}/api/beneficiary-documents/{EditId}") ?? new();
-
-            foreach (var doc in _documents)
-                Console.WriteLine($"DOC: {doc.OriginalFileName} | {doc.Id}");
         }
         catch (Exception ex)
         {
@@ -183,13 +198,11 @@ public partial class BeneficiaryDocumentUpload
 
     private async Task OnFilesChanged(InputFileChangeEventArgs e)
     {
-        _fileValidationError = null; // ✅ clear previous error
-
+        _fileValidationError = null;
         var invalidFiles = new List<string>();
 
         foreach (var file in e.GetMultipleFiles(10))
         {
-            // ✅ Validate by MIME type AND extension
             var isValidMime = file.ContentType == "application/pdf";
             var isValidExt = Path.GetExtension(file.Name)
                 .Equals(".pdf", StringComparison.OrdinalIgnoreCase);
@@ -197,17 +210,14 @@ public partial class BeneficiaryDocumentUpload
             if (!isValidMime || !isValidExt)
             {
                 invalidFiles.Add(file.Name);
-                continue; // skip invalid files
+                continue;
             }
-
             _pendingFiles.Add(file);
         }
 
         if (invalidFiles.Any())
-        {
             _fileValidationError = $"Only PDF files are allowed. " +
                 $"The following file(s) were rejected: {string.Join(", ", invalidFiles)}";
-        }
 
         StateHasChanged();
     }
@@ -222,46 +232,27 @@ public partial class BeneficiaryDocumentUpload
     {
         if (!_pendingFiles.Any()) return;
         _fileValidationError = null;
-        try
-        {
-            _isUploading = true;
-            StateHasChanged();
 
-            using var content = new MultipartFormDataContent();
-            foreach (var file in _pendingFiles)
-            {
-                var stream = file.OpenReadStream(209_715_200);
-                var fileContent = new StreamContent(stream);
-                fileContent.Headers.ContentType =
-                    new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
-                content.Add(fileContent, "files", file.Name);
-            }
-
-            // ✅ Use absolute URL
-            var response = await Http.PostAsync(
-                $"{ApiBase}/api/beneficiary-documents/{EditId}/upload", content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                Messenger.AddInformation(
-                    $"{_pendingFiles.Count} document(s) uploaded successfully.");
-                _pendingFiles.Clear();
-                await LoadDocumentsAsync();
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                Messenger.AddError($"Upload failed: {error}");
-            }
-        }
-        catch (Exception ex)
+        var payloads = new List<UploadFilePayload>();
+        foreach (var file in _pendingFiles)
         {
-            Messenger.AddError($"Upload error: {ex.Message}");
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(209_715_200).CopyToAsync(ms);
+            payloads.Add(new UploadFilePayload
+            {
+                Bytes = ms.ToArray(),
+                FileName = file.Name,
+                ContentType = "application/pdf"
+            });
         }
-        finally
-        {
-            _isUploading = false;
-        }
+
+        var jobId = await UploadQueue.EnqueuePdfUploadAsync(EditId, payloads);
+        _lastPdfJobId = jobId;
+        _isPdfJobActive = true;
+
+        _pendingFiles.Clear();
+        Messenger.AddInformation("File(s) queued — uploading in background.");
+        StateHasChanged();
     }
 
     private void SelectDocument(BeneficiaryDocumentDto doc)
@@ -275,45 +266,33 @@ public partial class BeneficiaryDocumentUpload
         _selectedDoc = null;
         var urlToRevoke = _blobUrl;
         _blobUrl = null;
-        StateHasChanged(); // ✅ re-render first — iframe is removed from DOM
+        StateHasChanged();
 
-        // ✅ Delay revocation so the iframe fully unloads before blob is freed
-        // This prevents the debugger disconnect in local dev
         if (!string.IsNullOrEmpty(urlToRevoke))
         {
             await Task.Delay(500);
-            try
-            {
-                await JS.InvokeVoidAsync("revokeBlobUrl", urlToRevoke);
-            }
-            catch
-            {
-                // ✅ Silently ignore — component may have been disposed
-                // between the delay and the revoke call
-            }
+            try { await JS.InvokeVoidAsync("revokeBlobUrl", urlToRevoke); } catch { }
         }
     }
+
     private async Task DownloadAsync(BeneficiaryDocumentDto doc)
     {
         try
         {
             var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-
             await JS.InvokeVoidAsync("triggerFileDownload",
                 $"{ApiBase}/api/beneficiary-documents/download/{doc.Id}",
                 doc.OriginalFileName,
-                token);  // ✅ pass token
+                token);
         }
         catch (Exception ex)
         {
             Messenger.AddError($"Download failed: {ex.Message}");
         }
     }
-    // ✅ Now returns an absolute URL — iframe won't hit the Blazor router
+
     private string GetStreamUrl(Guid documentId)
-    {
-        return $"{ApiBase}/api/beneficiary-documents/stream/{documentId}?t={DateTime.UtcNow.Ticks}";
-    }
+        => $"{ApiBase}/api/beneficiary-documents/stream/{documentId}?t={DateTime.UtcNow.Ticks}";
 
     private static string FormatSize(long bytes) => bytes switch
     {
@@ -322,6 +301,7 @@ public partial class BeneficiaryDocumentUpload
         _ => $"{bytes / 1048576.0:F1} MB"
     };
 
+    // ── Camera capture ────────────────────────────────────────────────────────
     private class CapturedPhoto
     {
         public byte[] Bytes { get; set; } = Array.Empty<byte>();
@@ -331,7 +311,6 @@ public partial class BeneficiaryDocumentUpload
     }
 
     private List<CapturedPhoto> _capturedPhotos = new();
-    private bool _isUploadingFromCamera;
 
     private async Task OnCameraPhotosChanged(InputFileChangeEventArgs e)
     {
@@ -341,8 +320,7 @@ public partial class BeneficiaryDocumentUpload
             {
                 using var ms = new MemoryStream();
                 await file.OpenReadStream(20_000_000).CopyToAsync(ms);
-                var bytes = ms.ToArray();   // ✅ captured NOW, safely, while the stream is fresh
-
+                var bytes = ms.ToArray();
                 var base64 = Convert.ToBase64String(bytes);
                 var previewUrl = $"data:{file.ContentType};base64,{base64}";
 
@@ -359,7 +337,6 @@ public partial class BeneficiaryDocumentUpload
                 Messenger.AddError($"Failed to load photo '{file.Name}': {ex.Message}");
             }
         }
-
         StateHasChanged();
     }
 
@@ -373,43 +350,25 @@ public partial class BeneficiaryDocumentUpload
     {
         if (!_capturedPhotos.Any()) return;
 
-        try
+        var payloads = _capturedPhotos.Select(p => new UploadFilePayload
         {
-            _isUploadingFromCamera = true;
-            StateHasChanged();
+            Bytes = p.Bytes,
+            FileName = p.FileName,
+            ContentType = p.ContentType
+        }).ToList();
 
-            using var content = new MultipartFormDataContent();
-            foreach (var photo in _capturedPhotos)
-            {
-                var byteContent = new ByteArrayContent(photo.Bytes);
-                byteContent.Headers.ContentType =
-                    new System.Net.Http.Headers.MediaTypeHeaderValue(photo.ContentType);
-                content.Add(byteContent, "photos", photo.FileName);
-            }
+        var jobId = await UploadQueue.EnqueueCameraUploadAsync(EditId, payloads);
+        _lastCameraJobId = jobId;
+        _isCameraJobActive = true;
 
-            var response = await Http.PostAsync(
-                $"{ApiBase}/api/beneficiary-documents/{EditId}/upload-from-camera", content);
+        _capturedPhotos.Clear();
+        Messenger.AddInformation("Photo(s) queued — uploading in background.");
+        StateHasChanged();
+    }
 
-            if (response.IsSuccessStatusCode)
-            {
-                Messenger.AddInformation($"{_capturedPhotos.Count} photo(s) combined and uploaded as PDF.");
-                _capturedPhotos.Clear();
-                await LoadDocumentsAsync();
-            }
-            else
-            {
-                var error = await response.Content.ReadAsStringAsync();
-                Messenger.AddError($"Upload failed: {error}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Messenger.AddError($"Camera upload error: {ex.Message}");
-        }
-        finally
-        {
-            _isUploadingFromCamera = false;
-            StateHasChanged();
-        }
+    public void Dispose()
+    {
+        UploadQueue.OnChanged -= OnQueueChanged;
+        UploadQueue.OnJobCompleted -= OnJobCompleted;
     }
 }

@@ -28,6 +28,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ToastService>(); // ← THIS WAS MISSING
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthStateProvider>();
 builder.Services.AddScoped<BeneficiaryFindingClientService>();
+builder.Services.AddScoped<DocumentUploadQueueService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddLocalization();

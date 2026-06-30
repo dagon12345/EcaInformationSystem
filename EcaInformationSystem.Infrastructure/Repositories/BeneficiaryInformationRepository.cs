@@ -780,15 +780,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var query = await BuildNarrowFilterQuery(filter);
             return await query.CountAsync();
         }
-        // WHY THIS IS CHEAP: reuses BuildNarrowFilterQuery (no joins, no name
-        // resolution) and does the counting entirely in SQL via GroupBy().CountAsync().
-        // No BeneficiaryInformation rows are ever materialized into memory — only
-        // the small (Status, Count) aggregate rows come back. Safe to call on every
-        // dashboard load regardless of total record count.
         public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter)
         {
             var query = await BuildNarrowFilterQuery(filter);
 
+            // ── Region-wide payment counts ─────────────────────────────────────
             var paymentCounts = await query
                 .GroupBy(b => b.PaymentStatus)
                 .Select(g => new { Status = g.Key, Count = g.Count() })
@@ -796,8 +792,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var total = paymentCounts.Sum(x => x.Count);
 
-            // ── Disbursement total — only need BirthDate for Paid records, nothing else.
-            // Still narrow: no joins, no name resolution, just one scalar column.
+            // ── Region-wide disbursement ───────────────────────────────────────
             var paidBirthDates = await query
                 .Where(b => b.PaymentStatus == 2)
                 .Select(b => b.BirthDate)
@@ -806,6 +801,50 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var totalDisbursement = paidBirthDates
                 .Sum(bd => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(bd)));
 
+            // ── Per-province breakdown ─────────────────────────────────────────
+            // Group by Province + PaymentStatus in one SQL query, resolve names
+            // in memory via the cache — no joins, no extra round trips.
+            var provinceRaw = await query
+                .GroupBy(b => new { b.Province, b.PaymentStatus })
+                .Select(g => new
+                {
+                    ProvinceCode = g.Key.Province,
+                    Status = g.Key.PaymentStatus,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            // Need BirthDates per province for paid records to compute disbursement
+            var paidByProvince = await query
+                .Where(b => b.PaymentStatus == 2)
+                .Select(b => new { b.Province, b.BirthDate })
+                .ToListAsync();
+
+            var provinceBreakdowns = provinceRaw
+                .GroupBy(x => x.ProvinceCode)
+                .Select(g =>
+                {
+                    var provinceName = _psgcNameCache.GetProvinceName(g.Key) ?? g.Key.ToString();
+                    var paidBds = paidByProvince
+                        .Where(p => p.Province == g.Key)
+                        .Select(p => p.BirthDate)
+                        .ToList();
+
+                    return new ProvinceBreakdownDto
+                    {
+                        ProvinceName = provinceName,
+                        PaidCount = g.FirstOrDefault(x => x.Status == 2)?.Count ?? 0,
+                        UnpaidCount = g.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
+                        PendingCount = g.FirstOrDefault(x => x.Status == 3)?.Count ?? 0,
+                        NotApplicableCount = g.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
+                        TotalCount = g.Sum(x => x.Count),
+                        TotalDisbursement = paidBds
+                            .Sum(bd => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(bd)))
+                    };
+                })
+                .OrderBy(p => p.ProvinceName)
+                .ToList();
+
             return new DashboardSummaryDto
             {
                 TotalBeneficiaries = total,
@@ -813,7 +852,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 UnpaidCount = paymentCounts.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
                 PendingCount = paymentCounts.FirstOrDefault(x => x.Status == 3)?.Count ?? 0,
                 NotApplicableCount = paymentCounts.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
-                TotalDisbursement = totalDisbursement
+                TotalDisbursement = totalDisbursement,
+                ProvinceBreakdowns = provinceBreakdowns
             };
         }
         public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
