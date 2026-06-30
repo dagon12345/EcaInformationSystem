@@ -26,11 +26,12 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPayrollJobTracker _payrollJobTracker;
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
         private readonly IPsgcNameCache _psgcNameCache;
+        private readonly IStatisticsService _statisticsService;
         private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
     , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
     ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker,
-    IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache) // ✅ ADDED psgcNameCache
+    IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache, IStatisticsService statisticsService)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -41,7 +42,8 @@ namespace EcaInformationSystem.Application.Services
             _memoryCache = memoryCache;
             _payrollJobTracker = payrollJobTracker;
             _backgroundTaskQueue = backgroundTaskQueue;
-            _psgcNameCache = psgcNameCache; // ✅ ADDED
+            _psgcNameCache = psgcNameCache;
+            _statisticsService = statisticsService;
         }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
@@ -3931,6 +3933,9 @@ namespace EcaInformationSystem.Application.Services
 
             //New - bust the global (navbar bell) duplicate cache too
             InvalidateGlobalDuplicateCache();
+
+            // ✅ NEW: Invalidate statistics cache
+            _statisticsService.InvalidateStatisticsCacheAsync().GetAwaiter().GetResult();
         }
 
         private string GetCurrentSummaryCacheVersion()

@@ -31,6 +31,179 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
                 .ToListAsync();
         }
+
+        public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
+        {
+            var query = _context.BeneficiaryInformations
+       .AsNoTracking()
+       .Where(b => !b.IsDeleted);
+
+            // Apply filters
+            if (request.Region.HasValue && request.Region.Value > 0)
+                query = query.Where(b => b.Region == request.Region.Value);
+
+            if (request.Province.HasValue && request.Province.Value > 0)
+                query = query.Where(b => b.Province == request.Province.Value);
+            // In GetStatisticsReportAsync, add Municipality filter
+            if (request.Municipality.HasValue && request.Municipality.Value > 0)
+                query = query.Where(b => b.Municipality == request.Municipality.Value);
+
+            // Filter by Milestone Year (2024, 2025, 2026)
+            if (request.MilestoneYear > 0)
+            {
+                var milestones = new[] { 80, 85, 90, 95, 100 };
+                var birthYears = milestones.Select(m => request.MilestoneYear - m).ToList();
+                query = query.Where(b => birthYears.Contains(b.BirthDate.Year));
+            }
+
+            // Filter by Milestone Age
+            if (request.MilestoneAge > 0)
+            {
+                var birthYear = DateTime.Today.Year - request.MilestoneAge;
+                query = query.Where(b => b.BirthDate.Year == birthYear);
+            }
+
+            if (request.PaymentStatus >= 0)
+                query = query.Where(b => b.PaymentStatus == request.PaymentStatus);
+
+            var allData = await query.ToListAsync();
+
+            var report = new StatisticsReportDto
+            {
+                TotalBeneficiaries = allData.Count,
+                TotalMale = allData.Count(b => b.Sex == 1),
+                TotalFemale = allData.Count(b => b.Sex == 2),
+                PaidCount = allData.Count(b => b.PaymentStatus == 2),
+                UnpaidCount = allData.Count(b => b.PaymentStatus == 1),
+                PendingCount = allData.Count(b => b.PaymentStatus == 3),
+                NotApplicableCount = allData.Count(b => b.PaymentStatus == 0),
+                TotalDisbursement = allData
+                    .Where(b => b.PaymentStatus == 2)
+                    .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+            };
+
+            // Age distribution
+            var milestoneAges = new[] { 80, 85, 90, 95, 100 };
+            report.AgeDistribution = milestoneAges
+                .Select(m => new AgeDistributionDto
+                {
+                    Age = m,
+                    Count = allData.Count(b =>
+                    {
+                        var age = ComputeAge(b.BirthDate);
+                        return age >= m && age < m + 5;
+                    })
+                })
+                .ToList();
+
+            // Milestone Year Summary (2024, 2025, 2026)
+            var milestoneYears = new[] { 2024, 2025, 2026 };
+            report.MilestoneYearSummary = milestoneYears
+                .Select(year =>
+                {
+                    var birthYears = milestoneAges.Select(m => year - m).ToList();
+                    var records = allData.Where(b => birthYears.Contains(b.BirthDate.Year)).ToList();
+
+                    return new MilestoneYearSummaryDto
+                    {
+                        Year = year,
+                        TotalCount = records.Count,
+                        Age80Count = records.Count(b => b.BirthDate.Year == year - 80),
+                        Age85Count = records.Count(b => b.BirthDate.Year == year - 85),
+                        Age90Count = records.Count(b => b.BirthDate.Year == year - 90),
+                        Age95Count = records.Count(b => b.BirthDate.Year == year - 95),
+                        Age100Count = records.Count(b => b.BirthDate.Year == year - 100)
+                    };
+                })
+                .ToList();
+
+            // Province breakdown
+            var provinceGroups = allData
+                .GroupBy(b => b.Province)
+                .Select(g => new
+                {
+                    ProvinceCode = g.Key,
+                    Items = g.ToList()
+                })
+                .ToList();
+
+            report.ProvinceBreakdowns = provinceGroups
+                .Select(g =>
+                {
+                    var provinceName = _psgcNameCache.GetProvinceName(g.ProvinceCode) ?? g.ProvinceCode.ToString();
+                    var items = g.Items;
+                    var paidItems = items.Where(b => b.PaymentStatus == 2).ToList();
+
+                    return new ProvinceStatisticsDto
+                    {
+                        ProvinceName = provinceName,
+                        TotalCount = items.Count,
+                        Age80Count = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85),
+                        Age85Count = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90),
+                        Age90Count = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95),
+                        Age95Count = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100),
+                        Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
+                        MaleCount = items.Count(b => b.Sex == 1),
+                        FemaleCount = items.Count(b => b.Sex == 2),
+                        PaidCount = items.Count(b => b.PaymentStatus == 2),
+                        UnpaidCount = items.Count(b => b.PaymentStatus == 1),
+                        PendingCount = items.Count(b => b.PaymentStatus == 3),
+                        NotApplicableCount = items.Count(b => b.PaymentStatus == 0),
+                        TotalDisbursement = paidItems
+                            .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                    };
+                })
+                .OrderBy(p => p.ProvinceName)
+                .ToList();
+
+            // Municipality breakdown
+            var municipalityGroups = allData
+                .GroupBy(b => new { b.Province, b.Municipality })
+                .Select(g => new
+                {
+                    g.Key.Province,
+                    g.Key.Municipality,
+                    Items = g.ToList()
+                })
+                .ToList();
+
+            report.MunicipalityBreakdowns = municipalityGroups
+                .Select(g =>
+                {
+                    var provinceName = _psgcNameCache.GetProvinceName(g.Province) ?? g.Province.ToString();
+                    var municipalityName = _psgcNameCache.GetMunicipalityName(g.Municipality) ?? g.Municipality.ToString();
+                    var items = g.Items;
+                    var paidItems = items.Where(b => b.PaymentStatus == 2).ToList();
+
+                    return new MunicipalityStatisticsDto
+                    {
+                        ProvinceName = provinceName,
+                        MunicipalityName = municipalityName,
+                        TotalCount = items.Count,
+                        Age80Count = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85),
+                        Age85Count = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90),
+                        Age90Count = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95),
+                        Age95Count = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100),
+                        Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
+                        MaleCount = items.Count(b => b.Sex == 1),
+                        FemaleCount = items.Count(b => b.Sex == 2),
+                        TotalDisbursement = paidItems
+                            .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                    };
+                })
+                .OrderBy(m => m.ProvinceName)
+                .ThenBy(m => m.MunicipalityName)
+                .ToList();
+
+            // Totals
+            report.TotalAge80 = report.ProvinceBreakdowns.Sum(p => p.Age80Count);
+            report.TotalAge85 = report.ProvinceBreakdowns.Sum(p => p.Age85Count);
+            report.TotalAge90 = report.ProvinceBreakdowns.Sum(p => p.Age90Count);
+            report.TotalAge95 = report.ProvinceBreakdowns.Sum(p => p.Age95Count);
+            report.TotalAge100 = report.ProvinceBreakdowns.Sum(p => p.Age100Count);
+
+            return report;
+        }
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
             BeneficiaryFilterDto filter,
             int maxPairs = 50,

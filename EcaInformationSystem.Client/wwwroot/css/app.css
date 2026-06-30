@@ -263,7 +263,238 @@
     display: none;
 }
 
+/* ── Milestone Year Grid ────────────────────────────────────────── */
+.milestone-year-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.milestone-year-card {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid #e9ecef;
+    transition: box-shadow 0.15s;
+}
+
+    .milestone-year-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+.milestone-year-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.milestone-year-label {
+    font-weight: 700;
+    font-size: 18px;
+    color: #212529;
+}
+
+.milestone-year-total {
+    font-weight: 700;
+    font-size: 18px;
+    color: #0d6efd;
+}
+
+.milestone-year-bar-track {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.milestone-year-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+    min-width: 4px;
+}
+
+.milestone-year-bar--2024 {
+    background: #0d6efd;
+}
+
+.milestone-year-bar--2025 {
+    background: #198754;
+}
+
+.milestone-year-bar--2026 {
+    background: #fd7e14;
+}
+
+.milestone-year-bar--default {
+    background: #6c757d;
+}
+
+.milestone-year-breakdown {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+    .milestone-year-breakdown .badge {
+        font-size: 10px;
+        font-weight: 500;
+        padding: 3px 7px;
+    }
+
+/* ── Milestone Age Chart ────────────────────────────────────────── */
+.milestone-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.milestone-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.milestone-bar-label {
+    width: 36px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.milestone-bar-track {
+    flex: 1;
+    height: 26px;
+    background: #e9ecef;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+
+.milestone-bar {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    transition: width 0.6s ease;
+    min-width: 30px;
+}
+
+.milestone-bar--80 {
+    background: #0d6efd;
+}
+
+.milestone-bar--85 {
+    background: #198754;
+}
+
+.milestone-bar--90 {
+    background: #ffc107;
+}
+
+.milestone-bar--95 {
+    background: #fd7e14;
+}
+
+.milestone-bar--100 {
+    background: #dc3545;
+}
+
+.milestone-bar-count {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.milestone-bar-pct {
+    width: 48px;
+    font-size: 12px;
+    color: #6c757d;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* ── Stat Table ────────────────────────────────────────────────── */
+.stat-table {
+    font-size: 13px;
+}
+
+    .stat-table th {
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    .stat-table td, .stat-table th {
+        padding: 8px 10px;
+        vertical-align: middle;
+    }
+
+    .stat-table tfoot td {
+        background: #f8f9fa;
+    }
+
 @media (max-width: 768px) {
+    .milestone-year-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .milestone-year-card {
+        padding: 12px 14px;
+    }
+
+    .milestone-bar-wrap {
+        gap: 6px;
+    }
+
+    .milestone-bar-label {
+        width: 28px;
+        font-size: 12px;
+    }
+
+    .milestone-bar-pct {
+        width: 40px;
+        font-size: 11px;
+    }
+
+    .milestone-bar-track {
+        height: 22px;
+    }
+
+    .stat-table {
+        font-size: 12px;
+    }
+
+        .stat-table th, .stat-table td {
+            padding: 6px 8px;
+        }
+
+    .page-header-bar {
+        flex-wrap: wrap;
+        padding: 10px 14px;
+    }
+
+        .page-header-bar .ms-auto {
+            margin-left: 0 !important;
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+    .dash-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .dash-row {
+        grid-template-columns: 1fr;
+    }
     /* Province expanded mini-cards: wrap to 2-col on mobile */
     .dash-stat-grid[style*="--cols:5"] {
         grid-template-columns: repeat(2, 1fr);
@@ -751,8 +982,46 @@
        hide it so it doesn't confuse users inside the drawer */
     .sidebar-footer .toggle-btn {
         display: none;
-    }
+    }   
 }
+
+@media (max-width: 480px) {
+    .dash-stat-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .dash-stat-card {
+        padding: 10px 12px;
+    }
+
+    .dash-stat-value {
+        font-size: 18px;
+    }
+
+    .dash-stat-label {
+        font-size: 10px;
+    }
+
+    .dash-stat-icon {
+        font-size: 16px;
+        margin-bottom: 4px;
+    }
+
+    .milestone-year-breakdown .badge {
+        font-size: 9px;
+        padding: 2px 5px;
+    }
+
+    .stat-table {
+        font-size: 11px;
+    }
+
+        .stat-table th, .stat-table td {
+            padding: 4px 6px;
+        }
+}
+
 /* Bell Dropdown Styles */
 .duplicate-dropdown {
     position: absolute;

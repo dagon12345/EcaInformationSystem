@@ -13,8 +13,8 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id);
         Task<IEnumerable<BeneficiaryInformationDto>> FilterAsync(BeneficiaryFilterDto filter);
         Task<BeneficiarySummaryResultDto> GetSummaryAsync(BeneficiaryFilterDto filter);
-        Task AddAsync(BeneficiaryInformation beneficiaryInformation);
         Task UpdateAsync(BeneficiaryInformation beneficiaryInformation);
+        Task AddAsync(BeneficiaryInformation beneficiaryInformation);
         // ✅ Clean abstraction — no EF Core reference needed by caller
         void SetOriginalRowVersion(BeneficiaryInformation entity, byte[] rowVersion);
         Task SaveChangesAsync();
@@ -38,5 +38,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
         Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
+        Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);
     }
 }

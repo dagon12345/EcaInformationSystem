@@ -1,0 +1,762 @@
+﻿@page "/statistics"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Statistics Report</PageTitle>
+
+<div class="content-area">
+    @* ── Page Header ───────────────────────────────────────────────── *@
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-bar-chart-fill"></i>
+        </div>
+        <div>
+            <div class="page-header-title">Statistics Report</div>
+            <div class="page-header-sub">Generated: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</div>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+            <button class="sys-btn sys-btn-outline" @onclick="RefreshAsync">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Loading statistics...</p>
+        </div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>@_loadError
+            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RefreshAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        @* ── Filter Panel ──────────────────────────────────────────── *@
+        <div class="sf-card">
+            <div class="sf-header" @onclick="ToggleFilter">
+                <div class="sf-header-left">
+                    <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
+                    <div>
+                        <div class="sf-header-title">Filters</div>
+                        <div class="sf-header-sub">Narrow down statistics</div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
+            </div>
+            @if (_filterExpanded)
+            {
+                <div class="sf-body">
+                    <div class="sf-grid">
+                        @* ── Region ────────────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Region</label>
+                            <select @bind="SelectedRegion" class="ff-input">
+                                <option value="0">All Regions</option>
+                                @foreach (var region in _regions)
+                                {
+                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        @* ── Province ────────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Province</label>
+                            <select @bind="SelectedProvince" class="ff-input"
+                                    disabled="@(_selectedRegionId == 0)">
+                                <option value="0">All Provinces</option>
+                                @foreach (var province in _provincesForRegion)
+                                {
+                                    <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                }
+                            </select>
+                            @if (_isLoadingProvinces)
+                            {
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
+                            }
+                        </div>
+
+                        @* ── Municipality ────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Municipality</label>
+                            <select @bind="SelectedMunicipality" class="ff-input"
+                                    disabled="@(_selectedProvinceId == 0)">
+                                <option value="0">All Municipalities</option>
+                                @foreach (var muni in _municipalitiesForProvince)
+                                {
+                                    <option value="@muni.PsgcCodeMunicipality">@muni.Name</option>
+                                }
+                            </select>
+                            @if (_isLoadingMunicipalities)
+                            {
+                                <span class="sf-loading-pill">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                                </span>
+                            }
+                        </div>
+
+                        @* ── Milestone Year ────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Milestone Year</label>
+                            <select @bind="_selectedMilestoneYear" class="ff-input">
+                                <option value="0">All Years</option>
+                                @foreach (var year in _availableMilestoneYears)
+                                {
+                                    <option value="@year">@year</option>
+                                }
+                            </select>
+                        </div>
+
+                        @* ── Milestone Age ─────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Milestone Age</label>
+                            <select @bind="_selectedMilestone" class="ff-input">
+                                <option value="0">All Ages</option>
+                                <option value="80">80</option>
+                                <option value="85">85</option>
+                                <option value="90">90</option>
+                                <option value="95">95</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+
+                        @* ── Payment Status ────────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Payment Status</label>
+                            <select @bind="_selectedPaymentStatus" class="ff-input">
+                                <option value="-1">All</option>
+                                <option value="2">Paid</option>
+                                <option value="1">Unpaid</option>
+                                <option value="3">Pending</option>
+                                <option value="0">N/A</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="sf-actions">
+                        <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
+                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync">
+                            <i class="bi bi-check2"></i> Apply
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Summary Cards ─────────────────────────────────────────── *@
+        <div class="dash-stat-grid mb-3">
+            <div class="dash-stat-card dash-stat-card--navy">
+                <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="dash-stat-value">@_report.TotalBeneficiaries.ToString("N0")</div>
+                <div class="dash-stat-label">Total Grantees</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--green">
+                <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                <div class="dash-stat-value">@_report.PaidCount.ToString("N0")</div>
+                <div class="dash-stat-label">Paid</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--red">
+                <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+                <div class="dash-stat-value">@_report.UnpaidCount.ToString("N0")</div>
+                <div class="dash-stat-label">Unpaid</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--amber">
+                <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
+                <div class="dash-stat-value">@_report.PendingCount.ToString("N0")</div>
+                <div class="dash-stat-label">Pending</div>
+            </div>
+        </div>
+
+        <div class="dash-stat-grid mb-3">
+            <div class="dash-stat-card" style="background:#0dcaf0;">
+                <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
+                <div class="dash-stat-value">₱@_report.TotalDisbursement.ToString("N0")</div>
+                <div class="dash-stat-label">Total Disbursed</div>
+            </div>
+            <div class="dash-stat-card" style="background:#6f42c1;">
+                <div class="dash-stat-icon"><i class="bi bi-gender-male"></i></div>
+                <div class="dash-stat-value">@_report.TotalMale.ToString("N0")</div>
+                <div class="dash-stat-label">Male</div>
+            </div>
+            <div class="dash-stat-card" style="background:#d63384;">
+                <div class="dash-stat-icon"><i class="bi bi-gender-female"></i></div>
+                <div class="dash-stat-value">@_report.TotalFemale.ToString("N0")</div>
+                <div class="dash-stat-label">Female</div>
+            </div>
+            <div class="dash-stat-card" style="background:#20c997;">
+                <div class="dash-stat-icon"><i class="bi bi-people"></i></div>
+                <div class="dash-stat-value">@((_report.TotalMale + _report.TotalFemale) > 0 ? Math.Round((double)_report.TotalFemale / (_report.TotalMale + _report.TotalFemale) * 100) : 0)%</div>
+                <div class="dash-stat-label">% Female</div>
+            </div>
+        </div>
+
+        @* ── Milestone Year Summary ───────────────────────────────── *@
+        @if (_report.MilestoneYearSummary.Any())
+        {
+            <div class="sys-card mb-3">
+                <div class="sys-card-header">
+                    <i class="bi bi-calendar-event me-2"></i>
+                    Milestone Year Summary
+                </div>
+                <div class="sys-card-body">
+                    <div class="milestone-year-grid">
+                        @foreach (var year in _report.MilestoneYearSummary.OrderByDescending(x => x.Year))
+                        {
+                            var maxYearCount = _report.MilestoneYearSummary.Any()
+                                ? _report.MilestoneYearSummary.Max(x => x.TotalCount)
+                                : 1;
+                            var pct = maxYearCount > 0
+                                ? (double)year.TotalCount / maxYearCount * 100
+                                : 0;
+
+                            <div class="milestone-year-card">
+                                <div class="milestone-year-header">
+                                    <span class="milestone-year-label">@year.Year</span>
+                                    <span class="milestone-year-total">@year.TotalCount.ToString("N0")</span>
+                                </div>
+                                <div class="milestone-year-bar-track">
+                                    <div class="milestone-year-bar milestone-year-bar--@GetYearColor(year.Year)"
+                                         style="width:@pct%;">
+                                    </div>
+                                </div>
+                                <div class="milestone-year-breakdown">
+                                    <span class="badge" style="background:#0d6efd;">80: @year.Age80Count</span>
+                                    <span class="badge" style="background:#198754;">85: @year.Age85Count</span>
+                                    <span class="badge" style="background:#ffc107;color:#000;">90: @year.Age90Count</span>
+                                    <span class="badge" style="background:#fd7e14;">95: @year.Age95Count</span>
+                                    <span class="badge" style="background:#dc3545;">100: @year.Age100Count</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ── Charts Row ───────────────────────────────────────────── *@
+        <div class="dash-row">
+            @* ── Age Distribution ────────────────────────────────── *@
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <i class="bi bi-graph-up-arrow me-2"></i>
+                    Distribution by Milestone Age
+                </div>
+                <div class="dash-card-body">
+                    <div class="milestone-chart">
+                        @foreach (var item in _report.AgeDistribution)
+                        {
+                            var pct = _report.TotalBeneficiaries > 0
+                                ? (double)item.Count / _report.TotalBeneficiaries * 100
+                                : 0;
+                            <div class="milestone-bar-wrap">
+                                <span class="milestone-bar-label">@item.Age</span>
+                                <div class="milestone-bar-track">
+                                    <div class="milestone-bar milestone-bar--@GetAgeColor(item.Age)"
+                                         style="width:@Math.Max(4, pct)%;">
+                                        <span class="milestone-bar-count">@item.Count</span>
+                                    </div>
+                                </div>
+                                <span class="milestone-bar-pct">@pct.ToString("F1")%</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* ── Payment Status ───────────────────────────────────── *@
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <i class="bi bi-pie-chart-fill me-2"></i>
+                    Payment Status Breakdown
+                </div>
+                <div class="dash-card-body dash-card-body--center">
+                    <div class="dash-chart">
+                        @{
+                            var maxPayment = Math.Max(1, new[] { _report.PaidCount, _report.UnpaidCount, _report.PendingCount, _report.NotApplicableCount }.Max());
+                        }
+                        <div class="dash-chart-bar-wrap">
+                            <span class="dash-chart-bar-value">@_report.PaidCount.ToString("N0")</span>
+                            <div class="dash-chart-bar dash-chart-bar--green"
+                                 style="height:@(GetBarHeight(_report.PaidCount, maxPayment))%;">
+                            </div>
+                            <span class="dash-chart-bar-label">Paid</span>
+                        </div>
+                        <div class="dash-chart-bar-wrap">
+                            <span class="dash-chart-bar-value">@_report.UnpaidCount.ToString("N0")</span>
+                            <div class="dash-chart-bar dash-chart-bar--red"
+                                 style="height:@(GetBarHeight(_report.UnpaidCount, maxPayment))%;">
+                            </div>
+                            <span class="dash-chart-bar-label">Unpaid</span>
+                        </div>
+                        <div class="dash-chart-bar-wrap">
+                            <span class="dash-chart-bar-value">@_report.PendingCount.ToString("N0")</span>
+                            <div class="dash-chart-bar dash-chart-bar--amber"
+                                 style="height:@(GetBarHeight(_report.PendingCount, maxPayment))%;">
+                            </div>
+                            <span class="dash-chart-bar-label">Pending</span>
+                        </div>
+                        <div class="dash-chart-bar-wrap">
+                            <span class="dash-chart-bar-value">@_report.NotApplicableCount.ToString("N0")</span>
+                            <div class="dash-chart-bar dash-chart-bar--gray"
+                                 style="height:@(GetBarHeight(_report.NotApplicableCount, maxPayment))%;">
+                            </div>
+                            <span class="dash-chart-bar-label">N/A</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Province Breakdown ───────────────────────────────────── *@
+        <div class="sys-card mt-3">
+            <div class="sys-card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-map-fill me-2"></i>Breakdown by Province</span>
+                <span class="badge bg-light text-dark">@_report.ProvinceBreakdowns.Count provinces</span>
+            </div>
+            <div class="sys-card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0 stat-table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Province</th>
+                                <th class="text-center">Total</th>
+                                <th class="text-center">80</th>
+                                <th class="text-center">85</th>
+                                <th class="text-center">90</th>
+                                <th class="text-center">95</th>
+                                <th class="text-center">100</th>
+                                <th class="text-center">M</th>
+                                <th class="text-center">F</th>
+                                <th class="text-end">Disbursed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var p in _report.ProvinceBreakdowns)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@p.ProvinceName</td>
+                                    <td class="text-center">@p.TotalCount.ToString("N0")</td>
+                                    <td class="text-center">@p.Age80Count</td>
+                                    <td class="text-center">@p.Age85Count</td>
+                                    <td class="text-center">@p.Age90Count</td>
+                                    <td class="text-center">@p.Age95Count</td>
+                                    <td class="text-center">@p.Age100Count</td>
+                                    <td class="text-center">@p.MaleCount</td>
+                                    <td class="text-center">@p.FemaleCount</td>
+                                    <td class="text-end fw-semibold">₱@p.TotalDisbursement.ToString("N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-secondary fw-bold">
+                            <tr>
+                                <td>TOTAL</td>
+                                <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
+                                <td class="text-center">@_report.TotalAge80</td>
+                                <td class="text-center">@_report.TotalAge85</td>
+                                <td class="text-center">@_report.TotalAge90</td>
+                                <td class="text-center">@_report.TotalAge95</td>
+                                <td class="text-center">@_report.TotalAge100</td>
+                                <td class="text-center">@_report.TotalMale</td>
+                                <td class="text-center">@_report.TotalFemale</td>
+                                <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @* ── Municipality Breakdown ───────────────────────────────── *@
+        @if (_report.MunicipalityBreakdowns.Any())
+        {
+            <div class="sys-card mt-3">
+                <div class="sys-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-building me-2"></i>Breakdown by Municipality</span>
+                    <button class="btn btn-sm btn-light" @onclick="ToggleMunicipalityTable">
+                        @(_showMunicipalityTable ? "Hide" : "Show")
+                    </button>
+                </div>
+                @if (_showMunicipalityTable)
+                {
+                    <div class="sys-card-body p-0">
+                        <div class="table-responsive" style="max-height:500px; overflow-y:auto;">
+                            <table class="table table-hover table-sm mb-0 stat-table">
+                                <thead class="table-dark position-sticky top-0" style="z-index:1;">
+                                    <tr>
+                                        <th>Municipality</th>
+                                        <th>Province</th>
+                                        <th class="text-center">Total</th>
+                                        <th class="text-center">80</th>
+                                        <th class="text-center">85</th>
+                                        <th class="text-center">90</th>
+                                        <th class="text-center">95</th>
+                                        <th class="text-center">100</th>
+                                        <th class="text-center">M</th>
+                                        <th class="text-center">F</th>
+                                        <th class="text-end">Disbursed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var m in _report.MunicipalityBreakdowns.OrderBy(x => x.ProvinceName).ThenBy(x => x.MunicipalityName))
+                                    {
+                                        <tr>
+                                            <td>@m.MunicipalityName</td>
+                                            <td>@m.ProvinceName</td>
+                                            <td class="text-center">@m.TotalCount.ToString("N0")</td>
+                                            <td class="text-center">@m.Age80Count</td>
+                                            <td class="text-center">@m.Age85Count</td>
+                                            <td class="text-center">@m.Age90Count</td>
+                                            <td class="text-center">@m.Age95Count</td>
+                                            <td class="text-center">@m.Age100Count</td>
+                                            <td class="text-center">@m.MaleCount</td>
+                                            <td class="text-center">@m.FemaleCount</td>
+                                            <td class="text-end">₱@m.TotalDisbursement.ToString("N0")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot class="table-secondary fw-bold">
+                                    <tr>
+                                        <td colspan="2">TOTAL</td>
+                                        <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
+                                        <td class="text-center">@_report.TotalAge80</td>
+                                        <td class="text-center">@_report.TotalAge85</td>
+                                        <td class="text-center">@_report.TotalAge90</td>
+                                        <td class="text-center">@_report.TotalAge95</td>
+                                        <td class="text-center">@_report.TotalAge100</td>
+                                        <td class="text-center">@_report.TotalMale</td>
+                                        <td class="text-center">@_report.TotalFemale</td>
+                                        <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+@code {
+    private bool _isLoading = true;
+    private string? _loadError;
+    private bool _filterExpanded = true;
+    private bool _showMunicipalityTable;
+
+    private StatisticsReportDto _report = new();
+    private List<RegionLookupDto> _regions = new();
+    private List<ProvinceLookupDto> _provincesForRegion = new();
+    private List<MunicipalityLookupDto> _municipalitiesForProvince = new();
+    private List<int> _availableMilestoneYears = new() { 2024, 2025, 2026 };
+
+    private int _selectedRegionId;
+    private int _selectedProvinceId;
+    private int _selectedMunicipalityId;
+    private int _selectedMilestoneYear;
+    private int _selectedMilestone;
+    private int _selectedPaymentStatus = -1;
+
+    private bool _isLoadingProvinces;
+    private bool _isLoadingMunicipalities;
+
+    // ── Properties with getter/setter for cascading ──────────────────
+    private int SelectedRegion
+    {
+        get => _selectedRegionId;
+        set
+        {
+            if (_selectedRegionId != value)
+            {
+                _selectedRegionId = value;
+                _ = OnRegionChangedAsync();
+            }
+        }
+    }
+
+    private int SelectedProvince
+    {
+        get => _selectedProvinceId;
+        set
+        {
+            if (_selectedProvinceId != value)
+            {
+                _selectedProvinceId = value;
+                _ = OnProvinceChangedAsync();
+            }
+        }
+    }
+
+    private int SelectedMunicipality
+    {
+        get => _selectedMunicipalityId;
+        set
+        {
+            if (_selectedMunicipalityId != value)
+            {
+                _selectedMunicipalityId = value;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRegionsAsync();
+        await LoadStatisticsAsync();
+    }
+
+    private async Task LoadRegionsAsync()
+    {
+        try
+        {
+            _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading regions: {ex.Message}");
+        }
+    }
+
+    private async Task OnRegionChangedAsync()
+    {
+        _selectedProvinceId = 0;
+        _selectedMunicipalityId = 0;
+        _provincesForRegion = new();
+        _municipalitiesForProvince = new();
+
+        if (_selectedRegionId > 0)
+        {
+            await LoadProvincesAsync(_selectedRegionId);
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnProvinceChangedAsync()
+    {
+        _selectedMunicipalityId = 0;
+        _municipalitiesForProvince = new();
+
+        if (_selectedProvinceId > 0)
+        {
+            await LoadMunicipalitiesAsync(_selectedProvinceId);
+        }
+        StateHasChanged();
+    }
+
+    private async Task LoadProvincesAsync(int regionId)
+    {
+        try
+        {
+            _isLoadingProvinces = true;
+            _provincesForRegion = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+                $"api/Province/by-region/{regionId}") ?? new();
+        }
+        finally
+        {
+            _isLoadingProvinces = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMunicipalitiesAsync(int provinceId)
+    {
+        try
+        {
+            _isLoadingMunicipalities = true;
+            _municipalitiesForProvince = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{provinceId}") ?? new();
+        }
+        finally
+        {
+            _isLoadingMunicipalities = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadStatisticsAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            var request = new StatisticsRequestDto
+            {
+                Region = _selectedRegionId > 0 ? _selectedRegionId : null,
+                Province = _selectedProvinceId > 0 ? _selectedProvinceId : null,
+                Municipality = _selectedMunicipalityId > 0 ? _selectedMunicipalityId : null,
+                MilestoneYear = _selectedMilestoneYear,
+                MilestoneAge = _selectedMilestone,
+                PaymentStatus = _selectedPaymentStatus
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _report = await response.Content.ReadFromJsonAsync<StatisticsReportDto>() ?? new();
+            }
+            else
+            {
+                _loadError = "Failed to load statistics report. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleFilter() => _filterExpanded = !_filterExpanded;
+
+    private void ClearFilters()
+    {
+        _selectedRegionId = 0;
+        _selectedProvinceId = 0;
+        _selectedMunicipalityId = 0;
+        _selectedMilestoneYear = 0;
+        _selectedMilestone = 0;
+        _selectedPaymentStatus = -1;
+        _provincesForRegion = new();
+        _municipalitiesForProvince = new();
+    }
+
+    private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
+    private async Task RefreshAsync() => await LoadStatisticsAsync();
+
+    private void ToggleMunicipalityTable() => _showMunicipalityTable = !_showMunicipalityTable;
+
+    private static int GetBarHeight(int value, int max) =>
+        max == 0 ? 0 : Math.Max(4, (int)Math.Round((double)value / max * 100));
+
+    private static string GetAgeColor(int age) => age switch
+    {
+        80 => "80",
+        85 => "85",
+        90 => "90",
+        95 => "95",
+        100 => "100",
+        _ => "80"
+    };
+
+    private static string GetYearColor(int year) => year switch
+    {
+        2024 => "2024",
+        2025 => "2025",
+        2026 => "2026",
+        _ => "default"
+    };
+
+    // ── DTOs ──────────────────────────────────────────────────────────
+    public class RegionLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string? Name { get; set; }
+    }
+
+    public class ProvinceLookupDto
+    {
+        public int PsgcCodeProvince { get; set; }
+        public string? Name { get; set; }
+    }
+
+    public class MunicipalityLookupDto
+    {
+        public int PsgcCodeMunicipality { get; set; }
+        public string? Name { get; set; }
+    }
+
+    public class StatisticsRequestDto
+    {
+        public int? Region { get; set; }
+        public int? Province { get; set; }
+        public int? Municipality { get; set; }
+        public int MilestoneYear { get; set; }
+        public int MilestoneAge { get; set; }
+        public int PaymentStatus { get; set; } = -1;
+    }
+
+    public class StatisticsReportDto
+    {
+        public int TotalBeneficiaries { get; set; }
+        public int TotalMale { get; set; }
+        public int TotalFemale { get; set; }
+        public int PaidCount { get; set; }
+        public int UnpaidCount { get; set; }
+        public int PendingCount { get; set; }
+        public int NotApplicableCount { get; set; }
+        public decimal TotalDisbursement { get; set; }
+
+        public int TotalAge80 { get; set; }
+        public int TotalAge85 { get; set; }
+        public int TotalAge90 { get; set; }
+        public int TotalAge95 { get; set; }
+        public int TotalAge100 { get; set; }
+
+        public List<AgeDistributionDto> AgeDistribution { get; set; } = new();
+        public List<ProvinceStatisticsDto> ProvinceBreakdowns { get; set; } = new();
+        public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
+        public List<MilestoneYearSummaryDto> MilestoneYearSummary { get; set; } = new();
+    }
+
+    public class MilestoneYearSummaryDto
+    {
+        public int Year { get; set; }
+        public int TotalCount { get; set; }
+        public int Age80Count { get; set; }
+        public int Age85Count { get; set; }
+        public int Age90Count { get; set; }
+        public int Age95Count { get; set; }
+        public int Age100Count { get; set; }
+    }
+
+    public class AgeDistributionDto
+    {
+        public int Age { get; set; }
+        public int Count { get; set; }
+    }
+
+    public class ProvinceStatisticsDto
+    {
+        public string ProvinceName { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public int Age80Count { get; set; }
+        public int Age85Count { get; set; }
+        public int Age90Count { get; set; }
+        public int Age95Count { get; set; }
+        public int Age100Count { get; set; }
+        public int MaleCount { get; set; }
+        public int FemaleCount { get; set; }
+        public decimal TotalDisbursement { get; set; }
+        public int PaidCount { get; set; }
+        public int UnpaidCount { get; set; }
+        public int PendingCount { get; set; }
+        public int NotApplicableCount { get; set; }
+    }
+
+    public class MunicipalityStatisticsDto
+    {
+        public string MunicipalityName { get; set; } = string.Empty;
+        public string ProvinceName { get; set; } = string.Empty;
+        public int TotalCount { get; set; }
+        public int Age80Count { get; set; }
+        public int Age85Count { get; set; }
+        public int Age90Count { get; set; }
+        public int Age95Count { get; set; }
+        public int Age100Count { get; set; }
+        public int MaleCount { get; set; }
+        public int FemaleCount { get; set; }
+        public decimal TotalDisbursement { get; set; }
+    }
+}
