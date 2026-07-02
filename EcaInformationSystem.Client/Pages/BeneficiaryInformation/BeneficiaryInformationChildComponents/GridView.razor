@@ -114,6 +114,11 @@
                                     @onclick='() => activeBulkTab = "refnumber"'>
                                 <i class="bi bi-hash me-1"></i>Ref Number
                             </button>
+                              <button type="button"
+                                    class="btn @(activeBulkTab == "payrollquarter" ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick='() => activeBulkTab = "payrollquarter"'>
+                                <i class="bi bi-calendar3-range me-1"></i>Payroll Quarter
+                            </button>
                         </div>
 
                         @* ── Tab content — always rendered, no role checks ── *@
@@ -134,18 +139,9 @@
                             </select>
                             <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
                                        @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
-                            <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarter"
-                                    disabled="@(bulkPaymentStatus != 2)">
-                                <option value="">-- Payroll Quarter --</option>
-                                <option value="1">Q1</option>
-                                <option value="2">Q2</option>
-                                <option value="3">Q3</option>
-                                <option value="4">Q4</option>
-                            </select>
-                            <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
+                                <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                     disabled="@(!checkedIds.Any() || bulkPaymentStatus == null
                                                 || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                || (bulkPaymentStatus == 2 && bulkPayrollQuarter == null)
                                                 || IsBulkUpdating)">
                                 @if (IsBulkUpdating)
                                 {
@@ -250,6 +246,32 @@
 
                                     <span>Apply Ref Number</span>
                                 }
+                            </button>
+                        }
+                        @if (activeBulkTab == "payrollquarter")
+                        {
+                            <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarterOnly">
+                                <option value="">-- Payroll Quarter --</option>
+                                <option value="1">Q1</option>
+                                <option value="2">Q2</option>
+                                <option value="3">Q3</option>
+                                <option value="4">Q4</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" @onclick="OpenBulkPayrollQuarterModal"
+                                    disabled="@(!checkedIds.Any() || bulkPayrollQuarterOnly == null || IsBulkUpdatingPayrollQuarter)">
+                                @if (IsBulkUpdatingPayrollQuarter)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                    <span>Updating...</span>
+                                }
+                                else
+                                {
+                                    <span>Apply Quarter</span>
+                                }
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="OpenClearPayrollQuarterModal"
+                                    disabled="@(!checkedIds.Any() || IsBulkUpdatingPayrollQuarter)">
+                                Clear Quarter
                             </button>
                         }
 
@@ -652,6 +674,37 @@
         </div>
     </div>
 </div>
+<HxModal @ref="bulkPayrollQuarterModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm Payroll Quarter Update</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_clearingPayrollQuarter)
+        {
+            <p>You are about to <strong>clear</strong> the Payroll Quarter for <strong>@checkedIds.Count</strong> record(s).</p>
+        }
+        else
+        {
+            <p>You are about to set the Payroll Quarter to <strong>Q @bulkPayrollQuarterOnly</strong> for <strong>@checkedIds.Count</strong> record(s).</p>
+        }
+        <p class="text-muted small mb-0">
+            This is independent of Payment Status — Paid/Unpaid/Pending will not be affected.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkPayrollQuarterModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkPayrollQuarterAsync" Disabled="@IsBulkUpdatingPayrollQuarter">
+            @if (IsBulkUpdatingPayrollQuarter)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+                <span>Yes, Update</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
 <HxModal @ref="bulkRefNumberModal">
     <HeaderTemplate>
@@ -1677,7 +1730,10 @@
 <CoeModal @ref="_coeModal" />
 
 @code {
-    private int? bulkPayrollQuarter = null;
+    private int? bulkPayrollQuarterOnly = null;
+    private bool _clearingPayrollQuarter = false;
+    private bool IsBulkUpdatingPayrollQuarter;
+    private HxModal bulkPayrollQuarterModal = default!;
     private bool IsGeneratingCoe;
     private CoeModal _coeModal = default!;
     private Action? _stateChangeHandler;
@@ -2419,7 +2475,6 @@ public void Dispose()
         if (bulkPaymentStatus == null || !checkedIds.Any()) return;
         if (bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
         if (bulkPaymentStatus == 2 && bulkModeOfPayment == null) return;
-        if (bulkPaymentStatus == 2 && bulkPayrollQuarter == null) return;  // ← Add this
         await bulkUpdateModal.ShowAsync();
     }
 
@@ -2437,7 +2492,52 @@ public void Dispose()
         bulkPaymentStatus = null;
         bulkPaymentDate = null;
         bulkModeOfPayment = null;
-        bulkPayrollQuarter = null;
+        bulkPayrollQuarterOnly = null;
+        _clearingPayrollQuarter = false;
+    }
+    private async Task OpenBulkPayrollQuarterModal()
+    {
+        if (!checkedIds.Any() || bulkPayrollQuarterOnly == null) return;
+        _clearingPayrollQuarter = false;
+        await bulkPayrollQuarterModal.ShowAsync();
+    }
+
+    private async Task OpenClearPayrollQuarterModal()
+    {
+        if (!checkedIds.Any()) return;
+        _clearingPayrollQuarter = true;
+        await bulkPayrollQuarterModal.ShowAsync();
+    }
+
+    private async Task ExecuteBulkPayrollQuarterAsync()
+    {
+        try
+        {
+            IsBulkUpdatingPayrollQuarter = true;
+            var request = new
+            {
+                Ids = checkedIds.ToList(),
+                PayrollQuarter = _clearingPayrollQuarter ? (int?)null : bulkPayrollQuarterOnly
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-payroll-quarter", request);
+
+            await HandleApiResponseAsync(
+                response,
+                _clearingPayrollQuarter
+                    ? $"Cleared Payroll Quarter for {checkedIds.Count} record(s)."
+                    : $"Set Payroll Quarter to Q{bulkPayrollQuarterOnly} for {checkedIds.Count} record(s).",
+                async () =>
+                {
+                    bulkPayrollQuarterOnly = null;
+                    _clearingPayrollQuarter = false;
+                    ClearSelection();
+                    await bulkPayrollQuarterModal.HideAsync();
+                    State.Invalidate();
+                    await State.LoadAsync();
+                });
+        }
+        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+        finally { IsBulkUpdatingPayrollQuarter = false; }
     }
 
     private void GoToDashboardSummary() => Navigation.NavigateTo("/");
@@ -2452,8 +2552,7 @@ public void Dispose()
                 Ids = checkedIds.ToList(),
                 PaymentStatus = bulkPaymentStatus,
                 ModeOfPayment = bulkPaymentStatus == 2 ? bulkModeOfPayment : null,
-                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null,
-                PayrollQuarter = bulkPaymentStatus == 2 ? bulkPayrollQuarter : null 
+                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null
             };
             var response = await Http.PostAsJsonAsync(
                 "api/beneficiary/bulk-payment-status", request);

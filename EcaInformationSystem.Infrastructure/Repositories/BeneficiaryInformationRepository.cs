@@ -563,6 +563,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsCompliant = b.IsCompliant,
                     Validator = b.Validator,
                     ValidationDate = b.ValidationDate,
+                    PayrollQuarter = b.PayrollQuarter,
                     PaymentStatus = b.PaymentStatus,
                     ModeOfPayment = b.ModeOfPayment,
                     PaymentDate = b.PaymentDate,
@@ -900,12 +901,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
         }
         public async Task BulkUpdatePaymentStatusAsync(
-            List<Guid> ids,
-            int paymentStatus,
-            int? modeOfPayment,
-            DateTime? paymentDate,
-            int? payrollQuarter,
-            Dictionary<Guid, byte[]>? rowVersions = null)
+        List<Guid> ids,
+        int paymentStatus,
+        int? modeOfPayment,
+        DateTime? paymentDate,
+        Dictionary<Guid, byte[]>? rowVersions = null)
         {
             var beneficiaries = await _context.BeneficiaryInformations
                 .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
@@ -929,13 +929,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 {
                     b.PaymentDate = paymentDate;
                     b.ModeOfPayment = modeOfPayment ?? 0;
-                    b.PayrollQuarter = payrollQuarter;
+                    // ✅ PayrollQuarter is no longer touched here — it's independent
+                    // of Payment Status now. See BulkUpdatePayrollQuarterAsync.
                 }
                 else
                 {
                     b.PaymentDate = null;
                     b.ModeOfPayment = 0;
-                    b.PayrollQuarter = null;  // ← Reset payroll quarter when not paid
                 }
             }
 
@@ -946,6 +946,43 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             catch (DbUpdateConcurrencyException ex)
             {
                 // ✅ Find which records caused the conflict for a better error message
+                var conflictedNames = GetConflictedRecordNames(ex);
+
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: " +
+                    $"{conflictedNames}. Please refresh and try again.", ex);
+            }
+        }
+
+        // ✅ NEW — Payroll Quarter is now its own independent bulk action, usable
+        // regardless of a record's current Payment Status.
+        public async Task BulkUpdatePayrollQuarterAsync(
+            List<Guid> ids,
+            int? payrollQuarter,
+            Dictionary<Guid, byte[]>? rowVersions = null)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
+                .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                {
+                    _context.Entry(b)
+                            .Property(x => x.RowVersion)
+                            .OriginalValue = rv;
+                }
+
+                b.PayrollQuarter = payrollQuarter;
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
                 var conflictedNames = GetConflictedRecordNames(ex);
 
                 throw new ConcurrencyException(

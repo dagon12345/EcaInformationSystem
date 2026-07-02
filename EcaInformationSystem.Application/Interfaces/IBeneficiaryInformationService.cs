@@ -19,7 +19,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
         Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
         Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,int? payrollQuarter,
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
             string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
@@ -44,5 +44,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings);
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
+        Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
     }
 }

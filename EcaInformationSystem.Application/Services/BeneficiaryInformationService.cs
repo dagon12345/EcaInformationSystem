@@ -712,8 +712,8 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, int? payrollQuarter,
-         string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+          string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
         {
             if (ids == null || !ids.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
@@ -729,7 +729,7 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Mode of Payment is required when status is Paid.");
 
             await _repo.BulkUpdatePaymentStatusAsync(
-                ids, paymentStatus, modeOfPayment, paymentDate, payrollQuarter, rowVersions);  // ✅
+                ids, paymentStatus, modeOfPayment, paymentDate, rowVersions);
 
             var statusLabel = paymentStatus == 2
                 ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})"
@@ -740,6 +740,24 @@ namespace EcaInformationSystem.Application.Services
                     id,
                     $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}",
                     userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
+        // ✅ NEW — independent bulk Payroll Quarter update
+        public async Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName,
+            Dictionary<Guid, byte[]>? rowVersions = null)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception(CommonConstants.NoRecordsSelected);
+
+            await _repo.BulkUpdatePayrollQuarterAsync(ids, payrollQuarter, rowVersions);
+
+            var label = payrollQuarter.HasValue ? $"Q{payrollQuarter}" : "Cleared";
+
+            foreach (var id in ids)
+                await AddLogAsync(id, $"Bulk Payroll Quarter update -> {label}", userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();

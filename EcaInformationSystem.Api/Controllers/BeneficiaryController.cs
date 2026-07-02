@@ -310,10 +310,33 @@ namespace EcaInformationSystem.Api.Controllers
                      request.PaymentStatus,
                      request.ModeOfPayment,
                      request.PaymentDate,
-                     request.PayrollQuarter,  // ← Pass this
                      userName,
                      request.RowVersions);
 
+                return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        // ✅ NEW — independent of Payment Status entirely
+        [HttpPost("bulk-payroll-quarter")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> BulkUpdatePayrollQuarter([FromBody] BulkUpdatePayrollQuarterRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkUpdatePayrollQuarterAsync(
+                    request.Ids,
+                    request.PayrollQuarter,
+                    userName,
+                    request.RowVersions);
                 return Ok();
             }
             catch (ConcurrencyException ex)

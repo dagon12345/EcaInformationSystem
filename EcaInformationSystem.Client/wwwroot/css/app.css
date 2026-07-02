@@ -3378,6 +3378,7 @@ html, body {
 
 .breadcrumb-area {
     flex: 1;
+    min-width: 0; /* ✅ lets this shrink instead of forcing overflow — the actual bug */
     display: flex;
     align-items: center;
     gap: 6px;
@@ -3388,17 +3389,22 @@ html, body {
     .breadcrumb-area .current {
         color: #111;
         font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
 .navbar-actions {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0; /* ✅ never let icons/logout get squeezed by a long breadcrumb */
 }
 
 .icon-btn {
     width: 34px;
     height: 34px;
+    flex-shrink: 0; /* ✅ new */
     border-radius: 8px;
     border: 1px solid #eaecf0;
     background: white;
@@ -3415,7 +3421,7 @@ html, body {
         background: #f3f4f6;
         color: #111;
     }
-
+    
 .notif-dot {
     position: absolute;
     top: 6px;
