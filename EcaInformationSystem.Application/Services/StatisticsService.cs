@@ -55,11 +55,12 @@ namespace EcaInformationSystem.Application.Services
                 version,
                 request.Region?.ToString() ?? "null",
                 request.Province?.ToString() ?? "null",
+                request.Municipality?.ToString() ?? "null", // ✅ was also missing — same collision risk
                 request.MilestoneYear.ToString(),
                 request.MilestoneAge.ToString(),
-                request.PaymentStatus.ToString());
+                request.PaymentStatus.ToString(),
+                request.PayrollQuarter?.ToString() ?? "null"); // ✅ new
         }
-
         private string GetCurrentCacheVersion()
         {
             return _memoryCache.GetOrCreate(StatisticsCacheVersionKey, entry =>

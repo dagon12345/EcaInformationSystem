@@ -66,6 +66,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.PaymentStatus >= 0)
                 query = query.Where(b => b.PaymentStatus == request.PaymentStatus);
 
+            // ✅ Moved up — must run BEFORE ToListAsync(), was previously applied
+            // to `query` after `allData` was already materialized, so it had no effect.
+            if (request.PayrollQuarter.HasValue)
+                query = query.Where(b => b.PayrollQuarter == request.PayrollQuarter.Value);
+
             var allData = await query.ToListAsync();
 
             var report = new StatisticsReportDto
@@ -201,6 +206,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             report.TotalAge90 = report.ProvinceBreakdowns.Sum(p => p.Age90Count);
             report.TotalAge95 = report.ProvinceBreakdowns.Sum(p => p.Age95Count);
             report.TotalAge100 = report.ProvinceBreakdowns.Sum(p => p.Age100Count);
+
+            // Add PayrollQuarter breakdown to the report
+            report.PayrollQuarterBreakdown = allData
+                .GroupBy(b => b.PayrollQuarter ?? 0)
+                .Select(g => new PayrollQuarterStatisticsDto
+                {
+                    Quarter = g.Key,
+                    Count = g.Count(),
+                    PaidCount = g.Count(b => b.PaymentStatus == 2),
+                    TotalDisbursement = g
+                        .Where(b => b.PaymentStatus == 2)
+                        .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                })
+                .OrderBy(q => q.Quarter)
+                .ToList();
 
             return report;
         }
@@ -701,6 +721,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  IsCompliant = b.IsCompliant,
                  Validator = b.Validator,
                  ValidationDate = b.ValidationDate,
+                 PayrollQuarter = b.PayrollQuarter,
                  PaymentStatus = b.PaymentStatus,
                  ModeOfPayment = b.ModeOfPayment,
                  PaymentDate = b.PaymentDate,
@@ -883,6 +904,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             int paymentStatus,
             int? modeOfPayment,
             DateTime? paymentDate,
+            int? payrollQuarter,
             Dictionary<Guid, byte[]>? rowVersions = null)
         {
             var beneficiaries = await _context.BeneficiaryInformations
@@ -907,11 +929,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 {
                     b.PaymentDate = paymentDate;
                     b.ModeOfPayment = modeOfPayment ?? 0;
+                    b.PayrollQuarter = payrollQuarter;
                 }
                 else
                 {
                     b.PaymentDate = null;
                     b.ModeOfPayment = 0;
+                    b.PayrollQuarter = null;  // ← Reset payroll quarter when not paid
                 }
             }
 
@@ -1084,6 +1108,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.Municipality,
                     x.b.Barangay,
                     x.b.Validator,
+                    x.b.PayrollQuarter,
                     x.b.PaymentStatus,
                     x.b.ModeOfPayment,
                     x.b.PaymentDate,
@@ -1132,6 +1157,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 MunicipalityName = _psgcNameCache.GetMunicipalityName(x.Municipality),
                 BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
                 Validator = x.Validator,
+                PayrollQuarter = x.PayrollQuarter,
                 PaymentStatus = x.PaymentStatus,
                 ModeOfPayment = x.ModeOfPayment,
                 PaymentDate = x.PaymentDate,
@@ -1712,6 +1738,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.FilterQuarter.HasValue)
                 query = query.Where(x => x.Beneficiary.Quarter == filter.FilterQuarter.Value);
 
+            // ── Payroll Quarter Filter ────────────────────────────────────────────────
+            if (filter.FilterPayrollQuarter.HasValue)
+                query = query.Where(x => x.Beneficiary.PayrollQuarter == filter.FilterPayrollQuarter.Value);
+
+            if (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())
+                query = query.Where(x => filter.FilterPayrollQuarters.Contains(x.Beneficiary.PayrollQuarter ?? 0));
+
             // ── Batch Filter ──────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
                 query = query.Where(x =>
@@ -1767,6 +1800,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsCompliant = x.Beneficiary.IsCompliant,
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
+                    PayrollQuarter = x.Beneficiary.PayrollQuarter,
                     PaymentStatus = x.Beneficiary.PaymentStatus,
                     ModeOfPayment = x.Beneficiary.ModeOfPayment,
                     PaymentDate = x.Beneficiary.PaymentDate,
@@ -1841,6 +1875,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             IsCompliant = x.IsCompliant,
             Validator = x.Validator ?? string.Empty,
             ValidationDate = x.ValidationDate,
+            PayrollQuarter = x.PayrollQuarter,
             PaymentStatus = x.PaymentStatus,
             ModeOfPayment = x.ModeOfPayment,
             PaymentDate = x.PaymentDate,
@@ -1975,6 +2010,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         IsCompliant = b.IsCompliant,
                         Validator = b.Validator,
                         ValidationDate = b.ValidationDate,
+                        PayrollQuarter = b.PayrollQuarter,
                         PaymentStatus = b.PaymentStatus,
                         ModeOfPayment = b.ModeOfPayment,
                         PaymentDate = b.PaymentDate,
@@ -2055,6 +2091,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 IsCompliant = x.IsCompliant,
                 Validator = x.Validator ?? string.Empty,
                 ValidationDate = x.ValidationDate,
+                PayrollQuarter = x.PayrollQuarter,
                 PaymentStatus = x.PaymentStatus,
                 ModeOfPayment = x.ModeOfPayment,
                 PaymentDate = x.PaymentDate,
@@ -2340,6 +2377,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 var matchingIds = await BuildFindingStatusIdQueryAsync(filter.FindingStatus.Value);
                 query = query.Where(b => matchingIds.Contains(b.Id));
             }
+
+            // ── Payroll Quarter Filter ──────────────────────────────────────────────
+            if (filter.FilterPayrollQuarter.HasValue)
+                query = query.Where(b => b.PayrollQuarter == filter.FilterPayrollQuarter.Value);
+
+            if (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())
+                query = query.Where(b => filter.FilterPayrollQuarters.Contains(b.PayrollQuarter ?? 0));
+
+
             return query;
         }
         // WHY A SEPARATE QUERY INSTEAD OF A JOIN:
@@ -2408,6 +2454,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool IsCompliant { get; set; }
             public string? Validator { get; set; }
             public DateTime ValidationDate { get; set; }
+            public int? PayrollQuarter { get; set; }
             public int PaymentStatus { get; set; }
             public int ModeOfPayment { get; set; }
             public DateTime? PaymentDate { get; set; }
@@ -2550,6 +2597,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool IsCompliant { get; set; }
             public string? Validator { get; set; }
             public DateTime ValidationDate { get; set; }
+            public int? PayrollQuarter { get; set; }
             public int PaymentStatus { get; set; }
             public int ModeOfPayment { get; set; }
             public DateTime? PaymentDate { get; set; }

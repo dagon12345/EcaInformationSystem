@@ -16,13 +16,19 @@
         public int TotalAge90 { get; set; }
         public int TotalAge95 { get; set; }
         public int TotalAge100 { get; set; }
-
+        public List<PayrollQuarterStatisticsDto> PayrollQuarterBreakdown { get; set; } = new();
         public List<AgeDistributionDto> AgeDistribution { get; set; } = new();
         public List<ProvinceStatisticsDto> ProvinceBreakdowns { get; set; } = new();
         public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
         public List<MilestoneYearSummaryDto> MilestoneYearSummary { get; set; } = new();
     }
-
+    public class PayrollQuarterStatisticsDto
+    {
+        public int Quarter { get; set; }
+        public int Count { get; set; }
+        public int PaidCount { get; set; }
+        public decimal TotalDisbursement { get; set; }
+    }
     public class MilestoneYearSummaryDto
     {
         public int Year { get; set; }

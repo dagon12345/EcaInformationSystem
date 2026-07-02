@@ -41,6 +41,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string Validator { get; set; } = string.Empty;
         [Required(ErrorMessage = "Validation Date is required.")]
         public DateTime ValidationDate { get; set; }
+        public int? PayrollQuarter { get; set; }
         [Range(0, 3, ErrorMessage = "Please select Payment Status.")]
         public int PaymentStatus { get; set; }
         public int ModeOfPayment { get; set; }

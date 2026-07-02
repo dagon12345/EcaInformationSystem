@@ -134,10 +134,19 @@
                             </select>
                             <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
                                        @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
+                            <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarter"
+                                    disabled="@(bulkPaymentStatus != 2)">
+                                <option value="">-- Payroll Quarter --</option>
+                                <option value="1">Q1</option>
+                                <option value="2">Q2</option>
+                                <option value="3">Q3</option>
+                                <option value="4">Q4</option>
+                            </select>
                             <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
                                     disabled="@(!checkedIds.Any() || bulkPaymentStatus == null
-                                                                                                                                                                                                                                                    || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                                                                                                                                                                                                                    || IsBulkUpdating)">
+                                                || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+                                                || (bulkPaymentStatus == 2 && bulkPayrollQuarter == null)
+                                                || IsBulkUpdating)">
                                 @if (IsBulkUpdating)
                                 {
                                     <span class="spinner-border spinner-border-sm me-1"></span>
@@ -145,7 +154,6 @@
                                 }
                                 else
                                 {
-
                                     <span>Apply Payment</span>
                                 }
                             </button>
@@ -355,6 +363,7 @@
                                         <th>Municipality</th>
                                         <th>Barangay</th>
                                         <th>Validator</th>
+                                        <th>Payroll Quarter</th>
                                         <th>Payment</th>
                                         <th>Mode</th>
                                         <th>Eligible</th>
@@ -366,9 +375,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <Virtualize Items="@FilteredBeneficiaries.ToList()" Context="item" ItemSize="56"
-                                                OverscanCount="5">
-                                        <ItemContent>
+                                    @foreach (var item in FilteredBeneficiaries)
+                                    {
                                             <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
                                                 <td>
                                                     <input type="checkbox" class="form-check-input"
@@ -427,6 +435,16 @@
                                                 <td>@Highlight(item.MunicipalityName)</td>
                                                 <td>@Highlight(item.BarangayName)</td>
                                                 <td>@Highlight(item.Validator)</td>
+                                              <td>
+                                                    @if (item.PayrollQuarter.HasValue)
+                                                    {
+                                                        <span class="tbl-badge">@Highlight($"Quarter {item.PayrollQuarter}")</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">—</span>
+                                                    }
+                                                </td>
                                                 <td>
                                                     <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
                                                         @Highlight(GetPaymentStatusText(item.PaymentStatus))
@@ -549,8 +567,7 @@
                                                     </button>
                                                 </td>
                                             </tr>
-                                        </ItemContent>
-                                    </Virtualize>
+                                   }
 
                                     @if (!FilteredBeneficiaries.Any())
                                     {
@@ -580,50 +597,49 @@
                             <span class="ov-text">Loading records...</span>
                         </div>
                     }
-                   <Virtualize Items="@FilteredBeneficiaries.ToList()" Context="item" ItemSize="120" OverscanCount="5">
-                            <ItemContent>
-                                <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
-                            <div class="beneficiary-card-top">
-                                <input type="checkbox" class="form-check-input beneficiary-card-check"
-                                       checked="@checkedIds.Contains(item.Id)"
-                                       @onchange="() => ToggleCheck(item.Id)" />
-                                <div class="beneficiary-card-name">
-                                    @item.LastName, @item.FirstName
-                                    @if (!string.IsNullOrWhiteSpace(item.MiddleName))
+                        @foreach (var item in FilteredBeneficiaries)
+                        {
+                            <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
+                                <div class="beneficiary-card-top">
+                                    <input type="checkbox" class="form-check-input beneficiary-card-check"
+                                    checked="@checkedIds.Contains(item.Id)"
+                                    @onchange="() => ToggleCheck(item.Id)" />
+                                    <div class="beneficiary-card-name">
+                                        @item.LastName, @item.FirstName
+                                        @if (!string.IsNullOrWhiteSpace(item.MiddleName))
+                                        {
+                                            <span>&nbsp;@item.MiddleName</span>
+                                        }
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.BatchCode))
+                                {
+                                    <div class="beneficiary-card-batch">
+                                        <i class="bi bi-tag-fill me-1"></i>@item.BatchCode
+                                    </div>
+                                }
+
+                                <div class="beneficiary-card-location">
+                                    <i class="bi bi-geo-alt me-1"></i>@item.MunicipalityName — @item.BarangayName
+                                </div>
+
+                                <div class="beneficiary-card-badges">
+                                    <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">Age @item.Age</span>
+                                    <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
+                                        @GetPaymentStatusText(item.PaymentStatus)
+                                    </span>
+                                    @if (item.HasDocuments)
                                     {
-                                        <span>&nbsp;@item.MiddleName</span>
+                                        <span class="tbl-badge yes-b"><i class="bi bi-paperclip me-1"></i>PDF</span>
                                     }
                                 </div>
+
+                                <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
+                                    <i class="bi bi-info-circle"></i> Details
+                                </button>
                             </div>
-                        
-                            @if (!string.IsNullOrWhiteSpace(item.BatchCode))
-                            {
-                                <div class="beneficiary-card-batch">
-                                    <i class="bi bi-tag-fill me-1"></i>@item.BatchCode
-                                </div>
-                            }
-                        
-                            <div class="beneficiary-card-location">
-                                <i class="bi bi-geo-alt me-1"></i>@item.MunicipalityName — @item.BarangayName
-                            </div>
-                        
-                            <div class="beneficiary-card-badges">
-                                <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">Age @item.Age</span>
-                                <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
-                                    @GetPaymentStatusText(item.PaymentStatus)
-                                </span>
-                                @if (item.HasDocuments)
-                                {
-                                    <span class="tbl-badge yes-b"><i class="bi bi-paperclip me-1"></i>PDF</span>
-                                }
-                            </div>
-                        
-                            <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
-                                <i class="bi bi-info-circle"></i> Details
-                            </button>
-                        </div>
-                            </ItemContent>
-                        </Virtualize>
+                        }
 
                         @if (!FilteredBeneficiaries.Any() && !State.IsLoading)
                         {
@@ -875,8 +891,10 @@
                                                                             <div class="row g-2 mb-4">
                                                                                 <div class="col-6"><small class="text-muted d-block">Validator</small><span>@(selectedDetails.Validator ??
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       "—")</span></div>
-                                                                                    <div class="col-6"><small class="text-muted d-block">Validation
-                                                                                        Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
+                                                                                    <div class="col-6"><small class="text-muted d-block">Validation Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
+                                                                                        <div class="col-6"><small class="text-muted d-block">Payroll Quarter</small>
+                                                                                            <span>@(selectedDetails.PayrollQuarter.HasValue ? $"Q{selectedDetails.PayrollQuarter}" : "—")</span>
+                                                                                        </div>
                                                                                         <div class="col-6">
                                                                                             <small class="text-muted d-block">Payment Status</small>
                                                                                             <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
@@ -1659,6 +1677,7 @@
 <CoeModal @ref="_coeModal" />
 
 @code {
+    private int? bulkPayrollQuarter = null;
     private bool IsGeneratingCoe;
     private CoeModal _coeModal = default!;
     private Action? _stateChangeHandler;
@@ -2400,6 +2419,7 @@ public void Dispose()
         if (bulkPaymentStatus == null || !checkedIds.Any()) return;
         if (bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
         if (bulkPaymentStatus == 2 && bulkModeOfPayment == null) return;
+        if (bulkPaymentStatus == 2 && bulkPayrollQuarter == null) return;  // ← Add this
         await bulkUpdateModal.ShowAsync();
     }
 
@@ -2417,6 +2437,7 @@ public void Dispose()
         bulkPaymentStatus = null;
         bulkPaymentDate = null;
         bulkModeOfPayment = null;
+        bulkPayrollQuarter = null;
     }
 
     private void GoToDashboardSummary() => Navigation.NavigateTo("/");
@@ -2431,7 +2452,8 @@ public void Dispose()
                 Ids = checkedIds.ToList(),
                 PaymentStatus = bulkPaymentStatus,
                 ModeOfPayment = bulkPaymentStatus == 2 ? bulkModeOfPayment : null,
-                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null
+                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null,
+                PayrollQuarter = bulkPaymentStatus == 2 ? bulkPayrollQuarter : null 
             };
             var response = await Http.PostAsJsonAsync(
                 "api/beneficiary/bulk-payment-status", request);

@@ -30,7 +30,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<int?> GetBarangayCodeByNameAsync(string barangayName);
         Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate);
 
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, Dictionary<Guid, byte[]>? rowVersions = null); //Added
+        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, int? payrollQuarter, Dictionary<Guid, byte[]>? rowVersions = null); //Added
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
         Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);

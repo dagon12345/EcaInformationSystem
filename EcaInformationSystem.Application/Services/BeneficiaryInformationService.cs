@@ -398,7 +398,8 @@ namespace EcaInformationSystem.Application.Services
                 // ── Other ─────────────────────────────────────────────────────
                 N(f.Validator),
                 N(f.BatchCode),
-                N(f.GeneralSearch)               // ✅ ADDED - CRITICAL!
+                N(f.GeneralSearch),               // ✅ ADDED - CRITICAL!
+                ListN(f.FilterPayrollQuarters)   // ✅ new
             );
         }
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
@@ -468,6 +469,7 @@ namespace EcaInformationSystem.Application.Services
                 IsCompliant = dto.IsCompliant,
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
+                PayrollQuarter = dto.PayrollQuarter,
                 PaymentStatus = dto.PaymentStatus,
                 ModeOfPayment = dto.ModeOfPayment,
                 PaymentDate = dto.PaymentDate,
@@ -710,7 +712,7 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, int? payrollQuarter,
          string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
         {
             if (ids == null || !ids.Any())
@@ -727,7 +729,7 @@ namespace EcaInformationSystem.Application.Services
                 throw new Exception("Mode of Payment is required when status is Paid.");
 
             await _repo.BulkUpdatePaymentStatusAsync(
-                ids, paymentStatus, modeOfPayment, paymentDate, rowVersions);  // ✅
+                ids, paymentStatus, modeOfPayment, paymentDate, payrollQuarter, rowVersions);  // ✅
 
             var statusLabel = paymentStatus == 2
                 ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})"
@@ -779,7 +781,7 @@ namespace EcaInformationSystem.Application.Services
                 dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
                 dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                 dto.IsCompliant, dto.Validator, dto.ValidationDate,
-                dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
+                dto.PayrollQuarter, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
                 dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
                 dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
                 dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
@@ -3809,7 +3811,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterRegionRoman ?? CommonConstants.Null,
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
-                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null
+                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
+                (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any()) // ✅ new
+                    ? string.Join(",", filter.FilterPayrollQuarters.OrderBy(x => x))
+                    : CommonConstants.Null
             );
         }
         private async Task<BeneficiaryInformation?> FindExistingAsync(string lastName, string firstName, string middleName, DateTime birthDate)
@@ -3988,7 +3993,10 @@ namespace EcaInformationSystem.Application.Services
                 filter.BatchCode ?? string.Empty,                             // ✅ ADDED
                 filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,  // ✅ ADDED
-                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null    // ✅ ADDED
+                filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,    // ✅ ADDED
+                (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())  // ✅ new
+                    ? string.Join(",", filter.FilterPayrollQuarters.OrderBy(x => x))
+                    : CommonConstants.Null
             );
         }
         //Updating a beneficiary record involves comparing the existing values with the new values from the DTO and logging any changes. This method generates a list of changed fields for logging purposes.
@@ -4109,6 +4117,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.Remarks != dto.Remarks)
                 changes.Add($"{CommonConstants.Remarks.ToTitleCase()} '{beneficiary.Remarks}' → '{dto.Remarks}'");
+
+            if (beneficiary.PayrollQuarter != dto.PayrollQuarter)
+                changes.Add($"Payroll Quarter '{beneficiary.PayrollQuarter}' → '{dto.PayrollQuarter}'");
 
             return changes;
         }

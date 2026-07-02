@@ -226,6 +226,15 @@
                                                  IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payment Statuses"
                                                  Disabled="@IsLoading" />
                         </div>
+                        @* PAYROLL QUARTER *@
+                        <div class="sf-field">
+                            <label>Payroll Quarter</label>
+                            <MultiSelectDropdown TItem="PayrollQuarterOption" Items="_payrollQuarterOptions"
+                                                 SelectedIds="State.SelectedPayrollQuarters"
+                                                 SelectedIdsChanged="@(ids => { State.SelectedPayrollQuarters = ids; })"
+                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payroll Quarters"
+                                                 Disabled="@IsLoading" />
+                        </div>
                         @* MODE OF PAYMENT *@
                         <div class="sf-field">
                             <label>Mode of Payment</label>
@@ -449,6 +458,7 @@
 </div>
 
 @code {
+    private record PayrollQuarterOption(int Value, string Label);
     private record PaymentStatusOption(int Value, string Label);
     // ── Birthday state ────────────────────────────────────────────────
     private int _specificBirthdayMonth = 0;
@@ -472,6 +482,13 @@
         new(10, "October"),
         new(11, "November"),
         new(12, "December"),
+    };
+    private readonly List<PayrollQuarterOption> _payrollQuarterOptions = new()
+    {
+        new(1, "Q1"),
+        new(2, "Q2"),
+        new(3, "Q3"),
+        new(4, "Q4"),
     };
     private string _refQuarterValue = string.Empty;
     private string _coStatusValue = "-1";
@@ -838,6 +855,7 @@
             State.Filter.PsgcCodeMunicipalities = State.SelectedMunicipalityIds;
             State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
             State.Filter.PaymentStatuses = State.SelectedPaymentStatuses;
+            State.Filter.FilterPayrollQuarters = State.SelectedPayrollQuarters; // ✅ new
             // ── Map month+day selectors → filter DateTime fields ──────────
             State.Filter.SpecificBirthday = BuildMonthDay(_specificBirthdayMonth, _specificBirthdayDay);
             State.Filter.BirthdayFrom = BuildMonthDay(_birthdayFromMonth, _birthdayFromDay);
@@ -873,6 +891,7 @@
         State.SelectedMunicipalityIds = new(); // ✅ ADD
         State.SelectedBarangayId = 0;
         State.SelectedPaymentStatuses = new(); // ✅ ADD
+        State.SelectedPayrollQuarters = new(); // ✅ new
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
@@ -938,6 +957,7 @@
     !State.SelectedProvinceIds.Any() &&
     !State.SelectedMunicipalityIds.Any() &&
     !State.SelectedPaymentStatuses.Any() &&
+    !State.SelectedPayrollQuarters.Any() && // ✅ new
     f.PsgcCodeBarangay == null &&
     f.Sex == null &&
     f.IsCompliant == null &&

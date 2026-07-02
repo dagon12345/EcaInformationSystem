@@ -8,5 +8,6 @@
         public int MilestoneYear { get; set; }  // 2024, 2025, 2026
         public int MilestoneAge { get; set; }   // 80, 85, 90, 95, 100
         public int PaymentStatus { get; set; } = -1;
+        public int? PayrollQuarter { get; set; }
     }
 }

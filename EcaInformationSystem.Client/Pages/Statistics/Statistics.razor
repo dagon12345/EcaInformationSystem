@@ -141,6 +141,17 @@
                                 <option value="0">N/A</option>
                             </select>
                         </div>
+                        @* ── Payroll Quarter ───────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Payroll Quarter</label>
+                            <select @bind="_selectedPayrollQuarter" class="ff-input">
+                                <option value="0">All Quarters</option>
+                                <option value="1">Q1</option>
+                                <option value="2">Q2</option>
+                                <option value="3">Q3</option>
+                                <option value="4">Q4</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="sf-actions">
                         <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
@@ -238,6 +249,38 @@
                             </div>
                         }
                     </div>
+                </div>
+            </div>
+        }
+        @if (_report.PayrollQuarterBreakdown.Any())
+        {
+            <div class="sys-card mb-3">
+                <div class="sys-card-header">
+                    <i class="bi bi-calendar3-range me-2"></i>
+                    Payroll Quarter Breakdown
+                </div>
+                <div class="sys-card-body p-0">
+                    <table class="table table-sm mb-0 stat-table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Quarter</th>
+                                <th class="text-center">Count</th>
+                                <th class="text-center">Paid</th>
+                                <th class="text-end">Disbursed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var q in _report.PayrollQuarterBreakdown)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">Q@q.Quarter</td>
+                                    <td class="text-center">@q.Count.ToString("N0")</td>
+                                    <td class="text-center">@q.PaidCount.ToString("N0")</td>
+                                    <td class="text-end">₱@q.TotalDisbursement.ToString("N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         }
@@ -446,6 +489,7 @@
     }
 </div>
 @code {
+    private int _selectedPayrollQuarter;
     private bool _isLoading = true;
     private string? _loadError;
     private bool _filterExpanded = true;
@@ -594,7 +638,8 @@
                 Municipality = _selectedMunicipalityId > 0 ? _selectedMunicipalityId : null,
                 MilestoneYear = _selectedMilestoneYear,
                 MilestoneAge = _selectedMilestone,
-                PaymentStatus = _selectedPaymentStatus
+                PaymentStatus = _selectedPaymentStatus,
+                PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null // ✅ new
             };
 
             var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
@@ -630,6 +675,7 @@
         _selectedPaymentStatus = -1;
         _provincesForRegion = new();
         _municipalitiesForProvince = new();
+        _selectedPayrollQuarter = 0; // ✅ new
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
@@ -685,6 +731,7 @@
         public int MilestoneYear { get; set; }
         public int MilestoneAge { get; set; }
         public int PaymentStatus { get; set; } = -1;
+        public int? PayrollQuarter { get; set; }
     }
 
     public class StatisticsReportDto
@@ -704,6 +751,7 @@
         public int TotalAge95 { get; set; }
         public int TotalAge100 { get; set; }
 
+        public List<PayrollQuarterStatisticsDto> PayrollQuarterBreakdown { get; set; } = new(); // ✅ new
         public List<AgeDistributionDto> AgeDistribution { get; set; } = new();
         public List<ProvinceStatisticsDto> ProvinceBreakdowns { get; set; } = new();
         public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
@@ -757,6 +805,14 @@
         public int Age100Count { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
+        public decimal TotalDisbursement { get; set; }
+    }
+    // ✅ new
+    public class PayrollQuarterStatisticsDto
+    {
+        public int Quarter { get; set; }
+        public int Count { get; set; }
+        public int PaidCount { get; set; }
         public decimal TotalDisbursement { get; set; }
     }
 }

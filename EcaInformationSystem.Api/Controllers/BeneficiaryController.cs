@@ -306,12 +306,13 @@ namespace EcaInformationSystem.Api.Controllers
                 var userName = User.Identity?.Name ?? "System";
 
                 await _service.BulkUpdatePaymentStatusAsync(
-                    request.Ids,
-                    request.PaymentStatus,
-                    request.ModeOfPayment,
-                    request.PaymentDate,
-                    userName,
-                    request.RowVersions);
+                     request.Ids,
+                     request.PaymentStatus,
+                     request.ModeOfPayment,
+                     request.PaymentDate,
+                     request.PayrollQuarter,  // ← Pass this
+                     userName,
+                     request.RowVersions);
 
                 return Ok();
             }

@@ -23,6 +23,7 @@ public class BeneficiaryStateService
     public int SelectedBarangayId { get; set; } = 0;
     public int SelectedSex { get; set; }
     public List<int> SelectedPaymentStatuses { get; set; } = new();
+    public List<int> SelectedPayrollQuarters { get; set; } = new(); // ✅ new
     public string? ErrorMessage { get; set; }
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
@@ -261,6 +262,7 @@ public class BeneficiaryStateService
             N(f.FullName),
             // ── Status ────────────────────────────────────────────────────
             ListN(f.PaymentStatuses),        // ✅ FIX: join actual contents
+            ListN(f.FilterPayrollQuarters),  // ✅ new
             N(f.PaymentDate),
             N(f.PaymentDateFrom),
             N(f.PaymentDateTo),
@@ -336,6 +338,7 @@ public class BeneficiaryStateService
         FirstName = f.FirstName,
         FullName = f.FullName,
         PaymentStatuses = f.PaymentStatuses?.ToList(),
+        FilterPayrollQuarters = f.FilterPayrollQuarters?.ToList(), // ✅ new
         PaymentDate = f.PaymentDate,
         PaymentDateFrom = f.PaymentDateFrom,
         PaymentDateTo = f.PaymentDateTo,
@@ -480,6 +483,7 @@ public class BeneficiaryStateService
 
             // Status
             AreListsEqual(a.PaymentStatuses, b.PaymentStatuses) &&
+            AreListsEqual(a.FilterPayrollQuarters, b.FilterPayrollQuarters) && // ✅ new
             a.PaymentDate == b.PaymentDate &&
             a.PaymentDateFrom == b.PaymentDateFrom &&
             a.PaymentDateTo == b.PaymentDateTo &&
@@ -571,6 +575,10 @@ public class BeneficiaryStateService
         {
             var labels = filter.PaymentStatuses.Select(GetPaymentStatusLabel);
             parts.Add($"Payment: {string.Join(", ", labels)}");
+        }
+        if (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any()) // ✅ new
+        {
+            parts.Add($"Payroll Quarter: {string.Join(", ", filter.FilterPayrollQuarters.Select(q => $"Q{q}"))}");
         }
         if (filter.IsEligible.HasValue)
             parts.Add($"Eligible: {(filter.IsEligible.Value ? "Yes" : "No")}");

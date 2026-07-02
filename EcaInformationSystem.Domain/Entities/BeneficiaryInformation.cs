@@ -33,6 +33,7 @@ namespace EcaInformationSystem.Domain.Entities
         public bool IsCompliant { get; set; }
         public string Validator { get; set; } =string.Empty;
         public DateTime ValidationDate { get; set; }
+        public int? PayrollQuarter { get; set; }
         public int PaymentStatus { get; set; }
         public int ModeOfPayment { get; set; }
         public DateTime? PaymentDate { get; set; }
@@ -53,7 +54,7 @@ namespace EcaInformationSystem.Domain.Entities
         public byte[] RowVersion { get; set; } = default!;
         public void Update(int? quarter, string? batch, int? refYear, string? refCode, DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
             DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
-            int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int paymentStatus, int modeOfPayment,
+            int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int? payrollQuarter, int paymentStatus, int modeOfPayment,
             DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, string? eligibilityRemarks, int? remarkCategory, string? remarks
             , int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved)
         {
@@ -85,6 +86,7 @@ namespace EcaInformationSystem.Domain.Entities
             IsCompliant = iscompliant;
             Validator = validator;
             ValidationDate = validationDate;
+            PayrollQuarter = payrollQuarter;
             PaymentStatus = paymentStatus;
             ModeOfPayment = modeOfPayment;
             PaymentDate = paymentDate;

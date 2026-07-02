@@ -39,9 +39,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? ProvinceName { get; set; }
         public string? MunicipalityName { get; set; }
         public string? BarangayName { get; set; }
-
         public string? Validator { get; set; }
-
+        public int? PayrollQuarter { get; set; }
         public int PaymentStatus { get; set; }
         public int ModeOfPayment { get; set; }
         public bool IsEligible { get; set; }

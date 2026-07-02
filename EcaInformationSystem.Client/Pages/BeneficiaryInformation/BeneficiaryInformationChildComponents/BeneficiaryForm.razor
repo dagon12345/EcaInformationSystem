@@ -401,7 +401,7 @@
                 <div class="ff">
                     <label class="ff-label">Mode of Payment</label>
                     <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment"
-                                 disabled="@(model.PaymentStatus != 2)"> @* ✅ disabled when not Paid *@
+                                 disabled="@(model.PaymentStatus != 2)">
                         <option value="0">Select Mode</option>
                         <option value="1">Cash Advance by SDO</option>
                         <option value="2">Bank Transfer</option>
@@ -423,6 +423,29 @@
                         <div class="ff-err">Payment Date is required when status is Paid.</div>
                     }
                 </div>
+
+                @* ── NEW: Payroll Quarter ── *@
+                <div class="ff">
+                    <label class="ff-label">
+                        Payroll Quarter
+                        @if (model.PaymentStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <select class="ff-input" @bind="model.PayrollQuarter" disabled="@(model.PaymentStatus != 2)">
+                        <option value="">-- Select Quarter --</option>
+                        <option value="1">Q1 (Jan–Mar)</option>
+                        <option value="2">Q2 (Apr–Jun)</option>
+                        <option value="3">Q3 (Jul–Sep)</option>
+                        <option value="4">Q4 (Oct–Dec)</option>
+                    </select>
+                    @if (model.PaymentStatus == 2 && !model.PayrollQuarter.HasValue)
+                    {
+                        <div class="ff-err">Payroll Quarter is required when status is Paid.</div>
+                    }
+                </div>
+
                 <div class="ff">
                     <label class="ff-label">Remark Category</label>
                     <InputSelect class="ff-input" @bind-Value="model.RemarkCategory">
@@ -998,13 +1021,15 @@
         if (!int.TryParse(e.Value?.ToString(), out var newStatus))
             return;
 
-        // Clear payment date when switching away from Paid
+        // Clear payment date and payroll quarter when switching away from Paid
         if (newStatus != 2)
+        {
             model.PaymentDate = null;
+            model.PayrollQuarter = null;  // ← Clear payroll quarter
+        }
         model.ModeOfPayment = 0;
 
-        // ✅ Always update model.PaymentStatus immediately so the UI reacts
-        // (date field enables/disables, required star shows, etc.)
+        // Update model.PaymentStatus immediately so the UI reacts
         model.PaymentStatus = newStatus;
         StateHasChanged();
 
@@ -1033,10 +1058,13 @@
 
     private async Task CancelPaymentStatusChangeAsync()
     {
-        // ✅ Revert model back to original since user cancelled
+        // Revert model back to original since user cancelled
         model.PaymentStatus = _originalPaymentStatus;
         if (_originalPaymentStatus != 2)
+        {
             model.PaymentDate = null;
+            model.PayrollQuarter = null;  // ← Clear payroll quarter
+        }
         model.ModeOfPayment = 0;
 
         _pendingPaymentStatus = 0;
@@ -1208,9 +1236,18 @@
                 return;
             }
 
-            // ✅ Clear payment date if not Paid — keep data clean
+            // ✅ Payroll Quarter required if Paid
+            if (model.PaymentStatus == 2 && !model.PayrollQuarter.HasValue)
+            {
+                toast.ShowError("Payroll Quarter is required when Payment Status is Paid.");
+                return;
+            }
+            // ✅ Clear payment date and payroll quarter if not Paid
             if (model.PaymentStatus != 2)
+            {
                 model.PaymentDate = null;
+                model.PayrollQuarter = null;  // ← Clear payroll quarter
+            }
 
             // ── Validate finding before sending anything ──────────────────────
             if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
@@ -1307,8 +1344,16 @@
                 "Payment Date is required when Payment Status is Paid.");
             IsLoading = false; return;
         }
+        if (model.PaymentStatus == 2 && !model.PayrollQuarter.HasValue)  // ← Add this guard
+        {
+            toast.ShowError("Payroll Quarter is required when Payment Status is Paid.");
+            IsLoading = false; return;
+        }
         if (model.PaymentStatus != 2)
+        {
             model.PaymentDate = null;
+            model.PayrollQuarter = null;  // ← Clear payroll quarter
+        }
 
         // ✅ Warn if partial ref number entry — don't block, just clear the partial
         if (!HasRefNumber &&
@@ -1339,8 +1384,6 @@
             Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
             RefYear = model.RefYear,
             RefCode = null,
-
-            // ... rest of your fields unchanged ...
             DateApplied = model.DateApplied,
             DateEndorsed = model.DateEndorsed,
             BatchCode = model.BatchCode,
@@ -1365,6 +1408,7 @@
             IsCompliant = model.IsCompliant,
             Validator = model.Validator,
             ValidationDate = model.ValidationDate,
+            PayrollQuarter = model.PayrollQuarter,
             PaymentStatus = model.PaymentStatus,
             ModeOfPayment = model.ModeOfPayment,
             PaymentDate = model.PaymentDate,

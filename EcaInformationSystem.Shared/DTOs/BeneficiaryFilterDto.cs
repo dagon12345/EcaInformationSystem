@@ -25,11 +25,15 @@
         public bool? OnlyEightyYearsOld { get; set; }
         public int? MilestoneYear { get; set; }
         public int? Sex { get; set; }
+        // For filtering by PayrollQuarter
+        public int? FilterPayrollQuarter { get; set; }
         public int? PaymentStatus { get; set; }
         public DateTime? PaymentDate { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
 
+        // For multi-select payroll quarters
+        public List<int>? FilterPayrollQuarters { get; set; }
         public List<int> PsgcCodeProvinces { get; set; } = new();
         public List<int> PsgcCodeMunicipalities { get; set; } = new();
         public List<int> PsgcCodeBarangays { get; set; } = new();
