@@ -263,6 +263,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FilterBatch = filter.FilterBatch,
                 FilterRefYear = filter.FilterRefYear,
                 FilterRegionRoman = filter.FilterRegionRoman,
+                FilterPayrollQuarter = filter.FilterPayrollQuarter,   // ✅ new — this was the actual bug
+                FilterPayrollQuarters = filter.FilterPayrollQuarters, // ✅ new
                 DateAddedFrom = filter.DateAddedFrom,
                 DateAddedTo = filter.DateAddedTo,
                 Validator = filter.Validator,

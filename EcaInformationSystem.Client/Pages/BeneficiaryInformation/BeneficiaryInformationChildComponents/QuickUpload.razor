@@ -1,0 +1,72 @@
+﻿<div class="quick-upload-wrap position-relative d-inline-block">
+    <button class="btn-details" @onclick="TogglePopover" title="Quick Upload">
+        <i class="bi bi-camera-fill"></i> Upload
+    </button>
+
+    @if (_showPopover)
+    {
+        <div class="quick-upload-backdrop" @onclick="ClosePopover"></div>
+        <div class="quick-upload-popover">
+            <div class="quick-upload-popover-header">
+                <span>Add Document</span>
+                <button class="btn-close btn-close-sm" @onclick="ClosePopover"></button>
+            </div>
+
+            @* Native mobile camera — unchanged behavior from your existing offcanvas *@
+            <label class="quick-upload-option">
+                <i class="bi bi-camera-fill"></i>
+                <span>Take Photo (Camera)</span>
+                <InputFile OnChange="OnImageFileChanged" accept="image/*" capture="environment"
+                           style="display:none;" />
+            </label>
+
+            @* Desktop webcam — new *@
+            <button type="button" class="quick-upload-option" @onclick="OpenWebcamModal">
+                <i class="bi bi-webcam-fill"></i>
+                <span>Use Webcam</span>
+            </button>
+
+            @* Fallback if the shot was missed / no camera on device — new *@
+            <label class="quick-upload-option">
+                <i class="bi bi-images"></i>
+                <span>Choose from Gallery</span>
+                <InputFile OnChange="OnImageFileChanged" accept="image/*" multiple style="display:none;" />
+            </label>
+
+            <label class="quick-upload-option">
+                <i class="bi bi-file-earmark-pdf"></i>
+                <span>Attach PDF</span>
+                <InputFile OnChange="OnPdfFileChanged" accept=".pdf" multiple style="display:none;" />
+            </label>
+        </div>
+    }
+</div>
+
+<HxModal @ref="_webcamModal" Size="ModalSize.Large">
+    <HeaderTemplate><h5 class="modal-title">Take Photo — Webcam</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="webcam-wrap">
+            <video id="@_videoElementId" autoplay playsinline muted
+                   style="width:100%; border-radius:8px; background:#000;"></video>
+            <canvas id="@_canvasElementId" style="display:none;"></canvas>
+        </div>
+        @if (!string.IsNullOrEmpty(_webcamError))
+        {
+            <div class="alert alert-danger mt-2 mb-0 py-2 small">@_webcamError</div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CloseWebcamModalAsync">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="CaptureWebcamPhotoAsync" Disabled="@_isCapturing">
+            @if (_isCapturing)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-camera me-1"></i>
+            }
+            Capture
+        </HxButton>
+    </FooterTemplate>
+</HxModal>

@@ -24,6 +24,66 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.quick-upload-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.quick-upload-popover {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    z-index: 50;
+    min-width: 210px;
+    overflow: hidden;
+}
+
+.quick-upload-popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    background: var(--navy-pale);
+    border-bottom: 1px solid var(--border);
+}
+
+.quick-upload-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+    background: white;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-main);
+}
+
+    .quick-upload-option:last-child {
+        border-bottom: none;
+    }
+
+    .quick-upload-option:hover {
+        background: var(--row-hover);
+    }
+
+    .quick-upload-option i {
+        width: 18px;
+        text-align: center;
+        color: var(--navy);
+    }
 /* ── Dashboard ───────────────────────────────────────────────────────── */
 .dash-welcome {
     margin-bottom: 16px;
@@ -2602,8 +2662,8 @@ textarea.ff-input {
 /* ── Table container ───────────────────────────────────── */
 .tbl-container {
     position: relative;
-    height: 500px;
-    min-height: 500px;
+    height: min(65vh, 700px); /* ✅ scales with the viewport, capped so it never gets absurd on huge monitors */
+    min-height: 320px; /* ✅ still usable on short viewports / laptops with the filter panel expanded */
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;

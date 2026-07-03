@@ -273,7 +273,7 @@
                             @foreach (var q in _report.PayrollQuarterBreakdown)
                             {
                                 <tr>
-                                    <td class="fw-semibold">Q@q.Quarter</td>
+                                    <td class="fw-semibold">Quarter @q.Quarter</td>
                                     <td class="text-center">@q.Count.ToString("N0")</td>
                                     <td class="text-center">@q.PaidCount.ToString("N0")</td>
                                     <td class="text-end">₱@q.TotalDisbursement.ToString("N0")</td>

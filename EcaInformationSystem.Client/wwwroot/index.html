@@ -256,6 +256,39 @@
             return URL.createObjectURL(blob);
         };
 
+        window.webcamInterop = {
+            stream: null,
+            async start(videoElementId) {
+                const video = document.getElementById(videoElementId);
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" },
+                        audio: false
+                    });
+                    video.srcObject = this.stream;
+                    await video.play();
+                    return true;
+                } catch (err) {
+                    console.error("Webcam access denied or unavailable:", err);
+                    return false;
+                }
+            },
+            capture(videoElementId, canvasElementId) {
+                const video = document.getElementById(videoElementId);
+                const canvas = document.getElementById(canvasElementId);
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+                return canvas.toDataURL("image/jpeg", 0.92); // base64 data URL
+            },
+            stop() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(t => t.stop());
+                    this.stream = null;
+                }
+            }
+        };
+
         // ✅ Revokes blob URL to free memory when viewer is closed
         window.revokeBlobUrl = function (url) {
             URL.revokeObjectURL(url);

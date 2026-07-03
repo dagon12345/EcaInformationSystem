@@ -582,12 +582,14 @@
                                                         <span class="text-muted small">—</span>
                                                     }
                                                 </td>
-                                                <td>
-                                                    <button class="btn-details" @onclick="() => OpenDetailsPanel(item)"
-                                                            title="View Details">
-                                                        <i class="bi bi-info-circle"></i> Details
-                                                    </button>
-                                                </td>
+                                               <td>
+                                                    <div class="d-flex gap-1">
+                                                        <button class="btn-details" @onclick="() => OpenDetailsPanel(item)" title="View Details">
+                                                            <i class="bi bi-info-circle"></i> Details
+                                                        </button>
+                                                        <QuickUpload BeneficiaryId="@item.Id" PsgcCodeMunicipality="@item.PsgcCodeMunicipality" />
+                                                    </div>
+                                               </td>
                                             </tr>
                                    }
 
@@ -657,9 +659,12 @@
                                     }
                                 </div>
 
-                                <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
-                                    <i class="bi bi-info-circle"></i> Details
-                                </button>
+                              <div class="d-flex gap-1">
+                                  <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
+                                      <i class="bi bi-info-circle"></i> Details
+                                  </button>
+                                  <QuickUpload BeneficiaryId="@item.Id" PsgcCodeMunicipality="@item.PsgcCodeMunicipality" />
+                              </div>
                             </div>
                         }
 

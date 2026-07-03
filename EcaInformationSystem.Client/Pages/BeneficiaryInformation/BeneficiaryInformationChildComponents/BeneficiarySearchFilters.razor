@@ -93,81 +93,6 @@
                     </div>
                 </div>
 
-                @* PERSONAL *@
-                <div>
-                    <div class="sf-section-label"><i class="bi bi-person me-1"></i>Personal</div>
-                    <div class="sf-grid">
-                        <div class="sf-field">
-                            <label>Full Name</label>
-                            <input type="text" placeholder="Search by name..." @bind="State.Filter.FullName"
-                                   @bind:event="oninput" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Last Name</label>
-                            <input type="text" placeholder="Last name" @bind="State.Filter.LastName"
-                                   @bind:event="oninput" />
-                        </div>
-                        <div class="sf-field">
-                            <label>First Name</label>
-                            <input type="text" placeholder="First name" @bind="State.Filter.FirstName" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Sex</label>
-                            <select value="@State.Filter.Sex" @onchange="OnSexChanged" disabled="@IsLoading">
-                                <option value="0">Select Sex</option>
-                                <option value="1">Male</option>
-                                <option value="2">Female</option>
-                            </select>
-                        </div>
-                        <div class="sf-field">
-                            <label>Batch Code</label>
-                            <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90" @bind="State.Filter.BatchCode" />
-                        </div>
-                        @* CO STATUS *@
-                        <div class="sf-field">
-                            <label>CO Status</label>
-                            <select value="@_coStatusValue" @onchange="OnCoStatusFilterChanged" disabled="@IsLoading">
-                                <option value="-1">Select CO Status</option>
-                                <option value="0">Not Set</option>
-                                <option value="1">Endorsed</option>
-                                <option value="2">Approved</option>
-                            </select>
-                        </div>
-                        <div class="sf-field">
-                            <label>Validator</label>
-                            <input type="text" placeholder="Validator" @bind="State.Filter.Validator" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Findings</label>
-                            <select value="@State.Filter.FindingStatus" @onchange="OnFindingStatusChanged"
-                                    disabled="@IsLoading">
-                                <option value="3">Select Findings</option>
-                                <option value="0">N/A</option>
-                                <option value="1">Solved</option>
-                                <option value="2">Unresolved</option>
-                            </select>
-                        </div>
-                        <div class="sf-field">
-                            <label>Compliance</label>
-                            <select value="@_complianceValue" @onchange="OnComplianceChanged" disabled="@IsLoading">
-                                <option value="">Select Compliance</option>
-                                <option value="compliant">Compliant</option>
-                                <option value="noncompliant">Non-Compliant</option>
-                                <option value="withfindings">Compliant w/ Findings</option>
-                            </select>
-                        </div>
-
-                        <div class="sf-field">
-                            <label>Eligibility</label>
-                            <select value="@_eligibilityValue" @onchange="OnEligibilityChanged" disabled="@IsLoading">
-                                <option value="">Select Eligibility</option>
-                                <option value="eligible">Eligible</option>
-                                <option value="ineligible">Ineligible</option>
-                                <option value="withfindings">Eligible w/ Findings</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
                 @* DATE ADDED *@
                 <div>
                     <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
@@ -400,6 +325,81 @@
                                 <option value="NCR">NCR</option>
                                 <option value="CAR">CAR</option>
                                 <option value="BARMM">BARMM</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                @* PERSONAL *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-person me-1"></i>Personal</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Full Name</label>
+                            <input type="text" placeholder="Search by name..." @bind="State.Filter.FullName"
+                                   @bind:event="oninput" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Last Name</label>
+                            <input type="text" placeholder="Last name" @bind="State.Filter.LastName"
+                                   @bind:event="oninput" />
+                        </div>
+                        <div class="sf-field">
+                            <label>First Name</label>
+                            <input type="text" placeholder="First name" @bind="State.Filter.FirstName" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Sex</label>
+                            <select value="@State.Filter.Sex" @onchange="OnSexChanged" disabled="@IsLoading">
+                                <option value="0">Select Sex</option>
+                                <option value="1">Male</option>
+                                <option value="2">Female</option>
+                            </select>
+                        </div>
+                        <div class="sf-field">
+                            <label>Batch Code</label>
+                            <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90" @bind="State.Filter.BatchCode" />
+                        </div>
+                        @* CO STATUS *@
+                        <div class="sf-field">
+                            <label>CO Status</label>
+                            <select value="@_coStatusValue" @onchange="OnCoStatusFilterChanged" disabled="@IsLoading">
+                                <option value="-1">Select CO Status</option>
+                                <option value="0">Not Set</option>
+                                <option value="1">Endorsed</option>
+                                <option value="2">Approved</option>
+                            </select>
+                        </div>
+                        <div class="sf-field">
+                            <label>Validator</label>
+                            <input type="text" placeholder="Validator" @bind="State.Filter.Validator" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Findings</label>
+                            <select value="@State.Filter.FindingStatus" @onchange="OnFindingStatusChanged"
+                                    disabled="@IsLoading">
+                                <option value="3">Select Findings</option>
+                                <option value="0">N/A</option>
+                                <option value="1">Solved</option>
+                                <option value="2">Unresolved</option>
+                            </select>
+                        </div>
+                        <div class="sf-field">
+                            <label>Compliance</label>
+                            <select value="@_complianceValue" @onchange="OnComplianceChanged" disabled="@IsLoading">
+                                <option value="">Select Compliance</option>
+                                <option value="compliant">Compliant</option>
+                                <option value="noncompliant">Non-Compliant</option>
+                                <option value="withfindings">Compliant w/ Findings</option>
+                            </select>
+                        </div>
+
+                        <div class="sf-field">
+                            <label>Eligibility</label>
+                            <select value="@_eligibilityValue" @onchange="OnEligibilityChanged" disabled="@IsLoading">
+                                <option value="">Select Eligibility</option>
+                                <option value="eligible">Eligible</option>
+                                <option value="ineligible">Ineligible</option>
+                                <option value="withfindings">Eligible w/ Findings</option>
                             </select>
                         </div>
                     </div>
