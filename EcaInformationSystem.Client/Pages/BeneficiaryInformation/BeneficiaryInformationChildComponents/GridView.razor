@@ -547,26 +547,34 @@
                                                         </small>
                                                     }
                                                 </td>
-                                                <td>
+                                               <td>
                                                     @{
                                                         var coBadge = GetCoStatusBadgeClass(item.CoStatus);
                                                         var coLabel = GetCoStatusLabel(item.CoStatus);
+                                                        var coDuration = GetCoProcessingDuration(item.CoDateEndorsed, item.CoDateApproved);
                                                     }
                                                     <span class="tbl-badge @coBadge" title="@coLabel">
                                                         @Highlight(coLabel)
                                                     </span>
-                                                    @if (item.CoStatus == 1 && item.CoDateEndorsed.HasValue)
+                                                    @if (item.CoDateEndorsed.HasValue)
                                                     {
                                                         <br />
-                                                        <small class="text-muted" style="font-size:10px;">
-                                                            @Highlight(item.CoDateEndorsed.Value.ToString("MMM dd, yyyy"))
-                                                        </small>
+                                                        <span class="co-date-outline co-date-endorsed">
+                                                            Endorsed: @item.CoDateEndorsed.Value.ToString("MMM dd, yyyy")
+                                                        </span>
                                                     }
-                                                    @if (item.CoStatus == 2 && item.CoDateApproved.HasValue)
+                                                    @if (item.CoDateApproved.HasValue)
                                                     {
                                                         <br />
-                                                        <small class="text-muted" style="font-size:10px;">
-                                                            @Highlight(item.CoDateApproved.Value.ToString("MMM dd, yyyy"))
+                                                        <span class="co-date-outline co-date-approved">
+                                                            Approved: @item.CoDateApproved.Value.ToString("MMM dd, yyyy")
+                                                        </span>
+                                                    }
+                                                    @if (coDuration != null)
+                                                    {
+                                                        <br />
+                                                        <small class="text-primary fw-bold" style="font-size:10px;">
+                                                            (@coDuration to approve)
                                                         </small>
                                                     }
                                                 </td>
@@ -609,6 +617,19 @@
                         </div>
                     </div>
                     @* ── MOBILE CARD LIST — only visible below 768px via CSS ──────────────── *@
+                    <div class="beneficiary-pag-bar-mobile">
+                        <button class="pag-btn-mobile" @onclick="GoToPreviousPageAsync"
+                                disabled="@(State.Filter.PageNumber <= 1 || State.IsLoading)">
+                            ← Prev
+                        </button>
+                        <span class="pag-info-mobile">
+                            Page @State.Filter.PageNumber / @State.TotalPages
+                        </span> 
+                        <button class="pag-btn-mobile" @onclick="GoToNextPageAsync"
+                                disabled="@(State.Filter.PageNumber >= State.TotalPages || State.IsLoading)">
+                            Next →
+                        </button>
+                    </div>
                     <div class="beneficiary-card-list">
                      <div class="beneficiary-card-selectall">
                         <input type="checkbox" class="form-check-input" checked="@AreAllChecked()" @onchange="ToggleSelectAll" />
@@ -659,6 +680,36 @@
                                     }
                                 </div>
 
+                                @{
+                                    var mobileCoBadge = GetCoStatusBadgeClass(item.CoStatus);
+                                    var mobileCoLabel = GetCoStatusLabel(item.CoStatus);
+                                    var mobileCoDuration = GetCoProcessingDuration(item.CoDateEndorsed, item.CoDateApproved);
+                                }
+                                @if (item.CoStatus.HasValue || item.CoDateEndorsed.HasValue || item.CoDateApproved.HasValue)
+                                {
+                                    <div class="beneficiary-card-co-status">
+                                        <span class="tbl-badge @mobileCoBadge">@mobileCoLabel</span>
+                                        @if (item.CoDateEndorsed.HasValue)
+                                        {
+                                            <span class="co-date-outline co-date-endorsed">
+                                                Endorsed: @item.CoDateEndorsed.Value.ToString("MMM dd, yyyy")
+                                            </span>
+                                        }
+                                        @if (item.CoDateApproved.HasValue)
+                                        {
+                                            <span class="co-date-outline co-date-approved">
+                                                Approved: @item.CoDateApproved.Value.ToString("MMM dd, yyyy")
+                                            </span>
+                                        }
+                                        @if (mobileCoDuration != null)
+                                        {
+                                            <span class="text-primary fw-bold" style="font-size:10px;">
+                                                (@mobileCoDuration to approve)
+                                            </span>
+                                        }
+                                    </div>
+                                }
+
                               <div class="d-flex gap-1">
                                   <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
                                       <i class="bi bi-info-circle"></i> Details
@@ -672,6 +723,20 @@
                         {
                             <div class="text-center text-muted py-4">No records found.</div>
                         }
+                        @* Bottom pagination — same controls, repeated for convenience after scrolling the list *@
+                        <div class="beneficiary-pag-bar-mobile">
+                            <button class="pag-btn-mobile" @onclick="GoToPreviousPageAsync"
+                                    disabled="@(State.Filter.PageNumber <= 1 || State.IsLoading)">
+                                ← Prev
+                            </button>
+                            <span class="pag-info-mobile">
+                                Page @State.Filter.PageNumber / @State.TotalPages
+                            </span>
+                            <button class="pag-btn-mobile" @onclick="GoToNextPageAsync"
+                                    disabled="@(State.Filter.PageNumber >= State.TotalPages || State.IsLoading)">
+                                Next →
+                            </button>
+                        </div>
                     </div>
 
                 </div>
@@ -1044,12 +1109,38 @@
                                                                                                                         @GetCoStatusLabel(selectedDetails.CoStatus)
                                                                                                                     </span>
                                                                                                                 </div>
-                                                                                                                <div class="col-6"><small class="text-muted d-block">CO Date
-                                                                                                                    Endorsed</small><span>@(selectedDetails.CoDateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                                                                                                                <div class="col-6">
+                                                                                                                    <small class="text-muted d-block">CO Date Endorsed</small>
+                                                                                                                    @if (selectedDetails.CoDateEndorsed.HasValue)
+                                                                                                                    {
+                                                                                                                        <span class="tbl-badge pending">@selectedDetails.CoDateEndorsed.Value.ToString("MMMM dd, yyyy")</span>
+                                                                                                                    }
+                                                                                                                    else
+                                                                                                                    {
+                                                                                                                        <span class="text-muted">—</span>
+                                                                                                                    }
                                                                                                                 </div>
-                                                                                                                <div class="col-6"><small class="text-muted d-block">CO Date
-                                                                                                                    Approved</small><span>@(selectedDetails.CoDateApproved?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                                                                                                                <div class="col-6">
+                                                                                                                    <small class="text-muted d-block">CO Date Approved</small>
+                                                                                                                    @if (selectedDetails.CoDateApproved.HasValue)
+                                                                                                                    {
+                                                                                                                        <span class="tbl-badge yes-g">@selectedDetails.CoDateApproved.Value.ToString("MMMM dd, yyyy")</span>
+                                                                                                                    }
+                                                                                                                    else
+                                                                                                                    {
+                                                                                                                        <span class="text-muted">—</span>
+                                                                                                                    }
                                                                                                                 </div>
+                                                                                                                @{
+                                                                                                                     var detailCoDuration = GetCoProcessingDuration(selectedDetails.CoDateEndorsed, selectedDetails.CoDateApproved);
+                                                                                                                 }
+                                                                                                                 @if (detailCoDuration != null)
+                                                                                                                 {
+                                                                                                                     <div class="col-6">
+                                                                                                                         <small class="text-muted d-block">Processing Time</small>
+                                                                                                                         <span class="fw-semibold text-primary">@detailCoDuration</span>
+                                                                                                                     </div>
+                                                                                                                 }
                                                                                                             </div>
 
                                                                                                             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
@@ -2675,6 +2766,13 @@ Convert.ToBase64String(fileBytes));
     private string GetModeOfPaymentText(int mode) => mode switch { 1 => "Cash Advance", 2 => "Bank Transfer", _ => "—" };
     private string GetModeOfPaymentBadgeClass(int mode) => mode switch { 1 => "pending", 2 => "yes-b", _ => "no-g" };
     private string GetCoStatusLabel(int? status) => status switch { 1 => "Endorsed", 2 => "Approved", _ => "Not Set" };
+    private string? GetCoProcessingDuration(DateTime? endorsed, DateTime? approved)
+    {
+        if (!endorsed.HasValue || !approved.HasValue) return null;
+        var days = (approved.Value.Date - endorsed.Value.Date).Days;
+        if (days < 0) return null; // guards against bad/out-of-order data instead of showing "-3 days"
+        return days == 0 ? "same day" : $"{days} day{(days == 1 ? "" : "s")}";
+    }
     private string GetCoStatusBadgeClass(int? status) => status switch { 1 => "pending", 2 => "yes-g", _ => "no-g" };
     private string GetSexText(int sex) => sex switch { 1 => "Male", 2 => "Female", _ => "N/A" };
     private string GetPaymentStatusText(int? status) => status switch

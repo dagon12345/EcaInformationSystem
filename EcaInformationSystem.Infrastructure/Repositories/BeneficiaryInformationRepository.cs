@@ -520,6 +520,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
                 from barangay in barangayJoin.DefaultIfEmpty()
 
+                    // ✅ NEW — same 1:1 join pattern already used in GetPagedListAsync
+                join finding in _context.BeneficiaryFindings
+                    on b.Id equals finding.BeneficiaryInformationId into findingJoin
+                from finding in findingJoin.DefaultIfEmpty()
+
                 where b.Id == id && !b.IsDeleted
 
                 select new BeneficiaryInformationDto
@@ -581,7 +586,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoDateEndorsed = b.CoDateEndorsed,
                     CoDateApproved = b.CoDateApproved,
                     IsDeleted = b.IsDeleted,
-                    RowVersion = b.RowVersion
+                    RowVersion = b.RowVersion,
+
+                    // ✅ NEW — now sourced from the finding join
+                    FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
+                    FindingRemarks = finding != null ? finding.FindingRemarks : null
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 

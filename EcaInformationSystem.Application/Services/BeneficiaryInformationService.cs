@@ -187,10 +187,19 @@ namespace EcaInformationSystem.Application.Services
                 ws.Cell(row, 16).Value = item.Municipality?.ToString().ToUpperInvariant();
                 ws.Cell(row, 17).Value = item.Barangay?.ToString().ToUpperInvariant();
 
-                // COMPLIANCE MAPPING
-                ws.Cell(row, 18).Value = item.IsCompliant
-                    ? CommonConstants.Compliant
-                    : CommonConstants.NonCompliant;
+                // COMPLIANCE MAPPING — now includes "Yes (w/ Minor Findings)" + remarks
+                var complianceLabel = GetComplianceExportLabel(item.IsCompliant, item.AssessmentRemarks);
+                var hasRemarksToShow = item.IsCompliant && !string.IsNullOrWhiteSpace(item.AssessmentRemarks);
+
+                ws.Cell(row, 18).Value = hasRemarksToShow
+                    ? $"{complianceLabel}\n{item.AssessmentRemarks!.ToUpperInvariant()}"
+                    : complianceLabel;
+
+                if (hasRemarksToShow)
+                {
+                    ws.Cell(row, 18).Style.Alignment.WrapText = true;
+                    ws.Row(row).Height = Math.Max(ws.Row(row).Height, 30); // give the wrapped remarks room
+                }
 
                 ws.Cell(row, 19).Value = item.Validator?.ToUpperInvariant();
                 ws.Cell(row, 20).Value = item.ValidationDate.ToDefaultFormat();
@@ -3598,6 +3607,12 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
+        private static string GetComplianceExportLabel(bool isCompliant, string? assessmentRemarks) =>
+        isCompliant && !string.IsNullOrWhiteSpace(assessmentRemarks)
+        ? "Yes (w/ Minor Findings)"
+        : isCompliant
+            ? CommonConstants.Compliant
+            : CommonConstants.NonCompliant;
         // ── Cache key reuses the same version-token pattern as BuildSummaryCacheKey,
         // so InvalidateSummaryCache() (already called from every Create/Update/Bulk*/
         // SoftDelete path) automatically busts this too — no new invalidation wiring.
