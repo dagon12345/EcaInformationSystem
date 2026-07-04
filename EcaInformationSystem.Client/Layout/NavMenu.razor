@@ -66,10 +66,14 @@
 
     <div class="nav-section-label mt-2">System</div>
 
-    <NavLink class="nav-item" href="settings">
-        <span class="nav-icon"><i class="bi bi-gear"></i></span>
-        <span class="nav-label">Settings</span>
-    </NavLink>
+    @* ── Activity Logs — Admin only ── *@
+    @if (_isAdmin)
+    {
+        <NavLink class="nav-item" href="logs">
+            <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
+            <span class="nav-label">Activity Logs</span>
+        </NavLink>
+    }
 </nav>
 
 @* ── Permission Legend ─────────────────────────────────────────────────────── *@
@@ -178,7 +182,7 @@
     [Parameter] public EventCallback OnToggle { get; set; }
     [Parameter] public bool Collapsed { get; set; }
     [Parameter] public string UserName { get; set; } = "User";
-    private bool _legendCollapsed = false; // open by default
+    private bool _legendCollapsed = true; // open by default
 
     private string DisplayName = "User";
     private bool _isSuperAdmin;
@@ -269,6 +273,7 @@
             ("Bulk Eligibility",_isAdmin),
             ("Generate Payroll",_isAdmin),
             ("Generate COE", _isAdmin || _isPdo),
+            ("View Activity Logs", _isAdmin),
         };
 
     private string GetInitials(string name)

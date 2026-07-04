@@ -16,6 +16,7 @@
     --accent-soft: #eff6ff;
     --row-hover: #f0f7ff;
     --border: #e2e8f0;
+    --border: #e2e8f0;
     --text-main: #1e293b;
     --text-muted: #64748b;
     --badge-r: 6px;
@@ -23,6 +24,14 @@
     --bs-offcanvas-zindex: 1040;
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
+}
+.logs-tbl-container {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 1px 8px rgba(0,0,0,.06);
 }
 .quick-upload-backdrop {
     position: fixed;
@@ -502,6 +511,44 @@
     }
 
 @media (max-width: 768px) {
+    /* Logs needs working pagination on mobile — a date filter can return
+       more results than the max page size, with no way to page size up
+       further. Unlike the beneficiary grid, "increase page size" isn't
+       always an option here, so Prev/Next must stay visible and tappable. */
+    .logs-pag-bar.pag-bar .pag-btn,
+    .logs-pag-bar.pag-bar .pag-controls > span {
+        display: inline-flex;
+    }
+
+    .logs-pag-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+        .logs-pag-bar .pag-controls {
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .logs-pag-bar .pag-btn {
+            flex: 1 1 auto;
+            min-width: 90px;
+            justify-content: center;
+        }
+
+        .logs-pag-bar select {
+            width: 100%;
+        }
+    .logs-tbl-container .tbl-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .logs-tbl-container .records-tbl {
+        min-width: 640px; /* forces horizontal scroll instead of illegible squeeze */
+    }
     .milestone-year-grid {
         grid-template-columns: 1fr;
     }

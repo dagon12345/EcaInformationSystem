@@ -1,0 +1,239 @@
+﻿@page "/logs"
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Activity Logs</PageTitle>
+
+@if (!_roleChecked)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else if (!_isAdmin)
+{
+    <div class="alert alert-danger m-4">
+        <i class="bi bi-shield-lock-fill me-2"></i>
+        This page is restricted to Administrators.
+    </div>
+}
+else
+{
+    <div class="content-area">
+        <div class="page-header-bar mb-3">
+            <div class="page-header-icon">
+                <i class="bi bi-clock-history"></i>
+            </div>
+            <div>
+                <div class="page-header-title">Activity Logs</div>
+                <div class="page-header-sub">Track user actions across all records</div>
+            </div>
+        </div>
+
+        @* ── Filter Panel ──────────────────────────────────────────── *@
+        <div class="sf-card">
+            <div class="sf-header" @onclick="() => _filterExpanded = !_filterExpanded">
+                <div class="sf-header-left">
+                    <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
+                    <div>
+                        <div class="sf-header-title">Filters</div>
+                        <div class="sf-header-sub">Filter by date range, user, or activity</div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
+            </div>
+            @if (_filterExpanded)
+            {
+                <div class="sf-body">
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>Date Created From</label>
+                            <UniformDateInput Value="@_dateFrom" ValueChanged="@(v => _dateFrom = v)" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Date Created To</label>
+                            <UniformDateInput Value="@_dateTo" ValueChanged="@(v => _dateTo = v)" />
+                        </div>
+                        <div class="sf-field">
+                            <label>User</label>
+                            <input class="ff-input" placeholder="Filter by username..." @bind="_userName" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Activity contains</label>
+                            <input class="ff-input" placeholder="e.g. Payment, Bulk..." @bind="_search" />
+                        </div>
+                    </div>
+                    <div class="sf-actions">
+                        <button class="sf-btn sf-btn-clear" @onclick="ClearFiltersAsync">Clear</button>
+                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync">
+                            <i class="bi bi-check2"></i> Apply
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Pagination bar ───────────────────────────────────────── *@
+        <div class="pag-bar logs-pag-bar">
+            <span>
+                Showing
+                <strong>@(((_filter.PageNumber - 1) * _filter.PageSize) + 1)</strong>
+                –
+                <strong>@Math.Min(_filter.PageNumber * _filter.PageSize, _totalCount)</strong>
+                of <strong>@_totalCount</strong> log(s)
+                &nbsp;·&nbsp; Page @_filter.PageNumber of @_totalPages
+            </span>
+            <div class="pag-controls">
+                <button class="pag-btn" @onclick="GoToPreviousPageAsync" disabled="@(_filter.PageNumber <= 1 || _isLoading)">
+                    ← Prev
+                </button>
+                <span style="font-size:12px; color:var(--text-muted);">@_filter.PageNumber / @_totalPages</span>
+                <button class="pag-btn" @onclick="GoToNextPageAsync" disabled="@(_filter.PageNumber >= _totalPages || _isLoading)">
+                    Next →
+                </button>
+                <select class="form-select form-select-sm w-auto" @bind="_filter.PageSize" @bind:after="OnPageSizeChangedAsync">
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                    <option value="200">200 / page</option>
+                </select>
+            </div>
+        </div>
+
+        @* ── Table ─────────────────────────────────────────────────── *@
+        <div class="logs-tbl-container" style="height:auto; min-height:300px;">
+            @if (_isLoading)
+            {
+                <div class="tbl-overlay">
+                    <div class="spinner-border text-primary"></div>
+                    <span class="ov-text">Loading logs...</span>
+                </div>
+            }
+            <div class="tbl-scroll" style="height:600px;">
+                <table class="records-tbl">
+                    <thead>
+                        <tr>
+                            <th style="width:170px;">Date Created</th>
+                            <th style="width:140px;">User</th>
+                            <th>Beneficiary</th>
+                            <th>Activity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in _logs)
+                        {
+                            <tr>
+                                <td>@log.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")</td>
+                                <td>@log.UserName</td>
+                                <td>@log.BeneficiaryName</td>
+                                <td>@log.Activity</td>
+                            </tr>
+                        }
+                        @if (!_logs.Any() && !_isLoading)
+                        {
+                            <tr class="filler-row">
+                                <td colspan="4">No logs found for the selected filters.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _roleChecked;
+    private bool _isAdmin;
+
+    private bool _filterExpanded = true;
+    private bool _isLoading;
+
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+    private string? _userName;
+    private string? _search;
+
+    private LogFilterDto _filter = new() { PageNumber = 1, PageSize = 50 };
+    private List<LogEntryDto> _logs = new();
+    private int _totalCount;
+    private int _totalPages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        _roleChecked = true;
+
+        if (_isAdmin)
+            await LoadLogsAsync();
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/logs/all", _filter);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PagedResultDto<LogEntryDto>>();
+                _logs = result?.Items ?? new();
+                _totalCount = result?.TotalCount ?? 0;
+                _totalPages = result?.TotalPages ?? 0;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _filter.DateFrom = _dateFrom;
+        _filter.DateTo = _dateTo;
+        _filter.UserName = string.IsNullOrWhiteSpace(_userName) ? null : _userName.Trim();
+        _filter.Search = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
+        _filter.PageNumber = 1;
+        await LoadLogsAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _dateFrom = null;
+        _dateTo = null;
+        _userName = null;
+        _search = null;
+        _filter = new() { PageNumber = 1, PageSize = _filter.PageSize };
+        await LoadLogsAsync();
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (_filter.PageNumber >= _totalPages) return;
+        _filter.PageNumber++;
+        await LoadLogsAsync();
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (_filter.PageNumber <= 1) return;
+        _filter.PageNumber--;
+        await LoadLogsAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync()
+    {
+        _filter.PageNumber = 1;
+        await LoadLogsAsync();
+    }
+}

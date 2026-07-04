@@ -45,6 +45,17 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
         }
+        public async Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter)
+        {
+            var (items, totalCount) = await _logRepository.GetAllLogsAsync(filter);
+            return new PagedResultDto<LogEntryDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber, // ✅ set instead of TotalPages
+                PageSize = filter.PageSize      // ✅ TotalPages derives from this + TotalCount
+            };
+        }
         public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
         {
             var allData = (await _repo.GetByIdsAsync(filter.Ids))

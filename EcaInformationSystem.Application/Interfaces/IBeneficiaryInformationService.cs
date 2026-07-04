@@ -45,5 +45,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
         Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
+        Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter);
     }
 }

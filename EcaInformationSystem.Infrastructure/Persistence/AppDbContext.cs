@@ -256,6 +256,13 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             modelBuilder.Entity<PendingUserRegistration>()
                 .HasIndex(x => x.UserName)
                 .IsUnique();
+
+            modelBuilder.Entity<Log>()
+                .HasIndex(l => l.CreatedAt)
+                .IsDescending(); // SQL Server 2016+/EF Core 7+; omit .IsDescending() on older versions — still helps a lot
+
+            modelBuilder.Entity<Log>()
+                .HasIndex(l => new { l.UserName, l.CreatedAt });
         }
     }
 }
