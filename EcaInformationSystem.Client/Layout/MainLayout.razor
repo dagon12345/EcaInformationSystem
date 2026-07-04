@@ -1,5 +1,5 @@
-﻿@using EcaInformationSystem.Client.Services
-@using EcaInformationSystem.Shared.DTOs
+﻿@using EcaInformationSystem.Client.Pages
+@using EcaInformationSystem.Client.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
@@ -9,6 +9,9 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject HttpClient Http
 @inject BeneficiaryStateService State
+@inject IConfiguration Configuration
+@inject ChatClientService ChatClientService
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="app-shell">
@@ -80,7 +83,7 @@
         </article>
     </div>
 </div>
-
+<ChatWidget />
 @code {
     private bool collapsed = false;
     private bool mobileOpen = false;   // ✅ new — controls mobile off-canvas drawer
@@ -133,7 +136,25 @@
         if (user.Identity?.IsAuthenticated == true)
         {
             userName = user.Identity.Name ?? "User";
+
+            if (!ChatClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
+                    await ChatClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — widget can show disconnected state
+                }
+            }
         }
+        // ✅ NEW — prime audio playback as soon as the app shell is up. Any
+        // click the user makes anywhere in the app (navigating, clicking a
+        // button, etc.) will now silently unlock notification sounds.
+        await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
 
         StateHasChanged();
     }

@@ -65,6 +65,8 @@ namespace EcaInformationSystem.Infrastructure
             {
                 options.MultipartBodyLengthLimit = 209_715_200; // 200MB
             });
+
+            services.AddScoped<IChatRepository, ChatRepository>();
             return services;
         }
     }

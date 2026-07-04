@@ -14,6 +14,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string Position { get; set; } = string.Empty;
         [Required]
         public DateTime BirthDate { get; set; }
+        public int? Region { get; set; }
         [Required]
         [MaxLength(100)]
         public string UserName { get; set; } = string.Empty;

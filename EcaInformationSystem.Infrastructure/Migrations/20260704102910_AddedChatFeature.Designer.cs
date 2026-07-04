@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704102910_AddedChatFeature")]
+    partial class AddedChatFeature
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -332,7 +335,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("ChatMessageId")
+                    b.Property<Guid>("ChatMessageId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ContentType")
@@ -361,8 +364,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ChatMessageId")
-                        .IsUnique()
-                        .HasFilter("[ChatMessageId] IS NOT NULL");
+                        .IsUnique();
 
                     b.ToTable("ChatAttachments");
                 });
@@ -527,7 +529,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid?>("BeneficiaryInformationId")
+                    b.Property<Guid>("BeneficiaryInformationId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -778,7 +780,8 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.HasOne("EcaInformationSystem.Domain.Entities.ChatEntities.ChatMessage", "Message")
                         .WithOne("Attachment")
                         .HasForeignKey("EcaInformationSystem.Domain.Entities.ChatEntities.ChatAttachment", "ChatMessageId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Message");
                 });

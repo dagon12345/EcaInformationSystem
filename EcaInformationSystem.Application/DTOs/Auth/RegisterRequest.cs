@@ -10,6 +10,7 @@ namespace EcaInformationSystem.Application.DTOs.Auth
         public string Position { get; set; } = string.Empty;
         [Required]
         public DateTime BirthDate { get; set; }
+        public int? Region { get; set; } // PSGC region code
         [Required]
         public string UserName { get; set; } = string.Empty;
         [Required]

@@ -1,4 +1,6 @@
 using EcaInformationSystem.Api.BackgroundServices;
+using EcaInformationSystem.Api.Hubs;
+using EcaInformationSystem.API.Hubs;
 using EcaInformationSystem.Application;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Infrastructure;
@@ -6,6 +8,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -56,10 +59,18 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"]
 var jwtAudience = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("Jwt:Audience is missing.");
 
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = false; // ⚠️ TEMP — remove/set false once debugging is done
+});
+builder.Services.AddSingleton<IUserIdProvider, ChatUserIdProvider>();
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.MapInboundClaims = false; // ✅ ADD THIS — keeps "sub" as "sub", no silent renaming
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -71,6 +82,23 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew = TimeSpan.Zero
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+
+                // ✅ Only redirect token-from-querystring for the chat hub path —
+                // every other endpoint keeps using the normal Authorization header.
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chatHub"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -108,7 +136,8 @@ builder.Services.AddCors(options =>
                 "https://REDACTED_INTERNAL_IP",
                 "http://REDACTED_INTERNAL_IP",
                 "https://localhost:5002",
-                "http://localhost:5002"
+                "http://localhost:5002",
+                "http://127.0.0.1:5500"   // ✅ TEMP — match Live Server's actual origin
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -152,7 +181,10 @@ var app = builder.Build();
 app.UseCors("WasmPolicy");
 
 
-app.UseResponseCompression();
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/chatHub"),
+    branch => branch.UseResponseCompression()
+);
 
 // ─── DB Migration ────────────────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
@@ -243,5 +275,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<ChatHub>("/chatHub");
 
 app.Run();

@@ -11,18 +11,22 @@ namespace EcaInformationSystem.Client.Services
     {
         private readonly HttpClient _http;
         private readonly IJSRuntime _js;
-
+        private readonly ChatClientService _chatClientService; // ✅ NEW
+        private readonly IConfiguration _config; // ✅ NEW
         // ── In-memory cache so sync helpers work after InitAsync ─────────────
         private string? _cachedRole;
 
-        public AuthService(HttpClient http, IJSRuntime js)
+        public AuthService(HttpClient http, IJSRuntime js, ChatClientService chatClientService, IConfiguration config)
         {
             _http = http;
             _js = js;
+            _chatClientService = chatClientService;
+            _config = config; // ✅ NEW
         }
 
+
         public async Task<(bool success, string message)> LoginAsync(
-     string userName, string password, CancellationToken cancellationToken = default)
+            string userName, string password, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -52,6 +56,19 @@ namespace EcaInformationSystem.Client.Services
 
                 _cachedRole = ParseRoleFromToken(result.Token);
                 await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
+
+                // ✅ NEW — connect chat right after successful login
+                try
+                {
+                    var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
+                    await _chatClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Swallow — the main layout's OnInitializedAsync will retry
+                    // the connection on next load/navigation anyway.
+                }
 
                 return (true, "Login successful.");
             }
@@ -98,8 +115,10 @@ namespace EcaInformationSystem.Client.Services
             await _js.InvokeVoidAsync("localStorage.removeItem", "userName");
             await _js.InvokeVoidAsync("localStorage.removeItem", "userRole");
 
-            // ✅ Clear in-memory cache on logout
             _cachedRole = null;
+
+            // ✅ NEW — tear down the chat connection on logout
+            await _chatClientService.DisconnectAsync();
         }
 
         public async Task<string?> GetTokenAsync()

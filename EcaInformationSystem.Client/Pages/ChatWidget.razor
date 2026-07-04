@@ -1,0 +1,140 @@
+﻿@using System.IdentityModel.Tokens.Jwt
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Chat
+@inject ChatStateService ChatState
+@inject AuthService AuthService
+@implements IDisposable
+
+<div class="chat-widget-container">
+    @* ── Floating toggle button ─────────────────────────────────────── *@
+    <button class="chat-toggle-btn" @onclick="ChatState.ToggleWidget">
+        <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
+        @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
+        {
+            <span class="chat-unread-badge">@(ChatState.TotalUnreadCount > 99 ? "99+" : ChatState.TotalUnreadCount.ToString())</span>
+        }
+    </button>
+
+    @* ── Panel ──────────────────────────────────────────────────────── *@
+    @if (ChatState.IsWidgetOpen)
+    {
+        <div class="chat-widget-panel">
+            @if (ChatState.ActiveRoom == null)
+            {
+                @* ── Room list view ─────────────────────────────────── *@
+                <div class="chat-panel-header">
+                    <strong>Messages</strong>
+                </div>
+                <div class="chat-room-list">
+                    @if (!ChatState.Rooms.Any())
+                    {
+                        <div class="text-center text-muted small py-4">
+                            <span class="spinner-border spinner-border-sm me-1"></span> Loading conversations...
+                        </div>
+                    }
+                    @foreach (var room in ChatState.Rooms)
+                    {
+                        <div class="chat-room-item" @onclick="() => SelectRoomAsync(room)">
+                            <div class="chat-room-icon @GetRoomIconClass(room.Type)">
+                                <i class="bi @GetRoomIcon(room.Type)"></i>
+                            </div>
+                            <div class="chat-room-info">
+                                <div class="chat-room-name">@room.DisplayName</div>
+                                @if (!string.IsNullOrWhiteSpace(room.LastMessagePreview))
+                                {
+                                    <div class="chat-room-preview text-truncate">@room.LastMessagePreview</div>
+                                }
+                            </div>
+                            @if (room.UnreadCount > 0)
+                            {
+                                <span class="chat-room-unread">@room.UnreadCount</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                @* ── Active room view ────────────────────────────────── *@
+                <div class="chat-panel-header">
+                    <button class="btn-back" @onclick="ChatState.ReturnToRoomList">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <strong class="flex-grow-1 text-truncate">@ChatState.ActiveRoom.DisplayName</strong>
+                </div>
+
+                <ChatMessageList CurrentUserId="@_currentUserId" />
+                <ChatComposer />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private Guid _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatState.OnChange += HandleChatStateChanged; // ✅ CHANGED
+        var token = await AuthService.GetTokenAsync();
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            var handler = new JwtSecurityTokenHandler();
+            if (handler.CanReadToken(token))
+            {
+                var jwt = handler.ReadJwtToken(token);
+                var sub = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                if (sub != null)
+                {
+                    _currentUserId = Guid.Parse(sub);
+                    ChatState.CurrentUserId = _currentUserId; // ✅ NEW
+                } 
+            }
+        }
+        // ✅ NEW — load room list (and therefore unread counts) as soon as the
+        // widget exists, not lazily on first open. The toggle button badge
+        // needs this data immediately, since it's visible even while collapsed.
+        await ChatState.LoadRoomsAsync();
+    }
+
+    private async Task SelectRoomAsync(ChatRoomDto room)
+    {
+        try
+        {
+            await ChatState.SelectRoomAsync(room);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CHAT DEBUG] SelectRoomAsync failed: {ex}");
+        }
+    }
+
+    private static string GetRoomIcon(string type) => type switch
+    {
+        "Global" => "bi-globe",
+        "Regional" => "bi-geo-alt-fill",
+        "Direct" => "bi-person-fill",
+        _ => "bi-chat-fill"
+    };
+
+    private static string GetRoomIconClass(string type) => type switch
+    {
+        "Global" => "room-icon-global",
+        "Regional" => "room-icon-regional",
+        "Direct" => "room-icon-direct",
+        _ => ""
+    };
+
+    // ✅ NEW — marshals the re-render onto Blazor's renderer dispatcher regardless
+    // of which thread/context actually raised OnChange (SignalR callback,
+    // fire-and-forget task, or a normal @onclick chain).
+    private void HandleChatStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ChatState.OnChange -= HandleChatStateChanged; // ✅ CHANGED
+    }
+}

@@ -26,6 +26,8 @@ namespace EcaInformationSystem.Application
             services.AddScoped<ICoeService, CoeService>();
             services.AddScoped<IImageToPdfService, ImageToPdfService>();
             services.AddScoped<IStatisticsService, StatisticsService>();
+            services.AddScoped<IChatService, ChatService>();
+            services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
             return services;
         }
     }

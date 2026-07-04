@@ -68,10 +68,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var items = pageItems.Select(x => new LogEntryDto
             {
                 Id = x.Id,
-                BeneficiaryInformationId = x.BeneficiaryInformationId,
-                BeneficiaryName = nameLookup.TryGetValue(x.BeneficiaryInformationId, out var n)
-                    ? n
-                    : "(record deleted)",
+                // LogRepository.GetAllLogsAsync — adjust the fallback label
+                BeneficiaryName = x.BeneficiaryInformationId.HasValue
+                     ? (nameLookup.TryGetValue(x.BeneficiaryInformationId.Value, out var n) ? n : "(record deleted)")
+                     : "(system/chat activity)",
                 Activity = x.Activity,
                 UserName = x.UserName,
                 CreatedAt = x.CreatedAt
@@ -102,6 +102,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .ToListAsync();
             return result;
 
+        }
+        public async Task SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
         }
     }
 }

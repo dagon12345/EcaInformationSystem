@@ -1,0 +1,224 @@
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Chat
+@inject ChatStateService ChatState
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div id="@_containerId" class="chat-message-list">
+    @if (ChatState.IsLoadingMessages && !ChatState.Messages.Any())
+    {
+        <div class="text-center text-muted small py-3">
+            <span class="spinner-border spinner-border-sm me-1"></span> Loading messages...
+        </div>
+    }
+    else if (ChatState.IsLoadingMessages)
+    {
+        <div class="text-center text-muted small py-2">
+            <span class="spinner-border spinner-border-sm"></span>
+        </div>
+    }
+
+    @foreach (var message in ChatState.Messages)
+    {
+        <div class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "")">
+            @if (message.SenderId != CurrentUserId)
+            {
+                <div class="chat-message-sender">@message.SenderName</div>
+            }
+
+            @if (message.IsDeleted)
+            {
+                <div class="chat-message-content deleted"><em>This message was deleted</em></div>
+            }
+            else
+            {
+                @if (message.Attachment != null)
+                {
+                    <div class="chat-message-attachment">
+                        @if (message.Attachment.ContentType.StartsWith("image/"))
+                        {
+                            <img src="data:@message.Attachment.ContentType;base64,@message.Attachment.ThumbnailBase64"
+                                 class="chat-attachment-thumb"
+                                 @onclick="() => ViewFullAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)" />
+                        }
+                        else
+                        {
+                            <div class="chat-pdf-attachment" style="cursor:pointer;"
+                                 @onclick="() => DownloadPdfAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)">
+                                <i class="bi @ChatFileIconHelper.GetIcon(message.Attachment.ContentType)"></i>
+                                <span class="text-truncate">@message.Attachment.OriginalFileName</span>
+                                <i class="bi bi-download ms-1 text-muted"></i>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(message.Content))
+                {
+                    <div class="chat-message-content">@RenderContentWithMentions(message)</div>
+                }
+            }
+
+            <div class="chat-message-meta">
+                <small class="text-muted">@message.SentAt.ToLocalTime().ToString("h:mm tt")</small>
+                @if (message.CanDelete && !message.IsDeleted)
+                {
+                    <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    @if (_showImageModal)
+    {
+        <div class="chat-image-modal-backdrop" @onclick="CloseImageModal">
+            <div class="chat-image-modal" @onclick:stopPropagation="true">
+                <div class="chat-image-modal-header">
+                    <span class="text-truncate">@_modalFileName</span>
+                    <div class="d-flex gap-2">
+                        <button class="chat-modal-btn" title="Download" @onclick="DownloadModalImage">
+                            <i class="bi bi-download"></i>
+                        </button>
+                        <button class="chat-modal-btn" title="Close" @onclick="CloseImageModal">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="chat-image-modal-body">
+                    @if (_isLoadingModalImage)
+                    {
+                        <div class="text-white"><span class="spinner-border"></span></div>
+                    }
+                    else if (_modalImageSrc != null)
+                    {
+                        <img src="@_modalImageSrc" />
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!ChatState.Messages.Any() && !ChatState.IsLoadingMessages)
+    {
+        <div class="text-center text-muted small py-4">No messages yet. Say hello!</div>
+    }
+</div>
+
+@code {
+    private bool _showImageModal;
+    private bool _isLoadingModalImage;
+    private string? _modalImageSrc;
+    private string? _modalFileName;
+    private byte[]? _modalAttachmentBytes;
+    [Parameter] public Guid CurrentUserId { get; set; }
+
+    private readonly string _containerId = $"chat-msg-list-{Guid.NewGuid():N}";
+    private DotNetObjectReference<ChatMessageList>? _dotNetRef;
+    private int _previousMessageCount;
+
+    protected override void OnInitialized()
+    {
+        ChatState.OnChange += HandleStateChanged; // ✅ NEW
+    }
+    private async Task ViewFullAttachment(Guid attachmentId, string fileName)
+    {
+        _showImageModal = true;
+        _isLoadingModalImage = true;
+        _modalFileName = fileName;
+        _modalImageSrc = null;
+        StateHasChanged();
+
+        var result = await ChatState.FetchFullAttachmentAsync(attachmentId);
+        if (result != null)
+        {
+            _modalAttachmentBytes = result.Value.Data;
+            _modalImageSrc = $"data:{result.Value.ContentType};base64,{Convert.ToBase64String(result.Value.Data)}";
+        }
+
+        _isLoadingModalImage = false;
+        StateHasChanged();
+    }
+    private void CloseImageModal()
+    {
+        _showImageModal = false;
+        _modalImageSrc = null;
+        _modalAttachmentBytes = null;
+    }
+
+    private async Task DownloadModalImage()
+    {
+        if (_modalAttachmentBytes == null || _modalFileName == null) return;
+        await JS.InvokeVoidAsync("downloadFile", _modalFileName, Convert.ToBase64String(_modalAttachmentBytes));
+    }
+    private async Task DownloadPdfAttachment(Guid attachmentId, string fileName)
+    {
+        var result = await ChatState.FetchFullAttachmentAsync(attachmentId);
+        if (result == null) return;
+
+        // ✅ Reuses your existing window.downloadFile helper (already in index.html,
+        // same one BeneficiaryRecordsGrid.ExportExcel uses) — no new JS needed.
+        await JS.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(result.Value.Data));
+    }
+    // ✅ NEW
+    private void HandleStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("chatInterop.registerScrollTop", _containerId, _dotNetRef);
+            await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
+            _previousMessageCount = ChatState.Messages.Count;
+        }
+        else if (ChatState.Messages.Count > _previousMessageCount)
+        {
+            await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
+            _previousMessageCount = ChatState.Messages.Count;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnScrolledNearTop()
+    {
+        if (!ChatState.HasMoreHistory || ChatState.IsLoadingMessages) return;
+
+        var previousHeight = await JS.InvokeAsync<int>("chatInterop.getScrollHeight", _containerId);
+        await ChatState.LoadOlderMessagesAsync();
+        StateHasChanged();
+
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("chatInterop.preserveScrollAfterPrepend", _containerId, previousHeight);
+    }
+
+    private void DeleteAsync(Guid messageId) => _ = ChatState.DeleteMessageAsync(messageId);
+
+    private string RenderContentWithMentions(ChatMessageDto message)
+    {
+        return message.Content ?? string.Empty;
+    }
+
+    // ✅ CHANGED — unsubscribe added
+    public async ValueTask DisposeAsync()
+    {
+        ChatState.OnChange -= HandleStateChanged;
+        _dotNetRef?.Dispose();
+    }
+    private static string GetFileIcon(string contentType) => contentType switch
+    {
+        "application/pdf" => "bi-file-earmark-pdf-fill text-danger",
+        "application/msword" or
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "bi-file-earmark-word-fill text-primary",
+        "application/vnd.ms-excel" or
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "bi-file-earmark-excel-fill text-success",
+        "application/vnd.ms-powerpoint" or
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation" => "bi-file-earmark-ppt-fill text-warning",
+        "text/csv" => "bi-file-earmark-spreadsheet-fill text-success",
+        "text/plain" => "bi-file-earmark-text-fill text-secondary",
+        _ => "bi-file-earmark-fill text-muted"
+    };
+}

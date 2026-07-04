@@ -1,0 +1,324 @@
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Chat
+@inject ChatStateService ChatState
+@inject HttpClient Http
+@inject ToastService toast
+
+<div class="chat-composer">
+    @if (_pendingAttachmentId != null)
+    {
+        <div class="chat-attachment-preview">
+            @if (_pendingAttachmentPreview != null)
+            {
+                <img src="@_pendingAttachmentPreview" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" />
+            }
+            else
+            {
+                <i class="bi @ChatFileIconHelper.GetIcon(_pendingContentType)" style="font-size:24px;"></i>
+            }
+            <span class="text-truncate small">@_pendingFileName</span>
+            <button class="btn-close btn-close-sm" @onclick="ClearPendingAttachment"></button>
+        </div>
+    }
+
+    @if (_isUploadingAttachment)
+    {
+        <div class="chat-attachment-uploading small text-muted">
+            <span class="spinner-border spinner-border-sm me-1"></span> Uploading...
+        </div>
+    }
+
+    @if (_showMentionDropdown && _mentionSuggestions.Any())
+    {
+        <div class="chat-mention-dropdown">
+            @if (_canMentionEveryone && "everyone".StartsWith(_mentionSearchTerm, StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="chat-mention-item" @onclick="() => SelectEveryoneMention()">
+                    <i class="bi bi-people-fill me-2"></i><strong>@@everyone</strong>
+                </div>
+            }
+            @foreach (var user in _mentionSuggestions)
+            {
+                <div class="chat-mention-item" @onclick="() => SelectMention(user)">
+                    <i class="bi bi-person-circle me-2"></i>
+                    <span>@user.DisplayName</span>
+                    <small class="text-muted ms-1">(@user.Role)</small>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="d-flex align-items-end gap-2">
+        <label class="chat-attach-btn" title="Attach image or PDF">
+            <i class="bi bi-paperclip"></i>
+            <InputFile OnChange="OnFileSelected"
+                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                       style="display:none;" />
+        </label>
+        <textarea class="form-control chat-composer-input" rows="1"
+                  placeholder="Type a message... use @@ to mention someone"
+                  value="@_draftText"
+                  @oninput="OnInputChanged"
+                  @onkeydown="OnKeyDown"></textarea>
+
+        <button class="btn btn-primary chat-send-btn" @onclick="SendAsync"
+                disabled="@(_isSending || (string.IsNullOrWhiteSpace(_draftText) && _pendingAttachmentId == null))">
+            @if (_isSending)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <i class="bi bi-send-fill"></i>
+            }
+        </button>
+    </div>
+</div>
+
+@code {
+    private string _draftText = string.Empty;
+    private bool _isSending;
+
+    private Guid? _pendingAttachmentId;
+    private string? _pendingAttachmentPreview;
+    private string? _pendingFileName;
+    private string? _pendingContentType; // ✅ NEW
+    private bool _isUploadingAttachment;
+
+    private bool _showMentionDropdown;
+    private string _mentionSearchTerm = string.Empty;
+    private List<ChatMemberSuggestionDto> _mentionSuggestions = new();
+    private List<(Guid Id, string Name)> _selectedMentions = new();
+    private bool _mentionEveryoneSelected;
+    private bool _canMentionEveryone = true; // ✅ open to all roles, per spec
+
+    private CancellationTokenSource? _mentionDebounceCts;
+    private static readonly string[] AllowedTypes = { "image/jpeg", "image/png", "image/webp", "application/pdf" };
+    private const long MaxImageSize = 5 * 1024 * 1024;   // 5MB — matches server limit
+    private const long MaxPdfSize = 10 * 1024 * 1024;    // 10MB — matches server limit
+
+    private async Task OnInputChanged(ChangeEventArgs e)
+    {
+        _draftText = e.Value?.ToString() ?? string.Empty;
+
+        var atIndex = _draftText.LastIndexOf('@');
+        if (atIndex >= 0)
+        {
+            var afterAt = _draftText[(atIndex + 1)..];
+            if (!afterAt.Contains(' ') && !afterAt.Contains('\n'))
+            {
+                _mentionSearchTerm = afterAt;
+                _showMentionDropdown = true;
+                await DebouncedFetchSuggestionsAsync();
+                return;
+            }
+        }
+
+        _showMentionDropdown = false;
+    }
+
+    private async Task DebouncedFetchSuggestionsAsync()
+    {
+        _mentionDebounceCts?.Cancel();
+        _mentionDebounceCts = new CancellationTokenSource();
+        var token = _mentionDebounceCts.Token;
+
+        try
+        {
+            await Task.Delay(200, token); // debounce fast typing
+            _mentionSuggestions = await ChatState.GetMentionSuggestionsAsync(_mentionSearchTerm);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void SelectMention(ChatMemberSuggestionDto user)
+    {
+        var atIndex = _draftText.LastIndexOf('@');
+        if (atIndex >= 0)
+        {
+            _draftText = _draftText[..atIndex] + $"@{user.DisplayName} ";
+        }
+
+        if (!_selectedMentions.Any(m => m.Id == user.UserId))
+        {
+            _selectedMentions.Add((user.UserId, user.DisplayName));
+        }
+
+        _showMentionDropdown = false;
+        StateHasChanged();
+    }
+
+    private void SelectEveryoneMention()
+    {
+        var atIndex = _draftText.LastIndexOf('@');
+        if (atIndex >= 0)
+        {
+            _draftText = _draftText[..atIndex] + "@everyone ";
+        }
+
+        _mentionEveryoneSelected = true;
+        _showMentionDropdown = false;
+        StateHasChanged();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _showMentionDropdown = false;
+            return;
+        }
+
+        // ✅ Enter sends; Shift+Enter inserts a newline (standard chat convention)
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            // Don't send while the mention dropdown is open — Enter should
+            // ideally select the highlighted suggestion instead. Since there's
+            // no keyboard-selection state tracked yet, the safest behavior for
+            // now is to just close the dropdown and let the user press Enter
+            // again to actually send, rather than sending mid-mention-typing.
+            if (_showMentionDropdown)
+            {
+                _showMentionDropdown = false;
+                return;
+            }
+
+            await SendAsync();
+        }
+    }
+    private static readonly Dictionary<string, long> AllowedTypesWithLimits = new()
+    {
+        ["image/jpeg"] = 5 * 1024 * 1024,
+        ["image/png"] = 5 * 1024 * 1024,
+        ["image/webp"] = 5 * 1024 * 1024,
+        ["application/pdf"] = 10 * 1024 * 1024,
+        ["application/msword"] = 10 * 1024 * 1024,
+        ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = 10 * 1024 * 1024,
+        ["application/vnd.ms-excel"] = 10 * 1024 * 1024,
+        ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = 10 * 1024 * 1024,
+        ["application/vnd.ms-powerpoint"] = 10 * 1024 * 1024,
+        ["application/vnd.openxmlformats-officedocument.presentationml.presentation"] = 10 * 1024 * 1024,
+        ["text/plain"] = 10 * 1024 * 1024,
+        ["text/csv"] = 10 * 1024 * 1024
+    };
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        var contentType = file.ContentType.ToLowerInvariant();
+        var isImage = contentType.StartsWith("image/");
+
+        if (!AllowedTypesWithLimits.TryGetValue(contentType, out var maxSize))
+        {
+            toast.ShowError($"'{file.Name}' isn't a supported file type. Allowed: images, PDF, Word, Excel, PowerPoint, TXT, and CSV.");
+            return;
+        }
+
+        if (file.Size > maxSize)
+        {
+            var limitLabel = isImage ? "5MB" : "10MB";
+            toast.ShowError($"'{file.Name}' is too large ({FormatSize(file.Size)}). Max size is {limitLabel}.");
+            return;
+        }
+
+        _isUploadingAttachment = true;
+        StateHasChanged();
+
+        try
+        {
+            var buffer = new byte[file.Size];
+            await using (var stream = file.OpenReadStream(maxSize))
+            {
+                await stream.ReadAsync(buffer);
+            }
+
+            using var content = new MultipartFormDataContent();
+            var streamContent = new ByteArrayContent(buffer);
+            streamContent.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            content.Add(streamContent, "file", file.Name);
+
+            var response = await Http.PostAsync("api/chat/attachments", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AttachmentUploadResult>();
+                _pendingAttachmentId = result?.AttachmentId;
+                _pendingFileName = file.Name;
+                _pendingContentType = contentType; // ✅ NEW
+
+                _pendingAttachmentPreview = isImage
+                    ? $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}"
+                    : null;
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                toast.ShowError(string.IsNullOrWhiteSpace(errorText)
+                    ? "Upload failed. Please try again."
+                    : errorText.Trim('"'));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CHAT DEBUG] Attachment upload exception: {ex}");
+            toast.ShowError("Something went wrong while uploading. Please try again.");
+        }
+        finally
+        {
+            _isUploadingAttachment = false;
+            StateHasChanged();
+        }
+    }
+    private void ClearPendingAttachment()
+    {
+        _pendingAttachmentId = null;
+        _pendingAttachmentPreview = null;
+        _pendingFileName = null;
+        _pendingContentType = null; // ✅ NEW
+    }
+    // ⬅️ Add this small class too — needed by the snippet above
+    private class ErrorResponse
+    {
+        public string Message { get; set; } = string.Empty;
+    }
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1_048_576 => $"{bytes / 1024.0:F1} KB",
+        _ => $"{bytes / 1_048_576.0:F1} MB"
+    };
+    private async Task SendAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_draftText) && _pendingAttachmentId == null)
+            return;
+
+        _isSending = true;
+        StateHasChanged();
+
+        try
+        {
+            await ChatState.SendMessageAsync(
+                string.IsNullOrWhiteSpace(_draftText) ? null : _draftText.Trim(),
+                _selectedMentions.Select(m => m.Id).ToList(),
+                _mentionEveryoneSelected,
+                _pendingAttachmentId);
+
+            _draftText = string.Empty;
+            _selectedMentions.Clear();
+            _mentionEveryoneSelected = false;
+            ClearPendingAttachment();
+        }
+        finally
+        {
+            _isSending = false;
+            StateHasChanged();
+        }
+    }
+    private class AttachmentUploadResult
+    {
+        public Guid AttachmentId { get; set; }
+    }
+}

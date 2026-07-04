@@ -12,7 +12,6 @@ namespace EcaInformationSystem.Domain.Entities
         public string UserName { get; set; } = string.Empty;
         [Required]
         public DateTime CreatedAt { get; set; }
-        [Required]
-        public Guid BeneficiaryInformationId { get; set; }
+        public Guid? BeneficiaryInformationId { get; set; } // was: Guid (non-nullable)
     }
 }

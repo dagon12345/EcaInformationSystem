@@ -38,13 +38,15 @@ namespace EcaInformationSystem.Application.Services
             }
 
             var token = _tokenService.GenerateToken(
+                user.Id,                                    // ✅ NEW
                 user.UserName,
                 user.FullName,
-                user.Position,                              // ✅ inserted, matches new parameter order
+                user.Position,
                 user.Role,
                 user.Role == "PDO"
                     ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
-                    : null);
+                    : null,
+                user.Region);                                // ✅ NEW
 
 
 
@@ -71,6 +73,7 @@ namespace EcaInformationSystem.Application.Services
                 FullName = request.FullName,
                 Position = request.Position,
                 BirthDate = request.BirthDate,
+                Region = request.Region, //New
                 UserName = request.UserName,
                 IsActivated = false,
                 ApprovalStatus = (int)ApprovalStatus.Pending,

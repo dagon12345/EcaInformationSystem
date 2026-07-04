@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Domain.Entities.ChatEntities;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcaInformationSystem.Infrastructure.Persistence
@@ -17,6 +18,14 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
         public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
         public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
+
+        // ✅ NEW — Chat feature
+        public DbSet<ChatRoom> ChatRooms => Set<ChatRoom>();
+        public DbSet<ChatRoomMember> ChatRoomMembers => Set<ChatRoomMember>();
+        public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+        public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
+        public DbSet<ChatMention> ChatMentions => Set<ChatMention>();
+        public DbSet<ChatReadStatus> ChatReadStatuses => Set<ChatReadStatus>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -263,6 +272,126 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
             modelBuilder.Entity<Log>()
                 .HasIndex(l => new { l.UserName, l.CreatedAt });
+
+            // ═══════════════════════════════════════════════════════════════════
+            // CHAT FEATURE
+            // ═══════════════════════════════════════════════════════════════════
+
+            modelBuilder.Entity<ChatRoom>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Type)
+                      .HasConversion<int>()
+                      .IsRequired();
+
+                // ✅ Only ONE Global room should ever exist. Filtered unique index —
+                // applies only to rows where Type = 2 (Global) — lets Regional/Direct
+                // rows coexist freely while guaranteeing Global is a true singleton.
+                entity.HasIndex(x => x.Type)
+                      .IsUnique()
+                      .HasFilter("[Type] = 2")
+                      .HasDatabaseName("UQ_ChatRoom_SingleGlobalRoom");
+
+                // ✅ Only ONE room per RegionCode for Regional rooms. Same filtered-unique
+                // pattern — prevents GetOrCreateRegionalRoomAsync from ever racing into
+                // two rooms for the same region under concurrent first-time creation.
+                entity.HasIndex(x => new { x.Type, x.RegionCode })
+                      .IsUnique()
+                      .HasFilter("[Type] = 1")
+                      .HasDatabaseName("UQ_ChatRoom_OneRoomPerRegion");
+            });
+
+            modelBuilder.Entity<ChatRoomMember>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne(x => x.Room)
+                      .WithMany(x => x.Members)
+                      .HasForeignKey(x => x.RoomId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // ✅ A user can't be added to the same Direct room twice
+                entity.HasIndex(x => new { x.RoomId, x.UserId })
+                      .IsUnique()
+                      .HasDatabaseName("UQ_ChatRoomMember_RoomUser");
+
+                // ✅ Powers GetUserDirectRoomsAsync — "all rooms this user belongs to"
+                entity.HasIndex(x => x.UserId)
+                      .HasDatabaseName("IX_ChatRoomMember_UserId");
+            });
+
+            modelBuilder.Entity<ChatMessage>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Content).HasMaxLength(4000);
+
+                entity.HasOne(x => x.Room)
+                      .WithMany(x => x.Messages)
+                      .HasForeignKey(x => x.RoomId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // ✅ THE core chat index — every history fetch, unread count, and
+                // "latest message" lookup filters by RoomId and orders by SentAt.
+                // Descending because pagination always fetches newest-first.
+                entity.HasIndex(x => new { x.RoomId, x.SentAt })
+                      .IsDescending(false, true)
+                      .HasDatabaseName("IX_ChatMessage_Room_SentAt");
+
+                // ✅ Supports "does this room have unread messages after X" and
+                // oversight/audit queries that need a sender's message history
+                entity.HasIndex(x => x.SenderId)
+                      .HasDatabaseName("IX_ChatMessage_SenderId");
+            });
+
+            modelBuilder.Entity<ChatAttachment>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.FileData).IsRequired().HasColumnType("varbinary(max)");
+                entity.Property(x => x.ThumbnailData).HasColumnType("varbinary(max)");
+                entity.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+                entity.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(500);
+                entity.Property(x => x.Type).HasConversion<int>().IsRequired();
+
+                // ✅ One-to-one — a message has at most one attachment, matching
+                // the same 1:1 pattern you already use for BeneficiaryFinding
+                entity.HasOne(x => x.Message)
+                      .WithOne(x => x.Attachment)
+                      .HasForeignKey<ChatAttachment>(x => x.ChatMessageId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => x.ChatMessageId).IsUnique();
+            });
+
+            modelBuilder.Entity<ChatMention>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne(x => x.Message)
+                      .WithMany(x => x.Mentions)
+                      .HasForeignKey(x => x.ChatMessageId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // ✅ Powers GetMentionJumpListAsync — "every message that mentions me"
+                entity.HasIndex(x => x.MentionedUserId)
+                      .HasDatabaseName("IX_ChatMention_MentionedUserId");
+
+                entity.HasIndex(x => x.ChatMessageId)
+                      .HasDatabaseName("IX_ChatMention_ChatMessageId");
+            });
+
+            modelBuilder.Entity<ChatReadStatus>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                // ✅ One read-status row per (user, room) pair — upsert target for
+                // UpsertReadStatusAsync, and the lookup key for unread-count queries
+                entity.HasIndex(x => new { x.RoomId, x.UserId })
+                      .IsUnique()
+                      .HasDatabaseName("UQ_ChatReadStatus_RoomUser");
+            });
         }
     }
 }

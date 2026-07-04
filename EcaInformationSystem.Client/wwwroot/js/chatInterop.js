@@ -1,0 +1,80 @@
+﻿window.chatInterop = {
+    registerScrollTop: function (elementId, dotNetRef) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        let ticking = false;
+        el.onscroll = function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                if (el.scrollTop < 80) {
+                    dotNetRef.invokeMethodAsync('OnScrolledNearTop');
+                }
+                ticking = false;
+            });
+        };
+    },
+
+    preserveScrollAfterPrepend: function (elementId, previousScrollHeight) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        el.scrollTop = el.scrollHeight - previousScrollHeight;
+    },
+
+    scrollToBottom: function (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) el.scrollTop = el.scrollHeight;
+    },
+
+    getScrollHeight: function (elementId) {
+        const el = document.getElementById(elementId);
+        return el ? el.scrollHeight : 0;
+    },
+
+    _notificationAudio: null,
+    _audioUnlocked: false,
+
+    // ✅ NEW — call this once on app startup. Listens for the FIRST click
+    // or keypress ANYWHERE on the page (not just the chat widget) and uses
+    // that as the browser-required "user gesture" to unlock audio playback.
+    // After that, playNotificationSound works immediately for real messages.
+    primeNotificationAudio: function () {
+        if (this._audioUnlocked) return;
+
+        const unlock = () => {
+            if (this._audioUnlocked) return;
+            if (!this._notificationAudio) {
+                this._notificationAudio = new Audio('audio/notification.mp3');
+                this._notificationAudio.volume = 0.5;
+            }
+            // Play + immediately pause/rewind — this silent "warm-up" play
+            // is what satisfies the browser's gesture requirement without
+            // actually audibly playing anything to the user.
+            this._notificationAudio.play()
+                .then(() => {
+                    this._notificationAudio.pause();
+                    this._notificationAudio.currentTime = 0;
+                    this._audioUnlocked = true;
+                })
+                .catch(() => { /* still blocked — will retry on next gesture */ });
+
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('keydown', unlock);
+        };
+
+        document.addEventListener('click', unlock);
+        document.addEventListener('keydown', unlock);
+    },
+
+    playNotificationSound: function () {
+        try {
+            if (!this._notificationAudio) {
+                this._notificationAudio = new Audio('audio/notification.mp3');
+                this._notificationAudio.volume = 0.5;
+            }
+            this._notificationAudio.currentTime = 0;
+            this._notificationAudio.play().catch(() => { /* autoplay still blocked, non-fatal */ });
+        } catch { /* non-fatal */ }
+    }
+};

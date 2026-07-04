@@ -34,4 +34,6 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddLocalization();
 builder.Services.AddHxServices();
 builder.Services.AddHxMessenger();
+builder.Services.AddSingleton<ChatClientService>();
+builder.Services.AddScoped<ChatStateService>();
 await builder.Build().RunAsync();
