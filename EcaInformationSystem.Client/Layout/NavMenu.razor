@@ -55,12 +55,18 @@
     }
 
     @* ── Administration section — SuperAdmin only ── *@
+    @* ── Administration section — SuperAdmin only ── *@
     @if (_isSuperAdmin)
     {
         <div class="nav-section-label">Administration</div>
         <NavLink class="nav-item" href="user-management">
             <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
             <span class="nav-label">User Management</span>
+        </NavLink>
+        @* ✅ NEW *@
+        <NavLink class="nav-item" href="chat-oversight">
+            <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
+            <span class="nav-label">Conversation Oversight</span>
         </NavLink>
     }
 

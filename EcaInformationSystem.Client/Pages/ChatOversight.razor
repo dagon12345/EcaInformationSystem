@@ -1,0 +1,229 @@
+﻿@page "/chat-oversight"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Chat
+@inject ChatStateService ChatState
+@inject AuthService AuthService
+@implements IDisposable
+
+<PageTitle>Conversation Oversight</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-shield-lock-fill"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Conversation Oversight</h5>
+            <span class="page-header-sub">
+                Read-only view of direct messages between users. Access is logged.
+            </span>
+        </div>
+    </div>
+
+    @if (!_initialized)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Checking access...</p>
+        </div>
+    }
+    else if (!_authorized)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock fs-5"></i>
+            <div>
+                <strong>Access Denied</strong>
+                <p class="mb-0 small">This page is restricted to Super Administrators only.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2 py-2 small">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>Viewing a conversation here is logged in the system's activity log for audit purposes.</span>
+        </div>
+
+        <div class="row g-3">
+            @* ── Room list ─────────────────────────────────────────────── *@
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-light">
+                        <strong>Direct Conversations</strong>
+                        <span class="badge bg-secondary ms-2">@ChatState.OversightTotalCount</span>
+                    </div>
+                    <div class="p-2 border-bottom">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search by name or username..."
+                               value="@ChatState.OversightSearchTerm" @oninput="OnSearchInput" />
+                    </div>
+                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                        @if (ChatState.IsLoadingOversightRooms)
+                        {
+                            <div class="text-center text-muted small py-4">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Loading conversations...
+                            </div>
+                        }
+                        else if (!ChatState.OversightRooms.Any())
+                        {
+                            <div class="text-center text-muted small py-4">No conversations found.</div>
+                        }
+                        else
+                        {
+                            @foreach (var room in ChatState.OversightRooms)
+                            {
+                                <button class="list-group-item list-group-item-action @(ChatState.OversightActiveRoom?.Id == room.Id ? "active" : "")"
+                                        @onclick="() => SelectRoomAsync(room)">
+                                    <div class="fw-semibold small">@room.DisplayName</div>
+                                    @if (!string.IsNullOrWhiteSpace(room.LastMessagePreview))
+                                    {
+                                        <div class="text-truncate small opacity-75">@room.LastMessagePreview</div>
+                                    }
+                                    @if (room.LastMessageAt.HasValue)
+                                    {
+                                        <small class="opacity-50">@room.LastMessageAt.Value.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</small>
+                                    }
+                                </button>
+                            }
+                        }
+                    </div>
+                    @if (ChatState.OversightTotalPages > 1)
+                    {
+                        <div class="d-flex justify-content-between align-items-center p-2 border-top">
+                            <button class="btn btn-sm btn-outline-secondary" disabled="@(ChatState.OversightPageNumber <= 1)"
+                                    @onclick="() => GoToPage(ChatState.OversightPageNumber - 1)">
+                                ← Prev
+                            </button>
+                            <small class="text-muted">Page @ChatState.OversightPageNumber of @ChatState.OversightTotalPages</small>
+                            <button class="btn btn-sm btn-outline-secondary" disabled="@(ChatState.OversightPageNumber >= ChatState.OversightTotalPages)"
+                                    @onclick="() => GoToPage(ChatState.OversightPageNumber + 1)">
+                                Next →
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* ── Message view (read-only) ─────────────────────────────── *@
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-light">
+                        <strong>
+                            @(ChatState.OversightActiveRoom?.DisplayName ?? "Select a conversation")
+                        </strong>
+                    </div>
+                    <div class="card-body" style="height: 600px; overflow-y: auto; background: #f8f9fa;">
+                        @if (ChatState.OversightActiveRoom == null)
+                        {
+                            <div class="text-center text-muted py-5">
+                                <i class="bi bi-chat-square-text fs-1 opacity-25"></i>
+                                <p class="mt-2">Select a conversation from the list to view its messages.</p>
+                            </div>
+                        }
+                        else if (ChatState.IsLoadingOversightMessages)
+                        {
+                            <div class="text-center text-muted py-5">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Loading messages...
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var message in ChatState.OversightMessages)
+                            {
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <strong class="small">@message.SenderName</strong>
+                                        <small class="text-muted">@message.SentAt.ToLocalTime().ToString("MMM dd, h:mm tt")</small>
+                                    </div>
+                                    @if (message.IsDeleted)
+                                    {
+                                        <div class="text-muted fst-italic small">This message was deleted</div>
+                                    }
+                                    else
+                                    {
+                                        @if (message.Attachment != null)
+                                        {
+                                            <div class="small text-primary">
+                                                <i class="bi bi-paperclip me-1"></i>@message.Attachment.OriginalFileName
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(message.Content))
+                                        {
+                                            <div>@message.Content</div>
+                                        }
+                                    }
+                                </div>
+                            }
+                            @if (!ChatState.OversightMessages.Any())
+                            {
+                                <div class="text-center text-muted py-5">No messages in this conversation yet.</div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _initialized;
+    private bool _authorized;
+    private CancellationTokenSource? _searchDebounceCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatState.OnChange += HandleChatStateChanged;
+    }
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        ChatState.OversightSearchTerm = e.Value?.ToString();
+
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts = new CancellationTokenSource();
+        var token = _searchDebounceCts.Token;
+
+        try
+        {
+            await Task.Delay(400, token); // debounce typing
+            await ChatState.LoadOversightRoomsAsync(1); // reset to page 1 on new search
+        }
+        catch (TaskCanceledException) { }
+    }
+    private async Task GoToPage(int page)
+    {
+        await ChatState.LoadOversightRoomsAsync(page);
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+        _authorized = AuthService.IsSuperAdmin();
+        _initialized = true;
+
+        if (_authorized)
+        {
+            await ChatState.LoadOversightRoomsAsync(1);
+        }
+
+        StateHasChanged();
+    }
+
+    private void HandleChatStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectRoomAsync(ChatRoomDto room)
+    {
+        await ChatState.SelectOversightRoomAsync(room);
+    }
+
+    public void Dispose()
+    {
+        ChatState.OnChange -= HandleChatStateChanged;
+    }
+}

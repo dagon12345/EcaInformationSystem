@@ -19,6 +19,164 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task<List<(Guid UserId, DateTime LastReadAt)>> GetReadStatusesForRoomAsync(Guid roomId)
+        {
+            var statuses = await _context.ChatReadStatuses
+                .AsNoTracking()
+                .Where(r => r.RoomId == roomId)
+                .Select(r => new { r.UserId, r.LastReadAt })
+                .ToListAsync();
+
+            return statuses.Select(s => (s.UserId, s.LastReadAt)).ToList();
+        }
+        public async Task<ChatMessageReaction?> GetUserReactionAsync(Guid messageId, Guid userId)
+        {
+            return await _context.ChatMessageReactions
+                .FirstOrDefaultAsync(r => r.ChatMessageId == messageId && r.UserId == userId);
+        }
+
+        public async Task UpsertReactionAsync(Guid messageId, Guid userId, ChatReactionType type)
+        {
+            var existing = await _context.ChatMessageReactions
+                .FirstOrDefaultAsync(r => r.ChatMessageId == messageId && r.UserId == userId);
+
+            if (existing != null)
+            {
+                existing.Type = type; // ✅ swap, per the "one reaction per user" design
+                existing.ReactedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                await _context.ChatMessageReactions.AddAsync(new ChatMessageReaction
+                {
+                    Id = Guid.NewGuid(),
+                    ChatMessageId = messageId,
+                    UserId = userId,
+                    Type = type,
+                    ReactedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        public async Task RemoveReactionAsync(Guid messageId, Guid userId)
+        {
+            var existing = await _context.ChatMessageReactions
+                .FirstOrDefaultAsync(r => r.ChatMessageId == messageId && r.UserId == userId);
+
+            if (existing != null)
+                _context.ChatMessageReactions.Remove(existing);
+        }
+
+        public async Task<List<ChatMessageReaction>> GetReactionsForMessageAsync(Guid messageId)
+        {
+            return await _context.ChatMessageReactions
+                .AsNoTracking()
+                .Where(r => r.ChatMessageId == messageId)
+                .ToListAsync();
+        }
+
+        public async Task<Dictionary<Guid, List<ChatMessageReaction>>> GetReactionsForMessagesAsync(List<Guid> messageIds)
+        {
+            var all = await _context.ChatMessageReactions
+                .AsNoTracking()
+                .Where(r => messageIds.Contains(r.ChatMessageId))
+                .ToListAsync();
+
+            return all.GroupBy(r => r.ChatMessageId).ToDictionary(g => g.Key, g => g.ToList());
+        }
+        public async Task<List<ChatMessage>> GetMessagesAroundAsync(Guid roomId, Guid targetMessageId, int contextSize = 15)
+        {
+            var target = await _context.ChatMessages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == targetMessageId && m.RoomId == roomId);
+
+            if (target == null) return new List<ChatMessage>();
+
+            // ✅ Fetch messages before AND after the target's timestamp, then combine.
+            // This gives the user surrounding context (not just the single message
+            // in isolation), matching how "jump to message" works in apps like Slack.
+            var before = await _context.ChatMessages
+                .AsNoTracking()
+                .Include(m => m.Attachment)
+                .Include(m => m.Mentions)
+                .Where(m => m.RoomId == roomId && m.SentAt < target.SentAt)
+                .OrderByDescending(m => m.SentAt)
+                .Take(contextSize)
+                .ToListAsync();
+
+            var after = await _context.ChatMessages
+                .AsNoTracking()
+                .Include(m => m.Attachment)
+                .Include(m => m.Mentions)
+                .Where(m => m.RoomId == roomId && m.SentAt >= target.SentAt)
+                .OrderBy(m => m.SentAt)
+                .Take(contextSize + 1) // +1 to include the target itself
+                .ToListAsync();
+
+            return before.OrderBy(m => m.SentAt).Concat(after).ToList();
+        }
+        public async Task<(List<ChatRoom> Rooms, int TotalCount)> GetDirectRoomsPagedAsync(
+            string? searchTerm, int pageNumber, int pageSize)
+        {
+            var query = _context.ChatRooms.Where(r => r.Type == ChatRoomType.Direct);
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLower();
+
+                // ✅ Find user IDs matching the search term first — small, fast lookup
+                // against PendingUserRegistrations — then filter rooms by membership,
+                // rather than joining/filtering the (potentially much larger) message
+                // history table. This keeps the search itself cheap regardless of how
+                // much chat history accumulates over time.
+                var matchingUserIds = await _context.PendingUserRegistrations
+                    .Where(u => u.FullName.ToLower().Contains(term) || u.UserName.ToLower().Contains(term))
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                if (!matchingUserIds.Any())
+                    return (new List<ChatRoom>(), 0);
+
+                var matchingRoomIds = await _context.ChatRoomMembers
+                    .Where(m => matchingUserIds.Contains(m.UserId))
+                    .Select(m => m.RoomId)
+                    .Distinct()
+                    .ToListAsync();
+
+                query = query.Where(r => matchingRoomIds.Contains(r.Id));
+            }
+
+            var totalCount = await query.CountAsync();
+
+            // ✅ Sort by most recent activity — join to the latest message per room
+            // via a correlated subquery pattern EF can translate efficiently.
+            var roomIds = await query.Select(r => r.Id).ToListAsync();
+
+            var lastMessageTimes = await _context.ChatMessages
+                .Where(m => roomIds.Contains(m.RoomId) && !m.IsDeleted)
+                .GroupBy(m => m.RoomId)
+                .Select(g => new { RoomId = g.Key, LastAt = g.Max(m => m.SentAt) })
+                .ToListAsync();
+
+            var lastMessageLookup = lastMessageTimes.ToDictionary(x => x.RoomId, x => x.LastAt);
+
+            var orderedRoomIds = roomIds
+                .OrderByDescending(id => lastMessageLookup.GetValueOrDefault(id, DateTime.MinValue))
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var pagedRooms = await _context.ChatRooms
+                .Where(r => orderedRoomIds.Contains(r.Id))
+                .ToListAsync();
+
+            // Preserve the sort order from orderedRoomIds (DB query above doesn't guarantee it)
+            var sortedRooms = orderedRoomIds
+                .Select(id => pagedRooms.First(r => r.Id == id))
+                .ToList();
+
+            return (sortedRooms, totalCount);
+        }
 
         // ── Room resolution ──────────────────────────────────────────────
 

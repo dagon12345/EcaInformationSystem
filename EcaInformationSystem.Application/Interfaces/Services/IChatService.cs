@@ -20,7 +20,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<List<ChatMentionJumpDto>> GetMyMentionJumpListAsync(Guid currentUserId);
 
         // ── SuperAdmin oversight ──────────────────────────────────────────
-        Task<List<ChatRoomDto>> GetAllDirectRoomsForOversightAsync(string currentUserRole);
         Task<List<ChatMessageDto>> GetDirectRoomHistoryForOversightAsync(
             Guid supervisorUserId, string currentUserRole, Guid roomId, DateTime? before, int pageSize);
 
@@ -28,5 +27,13 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<string> GetRoomTypeAsync(Guid roomId);
         Task<List<Guid>> GetDirectRoomMemberIdsAsync(Guid roomId);
         Task<List<ChatUserSummaryDto>> GetAllUsersForNewConversationAsync(Guid excludeUserId);
+        // IChatService.cs
+        Task<PagedOversightRoomsDto> GetDirectRoomsForOversightAsync(string currentUserRole, OversightRoomFilterDto filter);
+        // IChatService.cs
+        Task<List<ChatMessageDto>> GetMessagesAroundAsync(
+            Guid currentUserId, string currentUserRole, int? currentUserRegion, Guid roomId, Guid targetMessageId);
+        // IChatService.cs
+        Task<List<ChatReactionDto>> SetReactionAsync(Guid currentUserId, string currentUserRole, int? currentUserRegion, SetReactionDto dto);
+        Task<ChatSeenInfoDto?> GetSeenInfoAsync(Guid currentUserId, Guid roomId, Guid messageId, DateTime messageSentAt);
     }
 }

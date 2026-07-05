@@ -16,7 +16,32 @@ namespace EcaInformationSystem.API.Hubs
         {
             _chatService = chatService;
         }
+        // ChatHub.cs
+        public async Task SetReaction(SetReactionDto dto)
+        {
+            var (userId, role, region) = GetCurrentUser();
 
+            var reactions = await _chatService.SetReactionAsync(userId, role, region, dto);
+
+            var broadcast = new ReactionUpdateBroadcastDto
+            {
+                MessageId = dto.MessageId,
+                Reactions = reactions
+            };
+
+            var roomType = await _chatService.GetRoomTypeAsync(dto.RoomId);
+
+            if (roomType == "Direct")
+            {
+                var memberIds = await _chatService.GetDirectRoomMemberIdsAsync(dto.RoomId);
+                await Clients.Users(memberIds.Select(id => id.ToString()))
+                    .SendAsync("ReactionUpdated", broadcast);
+            }
+            else
+            {
+                await Clients.Group($"room-{dto.RoomId}").SendAsync("ReactionUpdated", broadcast);
+            }
+        }
         // ── Connection lifecycle ─────────────────────────────────────────
 
         public override async Task OnConnectedAsync()
@@ -92,13 +117,27 @@ namespace EcaInformationSystem.API.Hubs
 
         // ── Read receipts (drives unread badge going to zero) ──────────────
 
+        // ChatHub.cs
         public async Task MarkAsRead(Guid roomId)
         {
             var (userId, _, _) = GetCurrentUser();
             await _chatService.MarkRoomAsReadAsync(userId, roomId);
 
-            // No broadcast needed — read status is private per-user, only the
-            // caller's own client needs to know their unread count just cleared.
+            // ✅ NEW — notify everyone else in the room that this user's read
+            // status just advanced, so their "Seen" indicators can update live
+            // without needing to reopen the conversation.
+            var roomType = await _chatService.GetRoomTypeAsync(roomId);
+
+            if (roomType == "Direct")
+            {
+                var memberIds = await _chatService.GetDirectRoomMemberIdsAsync(roomId);
+                await Clients.Users(memberIds.Select(id => id.ToString()))
+                    .SendAsync("SeenStatusChanged", roomId, userId);
+            }
+            else
+            {
+                await Clients.Group($"room-{roomId}").SendAsync("SeenStatusChanged", roomId, userId);
+            }
         }
 
         // ── Starting a new DM (needs group membership added dynamically,

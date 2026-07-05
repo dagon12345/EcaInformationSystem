@@ -33,7 +33,9 @@
         }
         lastDate = messageDate;
 
-        <div class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "")">
+        <div id="msg-@message.Id" class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "") @(message.Id == ChatState.PendingScrollToMessageId ? "chat-message-highlighted" : "")"
+             @onclick="() => ToggleReactionPicker(message.Id)">
+
             @if (message.SenderId != CurrentUserId)
             {
                 <div class="chat-message-sender">@message.SenderName</div>
@@ -47,23 +49,21 @@
             {
                 @if (message.Attachment != null)
                 {
-                    <div class="chat-message-attachment">
-                        @if (message.Attachment.ContentType.StartsWith("image/"))
-                        {
-                            <img src="data:@message.Attachment.ContentType;base64,@message.Attachment.ThumbnailBase64"
-                                 class="chat-attachment-thumb"
-                                 @onclick="() => ViewFullAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)" />
-                        }
-                        else
-                        {
-                            <div class="chat-pdf-attachment" style="cursor:pointer;"
-                                 @onclick="() => DownloadPdfAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)">
-                                <i class="bi @ChatFileIconHelper.GetIcon(message.Attachment.ContentType)"></i>
-                                <span class="text-truncate">@message.Attachment.OriginalFileName</span>
-                                <i class="bi bi-download ms-1 text-muted"></i>
-                            </div>
-                        }
-                    </div>
+                    @if (message.Attachment.ContentType.StartsWith("image/"))
+                    {
+                        <img src="data:@message.Attachment.ContentType;base64,@message.Attachment.ThumbnailBase64"
+                             class="chat-attachment-thumb"
+                             @onclick="() => ViewFullAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)" />
+                    }
+                    else
+                    {
+                        <div class="chat-pdf-attachment" style="cursor:pointer;"
+                             @onclick="() => DownloadPdfAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)">
+                            <i class="bi @ChatFileIconHelper.GetIcon(message.Attachment.ContentType)"></i>
+                            <span class="text-truncate">@message.Attachment.OriginalFileName</span>
+                            <i class="bi bi-download ms-1 text-muted"></i>
+                        </div>
+                    }
                 }
 
                 @if (!string.IsNullOrWhiteSpace(message.Content))
@@ -71,16 +71,81 @@
                     <div class="chat-message-content">@RenderContentWithMentions(message)</div>
                 }
             }
-
+            
             <div class="chat-message-meta">
                 <small class="text-muted">@message.SentAt.ToLocalTime().ToString("h:mm tt")</small>
                 @if (message.CanDelete && !message.IsDeleted)
                 {
-                    <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)">
+                    <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)" @onclick:stopPropagation="true">
                         <i class="bi bi-trash"></i>
                     </button>
                 }
             </div>
+
+            @if (message.Reactions.Any())
+            {
+                <div class="chat-reaction-summary">
+                    @foreach (var r in message.Reactions)
+                    {
+                        <span class="chat-reaction-pill @(r.ReactorUserIds.Contains(CurrentUserId) ? "mine" : "")"
+                              @onclick="() => ShowReactorsPopup(message.Id, r)" @onclick:stopPropagation="true">
+                            @GetReactionEmoji(r.Type) @r.Count
+                        </span>
+                    }
+                    @if (_reactorsPopupVisible)
+                    {
+                        <div class="chat-reactors-popup-backdrop" @onclick="CloseReactorsPopup">
+                            <div class="chat-reactors-popup" @onclick:stopPropagation="true">
+                                <div class="chat-reactors-popup-header">
+                                    <span>@GetReactionEmoji(_popupReactionType) @_popupReactionType</span>
+                                    <button class="chat-modal-btn" @onclick="CloseReactorsPopup">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                                <div class="chat-reactors-popup-list">
+                                    @foreach (var name in _popupReactorNames)
+                                    {
+                                        <div class="chat-reactors-popup-item">
+                                            <i class="bi bi-person-circle me-2"></i>@name
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            @* ✅ NEW — seen indicator, only for MY latest message *@
+            @if (message.Id == _myLastMessageId && _seenInfo != null)
+            {
+                <div class="chat-seen-indicator" @onclick="() => _showFullSeenList = !_showFullSeenList" @onclick:stopPropagation="true">
+                    @if (ChatState.ActiveRoom?.Type == "Direct")
+                    {
+                        <small class="text-muted"><i class="bi bi-check2-all me-1"></i>Seen</small>
+                    }
+                    else
+                    {
+                        <small class="text-muted">
+                            <i class="bi bi-check2-all me-1"></i>
+                            Seen by @string.Join(", ", _seenInfo.SeenByNames.Take(_showFullSeenList ? 10 : 3))
+                            @if (_seenInfo.HasMore)
+                            {
+                                <span> and @(_seenInfo.TotalSeenCount - Math.Min(_seenInfo.SeenByNames.Count, _showFullSeenList ? 10 : 3)) other(s)...</span>
+                            }
+                        </small>
+                    }
+                </div>
+            }
+
+            @if (!message.IsDeleted && _activeReactionPickerId == message.Id)
+            {
+                <div class="chat-reaction-picker-inline" @onclick:stopPropagation="true">
+                    <span @onclick="() => AddReaction(message, ReactionLike)" title="Like">👍</span>
+                    <span @onclick="() => AddReaction(message, ReactionHeart)" title="Heart">❤️</span>
+                    <span @onclick="() => AddReaction(message, ReactionHaha)" title="Haha">😂</span>
+                    <span @onclick="() => AddReaction(message, ReactionClap)" title="Clap">👏</span>
+                </div>
+            }
         </div>
     }
     @if (_showImageModal)
@@ -119,20 +184,62 @@
 </div>
 
 @code {
+    private Guid? _activeReactionPickerId; // ✅ REPLACES _hoveredMessageId
     private bool _showImageModal;
     private bool _isLoadingModalImage;
     private string? _modalImageSrc;
     private string? _modalFileName;
     private byte[]? _modalAttachmentBytes;
     [Parameter] public Guid CurrentUserId { get; set; }
+    private Guid? _hoveredMessageId;
+    private bool _reactorsPopupVisible;
+    private string _popupReactionType = string.Empty;
+    private List<string> _popupReactorNames = new();
+    //Reactions
+    private const string ReactionLike = "Like";
+    private const string ReactionHeart = "Heart";
+    private const string ReactionHaha = "Haha";
+    private const string ReactionClap = "Clap";
 
     private readonly string _containerId = $"chat-msg-list-{Guid.NewGuid():N}";
     private DotNetObjectReference<ChatMessageList>? _dotNetRef;
     private int _previousMessageCount;
+    private Guid? _myLastMessageId;
+    private ChatSeenInfoDto? _seenInfo;
+    private bool _showFullSeenList;
 
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged; // ✅ NEW
+        ChatState.SeenStatusChangedForRoom += HandleSeenStatusChangedForRoom; // ✅ NEW
+    }
+    private void ShowReactorsPopup(Guid messageId, ChatReactionDto reaction)
+    {
+        _popupReactionType = reaction.Type;
+        _popupReactorNames = reaction.ReactorNames;
+        _reactorsPopupVisible = true;
+    }
+    // ✅ NEW
+    private async void HandleSeenStatusChangedForRoom(Guid roomId)
+    {
+        await RefreshSeenInfoAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+    private void CloseReactorsPopup()
+    {
+        _reactorsPopupVisible = false;
+    }
+    private void ToggleReactionPicker(Guid messageId)
+    {
+        _activeReactionPickerId = _activeReactionPickerId == messageId ? null : messageId;
+    }
+    private async Task AddReaction(ChatMessageDto message, string type)
+    {
+        var myExisting = message.Reactions.FirstOrDefault(r => r.ReactorUserIds.Contains(CurrentUserId));
+        var newType = myExisting?.Type == type ? null : type;
+
+        await ChatState.SetReactionAsync(message.Id, message.RoomId, newType);
+        _activeReactionPickerId = null; // ✅ auto-close after picking, on both desktop and mobile
     }
     private async Task ViewFullAttachment(Guid attachmentId, string fileName)
     {
@@ -187,12 +294,39 @@
             await JS.InvokeVoidAsync("chatInterop.registerScrollTop", _containerId, _dotNetRef);
             await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
             _previousMessageCount = ChatState.Messages.Count;
+            await RefreshSeenInfoAsync();
         }
         else if (ChatState.Messages.Count > _previousMessageCount)
         {
             await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
             _previousMessageCount = ChatState.Messages.Count;
+            await RefreshSeenInfoAsync();
         }
+
+        if (ChatState.PendingScrollToMessageId.HasValue)
+        {
+            var targetId = ChatState.PendingScrollToMessageId.Value;
+            ChatState.PendingScrollToMessageId = null;
+            await JS.InvokeVoidAsync("chatInterop.scrollToElement", $"msg-{targetId}");
+        }
+    }
+    private async Task RefreshSeenInfoAsync()
+    {
+        var myLastMessage = ChatState.Messages
+            .Where(m => m.SenderId == CurrentUserId && !m.IsDeleted)
+            .OrderByDescending(m => m.SentAt)
+            .FirstOrDefault();
+
+        if (myLastMessage == null || ChatState.ActiveRoom == null)
+        {
+            _myLastMessageId = null;
+            _seenInfo = null;
+            return;
+        }
+
+        _myLastMessageId = myLastMessage.Id;
+        _seenInfo = await ChatState.GetSeenInfoAsync(ChatState.ActiveRoom.Id, myLastMessage.Id, myLastMessage.SentAt);
+        StateHasChanged();
     }
 
     [JSInvokable]
@@ -219,6 +353,7 @@
     public async ValueTask DisposeAsync()
     {
         ChatState.OnChange -= HandleStateChanged;
+        ChatState.SeenStatusChangedForRoom -= HandleSeenStatusChangedForRoom; // ✅ NEW
         _dotNetRef?.Dispose();
     }
     private static string FormatDateSeparator(DateTime date)
@@ -246,5 +381,20 @@
         "text/csv" => "bi-file-earmark-spreadsheet-fill text-success",
         "text/plain" => "bi-file-earmark-text-fill text-secondary",
         _ => "bi-file-earmark-fill text-muted"
+    };
+
+    private async Task ToggleReaction(ChatMessageDto message, string type)
+    {
+        // Clicking an existing pill also toggles your own reaction the same way
+        await AddReaction(message, type);
+    }
+
+    private static string GetReactionEmoji(string type) => type switch
+    {
+        "Like" => "👍",
+        "Heart" => "❤️",
+        "Haha" => "😂",
+        "Clap" => "👏",
+        _ => "👍"
     };
 }

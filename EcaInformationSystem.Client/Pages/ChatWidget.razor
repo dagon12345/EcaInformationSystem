@@ -4,9 +4,11 @@
 @using EcaInformationSystem.Shared.DTOs.Chat
 @inject ChatStateService ChatState
 @inject AuthService AuthService
+@inject IJSRuntime JS
 @implements IDisposable
 
-<div class="chat-widget-container">
+
+<div class="chat-widget-container" id="@_widgetContainerId">
     <button class="chat-toggle-btn" @onclick="ChatState.ToggleWidget">
         <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
         @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
@@ -20,7 +22,7 @@
         <div class="chat-widget-panel">
             @if (_showUserPicker)
             {
-                @* ── New conversation: user picker ─────────────────────── *@
+                @* ── VIEW 1: New conversation user picker ────────────────── *@
                 <div class="chat-panel-header">
                     <button class="btn-back" @onclick="CloseUserPicker">
                         <i class="bi bi-arrow-left"></i>
@@ -55,11 +57,51 @@
                     }
                 </div>
             }
+            else if (_showMentionsList)
+            {
+                @* ── VIEW 2: Mentions jump list ───────────────────────────── *@
+                <div class="chat-panel-header">
+                    <button class="btn-back" @onclick="() => _showMentionsList = false">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <strong class="flex-grow-1">Mentions</strong>
+                </div>
+                <div class="chat-room-list">
+                    @if (_isLoadingMentions)
+                    {
+                        <div class="text-center text-muted small py-4">
+                            <span class="spinner-border spinner-border-sm me-1"></span> Loading...
+                        </div>
+                    }
+                    else if (!_mentionJumpList.Any())
+                    {
+                        <div class="text-center text-muted small py-4">No mentions yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var mention in _mentionJumpList)
+                        {
+                            <div class="chat-room-item" @onclick="() => JumpToMention(mention)">
+                                <div class="chat-room-icon room-icon-direct">
+                                    <i class="bi bi-at"></i>
+                                </div>
+                                <div class="chat-room-info">
+                                    <div class="chat-room-name">@mention.RoomDisplayName</div>
+                                    <div class="chat-room-preview text-truncate">@mention.MessagePreview</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
             else if (ChatState.ActiveRoom == null)
             {
-                @* ── Room list view ─────────────────────────────────────── *@
+                @* ── VIEW 3: Room list ────────────────────────────────────── *@
                 <div class="chat-panel-header">
                     <strong class="flex-grow-1">Messages</strong>
+                    <button class="btn-new-chat" title="Jump to mentions" @onclick="OpenMentionsList">
+                        <i class="bi bi-at"></i>
+                    </button>
                     <button class="btn-new-chat" title="Start a new conversation" @onclick="OpenUserPicker">
                         <i class="bi bi-plus-lg"></i>
                     </button>
@@ -94,7 +136,7 @@
             }
             else
             {
-                @* ── Active room / conversation view ─────────────────────── *@
+                @* ── VIEW 4: Active conversation ──────────────────────────── *@
                 <div class="chat-panel-header">
                     <button class="btn-back" @onclick="ChatState.ReturnToRoomList">
                         <i class="bi bi-arrow-left"></i>
@@ -117,10 +159,17 @@
     private List<ChatUserSummaryDto> _allUsers = new();
     private List<ChatUserSummaryDto> _filteredUsers = new();
 
+    private bool _showMentionsList;
+    private bool _isLoadingMentions;
+    private List<ChatMentionJumpDto> _mentionJumpList = new();
+    private readonly string _widgetContainerId = $"chat-widget-{Guid.NewGuid():N}";
+    private DotNetObjectReference<ChatWidget>? _dotNetRef;
+    private bool _wasOpen;
+
     protected override async Task OnInitializedAsync()
     {
         ChatState.OnChange += HandleChatStateChanged;
-
+        _dotNetRef = DotNetObjectReference.Create(this);
         var token = await AuthService.GetTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
         {
@@ -139,6 +188,30 @@
 
         await ChatState.LoadRoomsAsync();
     }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // ✅ NEW — register/unregister the outside-click listener whenever
+        // the widget's open state actually changes (not on every re-render).
+        if (ChatState.IsWidgetOpen && !_wasOpen)
+        {
+            await JS.InvokeVoidAsync("chatInterop.registerOutsideClick", _widgetContainerId, _dotNetRef);
+        }
+        else if (!ChatState.IsWidgetOpen && _wasOpen)
+        {
+            await JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick");
+        }
+
+        _wasOpen = ChatState.IsWidgetOpen;
+    }
+    [JSInvokable]
+    public void OnClickOutside()
+    {
+        if (ChatState.IsWidgetOpen)
+        {
+            ChatState.CloseWidget(); // already exists in ChatStateService
+        }
+    }
+
 
     private void HandleChatStateChanged()
     {
@@ -155,6 +228,25 @@
         {
             Console.WriteLine($"[CHAT DEBUG] SelectRoomAsync failed: {ex}");
         }
+    }
+
+    // ── Mentions ─────────────────────────────────────────────────────────
+
+    private async Task OpenMentionsList()
+    {
+        _showMentionsList = true;
+        _isLoadingMentions = true;
+        StateHasChanged();
+
+        _mentionJumpList = await ChatState.GetMyMentionJumpListAsync();
+        _isLoadingMentions = false;
+        StateHasChanged();
+    }
+
+    private async Task JumpToMention(ChatMentionJumpDto mention)
+    {
+        _showMentionsList = false;
+        await ChatState.JumpToMentionAsync(mention.RoomId, mention.MessageId);
     }
 
     // ── New conversation picker ──────────────────────────────────────────
@@ -218,5 +310,7 @@
     public void Dispose()
     {
         ChatState.OnChange -= HandleChatStateChanged;
+        _dotNetRef?.Dispose();
+        _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick");
     }
 }

@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs.Chat;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,68 @@ namespace EcaInformationSystem.API.Controllers
         public ChatController(IChatService chatService)
         {
             _chatService = chatService;
+        }
+        [HttpGet("rooms/{roomId}/messages/{messageId}/seen")]
+        public async Task<IActionResult> GetSeenInfo(Guid roomId, Guid messageId, [FromQuery] DateTime sentAt)
+        {
+            var (userId, _, _) = GetCurrentUser();
+            var result = await _chatService.GetSeenInfoAsync(userId, roomId, messageId, sentAt);
+            return Ok(result);
+        }
+        [HttpGet("rooms/{roomId}/messages/around/{messageId}")]
+        public async Task<IActionResult> GetMessagesAround(Guid roomId, Guid messageId)
+        {
+            var (userId, role, region) = GetCurrentUser();
+            try
+            {
+                var messages = await _chatService.GetMessagesAroundAsync(userId, role, region, roomId, messageId);
+                return Ok(messages);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+        }
+        [HttpGet("oversight/rooms")]
+        public async Task<IActionResult> GetOversightRooms(
+         [FromQuery] string? search, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+        {
+            var (_, role, _) = GetCurrentUser();
+            try
+            {
+                var filter = new OversightRoomFilterDto
+                {
+                    SearchTerm = search,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+                var result = await _chatService.GetDirectRoomsForOversightAsync(role, filter);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+        }
+
+        [HttpGet("oversight/rooms/{roomId}/messages")]
+        public async Task<IActionResult> GetOversightMessages(
+            Guid roomId, [FromQuery] DateTime? before, [FromQuery] int pageSize = 30)
+        {
+            var (userId, role, _) = GetCurrentUser();
+            try
+            {
+                var messages = await _chatService.GetDirectRoomHistoryForOversightAsync(userId, role, roomId, before, pageSize);
+                return Ok(messages);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
         [HttpGet("users")]
         public async Task<IActionResult> GetUsersForNewConversation()

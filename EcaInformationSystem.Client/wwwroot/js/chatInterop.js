@@ -15,6 +15,12 @@
             });
         };
     },
+    scrollToElement: function (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    },
 
     preserveScrollAfterPrepend: function (elementId, previousScrollHeight) {
         const el = document.getElementById(elementId);
@@ -76,5 +82,36 @@
             this._notificationAudio.currentTime = 0;
             this._notificationAudio.play().catch(() => { /* autoplay still blocked, non-fatal */ });
         } catch { /* non-fatal */ }
+    },
+    _outsideClickHandler: null,
+
+    registerOutsideClick: function (containerId, dotNetRef) {
+        this.unregisterOutsideClick();
+
+        this._outsideClickHandler = function (event) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            // ✅ Use composedPath() instead of container.contains(event.target).
+            // composedPath() is captured at dispatch time, so it stays accurate
+            // even if Blazor's own click handling removes/replaces the clicked
+            // element from the DOM before this bubbles up to document level.
+            const path = event.composedPath ? event.composedPath() : [];
+
+            if (!path.includes(container)) {
+                dotNetRef.invokeMethodAsync('OnClickOutside');
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', this._outsideClickHandler);
+        }, 0);
+    },
+
+    unregisterOutsideClick: function () {
+        if (this._outsideClickHandler) {
+            document.removeEventListener('click', this._outsideClickHandler);
+            this._outsideClickHandler = null;
+        }
     }
 };

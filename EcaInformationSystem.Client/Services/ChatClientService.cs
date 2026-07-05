@@ -15,7 +15,8 @@ namespace EcaInformationSystem.Client.Services
         public event Action<ChatMentionJumpDto>? OnMentioned;
         public event Action<ChatRoomDto>? OnNewDirectRoomStarted;
         public event Action? OnConnectionStateChanged;
-
+        public event Action<ReactionUpdateBroadcastDto>? OnReactionUpdated;
+        public event Action<Guid, Guid>? OnSeenStatusChanged; // (roomId, userIdWhoJustRead)
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
         public ChatClientService(IJSRuntime js)
@@ -51,13 +52,22 @@ namespace EcaInformationSystem.Client.Services
             _hubConnection.On<Guid>("MessageDeleted", messageId => OnMessageDeleted?.Invoke(messageId));
             _hubConnection.On<ChatMentionJumpDto>("YouWereMentioned", mention => OnMentioned?.Invoke(mention));
             _hubConnection.On<ChatRoomDto>("NewDirectRoomStarted", room => OnNewDirectRoomStarted?.Invoke(room));
-
+            _hubConnection.On<ReactionUpdateBroadcastDto>("ReactionUpdated", update => OnReactionUpdated?.Invoke(update));
+            _hubConnection.On<Guid, Guid>("SeenStatusChanged", (roomId, userId) =>
+            {
+                OnSeenStatusChanged?.Invoke(roomId, userId);
+            });
             _hubConnection.Reconnecting += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Reconnected += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Closed += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
 
             await _hubConnection.StartAsync();
             OnConnectionStateChanged?.Invoke();
+        }
+        public async Task SetReactionAsync(SetReactionDto dto)
+        {
+            EnsureConnected();
+            await _hubConnection!.InvokeAsync("SetReaction", dto);
         }
 
         public async Task DisconnectAsync()

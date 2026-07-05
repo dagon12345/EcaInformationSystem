@@ -26,6 +26,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
         public DbSet<ChatMention> ChatMentions => Set<ChatMention>();
         public DbSet<ChatReadStatus> ChatReadStatuses => Set<ChatReadStatus>();
+        public DbSet<ChatMessageReaction> ChatMessageReactions => Set<ChatMessageReaction>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -391,6 +392,26 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.RoomId, x.UserId })
                       .IsUnique()
                       .HasDatabaseName("UQ_ChatReadStatus_RoomUser");
+            });
+
+            modelBuilder.Entity<ChatMessageReaction>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Type).HasConversion<int>().IsRequired();
+
+                entity.HasOne(x => x.Message)
+                      .WithMany() // ChatMessage doesn't need a Reactions nav property unless you want one — omitted to keep ChatMessage lean, reactions are always queried by RoomId/MessageId directly
+                      .HasForeignKey(x => x.ChatMessageId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // ✅ One reaction per user per message — enforces "swap, don't stack"
+                entity.HasIndex(x => new { x.ChatMessageId, x.UserId })
+                      .IsUnique()
+                      .HasDatabaseName("UQ_ChatMessageReaction_MessageUser");
+
+                entity.HasIndex(x => x.ChatMessageId)
+                      .HasDatabaseName("IX_ChatMessageReaction_ChatMessageId");
             });
         }
     }

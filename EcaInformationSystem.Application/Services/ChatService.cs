@@ -23,7 +23,112 @@ namespace EcaInformationSystem.Application.Services
             _logRepository = logRepository;
             _psgcNameCache = psgcNameCache;
         }
+        // ChatService.cs — new method
+        public async Task<ChatSeenInfoDto?> GetSeenInfoAsync(
+            Guid currentUserId, Guid roomId, Guid messageId, DateTime messageSentAt)
+        {
+            var room = await _repo.GetRoomByIdAsync(roomId);
+            if (room == null) return null;
 
+            var readStatuses = await _repo.GetReadStatusesForRoomAsync(roomId);
+
+            // ✅ "Seen" = read status timestamp is at or after this message's send time,
+            // excluding the sender themselves (you don't see your own name in your own seen-list)
+            var seenUserIds = readStatuses
+                .Where(r => r.UserId != currentUserId && r.LastReadAt >= messageSentAt)
+                .Select(r => r.UserId)
+                .ToList();
+
+            if (!seenUserIds.Any()) return null; // no one has seen it yet — show nothing, or "Sent" in the UI
+
+            var names = new List<string>();
+            foreach (var id in seenUserIds.Take(10))
+            {
+                var u = await _repo.GetUserByIdAsync(id);
+                names.Add(u?.FullName ?? "Unknown");
+            }
+
+            return new ChatSeenInfoDto
+            {
+                SeenByNames = names,
+                TotalSeenCount = seenUserIds.Count
+            };
+        }
+        public async Task<List<ChatReactionDto>> SetReactionAsync(
+            Guid currentUserId, string currentUserRole, int? currentUserRegion, SetReactionDto dto)
+        {
+            await EnsureCanAccessRoomAsync(currentUserId, currentUserRole, currentUserRegion, dto.RoomId, forOversight: false);
+
+            if (string.IsNullOrWhiteSpace(dto.Type))
+            {
+                await _repo.RemoveReactionAsync(dto.MessageId, currentUserId);
+            }
+            else
+            {
+                if (!Enum.TryParse<ChatReactionType>(dto.Type, ignoreCase: true, out var reactionType))
+                    throw new InvalidOperationException("Invalid reaction type.");
+
+                await _repo.UpsertReactionAsync(dto.MessageId, currentUserId, reactionType);
+            }
+
+            await _repo.SaveChangesAsync();
+
+            var reactions = await _repo.GetReactionsForMessageAsync(dto.MessageId);
+
+            // ✅ NEW — resolve names for everyone who reacted
+            var reactorIds = reactions.Select(r => r.UserId).Distinct().ToList();
+            var reactorNameLookup = new Dictionary<Guid, string>();
+            foreach (var id in reactorIds)
+            {
+                var u = await _repo.GetUserByIdAsync(id);
+                reactorNameLookup[id] = u?.FullName ?? "Unknown";
+            }
+
+            return BuildReactionSummary(reactions, reactorNameLookup);
+        }
+
+        private List<ChatReactionDto> BuildReactionSummary(
+    List<ChatMessageReaction> reactions, Dictionary<Guid, string>? nameLookup = null)
+        {
+            return reactions
+                .GroupBy(r => r.Type)
+                .Select(g => new ChatReactionDto
+                {
+                    Type = g.Key.ToString(),
+                    Count = g.Count(),
+                    ReactorUserIds = g.Select(r => r.UserId).ToList(),
+                    ReactorNames = nameLookup != null
+                        ? g.Select(r => nameLookup.GetValueOrDefault(r.UserId, "Unknown")).ToList()
+                        : new List<string>()
+                })
+                .OrderByDescending(r => r.Count)
+                .ToList();
+        }
+        public async Task<List<ChatMessageDto>> GetMessagesAroundAsync(
+            Guid currentUserId, string currentUserRole, int? currentUserRegion, Guid roomId, Guid targetMessageId)
+        {
+            await EnsureCanAccessRoomAsync(currentUserId, currentUserRole, currentUserRegion, roomId, forOversight: false);
+
+            var messages = await _repo.GetMessagesAroundAsync(roomId, targetMessageId);
+
+            var senderIds = messages.Select(m => m.SenderId).Distinct();
+            var mentionedIds = messages.SelectMany(m => m.Mentions)
+                .Where(mn => mn.MentionedUserId.HasValue)
+                .Select(mn => mn.MentionedUserId!.Value)
+                .Distinct();
+
+            var allUserIds = senderIds.Union(mentionedIds).ToList();
+            var nameLookup = new Dictionary<Guid, string>();
+            foreach (var id in allUserIds)
+            {
+                var u = await _repo.GetUserByIdAsync(id);
+                nameLookup[id] = u?.FullName ?? "Unknown";
+            }
+
+            return messages
+                .Select(m => MapToDto(m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole, nameLookup))
+                .ToList();
+        }
         // ── Room list ────────────────────────────────────────────────────
         public async Task<List<ChatUserSummaryDto>> GetAllUsersForNewConversationAsync(Guid excludeUserId)
         {
@@ -175,7 +280,8 @@ namespace EcaInformationSystem.Application.Services
                 mentionNameLookup[userId] = mentionedUser?.FullName ?? "Unknown";
             }
 
-            return MapToDto(message, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup);
+            // In SendMessageAsync — new message has no reactions yet, so pass an empty list
+            return MapToDto(savedMessage, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup, new List<ChatMessageReaction>());
         }
 
         // ── Deleting ─────────────────────────────────────────────────────
@@ -228,21 +334,22 @@ namespace EcaInformationSystem.Application.Services
                 .Where(mn => mn.MentionedUserId.HasValue)
                 .Select(mn => mn.MentionedUserId!.Value)
                 .Distinct();
-
-            // ✅ Resolve BOTH senders and mentioned users in one combined lookup —
-            // avoids N+1 queries across a page of messages with lots of mentions
-            var allUserIds = senderIds.Union(mentionedIds).ToList();
+            var messageIds = messages.Select(m => m.Id).ToList();
+            var reactionsLookup = await _repo.GetReactionsForMessagesAsync(messageIds); // ✅ NEW — batch fetch, avoids N+1
+            var reactorIds = reactionsLookup.Values.SelectMany(list => list.Select(r => r.UserId)).Distinct();
+            var allUserIds = senderIds.Union(mentionedIds).Union(reactorIds).ToList(); // ✅ CHANGED
             var nameLookup = new Dictionary<Guid, string>();
             foreach (var id in allUserIds)
             {
                 var u = await _repo.GetUserByIdAsync(id);
                 nameLookup[id] = u?.FullName ?? "Unknown";
             }
-
             return messages
-                .OrderBy(m => m.SentAt)
-                .Select(m => MapToDto(m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole, nameLookup))
-                .ToList();
+                 .OrderBy(m => m.SentAt)
+                 .Select(m => MapToDto(
+                     m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole,
+                     nameLookup, reactionsLookup.GetValueOrDefault(m.Id, new List<ChatMessageReaction>())))
+                 .ToList();
         }
 
         public async Task MarkRoomAsReadAsync(Guid currentUserId, Guid roomId)
@@ -302,16 +409,50 @@ namespace EcaInformationSystem.Application.Services
 
         // ── SuperAdmin oversight ─────────────────────────────────────────
 
-        public async Task<List<ChatRoomDto>> GetAllDirectRoomsForOversightAsync(string currentUserRole)
+        // ChatService.cs
+        public async Task<PagedOversightRoomsDto> GetDirectRoomsForOversightAsync(
+            string currentUserRole, OversightRoomFilterDto filter)
         {
             if (currentUserRole != SuperAdminRole)
                 throw new UnauthorizedAccessException("Only SuperAdmin can view conversation oversight.");
 
-            // NOTE: needs a repository method to list ALL direct rooms system-wide,
-            // not just one user's — add IChatRepository.GetAllDirectRoomsAsync() when
-            // you're ready to wire this screen up; omitted here to keep this response
-            // focused, but the shape is identical to GetUserDirectRoomsAsync minus the filter.
-            throw new NotImplementedException("Wire up IChatRepository.GetAllDirectRoomsAsync() for this.");
+            filter.PageSize = Math.Clamp(filter.PageSize, 1, 100); // ✅ hard ceiling — never allow an unbounded page size
+            filter.PageNumber = Math.Max(filter.PageNumber, 1);
+
+            var (rooms, totalCount) = await _repo.GetDirectRoomsPagedAsync(
+                filter.SearchTerm, filter.PageNumber, filter.PageSize);
+
+            var items = new List<ChatRoomDto>();
+            foreach (var room in rooms)
+            {
+                var memberIds = await _repo.GetDirectRoomMemberIdsAsync(room.Id);
+                if (memberIds.Count != 2) continue;
+
+                var userA = await _repo.GetUserByIdAsync(memberIds[0]);
+                var userB = await _repo.GetUserByIdAsync(memberIds[1]);
+                var displayName = $"{userA?.FullName ?? "Unknown"} ↔ {userB?.FullName ?? "Unknown"}";
+
+                var latest = await _repo.GetLatestMessageAsync(room.Id);
+
+                items.Add(new ChatRoomDto
+                {
+                    Id = room.Id,
+                    Type = room.Type.ToString(),
+                    DisplayName = displayName,
+                    RegionCode = null,
+                    UnreadCount = 0,
+                    LastMessagePreview = latest?.Content ?? (latest != null ? "[Attachment]" : null),
+                    LastMessageAt = latest?.SentAt
+                });
+            }
+
+            return new PagedOversightRoomsDto
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize
+            };
         }
 
         public async Task<List<ChatMessageDto>> GetDirectRoomHistoryForOversightAsync(
@@ -393,8 +534,10 @@ namespace EcaInformationSystem.Application.Services
         private static readonly Regex MentionPattern = new(@"@(\w+)", RegexOptions.Compiled);
 
         private ChatMessageDto MapToDto(
-      ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
-      Dictionary<Guid, string>? mentionNameLookup = null, bool forceReadOnly = false)
+    ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
+    Dictionary<Guid, string>? mentionNameLookup = null,
+    List<ChatMessageReaction>? reactions = null, // ✅ NEW
+    bool forceReadOnly = false)
         {
             var canDelete = !forceReadOnly &&
                 (m.SenderId == currentUserId || currentUserRole == SuperAdminRole);
@@ -426,7 +569,10 @@ namespace EcaInformationSystem.Application.Services
                         ? mentionNameLookup.GetValueOrDefault(mn.MentionedUserId.Value, "Unknown")
                         : null,
                     IsEveryoneMention = mn.IsEveryoneMention
-                }).ToList()
+                }).ToList(),
+                Reactions = reactions != null
+                        ? BuildReactionSummary(reactions, mentionNameLookup) // ✅ reuse the same name lookup
+                        : new()
             };
         }
         public async Task<string> GetRoomTypeAsync(Guid roomId)

@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Domain.Entities;
+﻿using EcaInformationSystem.Domain.Common.Enum;
+using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Entities.ChatEntities;
 using EcaInformationSystem.Shared.DTOs.Chat;
 
@@ -39,12 +40,18 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<List<PendingUserRegistration>> GetUsersByRegionAsync(int regionCode);
         Task<List<PendingUserRegistration>> GetAllActiveUsersAsync();
         Task<PendingUserRegistration?> GetUserByIdAsync(Guid userId);
-
         Task SaveChangesAsync();
-        // IChatRepository.cs — add these two
         Task AddChatAttachmentAsync(ChatAttachment attachment);
         Task<ChatAttachment?> GetChatAttachmentByIdAsync(Guid attachmentId);
-        // IChatRepository.cs
         Task<bool> LinkAttachmentToMessageAsync(Guid attachmentId, Guid messageId);
+        Task<(List<ChatRoom> Rooms, int TotalCount)> GetDirectRoomsPagedAsync(string? searchTerm, int pageNumber, int pageSize);
+        Task<List<ChatMessage>> GetMessagesAroundAsync(Guid roomId, Guid targetMessageId, int contextSize = 15);
+        Task<ChatMessageReaction?> GetUserReactionAsync(Guid messageId, Guid userId);
+        Task UpsertReactionAsync(Guid messageId, Guid userId, ChatReactionType type);
+        Task RemoveReactionAsync(Guid messageId, Guid userId);
+        Task<List<ChatMessageReaction>> GetReactionsForMessageAsync(Guid messageId);
+        Task<Dictionary<Guid, List<ChatMessageReaction>>> GetReactionsForMessagesAsync(List<Guid> messageIds);
+        // IChatRepository.cs
+        Task<List<(Guid UserId, DateTime LastReadAt)>> GetReadStatusesForRoomAsync(Guid roomId);
     }
 }

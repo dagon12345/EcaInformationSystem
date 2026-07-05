@@ -25,7 +25,135 @@ namespace EcaInformationSystem.Client.Services
         // the JWT, so this service can tell "did I send this" without re-parsing
         // the token itself.
         public Guid CurrentUserId { get; set; }
+        // ── Oversight (SuperAdmin only) ──────────────────────────────────────────
 
+        public List<ChatRoomDto> OversightRooms { get; private set; } = new();
+        public int OversightTotalCount { get; private set; }
+        public int OversightPageNumber { get; private set; } = 1;
+        public int OversightPageSize { get; private set; } = 20;
+        public int OversightTotalPages => OversightPageSize > 0 ? (int)Math.Ceiling(OversightTotalCount / (double)OversightPageSize) : 0;
+        public string? OversightSearchTerm { get; set; }
+
+        public ChatRoomDto? OversightActiveRoom { get; private set; }
+        public List<ChatMessageDto> OversightMessages { get; private set; } = new();
+        public bool IsLoadingOversightRooms { get; private set; }
+        public bool IsLoadingOversightMessages { get; private set; }
+        public async Task<ChatSeenInfoDto?> GetSeenInfoAsync(Guid roomId, Guid messageId, DateTime sentAt)
+        {
+            try
+            {
+                var url = $"api/chat/rooms/{roomId}/messages/{messageId}/seen?sentAt={sentAt:O}";
+                return await _http.GetFromJsonAsync<ChatSeenInfoDto>(url, _jsonOptions);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        public async Task<bool> JumpToMentionAsync(Guid roomId, Guid messageId)
+        {
+            // Resolve the room — could be one already in Rooms, or need a fresh lookup
+            var room = Rooms.FirstOrDefault(r => r.Id == roomId);
+            if (room == null)
+            {
+                // Room not in the current list (e.g. a DM not yet loaded) — reload rooms first
+                await LoadRoomsAsync();
+                room = Rooms.FirstOrDefault(r => r.Id == roomId);
+                if (room == null) return false; // genuinely inaccessible
+            }
+
+            ActiveRoom = room;
+            IsLoadingMessages = true;
+            OnChange?.Invoke();
+
+            try
+            {
+                var messages = await _http.GetFromJsonAsync<List<ChatMessageDto>>(
+                    $"api/chat/rooms/{roomId}/messages/around/{messageId}", _jsonOptions);
+
+                Messages = messages ?? new();
+                HasMoreHistory = true; // there may be more/older messages beyond this window
+
+                // ✅ Signal to the UI which message to scroll to and highlight
+                PendingScrollToMessageId = messageId;
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] JumpToMentionAsync failed: {ex}");
+                return false;
+            }
+            finally
+            {
+                IsLoadingMessages = false;
+                OnChange?.Invoke();
+            }
+        }
+
+        public Guid? PendingScrollToMessageId { get; set; }
+        public async Task LoadOversightRoomsAsync(int pageNumber = 1)
+        {
+            IsLoadingOversightRooms = true;
+            OnChange?.Invoke();
+
+            try
+            {
+                var url = $"api/chat/oversight/rooms?pageNumber={pageNumber}&pageSize={OversightPageSize}";
+                if (!string.IsNullOrWhiteSpace(OversightSearchTerm))
+                    url += $"&search={Uri.EscapeDataString(OversightSearchTerm)}";
+
+                var result = await _http.GetFromJsonAsync<PagedOversightRoomsDto>(url, _jsonOptions);
+
+                OversightRooms = result?.Items ?? new();
+                OversightTotalCount = result?.TotalCount ?? 0;
+                OversightPageNumber = result?.PageNumber ?? 1;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] LoadOversightRoomsAsync failed: {ex}");
+                OversightRooms = new();
+                OversightTotalCount = 0;
+            }
+            finally
+            {
+                IsLoadingOversightRooms = false;
+                OnChange?.Invoke();
+            }
+        }
+        public async Task SelectOversightRoomAsync(ChatRoomDto room)
+        {
+            OversightActiveRoom = room;
+            OversightMessages = new();
+            OnChange?.Invoke();
+
+            IsLoadingOversightMessages = true;
+            OnChange?.Invoke();
+
+            try
+            {
+                var messages = await _http.GetFromJsonAsync<List<ChatMessageDto>>(
+                    $"api/chat/oversight/rooms/{room.Id}/messages?pageSize=30", _jsonOptions);
+                OversightMessages = messages ?? new();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] SelectOversightRoomAsync failed: {ex}");
+                OversightMessages = new();
+            }
+            finally
+            {
+                IsLoadingOversightMessages = false;
+                OnChange?.Invoke();
+            }
+        }
+
+        public void ReturnToOversightRoomList()
+        {
+            OversightActiveRoom = null;
+            OversightMessages = new();
+            OnChange?.Invoke();
+        }
         public ChatStateService(HttpClient http, ChatClientService chatClient, IJSRuntime js)
         {
             _http = http;
@@ -36,6 +164,39 @@ namespace EcaInformationSystem.Client.Services
             _chatClient.OnMessageDeleted += HandleMessageDeleted;
             _chatClient.OnMentioned += HandleMentioned;
             _chatClient.OnNewDirectRoomStarted += HandleNewDirectRoom;
+            _chatClient.OnReactionUpdated += HandleReactionUpdated; // ✅ NEW
+            _chatClient.OnSeenStatusChanged += HandleSeenStatusChanged; // ✅ NEW
+        }
+        public event Action<Guid>? SeenStatusChangedForRoom; // (roomId) — components subscribe to this
+        private void HandleSeenStatusChanged(Guid roomId, Guid userId)
+        {
+            // Only matters if it's the room currently being viewed — no point
+            // notifying about read status in a background room nobody's looking at.
+            if (ActiveRoom?.Id == roomId)
+            {
+                SeenStatusChangedForRoom?.Invoke(roomId);
+            }
+        }
+        private void HandleReactionUpdated(ReactionUpdateBroadcastDto update)
+        {
+            var message = Messages.FirstOrDefault(m => m.Id == update.MessageId);
+            if (message != null)
+            {
+                message.Reactions = update.Reactions;
+                OnChange?.Invoke();
+            }
+        }
+
+        public async Task SetReactionAsync(Guid messageId, Guid roomId, string? type)
+        {
+            await _chatClient.SetReactionAsync(new SetReactionDto
+            {
+                MessageId = messageId,
+                RoomId = roomId,
+                Type = type
+            });
+            // Actual update applied via HandleReactionUpdated broadcast — including
+            // to the reactor's own connection, so no need to update local state here.
         }
         public async Task<List<ChatUserSummaryDto>> GetUsersForNewConversationAsync()
         {
@@ -297,8 +458,6 @@ namespace EcaInformationSystem.Client.Services
                 Messages.Add(message);
             }
 
-            // Update room list preview + unread count regardless of which
-            // room is currently open (so background rooms show updated badges)
             var room = Rooms.FirstOrDefault(r => r.Id == message.RoomId);
             if (room != null)
             {
@@ -310,10 +469,16 @@ namespace EcaInformationSystem.Client.Services
                 {
                     room.UnreadCount++;
                 }
+                else
+                {
+                    // ✅ NEW — the user is actively looking at this room right now,
+                    // so immediately advance their read status to cover this new
+                    // message too. This is what actually triggers the "Seen" update
+                    // on the sender's side in real time, rather than only marking
+                    // read once when the room was first opened.
+                    _ = MarkActiveRoomAsReadAsync();
+                }
             }
-            // ✅ NEW — play a sound for any incoming message that isn't
-            // your own. Fires regardless of whether the widget is open,
-            // so you get notified even while working on the beneficiary grid.
             if (message.SenderId != CurrentUserId)
             {
                 _ = _js.InvokeVoidAsync("chatInterop.playNotificationSound");

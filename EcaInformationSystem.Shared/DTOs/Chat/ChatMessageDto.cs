@@ -16,5 +16,7 @@
 
         public ChatAttachmentDto? Attachment { get; set; }
         public List<ChatMentionDto> Mentions { get; set; } = new();
+        public List<ChatReactionDto> Reactions { get; set; } = new();
+        public ChatSeenInfoDto? SeenInfo { get; set; } // null = not applicable (not your own message, or not the latest message)
     }
 }
