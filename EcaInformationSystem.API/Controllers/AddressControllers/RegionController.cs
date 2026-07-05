@@ -17,6 +17,7 @@ namespace EcaInformationSystem.Api.Controllers.AddressControllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAll()
         {
             var regions = await _regionService.GetAllAsync();

@@ -18,8 +18,21 @@
         </div>
     }
 
+    @{
+        DateTime? lastDate = null;
+    }
     @foreach (var message in ChatState.Messages)
     {
+        var messageDate = message.SentAt.ToLocalTime().Date;
+
+        @if (lastDate == null || messageDate != lastDate)
+        {
+            <div class="chat-date-separator">
+                <span>@FormatDateSeparator(messageDate)</span>
+            </div>
+        }
+        lastDate = messageDate;
+
         <div class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "")">
             @if (message.SenderId != CurrentUserId)
             {
@@ -207,6 +220,19 @@
     {
         ChatState.OnChange -= HandleStateChanged;
         _dotNetRef?.Dispose();
+    }
+    private static string FormatDateSeparator(DateTime date)
+    {
+        var today = DateTime.Today;
+        var diff = (today - date).Days;
+
+        return diff switch
+        {
+            0 => "Today",
+            1 => "Yesterday",
+            < 7 => date.ToString("dddd"), // "Monday", "Tuesday", etc. for the past week
+            _ => date.ToString("MMMM d, yyyy") // "July 3, 2026" for anything older
+        };
     }
     private static string GetFileIcon(string contentType) => contentType switch
     {

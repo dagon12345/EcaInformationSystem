@@ -18,6 +18,13 @@ namespace EcaInformationSystem.API.Controllers
         {
             _chatService = chatService;
         }
+        [HttpGet("users")]
+        public async Task<IActionResult> GetUsersForNewConversation()
+        {
+            var (userId, _, _) = GetCurrentUser();
+            var users = await _chatService.GetAllUsersForNewConversationAsync(userId);
+            return Ok(users);
+        }
 
         [HttpGet("rooms")]
         public async Task<IActionResult> GetMyRooms()

@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Shared.DTOs.Chat;
+﻿using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs.Chat;
 using Microsoft.JSInterop;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -35,6 +36,24 @@ namespace EcaInformationSystem.Client.Services
             _chatClient.OnMessageDeleted += HandleMessageDeleted;
             _chatClient.OnMentioned += HandleMentioned;
             _chatClient.OnNewDirectRoomStarted += HandleNewDirectRoom;
+        }
+        public async Task<List<ChatUserSummaryDto>> GetUsersForNewConversationAsync()
+        {
+            try
+            {
+                var users = await _http.GetFromJsonAsync<List<ChatUserSummaryDto>>("api/chat/users");
+                return users ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task StartAndOpenDirectConversationAsync(Guid otherUserId)
+        {
+            var room = await StartDirectConversationAsync(otherUserId); // already exists in ChatStateService
+            await SelectRoomAsync(room); // already exists — switches the widget into that room's view
         }
         // ── Widget open/close ────────────────────────────────────────────
 

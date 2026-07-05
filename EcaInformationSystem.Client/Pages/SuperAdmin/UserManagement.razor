@@ -85,6 +85,19 @@
                         <input type="text" class="form-control form-control-sm" placeholder="Name, username, position..."
                                @bind="_searchName" @bind:event="oninput" />
                     </div>
+                    @* ✅ NEW — Region filter *@
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold mb-1">
+                            <i class="bi bi-geo-alt-fill me-1"></i>Region
+                        </label>
+                        <select class="form-select form-select-sm" @bind="_filterRegion">
+                            <option value="">All Regions</option>
+                            @foreach (var r in _filterableRegions)
+                            {
+                                <option value="@r">@r</option>
+                            }
+                        </select>
+                    </div>
 
                     @* Province filter *@
                     <div class="col-md-3">
@@ -142,6 +155,16 @@
                                 </button>
                             </span>
                         }
+                        @* ✅ NEW *@
+                        @if (!string.IsNullOrWhiteSpace(_filterRegion))
+                        {
+                            <span class="badge bg-secondary">
+                                Region: @_filterRegion
+                                <button class="btn-close btn-close-white ms-1" style="font-size:8px;"
+                                        @onclick="() => _filterRegion = string.Empty">
+                                </button>
+                            </span>
+                        }
                         @if (!string.IsNullOrWhiteSpace(_filterProvince))
                         {
                             <span class="badge bg-secondary">
@@ -174,6 +197,7 @@
                                 <th>Full Name</th>
                                 <th>Username</th>
                                 <th>Position</th>
+                                <th>Region</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Requested</th>
@@ -196,6 +220,19 @@
                                     </td>
                                     <td><code>@user.UserName</code></td>
                                     <td>@user.Position</td>
+                                    <td>
+                                        @* ✅ NEW *@
+                                        @if (string.IsNullOrWhiteSpace(user.RegionName) || user.RegionName == "Not set")
+                                        {
+                                            <span class="badge bg-secondary">Not set</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info text-dark">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>@user.RegionName
+                                            </span>
+                                        }
+                                    </td>
                                     <td>
                                         <span class="badge @GetRoleBadgeClass(user.Role)">
                                             @user.Role
@@ -242,7 +279,7 @@
                             @if (!FilteredUsers.Any())
                             {
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
+                                    <td colspan="8" class="text-center text-muted py-4">
                                         No users in this category.
                                     </td>
                                 </tr>
@@ -498,6 +535,7 @@
     private string _searchName = string.Empty;
     private string _filterProvince = string.Empty;
     private string _filterMunicipality = string.Empty;
+    private string _filterRegion = string.Empty; // ✅ NEW
     private List<string> _filterableProvinces = new();
     private List<string> _filterableMunicipalities = new();
     private List<UserListDto> _users = new();
@@ -523,7 +561,13 @@
 
     // ── Computed ──────────────────────────────────────────────────────────────
     private int PendingCount => _users.Count(u => u.ApprovalStatus == 0);
-
+    // ✅ NEW — unique region names for the filter dropdown
+    private List<string> _filterableRegions => _users
+        .Select(u => u.RegionName ?? string.Empty)
+        .Where(r => !string.IsNullOrWhiteSpace(r) && r != "Not set")
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(r => r)
+        .ToList();
     // ── Municipality options filtered by selected province ────────────────────
     private IEnumerable<string> _filteredMunicipalityOptions =>
         string.IsNullOrWhiteSpace(_filterProvince)
@@ -541,7 +585,9 @@
     private bool HasActiveFilter =>
         !string.IsNullOrWhiteSpace(_searchName) ||
         !string.IsNullOrWhiteSpace(_filterProvince) ||
-        !string.IsNullOrWhiteSpace(_filterMunicipality);
+        !string.IsNullOrWhiteSpace(_filterMunicipality) || 
+        !string.IsNullOrWhiteSpace(_filterRegion); // ✅ NEW
+
     private void OnProvinceFilterChanged()
     {
         // ── Reset municipality when province changes ──────────────────────────
@@ -617,6 +663,7 @@
         _searchName = string.Empty;
         _filterProvince = string.Empty;
         _filterMunicipality = string.Empty;
+        _filterRegion = string.Empty; // ✅ NEW
         StateHasChanged();
     }
     private IEnumerable<UserListDto> FilteredUsers
@@ -639,6 +686,12 @@
                     (u.FullName?.ToLower().Contains(term) == true) ||
                     (u.UserName?.ToLower().Contains(term) == true) ||
                     (u.Position?.ToLower().Contains(term) == true));
+            }
+            // ✅ NEW
+            if (!string.IsNullOrWhiteSpace(_filterRegion))
+            {
+                query = query.Where(u =>
+                    u.RegionName?.Equals(_filterRegion, StringComparison.OrdinalIgnoreCase) == true);
             }
 
             // ── Province filter ───────────────────────────────────────────────

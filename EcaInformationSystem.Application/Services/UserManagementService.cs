@@ -10,22 +10,33 @@ namespace EcaInformationSystem.Application.Services
     {
         private readonly IPendingUserRegistrationRepository _repo;
         private readonly IMunicipalityRepository _municipalityRepo;
-
+        private readonly IRegionService _regionService;
         public UserManagementService(IPendingUserRegistrationRepository repo,
-        IMunicipalityRepository municipalityRepo)
+        IMunicipalityRepository municipalityRepo,
+        IRegionService regionService)
         {
             _repo = repo;
             _municipalityRepo = municipalityRepo;
+            _regionService = regionService;
         }
         public async Task<List<UserListDto>> GetAllUsersAsync()
         {
             var users = await _repo.GetAllAsync();
-            return users.Select(MapToDto).ToList();
+            // ✅ NEW — resolve all region names once, avoid N+1 lookups per user
+            var regions = await _regionService.GetAllAsync();
+            var regionNameLookup = regions.ToDictionary(r => r.PsgcCodeRegion, r => r.Name);
+
+            return users.Select(u => MapToDto(u, regionNameLookup)).ToList();
         }
         public async Task<UserListDto?> GetUserByIdAsync(Guid id)
         {
             var user = await _repo.GetByIdAsync(id);
-            return user is null ? null : MapToDto(user);
+            if (user is null) return null;
+
+            var regions = await _regionService.GetAllAsync();
+            var regionNameLookup = regions.ToDictionary(r => r.PsgcCodeRegion, r => r.Name);
+
+            return MapToDto(user, regionNameLookup);
         }
         public async Task ApproveAsync(
             Guid userId, string role, string? remarks, string approvedBy)
@@ -121,26 +132,32 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
 
-        private static UserListDto MapToDto(PendingUserRegistration u) => new()
-        {
-            Id = u.Id,
-            FullName = u.FullName,
-            UserName = u.UserName,
-            Position = u.Position,
-            Role = u.Role,
-            ApprovalStatus = u.ApprovalStatus,
-            IsActivated = u.IsActivated,
-            RequestedAt = u.RequestedAt,
-            ReviewedBy = u.ReviewedBy,
-            Remarks = u.Remarks,
-            Jurisdictions = u.Jurisdictions.Select(j => new JurisdictionDto
-            {
-                Id = j.Id,
-                PsgcCodeMunicipality = j.PsgcCodeMunicipality,
-                MunicipalityName = j.MunicipalityName,
-                ProvinceName = j.ProvinceName
-            }).ToList()
-        };
+        private static UserListDto MapToDto(
+             PendingUserRegistration u,
+             Dictionary<int, string?> regionNameLookup) => new()
+             {
+                 Id = u.Id,
+                 FullName = u.FullName,
+                 UserName = u.UserName,
+                 Position = u.Position,
+                 Role = u.Role,
+                 ApprovalStatus = u.ApprovalStatus,
+                 IsActivated = u.IsActivated,
+                 RequestedAt = u.RequestedAt,
+                 ReviewedBy = u.ReviewedBy,
+                 Remarks = u.Remarks,
+                 Region = u.Region, // ✅ NEW
+                 RegionName = u.Region.HasValue && regionNameLookup.TryGetValue(u.Region.Value, out var name)
+                 ? name
+                 : (u.Region.HasValue ? $"Region {u.Region.Value}" : "Not set"), // ✅ NEW
+                 Jurisdictions = u.Jurisdictions.Select(j => new JurisdictionDto
+                 {
+                     Id = j.Id,
+                     PsgcCodeMunicipality = j.PsgcCodeMunicipality,
+                     MunicipalityName = j.MunicipalityName,
+                     ProvinceName = j.ProvinceName
+                 }).ToList()
+             };
         #endregion Private Helpers - End
     }
 }

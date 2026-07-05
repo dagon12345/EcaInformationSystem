@@ -25,6 +25,51 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.btn-new-chat {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--bs-primary, #0d6efd);
+}
+
+.chat-user-picker-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chat-user-search {
+    margin: 8px 12px;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.chat-user-picker-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+    .chat-user-picker-item:hover {
+        background: #f8f9fa;
+    }
+.chat-date-separator {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+    .chat-date-separator span {
+        background: #e9ecef;
+        color: #6c757d;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 12px;
+        border-radius: 12px;
+    }
 .chat-image-modal-backdrop {
     position: fixed;
     inset: 0;

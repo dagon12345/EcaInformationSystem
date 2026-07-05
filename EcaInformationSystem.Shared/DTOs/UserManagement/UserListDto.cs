@@ -13,6 +13,8 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
         public DateTime RequestedAt { get; set; }
         public string? ReviewedBy { get; set; }
         public string? Remarks { get; set; }
+        public int? Region { get; set; }
+        public string? RegionName { get; set; } // resolved name, e.g. "Caraga"
         public List<JurisdictionDto> Jurisdictions { get; set; } = new();
     }
 

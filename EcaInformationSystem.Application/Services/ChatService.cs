@@ -25,7 +25,21 @@ namespace EcaInformationSystem.Application.Services
         }
 
         // ── Room list ────────────────────────────────────────────────────
+        public async Task<List<ChatUserSummaryDto>> GetAllUsersForNewConversationAsync(Guid excludeUserId)
+        {
+            var users = await _repo.GetAllActiveUsersAsync();
 
+            return users
+                .Where(u => u.Id != excludeUserId)
+                .OrderBy(u => u.FullName)
+                .Select(u => new ChatUserSummaryDto
+                {
+                    UserId = u.Id,
+                    DisplayName = u.FullName,
+                    Role = u.Role
+                })
+                .ToList();
+        }
         public async Task<List<ChatRoomDto>> GetMyRoomsAsync(Guid currentUserId, int? currentUserRegion)
         {
             var rooms = new List<ChatRoomDto>();

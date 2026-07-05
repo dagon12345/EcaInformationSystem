@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Shared.DTOs.Chat;
+﻿using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs.Chat;
 
 namespace EcaInformationSystem.Application.Interfaces.Services
 {
@@ -26,5 +27,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // IChatService.cs
         Task<string> GetRoomTypeAsync(Guid roomId);
         Task<List<Guid>> GetDirectRoomMemberIdsAsync(Guid roomId);
+        Task<List<ChatUserSummaryDto>> GetAllUsersForNewConversationAsync(Guid excludeUserId);
     }
 }

@@ -8,6 +8,7 @@
 @using Microsoft.AspNetCore.Authorization
 @inject AuthService AuthService  // replace @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 <PageTitle>Register — ECA-InFORMS Caraga</PageTitle>
 
@@ -160,7 +161,29 @@
                                    style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
                         <ValidationMessage For="@(() => model.BirthDate)" style="font-size: 11px; color: #991b1b;" />
                     </div>
+                    @* ✅ NEW — Region selector *@
+                    <div style="grid-column: 1 / -1;">
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Region</label>
+                        @if (_isLoadingRegions)
+                        {
+                            <div style="font-size: 12px; color: #6b7280; padding: 9px 0;">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Loading regions...
+                            </div>
+                        }
+                        else
+                        {
+                            <InputSelect @bind-Value="model.Region"
+                                         style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none; background: white;">
+                                <option value="">-- Select your region --</option>
+                                @foreach (var region in _regions)
+                                {
+                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => model.Region)" style="font-size: 11px; color: #991b1b;" />
+                        }
                 </div>
+              </div>
 
                 <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Account credentials</p>
 
@@ -199,6 +222,34 @@
     private bool IsSuccess;
     private bool IsLoading;
 
+    // ✅ NEW
+    private List<RegionOption> _regions = new();
+    private bool _isLoadingRegions = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRegionsAsync();
+    }
+
+    // ⚠️ VERIFY — confirm this matches your actual Regions endpoint URL.
+    // If your beneficiary create/filter forms use a different route
+    // (e.g. api/psgc/regions), update this to match exactly.
+    private async Task LoadRegionsAsync()
+    {
+        try
+        {
+            var regions = await Http.GetFromJsonAsync<List<RegionOption>>("api/region");
+            _regions = regions ?? new();
+        }
+        catch
+        {
+            _regions = new();
+        }
+        finally
+        {
+            _isLoadingRegions = false;
+        }
+    }
 
     private async Task HandleRegisterAsync()
     {
@@ -212,7 +263,8 @@
             Position = model.Position,
             BirthDate = model.BirthDate ?? DateTime.Today,
             UserName = model.UserName,
-            Password = model.Password
+            Password = model.Password,
+            Region = model.Region // ✅ NEW
         };
 
         var (success, message) = await AuthService.RegisterAsync(request);
@@ -247,5 +299,17 @@
 
         [Required(ErrorMessage = "Password is required.")]
         public string Password { get; set; } = string.Empty;
+
+        // ✅ NEW — required so every new registration always has a Region
+        [Required(ErrorMessage = "Region is required.")]
+        public int? Region { get; set; }
+    }
+
+    // ✅ NEW — small local DTO for the dropdown; adjust property names to
+    // match your actual Region entity/DTO shape (PsgcCodeRegion, Name)
+    private class RegionOption
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string Name { get; set; } = string.Empty;
     }
 }

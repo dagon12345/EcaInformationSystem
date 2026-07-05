@@ -15,5 +15,6 @@ namespace EcaInformationSystem.Shared.DTOs.Auth
         [Required]
         public string Password { get; set; } = string.Empty;
         public string Role { get; set; } = "Viewer";
+        public int? Region { get; set; }
     }
 }

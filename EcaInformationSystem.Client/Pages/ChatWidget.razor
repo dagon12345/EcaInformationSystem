@@ -1,12 +1,12 @@
 ﻿@using System.IdentityModel.Tokens.Jwt
 @using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.Chat
 @inject ChatStateService ChatState
 @inject AuthService AuthService
 @implements IDisposable
 
 <div class="chat-widget-container">
-    @* ── Floating toggle button ─────────────────────────────────────── *@
     <button class="chat-toggle-btn" @onclick="ChatState.ToggleWidget">
         <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
         @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
@@ -15,15 +15,54 @@
         }
     </button>
 
-    @* ── Panel ──────────────────────────────────────────────────────── *@
     @if (ChatState.IsWidgetOpen)
     {
         <div class="chat-widget-panel">
-            @if (ChatState.ActiveRoom == null)
+            @if (_showUserPicker)
             {
-                @* ── Room list view ─────────────────────────────────── *@
+                @* ── New conversation: user picker ─────────────────────── *@
                 <div class="chat-panel-header">
-                    <strong>Messages</strong>
+                    <button class="btn-back" @onclick="CloseUserPicker">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <strong class="flex-grow-1">New Conversation</strong>
+                </div>
+
+                <input class="chat-user-search" placeholder="Search people..."
+                       @oninput="OnUserSearchInput" autofocus />
+
+                <div class="chat-user-picker-list">
+                    @if (_isLoadingUsers)
+                    {
+                        <div class="text-center text-muted small py-4">
+                            <span class="spinner-border spinner-border-sm me-1"></span> Loading people...
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var user in _filteredUsers)
+                        {
+                            <div class="chat-user-picker-item" @onclick="() => StartChatWith(user.UserId)">
+                                <i class="bi bi-person-circle me-2"></i>
+                                <span class="flex-grow-1 text-truncate">@user.DisplayName</span>
+                                <small class="text-muted">@user.Role</small>
+                            </div>
+                        }
+                        @if (!_filteredUsers.Any())
+                        {
+                            <div class="text-center text-muted small py-4">No users found.</div>
+                        }
+                    }
+                </div>
+            }
+            else if (ChatState.ActiveRoom == null)
+            {
+                @* ── Room list view ─────────────────────────────────────── *@
+                <div class="chat-panel-header">
+                    <strong class="flex-grow-1">Messages</strong>
+                    <button class="btn-new-chat" title="Start a new conversation" @onclick="OpenUserPicker">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
                 </div>
                 <div class="chat-room-list">
                     @if (!ChatState.Rooms.Any())
@@ -55,7 +94,7 @@
             }
             else
             {
-                @* ── Active room view ────────────────────────────────── *@
+                @* ── Active room / conversation view ─────────────────────── *@
                 <div class="chat-panel-header">
                     <button class="btn-back" @onclick="ChatState.ReturnToRoomList">
                         <i class="bi bi-arrow-left"></i>
@@ -73,9 +112,15 @@
 @code {
     private Guid _currentUserId;
 
+    private bool _showUserPicker;
+    private bool _isLoadingUsers;
+    private List<ChatUserSummaryDto> _allUsers = new();
+    private List<ChatUserSummaryDto> _filteredUsers = new();
+
     protected override async Task OnInitializedAsync()
     {
-        ChatState.OnChange += HandleChatStateChanged; // ✅ CHANGED
+        ChatState.OnChange += HandleChatStateChanged;
+
         var token = await AuthService.GetTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
         {
@@ -87,14 +132,17 @@
                 if (sub != null)
                 {
                     _currentUserId = Guid.Parse(sub);
-                    ChatState.CurrentUserId = _currentUserId; // ✅ NEW
-                } 
+                    ChatState.CurrentUserId = _currentUserId;
+                }
             }
         }
-        // ✅ NEW — load room list (and therefore unread counts) as soon as the
-        // widget exists, not lazily on first open. The toggle button badge
-        // needs this data immediately, since it's visible even while collapsed.
+
         await ChatState.LoadRoomsAsync();
+    }
+
+    private void HandleChatStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task SelectRoomAsync(ChatRoomDto room)
@@ -108,6 +156,48 @@
             Console.WriteLine($"[CHAT DEBUG] SelectRoomAsync failed: {ex}");
         }
     }
+
+    // ── New conversation picker ──────────────────────────────────────────
+
+    private async Task OpenUserPicker()
+    {
+        _showUserPicker = true;
+        _isLoadingUsers = true;
+        StateHasChanged();
+
+        _allUsers = await ChatState.GetUsersForNewConversationAsync();
+        _filteredUsers = _allUsers;
+        _isLoadingUsers = false;
+        StateHasChanged();
+    }
+
+    private void CloseUserPicker()
+    {
+        _showUserPicker = false;
+    }
+
+    private void OnUserSearchInput(ChangeEventArgs e)
+    {
+        var term = e.Value?.ToString() ?? string.Empty;
+        _filteredUsers = string.IsNullOrWhiteSpace(term)
+            ? _allUsers
+            : _allUsers.Where(u => u.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private async Task StartChatWith(Guid userId)
+    {
+        _showUserPicker = false;
+        try
+        {
+            await ChatState.StartAndOpenDirectConversationAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CHAT DEBUG] StartChatWith failed: {ex}");
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private static string GetRoomIcon(string type) => type switch
     {
@@ -125,16 +215,8 @@
         _ => ""
     };
 
-    // ✅ NEW — marshals the re-render onto Blazor's renderer dispatcher regardless
-    // of which thread/context actually raised OnChange (SignalR callback,
-    // fire-and-forget task, or a normal @onclick chain).
-    private void HandleChatStateChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
     public void Dispose()
     {
-        ChatState.OnChange -= HandleChatStateChanged; // ✅ CHANGED
+        ChatState.OnChange -= HandleChatStateChanged;
     }
 }
