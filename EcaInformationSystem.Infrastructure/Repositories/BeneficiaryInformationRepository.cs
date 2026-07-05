@@ -2180,9 +2180,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
                 query = query.Where(b => b.Region == filter.PsgcCodeRegion.Value);
 
-            // ── Province (multi-select) ──────────────────────────────────────────
+            // ── Province (multi-select OR single-select) ─────────────────────────
             if (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
                 query = query.Where(b => filter.PsgcCodeProvinces.Contains(b.Province));
+            else if (filter.PsgcCodeProvince.HasValue && filter.PsgcCodeProvince.Value > 0)
+                query = query.Where(b => b.Province == filter.PsgcCodeProvince.Value);
 
             // ── Municipality (multi-select) ──────────────────────────────────────
             if (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
