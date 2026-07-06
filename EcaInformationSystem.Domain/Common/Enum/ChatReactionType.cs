@@ -5,6 +5,7 @@
         Like = 1,
         Heart = 2,
         Haha = 3,
-        Clap = 4
+        Clap = 4,
+        Wow = 5
     }
 }

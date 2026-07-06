@@ -143,11 +143,15 @@
                                     }
                                     else
                                     {
-                                        @if (message.Attachment != null)
+                                        @* ✅ CHANGED — loop over Attachments (plural) instead of checking a single Attachment *@
+                                        @if (message.Attachments.Any())
                                         {
-                                            <div class="small text-primary">
-                                                <i class="bi bi-paperclip me-1"></i>@message.Attachment.OriginalFileName
-                                            </div>
+                                            @foreach (var attachment in message.Attachments)
+                                            {
+                                                <div class="small text-primary">
+                                                    <i class="bi bi-paperclip me-1"></i>@attachment.OriginalFileName
+                                                </div>
+                                            }
                                         }
                                         @if (!string.IsNullOrWhiteSpace(message.Content))
                                         {
@@ -155,10 +159,6 @@
                                         }
                                     }
                                 </div>
-                            }
-                            @if (!ChatState.OversightMessages.Any())
-                            {
-                                <div class="text-center text-muted py-5">No messages in this conversation yet.</div>
                             }
                         }
                     </div>

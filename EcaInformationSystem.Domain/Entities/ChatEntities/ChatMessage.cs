@@ -20,9 +20,10 @@
         // ✅ Denormalized flag for fast "does this message mention everyone" checks
         // without joining ChatMention every time the message list renders.
         public bool IsEveryoneMention { get; set; }
+        public Guid? ReplyToMessageId { get; set; }
 
         public ChatRoom Room { get; set; } = default!;
-        public ChatAttachment? Attachment { get; set; }
+        public ICollection<ChatAttachment> Attachments { get; set; } = new List<ChatAttachment>(); // was: public ChatAttachment? Attachment
         public ICollection<ChatMention> Mentions { get; set; } = new List<ChatMention>();
     }
 }

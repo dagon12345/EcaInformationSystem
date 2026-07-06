@@ -7,8 +7,8 @@
         public List<Guid> MentionedUserIds { get; set; } = new();
         public bool MentionEveryone { get; set; }
 
-        // ✅ Attachment is uploaded via a separate HTTP endpoint FIRST (returns this ID),
-        // then referenced here. Keeps the SignalR payload itself small and fast.
-        public Guid? AttachmentId { get; set; }
+        public List<Guid> AttachmentIds { get; set; } = new(); // was: public Guid? AttachmentId
+
+        public Guid? ReplyToMessageId { get; set; }
     }
 }

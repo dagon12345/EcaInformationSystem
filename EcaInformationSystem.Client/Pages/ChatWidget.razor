@@ -45,6 +45,7 @@
                         @foreach (var user in _filteredUsers)
                         {
                             <div class="chat-user-picker-item" @onclick="() => StartChatWith(user.UserId)">
+                                <span class="chat-presence-dot @(ChatState.IsUserOnline(user.UserId) ? "online" : "offline")"></span>
                                 <i class="bi bi-person-circle me-2"></i>
                                 <span class="flex-grow-1 text-truncate">@user.DisplayName</span>
                                 <small class="text-muted">@user.Role</small>
@@ -118,6 +119,10 @@
                         <div class="chat-room-item" @onclick="() => SelectRoomAsync(room)">
                             <div class="chat-room-icon @GetRoomIconClass(room.Type)">
                                 <i class="bi @GetRoomIcon(room.Type)"></i>
+                                @if (room.Type == "Direct" && room.OtherUserId.HasValue && ChatState.IsUserOnline(room.OtherUserId.Value))
+                                {
+                                    <span class="chat-presence-dot-badge online"></span>
+                                }
                             </div>
                             <div class="chat-room-info">
                                 <div class="chat-room-name">@room.DisplayName</div>
@@ -130,6 +135,14 @@
                             {
                                 <span class="chat-room-unread">@room.UnreadCount</span>
                             }
+                            @* ✅ NEW — delete only for Direct rooms, stops the click from also opening the room *@
+                            @if (room.Type == "Direct")
+                            {
+                                <button class="chat-room-delete-btn" title="Delete conversation"
+                                        @onclick="() => OpenDeleteConfirmModal(room.Id)" @onclick:stopPropagation="true">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
                         </div>
                     }
                 </div>
@@ -141,7 +154,26 @@
                     <button class="btn-back" @onclick="ChatState.ReturnToRoomList">
                         <i class="bi bi-arrow-left"></i>
                     </button>
-                    <strong class="flex-grow-1 text-truncate">@ChatState.ActiveRoom.DisplayName</strong>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <strong class="text-truncate d-block">@ChatState.ActiveRoom.DisplayName</strong>
+                        @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
+                        {
+                            <small class="chat-header-presence">
+                                @if (ChatState.IsUserOnline(ChatState.ActiveRoom.OtherUserId.Value))
+                                {
+                                    <span class="chat-presence-dot online"></span> <text>Online</text>
+                                }
+                                else if (_activeRoomLastSeen.HasValue)
+                                {
+                                    <span class="chat-presence-dot offline"></span> <text>Last seen @FormatLastSeen(_activeRoomLastSeen.Value)</text>
+                                }
+                                else
+                                {
+                                    <span class="chat-presence-dot offline"></span> <text>Offline</text>
+                                }
+                            </small>
+                        }
+                    </div>
                 </div>
 
                 <ChatMessageList CurrentUserId="@_currentUserId" />
@@ -150,8 +182,32 @@
         </div>
     }
 </div>
-
+<HxModal @ref="_deleteConfirmModal">
+    <HeaderTemplate>
+        <h5 class="modal-title text-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Conversation
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-0">
+            This will remove the conversation from your list. This cannot be undone.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CancelDeleteConfirm">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmDeleteConversation" Disabled="@_isDeletingConversation">
+            @if (_isDeletingConversation)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <span>Yes, Delete</span>
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 @code {
+    private DateTime? _activeRoomLastSeen;
     private Guid _currentUserId;
 
     private bool _showUserPicker;
@@ -165,6 +221,9 @@
     private readonly string _widgetContainerId = $"chat-widget-{Guid.NewGuid():N}";
     private DotNetObjectReference<ChatWidget>? _dotNetRef;
     private bool _wasOpen;
+    private HxModal _deleteConfirmModal = default!;
+    private Guid _pendingDeleteRoomId;
+    private bool _isDeletingConversation;
 
     protected override async Task OnInitializedAsync()
     {
@@ -187,6 +246,44 @@
         }
 
         await ChatState.LoadRoomsAsync();
+        await ChatState.LoadOnlineUsersAsync();
+    }
+    private async Task OpenDeleteConfirmModal(Guid roomId)
+    {
+        _pendingDeleteRoomId = roomId;
+        await _deleteConfirmModal.ShowAsync();
+    }
+
+    private async Task CancelDeleteConfirm()
+    {
+        await _deleteConfirmModal.HideAsync();
+    }
+
+    private async Task ConfirmDeleteConversation()
+    {
+        try
+        {
+            _isDeletingConversation = true;
+            StateHasChanged();
+
+            await ChatState.DeleteConversationAsync(_pendingDeleteRoomId);
+            await _deleteConfirmModal.HideAsync();
+        }
+        finally
+        {
+            _isDeletingConversation = false;
+            StateHasChanged();
+        }
+    }
+    private static string FormatLastSeen(DateTime lastSeenUtc)
+    {
+        var span = DateTime.UtcNow - lastSeenUtc;
+
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} minute(s) ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} hour(s) ago";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays} day(s) ago";
+        return lastSeenUtc.ToLocalTime().ToString("MMM dd, yyyy");
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -223,6 +320,14 @@
         try
         {
             await ChatState.SelectRoomAsync(room);
+
+            // ✅ NEW — fetch last-seen info for the header, only relevant for DMs
+            if (room.Type == "Direct" && room.OtherUserId.HasValue)
+            {
+                var presence = await ChatState.GetUserPresenceAsync(room.OtherUserId.Value);
+                _activeRoomLastSeen = presence?.LastSeenAt;
+                StateHasChanged();
+            }
         }
         catch (Exception ex)
         {
@@ -259,6 +364,9 @@
 
         _allUsers = await ChatState.GetUsersForNewConversationAsync();
         _filteredUsers = _allUsers;
+
+        await ChatState.LoadOnlineUsersAsync(); // ✅ NEW — refresh presence snapshot right before showing the picker
+
         _isLoadingUsers = false;
         StateHasChanged();
     }

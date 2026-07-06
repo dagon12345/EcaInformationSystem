@@ -113,5 +113,34 @@
             document.removeEventListener('click', this._outsideClickHandler);
             this._outsideClickHandler = null;
         }
+    },
+
+    notifications: {
+        requestPermission: function () {
+            if (!('Notification' in window)) return 'unsupported';
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            return Notification.permission;
+        },
+
+        // ✅ Only fires if the tab is NOT currently focused — no point popping
+        // an OS notification for something the user is already looking at.
+        show: function (title, body, iconUrl) {
+            if (!('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+            if (document.hasFocus()) return;
+
+            const notification = new Notification(title, {
+                body: body,
+                icon: iconUrl || '/images/ncsc-seal.png',
+                tag: 'eca-chat' // ✅ reuses the same notification slot instead of stacking many
+            });
+
+            notification.onclick = function () {
+                window.focus();
+                notification.close();
+            };
+        }
     }
 };

@@ -33,6 +33,8 @@ namespace EcaInformationSystem.Domain.Entities
         [Required]
         [MaxLength(50)]
         public string Role { get; set; } = "Viewer";
+        // PendingUserRegistration.cs
+        public DateTime? LastSeenAt { get; set; } // ✅ NEW — updated whenever a user's last connection closes
 
         public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
             = new List<PdoJurisdiction>();

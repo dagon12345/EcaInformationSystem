@@ -25,7 +25,8 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         // ── Messages ─────────────────────────────────────────────────────
         Task AddMessageAsync(ChatMessage message);
         Task<ChatMessage?> GetMessageByIdAsync(Guid messageId);
-        Task<List<ChatMessage>> GetMessagesPagedAsync(Guid roomId, DateTime? before, int pageSize);
+        // IChatRepository.cs
+        Task<List<ChatMessage>> GetMessagesPagedAsync(Guid roomId, DateTime? before, int pageSize, DateTime? clearedAfter = null);
         Task<ChatMessage?> GetLatestMessageAsync(Guid roomId);
         Task<int> GetUnreadCountAsync(Guid roomId, DateTime? lastReadAt);
 
@@ -51,7 +52,10 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task RemoveReactionAsync(Guid messageId, Guid userId);
         Task<List<ChatMessageReaction>> GetReactionsForMessageAsync(Guid messageId);
         Task<Dictionary<Guid, List<ChatMessageReaction>>> GetReactionsForMessagesAsync(List<Guid> messageIds);
-        // IChatRepository.cs
         Task<List<(Guid UserId, DateTime LastReadAt)>> GetReadStatusesForRoomAsync(Guid roomId);
+        Task UpdateLastSeenAsync(Guid userId, DateTime lastSeenAt);
+        Task DeleteDirectRoomAsync(Guid roomId);
+        Task SetConversationClearedAsync(Guid roomId, Guid userId, DateTime clearedAt);
+        Task<DateTime?> GetClearedAtAsync(Guid roomId, Guid userId);
     }
 }

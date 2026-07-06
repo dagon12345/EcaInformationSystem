@@ -23,7 +23,70 @@ namespace EcaInformationSystem.Application.Services
             _logRepository = logRepository;
             _psgcNameCache = psgcNameCache;
         }
-        // ChatService.cs — new method
+        public async Task ClearConversationForUserAsync(Guid currentUserId, Guid roomId)
+        {
+            var room = await _repo.GetRoomByIdAsync(roomId);
+            if (room == null || room.Type != ChatRoomType.Direct)
+                throw new InvalidOperationException("Only direct conversations can be cleared this way.");
+
+            if (!await _repo.IsDirectRoomMemberAsync(roomId, currentUserId))
+                throw new UnauthorizedAccessException("You are not part of this conversation.");
+
+            await _repo.SetConversationClearedAsync(roomId, currentUserId, DateTime.UtcNow);
+
+            await _logRepository.AddAsync(new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = null,
+                Activity = $"User cleared conversation {roomId} (self only)",
+                UserName = currentUserId.ToString(),
+                CreatedAt = DateTime.UtcNow
+            });
+            await _logRepository.SaveChangesAsync();
+        }
+        public async Task DeleteDirectConversationAsync(Guid currentUserId, Guid roomId)
+        {
+            var room = await _repo.GetRoomByIdAsync(roomId);
+            if (room == null || room.Type != ChatRoomType.Direct)
+                throw new InvalidOperationException("Only direct conversations can be deleted this way.");
+
+            var isMember = await _repo.IsDirectRoomMemberAsync(roomId, currentUserId);
+            if (!isMember)
+                throw new UnauthorizedAccessException("You are not part of this conversation.");
+
+            var memberIds = await _repo.GetDirectRoomMemberIdsAsync(roomId); // grab before deleting, needed for the broadcast
+
+            await _repo.DeleteDirectRoomAsync(roomId);
+
+            // Audit — deleting a conversation permanently is worth a record
+            await _logRepository.AddAsync(new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = null,
+                Activity = $"User deleted direct conversation {roomId}",
+                UserName = currentUserId.ToString(),
+                CreatedAt = DateTime.UtcNow
+            });
+            await _logRepository.SaveChangesAsync();
+        }
+        public async Task<string> GetUserFullNameAsync(Guid userId)
+        {
+            var user = await _repo.GetUserByIdAsync(userId);
+            return user?.FullName ?? "Someone";
+        }
+        public async Task UpdateLastSeenAsync(Guid userId, DateTime lastSeenAt)
+        {
+            await _repo.UpdateLastSeenAsync(userId, lastSeenAt);
+        }
+        public async Task<ChatUserPresenceDto> GetUserPresenceAsync(Guid userId, bool isOnline)
+        {
+            var user = await _repo.GetUserByIdAsync(userId);
+            return new ChatUserPresenceDto
+            {
+                IsOnline = isOnline,
+                LastSeenAt = user?.LastSeenAt
+            };
+        }
         public async Task<ChatSeenInfoDto?> GetSeenInfoAsync(
             Guid currentUserId, Guid roomId, Guid messageId, DateTime messageSentAt)
         {
@@ -173,7 +236,9 @@ namespace EcaInformationSystem.Application.Services
                 var otherUser = await _repo.GetUserByIdAsync(otherUserId);
                 var displayName = otherUser?.FullName ?? "Unknown User";
 
-                rooms.Add(await BuildRoomDtoAsync(room, currentUserId, displayName));
+                var roomDto = await BuildRoomDtoAsync(room, currentUserId, displayName);
+                roomDto.OtherUserId = otherUserId; // ✅ NEW
+                rooms.Add(roomDto);
             }
 
             return rooms.OrderByDescending(r => r.LastMessageAt ?? DateTime.MinValue).ToList();
@@ -199,13 +264,13 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<ChatRoomDto> StartDirectConversationAsync(Guid currentUserId, Guid otherUserId)
         {
-            if (currentUserId == otherUserId)
-                throw new InvalidOperationException("Cannot start a conversation with yourself.");
-
             var room = await _repo.GetOrCreateDirectRoomAsync(currentUserId, otherUserId);
             var otherUser = await _repo.GetUserByIdAsync(otherUserId);
 
-            return await BuildRoomDtoAsync(room, currentUserId, otherUser?.FullName ?? "Unknown User");
+            var dto = await BuildRoomDtoAsync(room, currentUserId, otherUser?.FullName ?? "Unknown User");
+            dto.OtherUserId = otherUserId; // ✅ ADD THIS
+
+            return dto;
         }
 
         // ── Sending ──────────────────────────────────────────────────────
@@ -215,8 +280,27 @@ namespace EcaInformationSystem.Application.Services
         {
             await EnsureCanAccessRoomAsync(currentUserId, currentUserRole, currentUserRegion, dto.RoomId, forOversight: false);
 
-            if (string.IsNullOrWhiteSpace(dto.Content) && dto.AttachmentId == null)
-                throw new InvalidOperationException("Message must have content or an attachment.");
+            // SendMessageAsync — before linking attachments
+            if (dto.AttachmentIds.Any())
+            {
+                long combinedSize = 0;
+                foreach (var id in dto.AttachmentIds)
+                {
+                    var attachment = await _repo.GetChatAttachmentByIdAsync(id);
+                    if (attachment != null) combinedSize += attachment.FileSizeBytes;
+                }
+
+                if (combinedSize > 10 * 1024 * 1024)
+                    throw new InvalidOperationException("Combined attachment size exceeds the 10MB limit.");
+            }
+
+            //Validate the reply target actually exists in this room
+            if (dto.ReplyToMessageId.HasValue)
+            {
+                var replyTarget = await _repo.GetMessageByIdAsync(dto.ReplyToMessageId.Value);
+                if (replyTarget == null || replyTarget.RoomId != dto.RoomId)
+                    throw new InvalidOperationException("Cannot reply to a message from another conversation.");
+            }
 
             var message = new ChatMessage
             {
@@ -226,18 +310,20 @@ namespace EcaInformationSystem.Application.Services
                 Content = dto.Content?.Trim(),
                 SentAt = DateTime.UtcNow,
                 IsDeleted = false,
-                IsEveryoneMention = dto.MentionEveryone
+                IsEveryoneMention = dto.MentionEveryone,
+                ReplyToMessageId = dto.ReplyToMessageId
             };
 
             await _repo.AddMessageAsync(message);
 
-            // ✅ NEW — link the already-uploaded attachment to this message
-            if (dto.AttachmentId.HasValue)
+            // SendMessageAsync — replace the single-attachment block
+            if (dto.AttachmentIds.Any())
             {
-                var linked = await _repo.LinkAttachmentToMessageAsync(dto.AttachmentId.Value, message.Id);
-                if (!linked)
+                foreach (var attachmentId in dto.AttachmentIds)
                 {
-                    throw new InvalidOperationException("Attachment not found or already used.");
+                    var linked = await _repo.LinkAttachmentToMessageAsync(attachmentId, message.Id);
+                    if (!linked)
+                        throw new InvalidOperationException("One or more attachments were not found or already used.");
                 }
             }
 
@@ -281,7 +367,32 @@ namespace EcaInformationSystem.Application.Services
             }
 
             // In SendMessageAsync — new message has no reactions yet, so pass an empty list
-            return MapToDto(savedMessage, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup, new List<ChatMessageReaction>());
+            return await MapToDtoWithReplyAsync(savedMessage, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup, new List<ChatMessageReaction>());
+        }
+
+        private async Task<ChatMessageDto> MapToDtoWithReplyAsync(ChatMessage m, string senderName,
+            Guid currentUserId, string currentUserRole, Dictionary<Guid, string>? mentionNameLookup,
+            List<ChatMessageReaction> reactions)
+        {
+            var dto = MapToDto(m, senderName, currentUserId, currentUserRole, mentionNameLookup, reactions);
+
+            if (m.ReplyToMessageId.HasValue)
+            {
+                var original = await _repo.GetMessageByIdAsync(m.ReplyToMessageId.Value);
+                if (original != null)
+                {
+                    var originalSender = await _repo.GetUserByIdAsync(original.SenderId);
+                    dto.ReplyPreview = new ChatReplyPreviewDto
+                    {
+                        MessageId = original.Id,
+                        SenderName = originalSender?.FullName ?? "Unknown",
+                        Preview = original.IsDeleted
+                                    ? "This message was deleted"
+                                    : (original.Content?.Length > 60 ? original.Content[..60] + "..." : original.Content ?? "[Attachment]")
+                    };
+                }
+            }
+            return dto;
         }
 
         // ── Deleting ─────────────────────────────────────────────────────
@@ -326,8 +437,9 @@ namespace EcaInformationSystem.Application.Services
      Guid currentUserId, string currentUserRole, int? currentUserRegion, ChatMessageHistoryRequestDto request)
         {
             await EnsureCanAccessRoomAsync(currentUserId, currentUserRole, currentUserRegion, request.RoomId, forOversight: false);
-
-            var messages = await _repo.GetMessagesPagedAsync(request.RoomId, request.Before, request.PageSize);
+           
+            var clearedAt = await _repo.GetClearedAtAsync(request.RoomId, currentUserId); // ✅ NEW
+            var messages = await _repo.GetMessagesPagedAsync(request.RoomId, request.Before, request.PageSize, clearedAt);
 
             var senderIds = messages.Select(m => m.SenderId).Distinct();
             var mentionedIds = messages.SelectMany(m => m.Mentions)
@@ -339,6 +451,16 @@ namespace EcaInformationSystem.Application.Services
             var reactorIds = reactionsLookup.Values.SelectMany(list => list.Select(r => r.UserId)).Distinct();
             var allUserIds = senderIds.Union(mentionedIds).Union(reactorIds).ToList(); // ✅ CHANGED
             var nameLookup = new Dictionary<Guid, string>();
+            var replyTargetIds = messages.Where(m => m.ReplyToMessageId.HasValue).Select(m => m.ReplyToMessageId!.Value).Distinct().ToList();
+            var replyTargets = new Dictionary<Guid, ChatMessage>();
+           
+
+            foreach (var id in replyTargetIds)
+            {
+                var target = await _repo.GetMessageByIdAsync(id);
+                if (target != null) replyTargets[id] = target;
+            }
+
             foreach (var id in allUserIds)
             {
                 var u = await _repo.GetUserByIdAsync(id);
@@ -346,9 +468,20 @@ namespace EcaInformationSystem.Application.Services
             }
             return messages
                  .OrderBy(m => m.SentAt)
-                 .Select(m => MapToDto(
-                     m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole,
-                     nameLookup, reactionsLookup.GetValueOrDefault(m.Id, new List<ChatMessageReaction>())))
+                 .Select(m =>
+                 {
+                     var dto = MapToDto(m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole, nameLookup, reactionsLookup.GetValueOrDefault(m.Id, new()));
+                     if (m.ReplyToMessageId.HasValue && replyTargets.TryGetValue(m.ReplyToMessageId.Value, out var original))
+                     {
+                         dto.ReplyPreview = new ChatReplyPreviewDto
+                         {
+                             MessageId = original.Id,
+                             SenderName = nameLookup.GetValueOrDefault(original.SenderId, "Unknown"),
+                             Preview = original.IsDeleted ? "This message was deleted" : (original.Content?.Length > 60 ? original.Content[..60] + "..." : original.Content) ?? "[Attachment]"
+                         };
+                     }
+                     return dto;
+                 })
                  .ToList();
         }
 
@@ -536,7 +669,7 @@ namespace EcaInformationSystem.Application.Services
         private ChatMessageDto MapToDto(
     ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
     Dictionary<Guid, string>? mentionNameLookup = null,
-    List<ChatMessageReaction>? reactions = null, // ✅ NEW
+    List<ChatMessageReaction>? reactions = null,
     bool forceReadOnly = false)
         {
             var canDelete = !forceReadOnly &&
@@ -552,16 +685,22 @@ namespace EcaInformationSystem.Application.Services
                 SentAt = m.SentAt,
                 IsDeleted = m.IsDeleted,
                 CanDelete = canDelete && !m.IsDeleted,
-                Attachment = m.Attachment == null || m.IsDeleted ? null : new ChatAttachmentDto
-                {
-                    Id = m.Attachment.Id,
-                    ContentType = m.Attachment.ContentType,
-                    OriginalFileName = m.Attachment.OriginalFileName,
-                    FileSizeBytes = m.Attachment.FileSizeBytes,
-                    ThumbnailBase64 = m.Attachment.ThumbnailData != null
-                        ? Convert.ToBase64String(m.Attachment.ThumbnailData)
-                        : string.Empty
-                },
+
+                // ✅ CHANGED — Attachments is now a collection, map each one instead
+                // of a single nullable object. Empty on deleted messages, same as before.
+                Attachments = m.Attachments == null || m.IsDeleted
+                    ? new List<ChatAttachmentDto>()
+                    : m.Attachments.Select(a => new ChatAttachmentDto
+                    {
+                        Id = a.Id,
+                        ContentType = a.ContentType,
+                        OriginalFileName = a.OriginalFileName,
+                        FileSizeBytes = a.FileSizeBytes,
+                        ThumbnailBase64 = a.ThumbnailData != null
+                            ? Convert.ToBase64String(a.ThumbnailData)
+                            : string.Empty
+                    }).ToList(),
+
                 Mentions = m.Mentions.Select(mn => new ChatMentionDto
                 {
                     MentionedUserId = mn.MentionedUserId,
@@ -570,9 +709,10 @@ namespace EcaInformationSystem.Application.Services
                         : null,
                     IsEveryoneMention = mn.IsEveryoneMention
                 }).ToList(),
+
                 Reactions = reactions != null
-                        ? BuildReactionSummary(reactions, mentionNameLookup) // ✅ reuse the same name lookup
-                        : new()
+                    ? BuildReactionSummary(reactions, mentionNameLookup)
+                    : new()
             };
         }
         public async Task<string> GetRoomTypeAsync(Guid roomId)
@@ -585,5 +725,6 @@ namespace EcaInformationSystem.Application.Services
         {
             return await _repo.GetDirectRoomMemberIdsAsync(roomId);
         }
+
     }
 }

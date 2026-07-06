@@ -3,21 +3,42 @@
 @inject ChatStateService ChatState
 @inject HttpClient Http
 @inject ToastService toast
+@implements IDisposable
+
 
 <div class="chat-composer">
-    @if (_pendingAttachmentId != null)
+
+    @if (ChatState.ReplyingTo != null)
     {
-        <div class="chat-attachment-preview">
-            @if (_pendingAttachmentPreview != null)
+        <div class="chat-reply-bar">
+            <div class="flex-grow-1 overflow-hidden">
+                <div class="chat-reply-bar-label">Replying to @ChatState.ReplyingTo.SenderName</div>
+                <div class="chat-reply-bar-preview text-truncate">
+                    @(ChatState.ReplyingTo.Content ?? "[Attachment]")
+                </div>
+            </div>
+            <button class="btn-close btn-close-sm" @onclick="ChatState.CancelReply"></button>
+        </div>
+    }
+
+    @if (_pendingAttachments.Any())
+    {
+        <div class="chat-attachment-preview-list">
+            @foreach (var att in _pendingAttachments)
             {
-                <img src="@_pendingAttachmentPreview" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" />
+                <div class="chat-attachment-preview">
+                    @if (att.Preview != null)
+                    {
+                        <img src="@att.Preview" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" />
+                    }
+                    else
+                    {
+                        <i class="bi bi-file-earmark-fill" style="font-size:20px;"></i>
+                    }
+                    <span class="text-truncate small">@att.FileName</span>
+                    <button class="btn-close btn-close-sm" @onclick="() => RemovePendingAttachment(att.Id, 0)"></button>
+                </div>
             }
-            else
-            {
-                <i class="bi @ChatFileIconHelper.GetIcon(_pendingContentType)" style="font-size:24px;"></i>
-            }
-            <span class="text-truncate small">@_pendingFileName</span>
-            <button class="btn-close btn-close-sm" @onclick="ClearPendingAttachment"></button>
         </div>
     }
 
@@ -51,9 +72,7 @@
     <div class="d-flex align-items-end gap-2">
         <label class="chat-attach-btn" title="Attach image or PDF">
             <i class="bi bi-paperclip"></i>
-            <InputFile OnChange="OnFileSelected"
-                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
-                       style="display:none;" />
+            <InputFile OnChange="OnFileSelected" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" style="display:none;" />
         </label>
         <textarea class="form-control chat-composer-input" rows="1"
                   placeholder="Type a message... use @@ to mention someone"
@@ -62,7 +81,7 @@
                   @onkeydown="OnKeyDown"></textarea>
 
         <button class="btn btn-primary chat-send-btn" @onclick="SendAsync"
-                disabled="@(_isSending || (string.IsNullOrWhiteSpace(_draftText) && _pendingAttachmentId == null))">
+                disabled="@(_isSending || (string.IsNullOrWhiteSpace(_draftText) && !_pendingAttachments.Any()))">
             @if (_isSending)
             {
                 <span class="spinner-border spinner-border-sm"></span>
@@ -96,10 +115,15 @@
     private static readonly string[] AllowedTypes = { "image/jpeg", "image/png", "image/webp", "application/pdf" };
     private const long MaxImageSize = 5 * 1024 * 1024;   // 5MB — matches server limit
     private const long MaxPdfSize = 10 * 1024 * 1024;    // 10MB — matches server limit
+    private List<(Guid Id, string FileName, string? Preview)> _pendingAttachments = new();
+    private const long MaxCombinedSize = 10 * 1024 * 1024; // 10MB total
+    private long _combinedPendingSize = 0;
 
     private async Task OnInputChanged(ChangeEventArgs e)
     {
         _draftText = e.Value?.ToString() ?? string.Empty;
+        // ✅ NEW — fire a (debounced) typing signal on every keystroke
+        _ = ChatState.NotifyTypingAsync();
 
         var atIndex = _draftText.LastIndexOf('@');
         if (atIndex >= 0)
@@ -130,6 +154,19 @@
             StateHasChanged();
         }
         catch (TaskCanceledException) { }
+    }
+    protected override void OnInitialized()
+    {
+        ChatState.OnChange += HandleStateChanged;
+    }
+    private void HandleStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ChatState.OnChange -= HandleStateChanged;
     }
 
     private void SelectMention(ChatMemberSuggestionDto user)
@@ -204,73 +241,73 @@
     };
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
-        var file = e.File;
-        if (file == null) return;
+        var files = e.GetMultipleFiles(10); // cap the picker itself at a sane max count
 
-        var contentType = file.ContentType.ToLowerInvariant();
-        var isImage = contentType.StartsWith("image/");
-
-        if (!AllowedTypesWithLimits.TryGetValue(contentType, out var maxSize))
+        foreach (var file in files)
         {
-            toast.ShowError($"'{file.Name}' isn't a supported file type. Allowed: images, PDF, Word, Excel, PowerPoint, TXT, and CSV.");
-            return;
-        }
-
-        if (file.Size > maxSize)
-        {
-            var limitLabel = isImage ? "5MB" : "10MB";
-            toast.ShowError($"'{file.Name}' is too large ({FormatSize(file.Size)}). Max size is {limitLabel}.");
-            return;
-        }
-
-        _isUploadingAttachment = true;
-        StateHasChanged();
-
-        try
-        {
-            var buffer = new byte[file.Size];
-            await using (var stream = file.OpenReadStream(maxSize))
+            var contentType = file.ContentType.ToLowerInvariant();
+            if (!AllowedTypesWithLimits.ContainsKey(contentType))
             {
-                await stream.ReadAsync(buffer);
+                toast.ShowError($"'{file.Name}' isn't a supported file type.");
+                continue;
             }
 
-            using var content = new MultipartFormDataContent();
-            var streamContent = new ByteArrayContent(buffer);
-            streamContent.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
-            content.Add(streamContent, "file", file.Name);
-
-            var response = await Http.PostAsync("api/chat/attachments", content);
-
-            if (response.IsSuccessStatusCode)
+            // ✅ Check COMBINED total, not per-file, per the new requirement
+            if (_combinedPendingSize + file.Size > MaxCombinedSize)
             {
-                var result = await response.Content.ReadFromJsonAsync<AttachmentUploadResult>();
-                _pendingAttachmentId = result?.AttachmentId;
-                _pendingFileName = file.Name;
-                _pendingContentType = contentType; // ✅ NEW
+                toast.ShowError($"Adding '{file.Name}' would exceed the 10MB combined limit for this message.");
+                continue;
+            }
 
-                _pendingAttachmentPreview = isImage
-                    ? $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}"
-                    : null;
-            }
-            else
-            {
-                var errorText = await response.Content.ReadAsStringAsync();
-                toast.ShowError(string.IsNullOrWhiteSpace(errorText)
-                    ? "Upload failed. Please try again."
-                    : errorText.Trim('"'));
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[CHAT DEBUG] Attachment upload exception: {ex}");
-            toast.ShowError("Something went wrong while uploading. Please try again.");
-        }
-        finally
-        {
-            _isUploadingAttachment = false;
+            _isUploadingAttachment = true;
             StateHasChanged();
+
+            try
+            {
+                var buffer = new byte[file.Size];
+                await using (var stream = file.OpenReadStream(MaxCombinedSize))
+                {
+                    await stream.ReadAsync(buffer);
+                }
+
+                using var content = new MultipartFormDataContent();
+                var streamContent = new ByteArrayContent(buffer);
+                streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+                content.Add(streamContent, "file", file.Name);
+
+                var response = await Http.PostAsync("api/chat/attachments", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<AttachmentUploadResult>();
+                    var isImage = contentType.StartsWith("image/");
+                    var preview = isImage ? $"data:{contentType};base64,{Convert.ToBase64String(buffer)}" : null;
+
+                    _pendingAttachments.Add((result!.AttachmentId, file.Name, preview));
+                    _combinedPendingSize += file.Size;
+                }
+                else
+                {
+                    var errorText = await response.Content.ReadAsStringAsync();
+                    toast.ShowError(errorText.Trim('"'));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] Attachment upload exception: {ex}");
+                toast.ShowError("Something went wrong while uploading. Please try again.");
+            }
+            finally
+            {
+                _isUploadingAttachment = false;
+                StateHasChanged();
+            }
         }
+    }
+
+    private void RemovePendingAttachment(Guid attachmentId, long approxSize)
+    {
+        _pendingAttachments.RemoveAll(a => a.Id == attachmentId);
+        _combinedPendingSize = Math.Max(0, _combinedPendingSize - approxSize); // approximate is fine here
     }
     private void ClearPendingAttachment()
     {
@@ -292,7 +329,7 @@
     };
     private async Task SendAsync()
     {
-        if (string.IsNullOrWhiteSpace(_draftText) && _pendingAttachmentId == null)
+        if (string.IsNullOrWhiteSpace(_draftText) && !_pendingAttachments.Any()) // ✅ FIXED
             return;
 
         _isSending = true;
@@ -304,8 +341,10 @@
                 string.IsNullOrWhiteSpace(_draftText) ? null : _draftText.Trim(),
                 _selectedMentions.Select(m => m.Id).ToList(),
                 _mentionEveryoneSelected,
-                _pendingAttachmentId);
+                _pendingAttachments.Select(a => a.Id).ToList());
 
+            _pendingAttachments.Clear();
+            _combinedPendingSize = 0;
             _draftText = string.Empty;
             _selectedMentions.Clear();
             _mentionEveryoneSelected = false;

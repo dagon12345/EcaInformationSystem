@@ -17,6 +17,9 @@ namespace EcaInformationSystem.Client.Services
         public event Action? OnConnectionStateChanged;
         public event Action<ReactionUpdateBroadcastDto>? OnReactionUpdated;
         public event Action<Guid, Guid>? OnSeenStatusChanged; // (roomId, userIdWhoJustRead)
+        public event Action<Guid, bool>? OnUserPresenceChanged; // (userId, isOnline)
+        public event Action<Guid, Guid, string>? OnUserTyping; // (roomId, userId, senderName)
+        public event Action<Guid>? OnConversationDeleted;
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
         public ChatClientService(IJSRuntime js)
@@ -57,12 +60,41 @@ namespace EcaInformationSystem.Client.Services
             {
                 OnSeenStatusChanged?.Invoke(roomId, userId);
             });
+            _hubConnection.On<Guid, bool>("UserPresenceChanged", (userId, isOnline) =>
+            {
+                Console.WriteLine($"[CHAT DEBUG] Presence broadcast received: {userId} isOnline={isOnline}"); // ✅ TEMP
+                OnUserPresenceChanged?.Invoke(userId, isOnline);
+            });
+            _hubConnection.On<Guid, Guid, string>("UserTyping", (roomId, userId, senderName) =>
+            {
+                OnUserTyping?.Invoke(roomId, userId, senderName);
+            });
+            _hubConnection.On<Guid>("ConversationDeleted", roomId => OnConversationDeleted?.Invoke(roomId));
             _hubConnection.Reconnecting += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Reconnected += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Closed += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
 
             await _hubConnection.StartAsync();
             OnConnectionStateChanged?.Invoke();
+        }
+        public async Task DeleteDirectConversationAsync(Guid roomId)
+        {
+            EnsureConnected();
+            await _hubConnection!.InvokeAsync("DeleteDirectConversation", roomId);
+        }
+        public async Task NotifyTypingAsync(Guid roomId)
+        {
+            if (_hubConnection == null || _hubConnection.State != HubConnectionState.Connected) return;
+            try
+            {
+                await _hubConnection.InvokeAsync("NotifyTyping", roomId);
+            }
+            catch { /* non-critical — a missed typing ping isn't worth surfacing an error */ }
+        }
+        public async Task<List<Guid>> GetOnlineUsersAsync()
+        {
+            EnsureConnected();
+            return await _hubConnection!.InvokeAsync<List<Guid>>("GetOnlineUsers");
         }
         public async Task SetReactionAsync(SetReactionDto dto)
         {

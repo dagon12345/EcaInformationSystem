@@ -156,6 +156,7 @@
         // click the user makes anywhere in the app (navigating, clicking a
         // button, etc.) will now silently unlock notification sounds.
         await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
+        await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission"); // ✅ NEW
 
         StateHasChanged();
     }

@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces.Services;
+﻿using EcaInformationSystem.Api.Hubs;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs.Chat;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +15,21 @@ namespace EcaInformationSystem.API.Controllers
     public class ChatController : ControllerBase
     {
         private readonly IChatService _chatService;
+        private readonly ChatPresenceTracker _presenceTracker;
 
-        public ChatController(IChatService chatService)
+        public ChatController(IChatService chatService, ChatPresenceTracker presenceTracker)
         {
             _chatService = chatService;
+            _presenceTracker = presenceTracker;
+        }
+        [HttpGet("users/{userId}/presence")]
+        public async Task<IActionResult> GetUserPresence(Guid userId)
+        {
+            // IsOnline needs to come from the live tracker, not the DB — inject
+            // ChatPresenceTracker directly into the controller for this one check.
+            var isOnline = _presenceTracker.IsOnline(userId);
+            var result = await _chatService.GetUserPresenceAsync(userId, isOnline);
+            return Ok(result);
         }
         [HttpGet("rooms/{roomId}/messages/{messageId}/seen")]
         public async Task<IActionResult> GetSeenInfo(Guid roomId, Guid messageId, [FromQuery] DateTime sentAt)

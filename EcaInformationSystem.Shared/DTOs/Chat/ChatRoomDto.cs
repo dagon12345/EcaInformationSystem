@@ -9,5 +9,6 @@
         public int UnreadCount { get; set; }
         public string? LastMessagePreview { get; set; }
         public DateTime? LastMessageAt { get; set; }
+        public Guid? OtherUserId { get; set; } // only set for Direct rooms
     }
 }

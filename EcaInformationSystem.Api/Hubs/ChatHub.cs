@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces.Services;
+﻿using EcaInformationSystem.Api.Hubs;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs.Chat;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -11,12 +12,39 @@ namespace EcaInformationSystem.API.Hubs
     public class ChatHub : Hub
     {
         private readonly IChatService _chatService;
-
-        public ChatHub(IChatService chatService)
+        private readonly ChatPresenceTracker _presenceTracker;
+        public ChatHub(IChatService chatService, ChatPresenceTracker presenceTracker)
         {
             _chatService = chatService;
+            _presenceTracker = presenceTracker;
         }
-        // ChatHub.cs
+        public async Task DeleteDirectConversation(Guid roomId)
+        {
+            var (userId, _, _) = GetCurrentUser();
+
+            await _chatService.ClearConversationForUserAsync(userId, roomId); // ✅ CHANGED — was DeleteDirectConversationAsync (hard delete)
+
+            // ✅ CHANGED — only notify the CALLER (their other tabs), never the other participant
+            await Clients.User(userId.ToString()).SendAsync("ConversationDeleted", roomId);
+        }
+        public async Task NotifyTyping(Guid roomId)
+        {
+            var (userId, _, _) = GetCurrentUser();
+            var senderName = await _chatService.GetUserFullNameAsync(userId); // small new helper, see below
+
+            var roomType = await _chatService.GetRoomTypeAsync(roomId);
+
+            if (roomType == "Direct")
+            {
+                var memberIds = await _chatService.GetDirectRoomMemberIdsAsync(roomId);
+                await Clients.Users(memberIds.Where(id => id != userId).Select(id => id.ToString()))
+                    .SendAsync("UserTyping", roomId, userId, senderName);
+            }
+            else
+            {
+                await Clients.OthersInGroup($"room-{roomId}").SendAsync("UserTyping", roomId, userId, senderName);
+            }
+        }
         public async Task SetReaction(SetReactionDto dto)
         {
             var (userId, role, region) = GetCurrentUser();
@@ -58,14 +86,35 @@ namespace EcaInformationSystem.API.Hubs
                 await Groups.AddToGroupAsync(Context.ConnectionId, RoomGroup(room.Id));
             }
 
+            // ✅ NEW — track presence, broadcast only if they were previously offline
+            var justCameOnline = _presenceTracker.UserConnected(userId);
+            if (justCameOnline)
+            {
+                await Clients.Others.SendAsync("UserPresenceChanged", userId, true);
+            }
+
             await base.OnConnectedAsync();
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
+            var (userId, _, _) = GetCurrentUser();
+
+            // Only broadcast offline if ALL their connections just closed
+            var justWentOffline = _presenceTracker.UserDisconnected(userId);
+            if (justWentOffline)
+            {
+                await _chatService.UpdateLastSeenAsync(userId, DateTime.UtcNow); // ✅ NEW
+                await Clients.Others.SendAsync("UserPresenceChanged", userId, false);
+            }
             // SignalR automatically cleans up group membership for this
             // connection on disconnect — no manual RemoveFromGroupAsync needed.
             await base.OnDisconnectedAsync(exception);
+        }
+        // ✅ NEW — lets a freshly-connected client ask "who's online right now"
+        public List<Guid> GetOnlineUsers()
+        {
+            return _presenceTracker.GetOnlineUserIds();
         }
 
         // ── Sending ──────────────────────────────────────────────────────
@@ -142,15 +191,21 @@ namespace EcaInformationSystem.API.Hubs
 
         // ── Starting a new DM (needs group membership added dynamically,
         // since it wasn't known at OnConnectedAsync time) ─────────────────
-
         public async Task<ChatRoomDto> StartDirectConversation(Guid otherUserId)
         {
             var (userId, _, _) = GetCurrentUser();
-            var room = await _chatService.StartDirectConversationAsync(userId, otherUserId);
 
-            await Clients.User(otherUserId.ToString()).SendAsync("NewDirectRoomStarted", room);
+            var myRoomView = await _chatService.StartDirectConversationAsync(userId, otherUserId);
 
-            return room;
+            // ✅ FIX — build a SEPARATE DTO for the recipient's perspective, so their
+            // DisplayName correctly shows the CALLER's name, not their own.
+            // GetOrCreateDirectRoomAsync is idempotent (finds the existing room),
+            // so this second call doesn't create a duplicate room.
+            var theirRoomView = await _chatService.StartDirectConversationAsync(otherUserId, userId);
+
+            await Clients.User(otherUserId.ToString()).SendAsync("NewDirectRoomStarted", theirRoomView);
+
+            return myRoomView;
         }
 
         // ── Helpers ──────────────────────────────────────────────────────

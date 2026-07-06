@@ -19,6 +19,47 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task SetConversationClearedAsync(Guid roomId, Guid userId, DateTime clearedAt)
+        {
+            var member = await _context.ChatRoomMembers.FirstOrDefaultAsync(m => m.RoomId == roomId && m.UserId == userId);
+            if (member != null)
+            {
+                member.ClearedAt = clearedAt;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task<DateTime?> GetClearedAtAsync(Guid roomId, Guid userId)
+        {
+            var member = await _context.ChatRoomMembers.AsNoTracking()
+                .FirstOrDefaultAsync(m => m.RoomId == roomId && m.UserId == userId);
+            return member?.ClearedAt;
+        }
+        public async Task DeleteDirectRoomAsync(Guid roomId)
+        {
+            // ✅ ChatReadStatus has no FK/cascade configured, so it needs explicit
+            // cleanup. Everything else (Messages, Members, Attachments, Mentions,
+            // Reactions) cascades via the FK constraints already in place.
+            var readStatuses = await _context.ChatReadStatuses.Where(r => r.RoomId == roomId).ToListAsync();
+            _context.ChatReadStatuses.RemoveRange(readStatuses);
+
+            var room = await _context.ChatRooms.FirstOrDefaultAsync(r => r.Id == roomId);
+            if (room != null)
+            {
+                _context.ChatRooms.Remove(room); // cascades to Members + Messages (+ their Attachments/Mentions/Reactions)
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        public async Task UpdateLastSeenAsync(Guid userId, DateTime lastSeenAt)
+        {
+            var user = await _context.PendingUserRegistrations.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user != null)
+            {
+                user.LastSeenAt = lastSeenAt;
+                await _context.SaveChangesAsync();
+            }
+        }
         public async Task<List<(Guid UserId, DateTime LastReadAt)>> GetReadStatusesForRoomAsync(Guid roomId)
         {
             var statuses = await _context.ChatReadStatuses
@@ -97,7 +138,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // in isolation), matching how "jump to message" works in apps like Slack.
             var before = await _context.ChatMessages
                 .AsNoTracking()
-                .Include(m => m.Attachment)
+                .Include(m => m.Attachments) // ✅ CHANGED — was m.Attachment
                 .Include(m => m.Mentions)
                 .Where(m => m.RoomId == roomId && m.SentAt < target.SentAt)
                 .OrderByDescending(m => m.SentAt)
@@ -106,11 +147,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var after = await _context.ChatMessages
                 .AsNoTracking()
-                .Include(m => m.Attachment)
+                .Include(m => m.Attachments) // ✅ CHANGED — was m.Attachment
                 .Include(m => m.Mentions)
                 .Where(m => m.RoomId == roomId && m.SentAt >= target.SentAt)
                 .OrderBy(m => m.SentAt)
-                .Take(contextSize + 1) // +1 to include the target itself
+                .Take(contextSize + 1)
                 .ToListAsync();
 
             return before.OrderBy(m => m.SentAt).Concat(after).ToList();
@@ -285,14 +326,26 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<List<ChatRoom>> GetUserDirectRoomsAsync(Guid userId)
         {
-            var roomIds = await _context.ChatRoomMembers
-                .Where(m => m.UserId == userId)
-                .Select(m => m.RoomId)
-                .ToListAsync();
+            var memberships = await _context.ChatRoomMembers.Where(m => m.UserId == userId).ToListAsync();
+            var result = new List<ChatRoom>();
 
-            return await _context.ChatRooms
-                .Where(r => roomIds.Contains(r.Id) && r.Type == ChatRoomType.Direct)
-                .ToListAsync();
+            foreach (var membership in memberships)
+            {
+                var room = await _context.ChatRooms
+                    .FirstOrDefaultAsync(r => r.Id == membership.RoomId && r.Type == ChatRoomType.Direct);
+                if (room == null) continue;
+
+                if (membership.ClearedAt.HasValue)
+                {
+                    var hasNewerMessage = await _context.ChatMessages
+                        .AnyAsync(m => m.RoomId == room.Id && m.SentAt > membership.ClearedAt.Value);
+                    if (!hasNewerMessage) continue; // stays hidden until they message you again
+                }
+
+                result.Add(room);
+            }
+
+            return result;
         }
 
         // ── Messages ─────────────────────────────────────────────────────
@@ -305,28 +358,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task<ChatMessage?> GetMessageByIdAsync(Guid messageId)
         {
             return await _context.ChatMessages
-                .Include(m => m.Attachment)
+                .Include(m => m.Attachments) // ✅ CHANGED — was m.Attachment
                 .Include(m => m.Mentions)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
         }
 
-        public async Task<List<ChatMessage>> GetMessagesPagedAsync(Guid roomId, DateTime? before, int pageSize)
+        public async Task<List<ChatMessage>> GetMessagesPagedAsync(Guid roomId, DateTime? before, int pageSize, DateTime? clearedAfter = null)
         {
             var query = _context.ChatMessages
                 .AsNoTracking()
-                .Include(m => m.Attachment)
+                .Include(m => m.Attachments)
                 .Include(m => m.Mentions)
                 .Where(m => m.RoomId == roomId);
 
-            if (before.HasValue)
-                query = query.Where(m => m.SentAt < before.Value);
+            if (before.HasValue) query = query.Where(m => m.SentAt < before.Value);
+            if (clearedAfter.HasValue) query = query.Where(m => m.SentAt > clearedAfter.Value); // ✅ NEW — your cleared point, invisible to you only
 
-            // ✅ Newest-first fetch, matching (RoomId, SentAt DESC) index —
-            // caller reverses to chronological order for display after fetching.
-            return await query
-                .OrderByDescending(m => m.SentAt)
-                .Take(pageSize)
-                .ToListAsync();
+            return await query.OrderByDescending(m => m.SentAt).Take(pageSize).ToListAsync();
         }
 
         public async Task<ChatMessage?> GetLatestMessageAsync(Guid roomId)

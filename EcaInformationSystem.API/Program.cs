@@ -64,6 +64,7 @@ builder.Services.AddSignalR(options =>
     options.EnableDetailedErrors = false; // ⚠️ TEMP — remove/set false once debugging is done
 });
 builder.Services.AddSingleton<IUserIdProvider, ChatUserIdProvider>();
+builder.Services.AddSingleton<ChatPresenceTracker>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -38,6 +38,144 @@ namespace EcaInformationSystem.Client.Services
         public List<ChatMessageDto> OversightMessages { get; private set; } = new();
         public bool IsLoadingOversightRooms { get; private set; }
         public bool IsLoadingOversightMessages { get; private set; }
+        public ChatMessageDto? ReplyingTo { get; private set; }
+        public HashSet<Guid> OnlineUserIds { get; private set; } = new();
+        public ChatStateService(HttpClient http, ChatClientService chatClient, IJSRuntime js)
+        {
+            _http = http;
+            _chatClient = chatClient;
+            _js = js;
+
+            _chatClient.OnMessageReceived += HandleMessageReceived;
+            _chatClient.OnMessageDeleted += HandleMessageDeleted;
+            _chatClient.OnMentioned += HandleMentioned;
+            _chatClient.OnNewDirectRoomStarted += HandleNewDirectRoom;
+            _chatClient.OnReactionUpdated += HandleReactionUpdated;
+            _chatClient.OnSeenStatusChanged += HandleSeenStatusChanged; 
+            _chatClient.OnUserPresenceChanged += HandleUserPresenceChanged;
+            _chatClient.OnConnectionStateChanged += HandleConnectionStateChanged;
+            _chatClient.OnUserTyping += HandleUserTyping;
+            _chatClient.OnConversationDeleted += HandleConversationDeleted;
+        }
+        private void HandleConversationDeleted(Guid roomId)
+        {
+            Rooms.RemoveAll(r => r.Id == roomId);
+
+            if (ActiveRoom?.Id == roomId)
+            {
+                ActiveRoom = null;
+                Messages.Clear();
+            }
+
+            OnChange?.Invoke();
+        }
+
+        public async Task DeleteConversationAsync(Guid roomId)
+        {
+            await _chatClient.DeleteDirectConversationAsync(roomId);
+            // Actual removal applied via HandleConversationDeleted broadcast
+        }
+        // ✅ NEW — tracks (roomId -> set of currently-typing user names), with a
+        // timer per user that auto-clears them if no fresh "typing" signal arrives
+        // within a few seconds (covers the case where the sender's tab closes or
+        // crashes without ever sending an explicit "stopped typing" event).
+        private readonly Dictionary<(Guid RoomId, Guid UserId), Timer> _typingTimers = new();
+        public Dictionary<Guid, HashSet<string>> TypingUsersByRoom { get; } = new();
+
+        private void HandleUserTyping(Guid roomId, Guid userId, string senderName)
+        {
+            if (!TypingUsersByRoom.ContainsKey(roomId))
+                TypingUsersByRoom[roomId] = new HashSet<string>();
+
+            TypingUsersByRoom[roomId].Add(senderName);
+            OnChange?.Invoke();
+
+            var key = (roomId, userId);
+
+            // Reset the expiry timer every time a fresh typing signal arrives
+            if (_typingTimers.TryGetValue(key, out var existingTimer))
+            {
+                existingTimer.Dispose();
+            }
+
+            _typingTimers[key] = new Timer(_ =>
+            {
+                TypingUsersByRoom[roomId].Remove(senderName);
+                _typingTimers.Remove(key);
+                OnChange?.Invoke();
+            }, null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
+        }
+
+        public string? GetTypingIndicatorText(Guid roomId)
+        {
+            if (!TypingUsersByRoom.TryGetValue(roomId, out var names) || !names.Any())
+                return null;
+
+            return names.Count == 1
+                ? $"{names.First()} is typing..."
+                : $"{names.Count} people are typing...";
+        }
+
+        // ── Sending the typing signal, debounced ────────────────────────────────
+        private DateTime _lastTypingSentAt = DateTime.MinValue;
+
+        public async Task NotifyTypingAsync()
+        {
+            if (ActiveRoom == null) return;
+
+            // ✅ Debounce — only actually ping the Hub at most once every 2 seconds,
+            // regardless of how fast the user is typing. Keeps this cheap even for
+            // a very chatty group room.
+            if ((DateTime.UtcNow - _lastTypingSentAt).TotalSeconds < 2) return;
+
+            _lastTypingSentAt = DateTime.UtcNow;
+            await _chatClient.NotifyTypingAsync(ActiveRoom.Id);
+        }
+        public async Task<ChatUserPresenceDto?> GetUserPresenceAsync(Guid userId)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<ChatUserPresenceDto>($"api/chat/users/{userId}/presence", _jsonOptions);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        // ✅ NEW — whenever the connection becomes (re)established, refresh the
+        // online-users snapshot. This covers: normal startup race, reconnects
+        // after a dropped connection, and anyone who was already online before
+        // THIS client connected (who would otherwise never trigger a fresh
+        // broadcast, since their own connection state never changes again).
+        private async void HandleConnectionStateChanged()
+        {
+            if (_chatClient.IsConnected)
+            {
+                await LoadOnlineUsersAsync();
+            }
+        }
+        private void HandleUserPresenceChanged(Guid userId, bool isOnline)
+        {
+            Console.WriteLine($"[CHAT DEBUG] HandleUserPresenceChanged: {userId} isOnline={isOnline}, invoking OnChange"); // ✅ TEMP
+            if (isOnline) OnlineUserIds.Add(userId);
+            else OnlineUserIds.Remove(userId);
+            OnChange?.Invoke();
+        }
+        public async Task LoadOnlineUsersAsync()
+        {
+            try
+            {
+                var onlineIds = await _chatClient.GetOnlineUsersAsync();
+                OnlineUserIds = onlineIds.ToHashSet();
+                OnChange?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] LoadOnlineUsersAsync failed: {ex}");
+            }
+        }
+
+        public bool IsUserOnline(Guid userId) => OnlineUserIds.Contains(userId);
         public async Task<ChatSeenInfoDto?> GetSeenInfoAsync(Guid roomId, Guid messageId, DateTime sentAt)
         {
             try
@@ -154,19 +292,7 @@ namespace EcaInformationSystem.Client.Services
             OversightMessages = new();
             OnChange?.Invoke();
         }
-        public ChatStateService(HttpClient http, ChatClientService chatClient, IJSRuntime js)
-        {
-            _http = http;
-            _chatClient = chatClient;
-            _js = js;
 
-            _chatClient.OnMessageReceived += HandleMessageReceived;
-            _chatClient.OnMessageDeleted += HandleMessageDeleted;
-            _chatClient.OnMentioned += HandleMentioned;
-            _chatClient.OnNewDirectRoomStarted += HandleNewDirectRoom;
-            _chatClient.OnReactionUpdated += HandleReactionUpdated; // ✅ NEW
-            _chatClient.OnSeenStatusChanged += HandleSeenStatusChanged; // ✅ NEW
-        }
         public event Action<Guid>? SeenStatusChangedForRoom; // (roomId) — components subscribe to this
         private void HandleSeenStatusChanged(Guid roomId, Guid userId)
         {
@@ -339,11 +465,23 @@ namespace EcaInformationSystem.Client.Services
                 IsLoadingMessages = false;
                 OnChange?.Invoke();
             }
+
+        }
+
+        public void SetReplyTarget(ChatMessageDto message)
+        {
+            ReplyingTo = message;
+            OnChange?.Invoke();
+        }
+
+        public void CancelReply()
+        {
+            ReplyingTo = null;
+            OnChange?.Invoke();
         }
 
         // ── Sending / deleting ───────────────────────────────────────────
-
-        public async Task SendMessageAsync(string? content, List<Guid> mentionedUserIds, bool mentionEveryone, Guid? attachmentId)
+        public async Task SendMessageAsync(string? content, List<Guid> mentionedUserIds, bool mentionEveryone, List<Guid> attachmentIds)
         {
             if (ActiveRoom == null) return;
 
@@ -353,10 +491,12 @@ namespace EcaInformationSystem.Client.Services
                 Content = content,
                 MentionedUserIds = mentionedUserIds,
                 MentionEveryone = mentionEveryone,
-                AttachmentId = attachmentId
+                AttachmentIds = attachmentIds,
+                ReplyToMessageId = ReplyingTo?.Id
             });
-            // Actual message appended via HandleMessageReceived once the
-            // server broadcasts it back — including to the sender's own connection.
+
+            ReplyingTo = null;
+            OnChange?.Invoke();
         }
         public async Task<(byte[] Data, string ContentType, string FileName)?> FetchFullAttachmentAsync(Guid attachmentId)
         {
@@ -449,16 +589,25 @@ namespace EcaInformationSystem.Client.Services
         }
 
         // ── Real-time event handlers ─────────────────────────────────────
-
-        private void HandleMessageReceived(ChatMessageDto message)
+        private async void HandleMessageReceived(ChatMessageDto message)
         {
-            // Append only if it belongs to the currently open room
             if (ActiveRoom != null && message.RoomId == ActiveRoom.Id)
             {
                 Messages.Add(message);
             }
 
             var room = Rooms.FirstOrDefault(r => r.Id == message.RoomId);
+
+            if (room == null)
+            {
+                // ✅ NEW — this message belongs to a room we don't currently have
+                // locally (e.g. a previously-cleared DM being "revived" by a new
+                // message). Refresh the whole room list so it reappears correctly,
+                // with the right DisplayName/OtherUserId/etc.
+                await LoadRoomsAsync();
+                room = Rooms.FirstOrDefault(r => r.Id == message.RoomId);
+            }
+
             if (room != null)
             {
                 room.LastMessagePreview = message.Content ?? "[Attachment]";
@@ -471,19 +620,18 @@ namespace EcaInformationSystem.Client.Services
                 }
                 else
                 {
-                    // ✅ NEW — the user is actively looking at this room right now,
-                    // so immediately advance their read status to cover this new
-                    // message too. This is what actually triggers the "Seen" update
-                    // on the sender's side in real time, rather than only marking
-                    // read once when the room was first opened.
                     _ = MarkActiveRoomAsReadAsync();
                 }
             }
+
             if (message.SenderId != CurrentUserId)
             {
                 _ = _js.InvokeVoidAsync("chatInterop.playNotificationSound");
-            }
 
+                var roomName = Rooms.FirstOrDefault(r => r.Id == message.RoomId)?.DisplayName ?? "New message";
+                var body = string.IsNullOrWhiteSpace(message.Content) ? "Sent an attachment" : message.Content;
+                _ = _js.InvokeVoidAsync("chatInterop.notifications.show", $"{message.SenderName} in {roomName}", body);
+            }
 
             OnChange?.Invoke();
         }

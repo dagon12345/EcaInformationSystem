@@ -25,6 +25,173 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.chat-image-modal-body-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-modal-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+    .chat-modal-nav-btn:hover {
+        background: rgba(0,0,0,0.75);
+    }
+
+.chat-modal-nav-prev {
+    left: 8px;
+}
+
+.chat-modal-nav-next {
+    right: 8px;
+}
+.chat-typing-indicator {
+    font-size: 11px;
+    color: #6c757d;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.chat-typing-dots {
+    display: inline-flex;
+    gap: 2px;
+}
+
+    .chat-typing-dots span {
+        width: 4px;
+        height: 4px;
+        background: #6c757d;
+        border-radius: 50%;
+        animation: typingBounce 1.2s infinite ease-in-out;
+    }
+
+        .chat-typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .chat-typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+@keyframes typingBounce {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+
+    30% {
+        transform: translateY(-3px);
+        opacity: 1;
+    }
+}
+.chat-header-presence {
+    color: #6c757d;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.chat-presence-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+    .chat-presence-dot.online {
+        background: #22c55e;
+    }
+
+    .chat-presence-dot.offline {
+        background: #adb5bd;
+    }
+
+.chat-presence-dot-badge {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+    .chat-presence-dot-badge.online {
+        background: #22c55e;
+    }
+.chat-message-link {
+    color: #0d6efd;
+    text-decoration: underline;
+    word-break: break-all;
+}
+.chat-reply-btn {
+    background: none;
+    border: none;
+    color: #6c757d;
+    font-size: 10px;
+    padding: 0;
+    margin-right: 4px;
+}
+
+.chat-reply-quote {
+    background: rgba(0,0,0,0.05);
+    border-left: 3px solid #0d6efd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.chat-reply-quote-sender {
+    font-weight: 700;
+    color: #0d6efd;
+}
+
+.chat-reply-quote-text {
+    color: #6c757d;
+}
+
+.chat-reply-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f3f5;
+    border-left: 3px solid #0d6efd;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+}
+
+.chat-reply-bar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0d6efd;
+}
+
+.chat-reply-bar-preview {
+    font-size: 11px;
+    color: #6c757d;
+}
 .chat-seen-indicator {
     font-size: 10px;
     color: #6c757d;
@@ -331,13 +498,42 @@
     overflow-y: auto;
 }
 
+.chat-room-delete-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: white;
+    border: 1px solid #f0d0d0;
+    color: #dc3545;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2; /* ✅ ensure it sits above the unread badge if they're ever close */
+}
+
+.chat-room-item:hover .chat-room-delete-btn {
+    opacity: 1;
+}
+
+.chat-room-delete-btn:hover {
+    background: #dc3545;
+    color: white;
+}
 .chat-room-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 10px 40px 10px 14px; /* ✅ CHANGED — reserve 40px on the right for the delete button */
     cursor: pointer;
     border-bottom: 1px solid #f0f0f0;
+    position: relative;
 }
 
     .chat-room-item:hover {
@@ -353,6 +549,7 @@
     justify-content: center;
     color: white;
     flex-shrink: 0;
+    position: relative; /* ✅ ADD THIS if not already present */
 }
 
 .room-icon-global {
@@ -456,6 +653,11 @@
     gap: 6px;
     font-size: 12px;
 }
+
+    .chat-pdf-attachment span {
+        text-decoration: underline;
+        color: #0d6efd; /* matches your existing .chat-message-link color, for visual consistency */
+    }
 
 .chat-composer {
     border-top: 1px solid #eee;

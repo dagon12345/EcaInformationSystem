@@ -36,6 +36,14 @@
         <div id="msg-@message.Id" class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "") @(message.Id == ChatState.PendingScrollToMessageId ? "chat-message-highlighted" : "")"
              @onclick="() => ToggleReactionPicker(message.Id)">
 
+            @if (message.ReplyPreview != null)
+            {
+                <div class="chat-reply-quote" @onclick="() => ScrollToOriginal(message.ReplyPreview.MessageId)" @onclick:stopPropagation="true">
+                    <div class="chat-reply-quote-sender">@message.ReplyPreview.SenderName</div>
+                    <div class="chat-reply-quote-text text-truncate">@message.ReplyPreview.Preview</div>
+                </div>
+            }
+
             @if (message.SenderId != CurrentUserId)
             {
                 <div class="chat-message-sender">@message.SenderName</div>
@@ -47,23 +55,28 @@
             }
             else
             {
-                @if (message.Attachment != null)
+                @if (message.Attachments.Any())
                 {
-                    @if (message.Attachment.ContentType.StartsWith("image/"))
-                    {
-                        <img src="data:@message.Attachment.ContentType;base64,@message.Attachment.ThumbnailBase64"
-                             class="chat-attachment-thumb"
-                             @onclick="() => ViewFullAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)" />
-                    }
-                    else
-                    {
-                        <div class="chat-pdf-attachment" style="cursor:pointer;"
-                             @onclick="() => DownloadPdfAttachment(message.Attachment.Id, message.Attachment.OriginalFileName)">
-                            <i class="bi @ChatFileIconHelper.GetIcon(message.Attachment.ContentType)"></i>
-                            <span class="text-truncate">@message.Attachment.OriginalFileName</span>
-                            <i class="bi bi-download ms-1 text-muted"></i>
-                        </div>
-                    }
+                    <div class="chat-message-attachments">
+                        @foreach (var attachment in message.Attachments)
+                        {
+                            @if (attachment.ContentType.StartsWith("image/"))
+                            {
+                                <img src="data:@attachment.ContentType;base64,@attachment.ThumbnailBase64"
+                                     class="chat-attachment-thumb"
+                                     @onclick="() => ViewFullAttachment(message.Attachments, attachment.Id)" />
+                            }
+                            else
+                            {
+                                <div class="chat-pdf-attachment" style="cursor:pointer;"
+                                     @onclick="() => DownloadPdfAttachment(attachment.Id, attachment.OriginalFileName)">
+                                    <i class="bi @ChatFileIconHelper.GetIcon(attachment.ContentType)"></i>
+                                    <span class="text-truncate">@attachment.OriginalFileName</span>
+                                    <i class="bi bi-download ms-1 text-muted"></i>
+                                </div>
+                            }
+                        }
+                    </div>
                 }
 
                 @if (!string.IsNullOrWhiteSpace(message.Content))
@@ -71,9 +84,12 @@
                     <div class="chat-message-content">@RenderContentWithMentions(message)</div>
                 }
             }
-            
+
             <div class="chat-message-meta">
                 <small class="text-muted">@message.SentAt.ToLocalTime().ToString("h:mm tt")</small>
+                <button class="chat-reply-btn" title="Reply" @onclick="() => ReplyTo(message)" @onclick:stopPropagation="true">
+                    <i class="bi bi-reply-fill"></i>
+                </button>
                 @if (message.CanDelete && !message.IsDeleted)
                 {
                     <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)" @onclick:stopPropagation="true">
@@ -81,7 +97,27 @@
                     </button>
                 }
             </div>
-
+            @* ✅ NEW — seen indicator, only for MY latest message *@
+            @if (message.Id == _myLastMessageId && _seenInfo != null)
+            {
+                <div class="chat-seen-indicator" @onclick="() => _showFullSeenList = !_showFullSeenList" @onclick:stopPropagation="true">
+                    @if (ChatState.ActiveRoom?.Type == "Direct")
+                    {
+                        <small class="text-muted"><i class="bi bi-check2-all me-1"></i>Seen</small>
+                    }
+                    else
+                    {
+                        <small class="text-muted">
+                            <i class="bi bi-check2-all me-1"></i>
+                            Seen by @string.Join(", ", _seenInfo.SeenByNames.Take(_showFullSeenList ? 10 : 3))
+                            @if (_seenInfo.HasMore)
+                            {
+                                <span> and @(_seenInfo.TotalSeenCount - Math.Min(_seenInfo.SeenByNames.Count, _showFullSeenList ? 10 : 3)) other(s)...</span>
+                            }
+                        </small>
+                    }
+                </div>
+            }
             @if (message.Reactions.Any())
             {
                 <div class="chat-reaction-summary">
@@ -115,27 +151,6 @@
                     }
                 </div>
             }
-            @* ✅ NEW — seen indicator, only for MY latest message *@
-            @if (message.Id == _myLastMessageId && _seenInfo != null)
-            {
-                <div class="chat-seen-indicator" @onclick="() => _showFullSeenList = !_showFullSeenList" @onclick:stopPropagation="true">
-                    @if (ChatState.ActiveRoom?.Type == "Direct")
-                    {
-                        <small class="text-muted"><i class="bi bi-check2-all me-1"></i>Seen</small>
-                    }
-                    else
-                    {
-                        <small class="text-muted">
-                            <i class="bi bi-check2-all me-1"></i>
-                            Seen by @string.Join(", ", _seenInfo.SeenByNames.Take(_showFullSeenList ? 10 : 3))
-                            @if (_seenInfo.HasMore)
-                            {
-                                <span> and @(_seenInfo.TotalSeenCount - Math.Min(_seenInfo.SeenByNames.Count, _showFullSeenList ? 10 : 3)) other(s)...</span>
-                            }
-                        </small>
-                    }
-                </div>
-            }
 
             @if (!message.IsDeleted && _activeReactionPickerId == message.Id)
             {
@@ -144,16 +159,34 @@
                     <span @onclick="() => AddReaction(message, ReactionHeart)" title="Heart">❤️</span>
                     <span @onclick="() => AddReaction(message, ReactionHaha)" title="Haha">😂</span>
                     <span @onclick="() => AddReaction(message, ReactionClap)" title="Clap">👏</span>
+                    <span @onclick="() => AddReaction(message, ReactionWow)" title="Wow">😮</span>
                 </div>
             }
         </div>
     }
+    @if (ChatState.ActiveRoom != null)
+    {
+        var typingText = ChatState.GetTypingIndicatorText(ChatState.ActiveRoom.Id);
+        @if (typingText != null)
+        {
+            <div class="chat-typing-indicator">
+                <span class="chat-typing-dots"><span></span><span></span><span></span></span>
+                @typingText
+            </div>
+        }
+    }
     @if (_showImageModal)
     {
-        <div class="chat-image-modal-backdrop" @onclick="CloseImageModal">
+        <div class="chat-image-modal-backdrop" @onclick="CloseImageModal" @onkeydown="OnModalKeyDown" tabindex="0" @ref="_modalBackdropRef">
             <div class="chat-image-modal" @onclick:stopPropagation="true">
                 <div class="chat-image-modal-header">
-                    <span class="text-truncate">@_modalFileName</span>
+                    <span class="text-truncate">
+                        @_modalFileName
+                        @if (_modalAttachmentList.Count > 1)
+                        {
+                            <small class="text-muted ms-2">(@(_modalCurrentIndex + 1) of @_modalAttachmentList.Count)</small>
+                        }
+                    </span>
                     <div class="d-flex gap-2">
                         <button class="chat-modal-btn" title="Download" @onclick="DownloadModalImage">
                             <i class="bi bi-download"></i>
@@ -163,14 +196,28 @@
                         </button>
                     </div>
                 </div>
-                <div class="chat-image-modal-body">
-                    @if (_isLoadingModalImage)
+                <div class="chat-image-modal-body-wrap">
+                    @if (_modalAttachmentList.Count > 1 && _modalCurrentIndex > 0)
                     {
-                        <div class="text-white"><span class="spinner-border"></span></div>
+                        <button class="chat-modal-nav-btn chat-modal-nav-prev" @onclick="ShowPreviousImage">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
                     }
-                    else if (_modalImageSrc != null)
+                    <div class="chat-image-modal-body">
+                        @if (_isLoadingModalImage)
+                        {
+                            <div class="text-white"><span class="spinner-border"></span></div>
+                        }
+                        else if (_modalImageSrc != null)
+                        {
+                            <img src="@_modalImageSrc" />
+                        }
+                    </div>
+                    @if (_modalAttachmentList.Count > 1 && _modalCurrentIndex < _modalAttachmentList.Count - 1)
                     {
-                        <img src="@_modalImageSrc" />
+                        <button class="chat-modal-nav-btn chat-modal-nav-next" @onclick="ShowNextImage">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
                     }
                 </div>
             </div>
@@ -184,6 +231,9 @@
 </div>
 
 @code {
+    private List<ChatAttachmentDto> _modalAttachmentList = new();
+    private ElementReference _modalBackdropRef;
+    private int _modalCurrentIndex;
     private Guid? _activeReactionPickerId; // ✅ REPLACES _hoveredMessageId
     private bool _showImageModal;
     private bool _isLoadingModalImage;
@@ -200,6 +250,7 @@
     private const string ReactionHeart = "Heart";
     private const string ReactionHaha = "Haha";
     private const string ReactionClap = "Clap";
+    private const string ReactionWow = "Wow";
 
     private readonly string _containerId = $"chat-msg-list-{Guid.NewGuid():N}";
     private DotNetObjectReference<ChatMessageList>? _dotNetRef;
@@ -208,11 +259,38 @@
     private ChatSeenInfoDto? _seenInfo;
     private bool _showFullSeenList;
 
+    
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged; // ✅ NEW
         ChatState.SeenStatusChangedForRoom += HandleSeenStatusChangedForRoom; // ✅ NEW
     }
+    private async Task OnModalKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowLeft")
+        {
+            await ShowPreviousImage();
+        }
+        else if (e.Key == "ArrowRight")
+        {
+            await ShowNextImage();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseImageModal();
+        }
+    }
+
+    private void ReplyTo(ChatMessageDto message)
+    {
+        ChatState.SetReplyTarget(message);
+    }
+
+    private async Task ScrollToOriginal(Guid messageId)
+    {
+        await JS.InvokeVoidAsync("chatInterop.scrollToElement", $"msg-{messageId}");
+    }
+
     private void ShowReactorsPopup(Guid messageId, ChatReactionDto reaction)
     {
         _popupReactionType = reaction.Type;
@@ -241,15 +319,30 @@
         await ChatState.SetReactionAsync(message.Id, message.RoomId, newType);
         _activeReactionPickerId = null; // ✅ auto-close after picking, on both desktop and mobile
     }
-    private async Task ViewFullAttachment(Guid attachmentId, string fileName)
+    private async Task ViewFullAttachment(List<ChatAttachmentDto> allAttachments, Guid startAttachmentId)
     {
+        _modalAttachmentList = allAttachments.Where(a => a.ContentType.StartsWith("image/")).ToList();
+        _modalCurrentIndex = _modalAttachmentList.FindIndex(a => a.Id == startAttachmentId);
+        if (_modalCurrentIndex < 0) _modalCurrentIndex = 0;
+
         _showImageModal = true;
+        await LoadModalImageAsync();
+
+        // ✅ NEW — give the modal keyboard focus so ArrowLeft/ArrowRight/Escape work immediately
+        await Task.Delay(50); // let the DOM render the backdrop first
+        await _modalBackdropRef.FocusAsync();
+    }
+    private async Task LoadModalImageAsync()
+    {
+        if (!_modalAttachmentList.Any()) return;
+
+        var attachment = _modalAttachmentList[_modalCurrentIndex];
         _isLoadingModalImage = true;
-        _modalFileName = fileName;
+        _modalFileName = attachment.OriginalFileName;
         _modalImageSrc = null;
         StateHasChanged();
 
-        var result = await ChatState.FetchFullAttachmentAsync(attachmentId);
+        var result = await ChatState.FetchFullAttachmentAsync(attachment.Id);
         if (result != null)
         {
             _modalAttachmentBytes = result.Value.Data;
@@ -259,11 +352,31 @@
         _isLoadingModalImage = false;
         StateHasChanged();
     }
+    private async Task ShowPreviousImage()
+    {
+        if (_modalCurrentIndex > 0)
+        {
+            _modalCurrentIndex--;
+            await LoadModalImageAsync();
+        }
+    }
+
+    private async Task ShowNextImage()
+    {
+        if (_modalCurrentIndex < _modalAttachmentList.Count - 1)
+        {
+            _modalCurrentIndex++;
+            await LoadModalImageAsync();
+        }
+    }
+
     private void CloseImageModal()
     {
         _showImageModal = false;
         _modalImageSrc = null;
         _modalAttachmentBytes = null;
+        _modalAttachmentList = new();
+        _modalCurrentIndex = 0;
     }
 
     private async Task DownloadModalImage()
@@ -286,6 +399,8 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private string? _previousTypingText;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -301,6 +416,24 @@
             await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
             _previousMessageCount = ChatState.Messages.Count;
             await RefreshSeenInfoAsync();
+        }
+
+        // ✅ NEW — auto-scroll when the typing indicator appears or disappears,
+        // since it changes the scrollable content's height just like a new
+        // message would.
+        var currentTypingText = ChatState.ActiveRoom != null
+            ? ChatState.GetTypingIndicatorText(ChatState.ActiveRoom.Id)
+            : null;
+
+        if (currentTypingText != _previousTypingText)
+        {
+            _previousTypingText = currentTypingText;
+
+            // Only auto-scroll if the indicator just APPEARED (someone started
+            // typing) — not strictly necessary on disappear, but scrolling in
+            // both directions keeps the view anchored to "the latest thing"
+            // consistently rather than leaving a gap when it goes away.
+            await JS.InvokeVoidAsync("chatInterop.scrollToBottom", _containerId);
         }
 
         if (ChatState.PendingScrollToMessageId.HasValue)
@@ -344,9 +477,28 @@
 
     private void DeleteAsync(Guid messageId) => _ = ChatState.DeleteMessageAsync(messageId);
 
-    private string RenderContentWithMentions(ChatMessageDto message)
+    private static readonly System.Text.RegularExpressions.Regex UrlPattern = new(
+    @"(https?://[^\s<]+|www\.[^\s<]+)",
+    System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private MarkupString RenderContentWithMentions(ChatMessageDto message)
     {
-        return message.Content ?? string.Empty;
+        var content = message.Content ?? string.Empty;
+
+        // ✅ Escape FIRST — everything starts as safe, inert text
+        var escaped = System.Net.WebUtility.HtmlEncode(content);
+
+        // ✅ THEN replace URL matches with real anchor tags. Since we matched
+        // against the escaped string, any "<" or ">" a user typed is already
+        // neutralized as &lt;/&gt; and can't break out of the anchor markup.
+        var linked = UrlPattern.Replace(escaped, match =>
+        {
+            var url = match.Value;
+            var href = url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? $"https://{url}" : url;
+            return $"<a href=\"{href}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"chat-message-link\">{url}</a>";
+        });
+
+        return new MarkupString(linked);
     }
 
     // ✅ CHANGED — unsubscribe added
@@ -395,6 +547,7 @@
         "Heart" => "❤️",
         "Haha" => "😂",
         "Clap" => "👏",
+        "Wow" => "😮",
         _ => "👍"
     };
 }

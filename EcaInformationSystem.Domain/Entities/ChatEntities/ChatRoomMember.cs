@@ -10,7 +10,7 @@
         public Guid RoomId { get; set; }
         public Guid UserId { get; set; }
         public DateTime JoinedAt { get; set; }
-
+        public DateTime? ClearedAt { get; set; } // ✅ NEW — null = never cleared
         public ChatRoom Room { get; set; } = default!;
     }
 }

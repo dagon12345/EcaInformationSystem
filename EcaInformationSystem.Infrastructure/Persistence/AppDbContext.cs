@@ -344,6 +344,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 // oversight/audit queries that need a sender's message history
                 entity.HasIndex(x => x.SenderId)
                       .HasDatabaseName("IX_ChatMessage_SenderId");
+
+                entity.HasIndex(x => x.ReplyToMessageId)
+                    .HasDatabaseName("IX_ChatMessage_ReplyToMessageId");
             });
 
             modelBuilder.Entity<ChatAttachment>(entity =>
@@ -356,14 +359,15 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(500);
                 entity.Property(x => x.Type).HasConversion<int>().IsRequired();
 
-                // ✅ One-to-one — a message has at most one attachment, matching
-                // the same 1:1 pattern you already use for BeneficiaryFinding
+                // ✅ CHANGED — one-to-MANY now, multiple attachments can share a message
                 entity.HasOne(x => x.Message)
-                      .WithOne(x => x.Attachment)
-                      .HasForeignKey<ChatAttachment>(x => x.ChatMessageId)
+                      .WithMany(x => x.Attachments)
+                      .HasForeignKey(x => x.ChatMessageId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasIndex(x => x.ChatMessageId).IsUnique();
+                // ✅ CHANGED — plain index, no longer unique
+                entity.HasIndex(x => x.ChatMessageId)
+                      .HasDatabaseName("IX_ChatAttachments_ChatMessageId");
             });
 
             modelBuilder.Entity<ChatMention>(entity =>

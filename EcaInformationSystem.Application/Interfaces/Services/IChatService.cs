@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Shared.DTOs;
+﻿using DocumentFormat.OpenXml.Spreadsheet;
+using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs.Chat;
 
 namespace EcaInformationSystem.Application.Interfaces.Services
@@ -35,5 +36,11 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // IChatService.cs
         Task<List<ChatReactionDto>> SetReactionAsync(Guid currentUserId, string currentUserRole, int? currentUserRegion, SetReactionDto dto);
         Task<ChatSeenInfoDto?> GetSeenInfoAsync(Guid currentUserId, Guid roomId, Guid messageId, DateTime messageSentAt);
+        Task<ChatUserPresenceDto> GetUserPresenceAsync(Guid userId, bool isOnline);
+        Task UpdateLastSeenAsync(Guid userId, DateTime lastSeenAt);
+        Task<string> GetUserFullNameAsync(Guid userId);
+        // IChatService.cs
+        Task DeleteDirectConversationAsync(Guid currentUserId, Guid roomId);
+        Task ClearConversationForUserAsync(Guid currentUserId, Guid roomId);
     }
 }
