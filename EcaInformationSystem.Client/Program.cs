@@ -24,6 +24,7 @@ builder.Services.AddScoped(sp =>
       .CreateClient("AuthorizedClient"));
 
 builder.Services.AddScoped<BeneficiaryStateService>();
+builder.Services.AddScoped<LiquidationStateService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ToastService>(); // ← THIS WAS MISSING
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthStateProvider>();

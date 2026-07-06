@@ -3493,7 +3493,7 @@ namespace EcaInformationSystem.Application.Services
         #endregion Payroll Liquidation - End
         public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
         {
-            const int MaxPageSize = 5000;
+            const int MaxPageSize = 10000;
             filter.PageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
             filter.PageNumber = Math.Max(filter.PageNumber, 1);
 

@@ -5,7 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @implements IDisposable
-@inject BeneficiaryStateService State
+@inject LiquidationStateService State
 @inject ToastService toast
 @inject IJSRuntime JS
 
@@ -55,6 +55,15 @@
 }
 else if (State.Beneficiaries.Any())
 {
+    @if (State.TotalCount > State.Beneficiaries.Count)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Showing @State.Beneficiaries.Count of @State.TotalCount matching records —
+            the total below does not reflect all matching grantees. Narrow your filter
+            (e.g. shorter payment date range) or contact support.
+        </div>
+    }
     <div class="card shadow-sm border-0">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
@@ -80,7 +89,10 @@ else if (State.Beneficiaries.Any())
                         </tr>
                     </thead>
                     <tbody>
-                        @{ int seq = 2; } @* starts at 2 because DV row is 0001 *@
+                        @{
+                            int seq = 2;
+                        }
+                        @* starts at 2 because DV row is 0001 *@
                         @foreach (var group in GetPreviewGroups())
                         {
                             <tr>
@@ -159,33 +171,33 @@ else if (State.HasActiveFilter && !State.IsLoading)
             .Where(x => x.PaymentDate.HasValue)
             .GroupBy(x => new
             {
-                PaymentDate  = x.PaymentDate!.Value.Date,
+                PaymentDate = x.PaymentDate!.Value.Date,
                 Municipality = x.MunicipalityName ?? string.Empty,
-                Province     = x.ProvinceName     ?? string.Empty,
+                Province = x.ProvinceName ?? string.Empty,
                 x.MilestoneYear
             })
             .Select(g => new CdrPreviewGroup
             {
-                PaymentDate  = g.Key.PaymentDate,
+                PaymentDate = g.Key.PaymentDate,
                 Municipality = g.Key.Municipality,
-                Province     = g.Key.Province,
+                Province = g.Key.Province,
                 MilestoneYear = g.Key.MilestoneYear,
-                Count        = g.Count(),
-                TotalAmount  = g.Sum(x => PayrollSettingsDto.CalculateCashGiftAmount(x.Age))
+                Count = g.Count(),
+                TotalAmount = g.Sum(x => PayrollSettingsDto.CalculateCashGiftAmount(x.Age))
             })
             .OrderBy(x => x.PaymentDate)
             .ThenBy(x => x.Municipality)
             .ThenBy(x => x.MilestoneYear)
             .ToList();
     }
-    
+
     private sealed class CdrPreviewGroup
     {
-        public DateTime PaymentDate  { get; set; }
-        public string Municipality   { get; set; } = string.Empty;
-        public string Province       { get; set; } = string.Empty;
-        public int MilestoneYear     { get; set; }
-        public int Count             { get; set; }
-        public decimal TotalAmount   { get; set; }
+        public DateTime PaymentDate { get; set; }
+        public string Municipality { get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
+        public int MilestoneYear { get; set; }
+        public int Count { get; set; }
+        public decimal TotalAmount { get; set; }
     }
 }
