@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http.Connections.Client;
 using Microsoft.JSInterop;
 using EcaInformationSystem.Shared.DTOs.Chat;
+using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Client.Services
 {
@@ -20,6 +21,7 @@ namespace EcaInformationSystem.Client.Services
         public event Action<Guid, bool>? OnUserPresenceChanged; // (userId, isOnline)
         public event Action<Guid, Guid, string>? OnUserTyping; // (roomId, userId, senderName)
         public event Action<Guid>? OnConversationDeleted;
+        public event Action<ChatMessageDto>? OnMessageEdited;
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
         public ChatClientService(IJSRuntime js)
@@ -69,6 +71,7 @@ namespace EcaInformationSystem.Client.Services
             {
                 OnUserTyping?.Invoke(roomId, userId, senderName);
             });
+            _hubConnection.On<ChatMessageDto>("MessageEdited", msg => OnMessageEdited?.Invoke(msg));
             _hubConnection.On<Guid>("ConversationDeleted", roomId => OnConversationDeleted?.Invoke(roomId));
             _hubConnection.Reconnecting += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Reconnected += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
@@ -76,6 +79,11 @@ namespace EcaInformationSystem.Client.Services
 
             await _hubConnection.StartAsync();
             OnConnectionStateChanged?.Invoke();
+        }
+        public async Task EditMessageAsync(EditChatMessageDto dto)
+        {
+            EnsureConnected();
+            await _hubConnection!.InvokeAsync("EditMessage", dto);
         }
         public async Task DeleteDirectConversationAsync(Guid roomId)
         {

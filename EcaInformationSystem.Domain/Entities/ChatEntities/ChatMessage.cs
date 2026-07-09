@@ -23,6 +23,8 @@
         public Guid? ReplyToMessageId { get; set; }
 
         public ChatRoom Room { get; set; } = default!;
+        public bool IsEdited { get; set; }
+        public DateTime? EditedAt { get; set; }
         public ICollection<ChatAttachment> Attachments { get; set; } = new List<ChatAttachment>(); // was: public ChatAttachment? Attachment
         public ICollection<ChatMention> Mentions { get; set; } = new List<ChatMention>();
     }

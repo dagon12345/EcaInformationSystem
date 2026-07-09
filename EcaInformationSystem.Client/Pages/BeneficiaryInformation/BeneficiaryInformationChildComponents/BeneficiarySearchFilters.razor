@@ -170,10 +170,43 @@
                             </select>
                         </div>
                         <div class="sf-field">
-                            <label>Payment Date</label>
-                            <input type="date" @bind="State.Filter.PaymentDate" />
+                            <label>Payment Date From</label>
+                            <input type="date" @bind="State.Filter.PaymentDateFrom" />
                         </div>
+                        <div class="sf-field">
+                            <label>Payment Date To</label>
+                            <input type="date" @bind="State.Filter.PaymentDateTo" />
+                        </div>
+                        @if (State.Filter.PaymentDateFrom.HasValue || State.Filter.PaymentDateTo.HasValue)
+                        {
+                            <div class="sf-field" style="align-self: flex-end;">
+                                <button class="sf-btn sf-btn-clear" style="width: auto;" @onclick="ClearPaymentDateFilter">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                        }
                     </div>
+                    @if (State.Filter.PaymentDateFrom.HasValue || State.Filter.PaymentDateTo.HasValue)
+                    {
+                        <small class="text-muted mt-1 d-block">
+                            <i class="bi bi-funnel-fill me-1 text-primary"></i>
+                            @if (State.Filter.PaymentDateFrom.HasValue && State.Filter.PaymentDateTo.HasValue)
+                            {
+                                <span>
+                                    @State.Filter.PaymentDateFrom.Value.ToString("MMM dd, yyyy")
+                                    → @State.Filter.PaymentDateTo.Value.ToString("MMM dd, yyyy")
+                                </span>
+                            }
+                            else if (State.Filter.PaymentDateFrom.HasValue)
+                            {
+                                <span>From @State.Filter.PaymentDateFrom.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                            else
+                            {
+                                <span>Until @State.Filter.PaymentDateTo!.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                        </small>
+                    }
                 </div>
 
                 @* AGE & BIRTHDAY *@
@@ -942,6 +975,12 @@
 
         StateHasChanged();
     }
+    private void ClearPaymentDateFilter()
+    {
+        State.Filter.PaymentDateFrom = null;
+        State.Filter.PaymentDateTo = null;
+        StateHasChanged();
+    }
 
     private bool IsFilterEmpty(BeneficiaryFilterDto f) =>
     string.IsNullOrWhiteSpace(f.FullName) &&
@@ -952,7 +991,8 @@
     f.SpecificAge == null &&
     // ✅ null means "not selected"; 0 means "filter for no milestone" — both are valid states
     f.MilestoneYear == null &&
-    f.PaymentDate == null &&
+    f.PaymentDateFrom == null &&
+    f.PaymentDateTo == null &&
     f.PsgcCodeRegion == null &&
     !State.SelectedProvinceIds.Any() &&
     !State.SelectedMunicipalityIds.Any() &&

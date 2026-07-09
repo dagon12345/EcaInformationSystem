@@ -1,5 +1,6 @@
 ﻿using EcaInformationSystem.Api.Hubs;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs.Chat;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -17,6 +18,25 @@ namespace EcaInformationSystem.API.Hubs
         {
             _chatService = chatService;
             _presenceTracker = presenceTracker;
+        }
+        public async Task EditMessage(EditChatMessageDto dto)
+        {
+            var (userId, role, _) = GetCurrentUser();
+
+            var updatedMessage = await _chatService.EditMessageAsync(userId, role, dto);
+
+            var roomType = await _chatService.GetRoomTypeAsync(dto.RoomId);
+
+            if(roomType == "Direct")
+            {
+                var memberIds = await _chatService.GetDirectRoomMemberIdsAsync(dto.RoomId);
+                await Clients.Users(memberIds.Select(id => id.ToString()))
+                    .SendAsync("MessageEdited", updatedMessage);
+            }
+            else
+            {
+                await Clients.Group($"room-{dto.RoomId}").SendAsync("MessageEdited", updatedMessage);
+            }
         }
         public async Task DeleteDirectConversation(Guid roomId)
         {

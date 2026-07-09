@@ -56,6 +56,26 @@ namespace EcaInformationSystem.Client.Services
             _chatClient.OnConnectionStateChanged += HandleConnectionStateChanged;
             _chatClient.OnUserTyping += HandleUserTyping;
             _chatClient.OnConversationDeleted += HandleConversationDeleted;
+            _chatClient.OnMessageEdited += HandleMessageEdited;
+        }
+        private void HandleMessageEdited(ChatMessageDto updatedMessage)
+        {
+            var index = Messages.FindIndex(m => m.Id == updatedMessage.Id);
+            if (index >= 0)
+            {
+                Messages[index] = updatedMessage;
+                OnChange?.Invoke();
+            }
+        }
+        public async Task EditMessageAsync(Guid messageId, Guid roomId, string newContent)
+        {
+            await _chatClient.EditMessageAsync(new EditChatMessageDto 
+            {
+                MessageId = messageId,
+                RoomId = roomId,
+                NewContent = newContent
+            });
+            // Actual update applied via HandleMessageEdited broadcast, including back to the editor's own connection
         }
         private void HandleConversationDeleted(Guid roomId)
         {

@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.Spreadsheet;
-using EcaInformationSystem.Shared.DTOs;
+﻿using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.DTOs.Chat;
 
 namespace EcaInformationSystem.Application.Interfaces.Services
@@ -42,5 +41,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // IChatService.cs
         Task DeleteDirectConversationAsync(Guid currentUserId, Guid roomId);
         Task ClearConversationForUserAsync(Guid currentUserId, Guid roomId);
+        Task<ChatMessageDto> EditMessageAsync(Guid currentUserId, string currentUserRole, EditChatMessageDto dto);
     }
 }

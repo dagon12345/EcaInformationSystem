@@ -13,6 +13,8 @@
         // ✅ Computed server-side per requester: SenderId == currentUserId || currentUserRole == SuperAdmin.
         // UI just checks this bool — no client-side role logic needed.
         public bool CanDelete { get; set; }
+        public bool IsEdited { get; set; }
+        public DateTime? EditedAt { get; set; }
 
         // ✅ CHANGED — was: public ChatAttachmentDto? Attachment { get; set; }
         public List<ChatAttachmentDto> Attachments { get; set; } = new();

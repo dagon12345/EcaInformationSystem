@@ -53,6 +53,18 @@
             {
                 <div class="chat-message-content deleted"><em>This message was deleted</em></div>
             }
+            else if (_editingMessageId == message.Id)
+            {
+                @* ✅ Inline edit mode *@
+                <div class="chat-edit-box" @onclick:stopPropagation="true">
+                    <textarea class="form-control form-control-sm chat-edit-input" rows="2"
+                              @bind="_editDraftText" @onkeydown="e => OnEditKeyDown(e, message)"></textarea>
+                    <div class="chat-edit-actions">
+                        <button class="chat-edit-btn chat-edit-btn-cancel" @onclick="CancelEditing">Cancel</button>
+                        <button class="chat-edit-btn chat-edit-btn-save" @onclick="() => SaveEdit(message)">Save</button>
+                    </div>
+                </div>
+            }
             else
             {
                 @if (message.Attachments.Any())
@@ -84,12 +96,23 @@
                     <div class="chat-message-content">@RenderContentWithMentions(message)</div>
                 }
             }
-
             <div class="chat-message-meta">
-                <small class="text-muted">@message.SentAt.ToLocalTime().ToString("h:mm tt")</small>
+                <small class="text-muted">
+                    @message.SentAt.ToLocalTime().ToString("h:mm tt")
+                    @if (message.IsEdited)
+                    {
+                        <span class="chat-edited-tag" title="@(message.EditedAt?.ToLocalTime().ToString("MMM dd, yyyy h:mm tt"))">(edited)</span>
+                    }
+                </small>
                 <button class="chat-reply-btn" title="Reply" @onclick="() => ReplyTo(message)" @onclick:stopPropagation="true">
                     <i class="bi bi-reply-fill"></i>
                 </button>
+                @if (message.SenderId == CurrentUserId && !message.IsDeleted)
+                {
+                    <button class="chat-reply-btn" title="Edit" @onclick="() => StartEditing(message)" @onclick:stopPropagation="true">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>
+                }
                 @if (message.CanDelete && !message.IsDeleted)
                 {
                     <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)" @onclick:stopPropagation="true">
@@ -231,6 +254,8 @@
 </div>
 
 @code {
+    private Guid? _editingMessageId;
+    private string _editDraftText = string.Empty;
     private List<ChatAttachmentDto> _modalAttachmentList = new();
     private ElementReference _modalBackdropRef;
     private int _modalCurrentIndex;
@@ -259,11 +284,42 @@
     private ChatSeenInfoDto? _seenInfo;
     private bool _showFullSeenList;
 
-    
+
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged; // ✅ NEW
         ChatState.SeenStatusChangedForRoom += HandleSeenStatusChangedForRoom; // ✅ NEW
+    }
+    private void StartEditing(ChatMessageDto message)
+    {
+        _editingMessageId = message.Id;
+        _editDraftText = message.Content ?? string.Empty;
+        _activeReactionPickerId = null; //Close the reaction pciker if it happened to be open.
+    }
+    private void CancelEditing()
+    {
+        _editingMessageId = null;
+        _editDraftText = string.Empty;
+    }
+    private async Task SaveEdit(ChatMessageDto message)
+    {
+        if (string.IsNullOrWhiteSpace(_editDraftText) && !message.Attachments.Any())
+            return; // Don't allow saving into an empty, attachment-less messasge
+
+        await ChatState.EditMessageAsync(message.Id, message.RoomId, _editDraftText.Trim());
+        _editingMessageId = null;
+        _editDraftText = string.Empty;
+    }
+    private async Task OnEditKeyDown(KeyboardEventArgs e, ChatMessageDto message)
+    {
+        if(e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SaveEdit(message);
+        }
+        else if(e.Key == "Escape")
+        {
+            CancelEditing();
+        }
     }
     private async Task OnModalKeyDown(KeyboardEventArgs e)
     {

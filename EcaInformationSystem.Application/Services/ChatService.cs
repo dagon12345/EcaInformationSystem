@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces;
+﻿using ClosedXML;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Common.Enum;
@@ -22,6 +23,52 @@ namespace EcaInformationSystem.Application.Services
             _repo = repo;
             _logRepository = logRepository;
             _psgcNameCache = psgcNameCache;
+        }
+        public async Task<ChatMessageDto> EditMessageAsync(Guid currentUserid, string currentUserRole, EditChatMessageDto dto)
+        {
+            var message = await _repo.GetMessageByIdAsync(dto.MessageId);
+            if (message == null)
+                throw new InvalidOperationException("Message not found.");
+            if (message.RoomId != dto.RoomId)
+                throw new InvalidOperationException("Message does not belong to this conversation");
+            if (message.IsDeleted)
+                throw new InvalidOperationException("Cannot edit a deleted message.");
+
+            // ✅ Sender-only — unlike delete, SuperAdmin does NOT get edit rights here.
+            // Moderation of inappropriate content is what delete is for; silently
+            // rewriting someone else's words is a materially different (and riskier)
+            // power that we're deliberately not granting.
+
+            if (message.SenderId != currentUserid)
+                throw new UnauthorizedAccessException("You can only edit your own messages.");
+
+            if (string.IsNullOrWhiteSpace(dto.NewContent) && !message.Attachments.Any())
+                throw new InvalidOperationException("Message must have content or an attachment");
+
+            message.Content = dto.NewContent?.Trim();
+            message.IsEdited = true;
+            message.EditedAt = DateTime.UtcNow;
+
+            await _repo.SaveChangesAsync();
+
+            // Re-fetch names/reactions/mentions for a fully-populated DTO, same
+            // pattern as SendMessageAsync's post-save re-fetch.
+            var sender = await _repo.GetUserByIdAsync(currentUserid);
+            var reactions = await _repo.GetReactionsForMessageAsync(message.Id);
+
+            var mentionIds = message.Mentions.Where(mn => mn.MentionedUserId.HasValue)
+                .Select(mn => mn.MentionedUserId!.Value).Distinct();
+            var reactorIds = reactions.Select(r => r.UserId).Distinct();
+            var nameLookup = new Dictionary<Guid, string>();
+            foreach(var id in mentionIds.Union(reactorIds))
+            {
+                var u = await _repo.GetUserByIdAsync(id);
+                nameLookup[id] = u?.FullName ?? "Unknown";
+            }
+
+            return await MapToDtoWithReplyAsync(message, sender?.FullName ?? "Unknown",
+                currentUserid, currentUserRole, nameLookup, reactions);
+
         }
         public async Task ClearConversationForUserAsync(Guid currentUserId, Guid roomId)
         {
@@ -683,6 +730,8 @@ namespace EcaInformationSystem.Application.Services
                 SenderName = senderName,
                 Content = m.IsDeleted ? null : m.Content,
                 SentAt = m.SentAt,
+                IsEdited = m.IsEdited,
+                EditedAt = m.EditedAt,
                 IsDeleted = m.IsDeleted,
                 CanDelete = canDelete && !m.IsDeleted,
 
