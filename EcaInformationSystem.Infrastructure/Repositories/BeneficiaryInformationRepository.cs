@@ -1202,6 +1202,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 PsgcCodeProvince = x.Province,
                 PsgcCodeMunicipality = x.Municipality,
                 PsgcCodeBarangay = x.Barangay,
+                ProvinceName = _psgcNameCache.GetProvinceName(x.Province),
                 MunicipalityName = _psgcNameCache.GetMunicipalityName(x.Municipality),
                 BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
                 Validator = x.Validator,
