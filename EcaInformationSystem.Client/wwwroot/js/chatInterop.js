@@ -148,7 +148,7 @@
     registerReactionPickerOutsideClick: function (dotNetRef) {
         this.unregisterReactionPickerOutsideClick();
 
-        this._reactionPickerOutsideHandler = function (event) {
+        this._reactionPickerOutsideHandler = function (event) {<script src="js/chatInterop.js?v=3"></script>
             const path = event.composedPath ? event.composedPath() : [];
             const clickedInsidePicker = path.some(el =>
                 el.classList && el.classList.contains('chat-reaction-picker-floating'));
