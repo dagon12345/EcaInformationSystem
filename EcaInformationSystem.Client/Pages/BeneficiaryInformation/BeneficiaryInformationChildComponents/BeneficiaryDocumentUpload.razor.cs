@@ -29,6 +29,10 @@ public partial class BeneficiaryDocumentUpload : IDisposable
 
     private HxInputFileDropZone _dropZone = default!;
     private bool _isDeleting;
+    private BeneficiaryDocumentDto? _docToRename;
+    private string _renameValue = string.Empty;
+    private string? _renameError;
+    private bool _isRenaming;
     private List<BeneficiaryDocumentDto> _documents = new();
     private BeneficiaryDocumentDto? _selectedDoc;
     private BeneficiaryDocumentDto? _docToDelete;
@@ -36,7 +40,8 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     private bool _isLoading;
     private string? _blobUrl;
     private string? _fileValidationError;
-
+    private int _zoomPercent = 100;
+    private string ViewerSrc => $"{_blobUrl}#zoom={_zoomPercent}";
     // ── Per-component upload tracking (fed from the queue service) ────────────
     // True while ANY job for THIS beneficiary is queued/uploading/retrying.
     private bool _isCameraJobActive;
@@ -61,7 +66,23 @@ public partial class BeneficiaryDocumentUpload : IDisposable
         UploadQueue.OnJobCompleted += OnJobCompleted;
         await LoadDocumentsAsync();
     }
+    private void ZoomIn()
+    {
+        _zoomPercent = Math.Min(300, _zoomPercent + 25);
+        StateHasChanged();
+    }
 
+    private void ZoomOut()
+    {
+        _zoomPercent = Math.Max(50, _zoomPercent - 25);
+        StateHasChanged();
+    }
+
+    private void ResetZoom()
+    {
+        _zoomPercent = 100;
+        StateHasChanged();
+    }
     // ── Called whenever queue state changes ───────────────────────────────────
     private void OnQueueChanged()
     {
@@ -87,10 +108,6 @@ public partial class BeneficiaryDocumentUpload : IDisposable
             StateHasChanged();
         });
     }
-
-    private async Task<string?> GetTokenAsync()
-        => await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
-
     private async Task SelectDocumentAsync(BeneficiaryDocumentDto doc)
     {
         if (_selectedDoc?.Id == doc.Id)
@@ -100,6 +117,7 @@ public partial class BeneficiaryDocumentUpload : IDisposable
         }
 
         _selectedDoc = doc;
+        _zoomPercent = 100; // ✅ reset so each newly opened doc starts at default zoom
         var previousUrl = _blobUrl;
         _blobUrl = null;
         StateHasChanged();
@@ -165,6 +183,7 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     private Task ConfirmDeleteAsync(BeneficiaryDocumentDto doc)
     {
         if (doc == null || doc.Id == Guid.Empty) return Task.CompletedTask;
+        _docToRename = null; // ✅ close Rename if it was open on any row
         _docToDelete = doc;
         StateHasChanged();
         return Task.CompletedTask;
@@ -174,6 +193,67 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     {
         _docToDelete = null;
         StateHasChanged();
+    }
+    private Task OpenRenameModal(BeneficiaryDocumentDto doc)
+    {
+        _docToDelete = null; // ✅ close Delete if it was open on any row
+        _docToRename = doc;
+        _renameValue = doc.OriginalFileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+            ? doc.OriginalFileName[..^4]
+            : doc.OriginalFileName;
+        _renameError = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void CancelRename()
+    {
+        _docToRename = null;
+        _renameError = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmRenameAsync()
+    {
+        if (_docToRename is null) return;
+
+        if (string.IsNullOrWhiteSpace(_renameValue))
+        {
+            _renameError = "File name cannot be empty.";
+            return;
+        }
+
+        try
+        {
+            _isRenaming = true;
+            _renameError = null;
+            StateHasChanged();
+
+            var dto = new RenameDocumentDto { NewFileName = _renameValue.Trim() };
+            var response = await Http.PutAsJsonAsync(
+                $"{ApiBase}/api/beneficiary-documents/rename/{_docToRename.Id}", dto);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Messenger.AddInformation("Document renamed successfully.");
+                _docToRename = null;
+                await LoadDocumentsAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                _renameError = string.IsNullOrWhiteSpace(error) ? "Rename failed." : error;
+            }
+        }
+        catch (Exception ex)
+        {
+            _renameError = $"Rename failed: {ex.Message}";
+        }
+        finally
+        {
+            _isRenaming = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadDocumentsAsync()

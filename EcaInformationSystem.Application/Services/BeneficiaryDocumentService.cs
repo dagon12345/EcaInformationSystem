@@ -127,6 +127,33 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
         }
 
+        // ✅ NEW — rename is display-name-only; FileName (the GUID storage key)
+        // is never touched, so downloads/streams remain unaffected.
+        public async Task RenameAsync(Guid documentId, string newFileName, string userName)
+        {
+            var doc = await _repo.GetByIdAsync(documentId)
+                ?? throw new Exception("Document not found.");
+
+            if (doc.IsDeleted)
+                throw new Exception("Cannot rename a deleted document.");
+
+            var oldName = doc.OriginalFileName;
+
+            var finalName = newFileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+                ? newFileName
+                : $"{newFileName}.pdf";
+
+            doc.OriginalFileName = finalName;
+            await _repo.UpdateAsync(doc);
+
+            await AddLogAsync(
+                doc.BeneficiaryInformationId,
+                $"Document renamed: '{oldName}' -> '{finalName}'",
+                userName);
+
+            await _repo.SaveChangesAsync();
+        }
+
         private static BeneficiaryDocumentDto MapToDto(BeneficiaryDocument doc) => new()
         {
             Id = doc.Id,

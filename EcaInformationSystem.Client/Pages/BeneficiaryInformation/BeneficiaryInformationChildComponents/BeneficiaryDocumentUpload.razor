@@ -141,6 +141,12 @@
 
                     <div class="d-flex gap-1 flex-shrink-0">
                         <span @onclick:stopPropagation="true">
+                            <HxButton Color="ThemeColor.Secondary" Outline="true" Size="ButtonSize.Small"
+                                      OnClick="() => OpenRenameModal(doc)" title="Rename">
+                                <i class="bi bi-pencil"></i>
+                            </HxButton>
+                        </span>
+                        <span @onclick:stopPropagation="true">
                             <HxButton Color="ThemeColor.Primary" Outline="true" Size="ButtonSize.Small"
                                       OnClick="() => DownloadAsync(doc)">
                                 <i class="bi bi-download"></i>
@@ -154,64 +160,136 @@
                         </span>
                     </div>
                 </div>
+
+                @* ── Rename — inline, directly under THIS row, so feedback is
+                   visible right where the user clicked instead of scrolled
+                   away at the bottom of the panel ── *@
+                @if (_docToRename?.Id == doc.Id)
+                {
+                    <div class="rename-confirm-box mt-2 border rounded p-2" @onclick:stopPropagation="true">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-pencil-fill text-primary mt-1 flex-shrink-0"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold small mb-2">Rename Document</div>
+                                <input class="ff-input mb-2" @bind="_renameValue" @bind:event="oninput"
+                                       disabled="@_isRenaming" />
+                                @if (!string.IsNullOrWhiteSpace(_renameError))
+                                {
+                                    <div class="alert alert-danger py-1 px-2 small mb-2">@_renameError</div>
+                                }
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary" @onclick="ConfirmRenameAsync"
+                                            disabled="@_isRenaming">
+                                        @if (_isRenaming)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            <span>Saving...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-check-lg me-1"></i>
+                                            <span>Save</span>
+                                        }
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelRename"
+                                            disabled="@_isRenaming">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* ── Delete — same inline pattern, same reasoning ── *@
+                @if (_docToDelete?.Id == doc.Id)
+                {
+                    <div class="delete-confirm-box mt-2 border border-danger rounded p-2" @onclick:stopPropagation="true">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-triangle-fill text-danger mt-1 flex-shrink-0"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold text-danger small mb-1">Delete Document</div>
+                                <div class="small mb-2">
+                                    Are you sure you want to delete
+                                    <strong>@_docToDelete.OriginalFileName</strong>?
+                                    This cannot be undone.
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-danger" @onclick="ExecuteDeleteAsync">
+                                        @if (_isDeleting)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            <span>Deleting...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-trash me-1"></i>
+                                            <span>Yes, Delete</span>
+                                        }
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelDelete"
+                                            disabled="@_isDeleting">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
             </HxListGroupItem>
         }
     </HxListGroup>
 
-    @* ── PDF Viewer ─────────────────────────────────────────────────────────── *@
-    @if (_selectedDoc != null && _blobUrl != null)
+    @* ── PDF Viewer — floats as an overlay over the panel, so it doesn't push
+       the document list or action buttons down. Click the backdrop or Close
+       to dismiss; nothing else on the page is blocked or disturbed. ── *@
+    @if (_selectedDoc != null)
     {
-        <div class="doc-viewer mt-3 border rounded">
-            <div class="d-flex align-items-center gap-2 p-2 bg-dark text-white rounded-top">
-                <i class="bi bi-file-earmark-pdf me-1"></i>
-                <span class="text-truncate flex-grow-1 small">@_selectedDoc.OriginalFileName</span>
-                <HxButton Size="ButtonSize.Small" Color="ThemeColor.None"
-                          CssClass="btn-close btn-close-white"
-                          OnClick="CloseViewerAsync" />
-            </div>
-            <iframe src="@_blobUrl" style="width:100%; height:600px; border:none;" />
-        </div>
-    }
-    else if (_selectedDoc != null && _blobUrl == null)
-    {
-        <div class="alert alert-info py-2 small mt-3">
-            <span class="spinner-border spinner-border-sm me-2"></span>
-            Loading preview...
-        </div>
-    }
+        <div class="doc-viewer-overlay" @onclick="CloseViewerAsync">
+            <div class="doc-viewer-card" @onclick:stopPropagation="true">
+                <div class="doc-viewer-toolbar">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>
+                    <span class="text-truncate flex-grow-1 small">@_selectedDoc.OriginalFileName</span>
 
-    @* ── Delete confirmation ─────────────────────────────────────────────────── *@
-    @if (_docToDelete != null)
-    {
-        <div class="delete-confirm-box mt-3 border border-danger rounded p-3">
-            <div class="d-flex align-items-start gap-2">
-                <i class="bi bi-exclamation-triangle-fill text-danger mt-1 flex-shrink-0"></i>
-                <div class="flex-grow-1">
-                    <div class="fw-semibold text-danger small mb-1">Delete Document</div>
-                    <div class="small mb-3">
-                        Are you sure you want to delete
-                        <strong>@_docToDelete.OriginalFileName</strong>?
-                        This cannot be undone.
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-danger" @onclick="ExecuteDeleteAsync">
-                            @if (_isDeleting)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                                <span>Deleting...</span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-trash me-1"></i>
-                                <span>Yes, Delete</span>
-                            }
-                        </button>
-                        <button class="btn btn-sm btn-secondary" @onclick="CancelDelete"
-                                disabled="@_isDeleting">
-                            Cancel
-                        </button>
-                    </div>
+                    @if (_blobUrl != null)
+                    {
+                        <div class="doc-viewer-zoom-controls">
+                            <button class="doc-viewer-zoom-btn" @onclick="ZoomOut" disabled="@(_zoomPercent <= 50)" title="Zoom out">
+                                <i class="bi bi-dash-lg"></i>
+                            </button>
+                            <span class="doc-viewer-zoom-label">@_zoomPercent%</span>
+                            <button class="doc-viewer-zoom-btn" @onclick="ZoomIn" disabled="@(_zoomPercent >= 300)" title="Zoom in">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <button class="doc-viewer-zoom-btn" @onclick="ResetZoom" title="Reset zoom">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                        </div>
+                    }
+
+                    <HxButton Size="ButtonSize.Small" Color="ThemeColor.None"
+                              CssClass="btn-close btn-close-white ms-1"
+                              OnClick="CloseViewerAsync" />
                 </div>
+                @if (_blobUrl != null)
+                {
+                    @* ✅ @key forces Blazor to remove+recreate this element whenever
+                       the key changes, instead of just mutating its src attribute.
+                       Browsers only reliably apply a PDF's #zoom= open-parameter
+                       when the document is freshly opened — a same-element src
+                       mutation that only changes the fragment is often treated as
+                       an in-page hash navigation and silently ignored. Forcing a
+                       real remount makes each zoom click a genuine fresh load. ── *@
+                    <iframe @key="@($"{_selectedDoc?.Id}-{_zoomPercent}")"
+                            src="@ViewerSrc" class="doc-viewer-frame" />
+                }
+                else
+                {
+                    <div class="d-flex align-items-center justify-content-center flex-grow-1 py-5">
+                        <span class="spinner-border text-primary me-2"></span>
+                        <span class="text-muted small">Loading preview...</span>
+                    </div>
+                }
             </div>
         </div>
     }

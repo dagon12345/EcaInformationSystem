@@ -14,16 +14,16 @@ namespace EcaInformationSystem.Api.Controllers
     {
         private readonly IBeneficiaryDocumentService _service;
         private readonly IJurisdictionGuardService _jurisdictionGuardService;
-        private readonly IImageToPdfService _imageToPdfService;   // ✅ new
+        private readonly IImageToPdfService _imageToPdfService;
 
         public BeneficiaryDocumentController(
             IBeneficiaryDocumentService service,
             IJurisdictionGuardService jurisdictionGuardService,
-            IImageToPdfService imageToPdfService)                 // ✅ new
+            IImageToPdfService imageToPdfService)
         {
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
-            _imageToPdfService = imageToPdfService;                // ✅ new
+            _imageToPdfService = imageToPdfService;
         }
 
         // ── Upload — all roles ────────────────────────────────────────────────────
@@ -80,7 +80,18 @@ namespace EcaInformationSystem.Api.Controllers
 
                 var pdfBytes = await _imageToPdfService.ConvertToPdfAsync(imageBytesList);
 
-                var fileName = $"Camera_Scan_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+                // ✅ Use the client-supplied name (grantee name + optional label,
+                // set by QuickUpload before enqueueing) instead of a generic
+                // "Camera_Scan_..." name.
+                var incomingName = photos.FirstOrDefault()?.FileName;
+                var baseName = string.IsNullOrWhiteSpace(incomingName)
+                    ? $"Camera_Scan_{DateTime.UtcNow:yyyyMMdd_HHmmss}"
+                    : Path.GetFileNameWithoutExtension(incomingName);
+
+                foreach (var c in Path.GetInvalidFileNameChars())
+                    baseName = baseName.Replace(c, '-');
+
+                var fileName = $"{baseName}.pdf";
                 using var pdfStream = new MemoryStream(pdfBytes);
                 var pdfFormFile = new FormFile(pdfStream, 0, pdfBytes.Length, "file", fileName)
                 {
@@ -149,6 +160,27 @@ namespace EcaInformationSystem.Api.Controllers
                     return StatusCode(403, jurisdictionError);
 
                 await _service.SoftDeleteAsync(documentId, userName);
+                return NoContent();
+            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+        // ── Rename — same roles allowed to edit records ────────────────────────────
+        [HttpPut("rename/{documentId:guid}")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> Rename(Guid documentId, [FromBody] RenameDocumentDto dto)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(dto.NewFileName))
+                    return BadRequest("File name cannot be empty.");
+
+                var sanitized = dto.NewFileName.Trim();
+                foreach (var c in Path.GetInvalidFileNameChars())
+                    sanitized = sanitized.Replace(c, '-');
+
+                var userName = User.Identity?.Name ?? "System";
+                await _service.RenameAsync(documentId, sanitized, userName);
                 return NoContent();
             }
             catch (Exception ex) { return BadRequest(ex.Message); }

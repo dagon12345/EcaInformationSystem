@@ -12,6 +12,8 @@ public partial class QuickUpload
 {
     [Parameter] public Guid BeneficiaryId { get; set; }
     [Parameter] public int PsgcCodeMunicipality { get; set; }
+    [Parameter] public string? LastName { get; set; }
+    [Parameter] public string? FirstName { get; set; }
     [Parameter] public EventCallback OnQueued { get; set; }
 
     [Inject] private DocumentUploadQueueService UploadQueue { get; set; } = default!;
@@ -25,11 +27,39 @@ public partial class QuickUpload
     private bool _isCapturing;
     private string? _webcamError;
 
+    private HxModal _namingModal = default!;
+    private string _pendingLabel = string.Empty;
+    private List<UploadFilePayload>? _pendingPayloads;
+    private bool _pendingIsCameraJob;
+
     private void TogglePopover() => _showPopover = !_showPopover;
     private void ClosePopover() => _showPopover = false;
 
-    // ── Camera input AND Gallery picker both land here — same conversion
-    // path either way, since both produce images that need PDF conversion.
+    private string GranteeName
+    {
+        get
+        {
+            var last = LastName?.Trim();
+            var first = FirstName?.Trim();
+            if (string.IsNullOrWhiteSpace(last) && string.IsNullOrWhiteSpace(first))
+                return "Unnamed Grantee";
+            if (string.IsNullOrWhiteSpace(last)) return first!;
+            if (string.IsNullOrWhiteSpace(first)) return last!;
+            return $"{last}, {first}";
+        }
+    }
+
+    private string BuildFinalFileName()
+    {
+        var label = _pendingLabel.Trim();
+        var baseName = string.IsNullOrWhiteSpace(label) ? GranteeName : $"{GranteeName} - {label}";
+        foreach (var c in Path.GetInvalidFileNameChars())
+            baseName = baseName.Replace(c, '-');
+        return baseName;
+    }
+
+    private string BuildPreviewFileName() => $"{BuildFinalFileName()}.pdf";
+
     private async Task OnImageFileChanged(InputFileChangeEventArgs e)
     {
         ClosePopover();
@@ -56,9 +86,7 @@ public partial class QuickUpload
 
         if (!payloads.Any()) return;
 
-        await UploadQueue.EnqueueCameraUploadAsync(BeneficiaryId, payloads);
-        Messenger.AddInformation($"{payloads.Count} photo(s) queued — converting to PDF and uploading in background.");
-        await OnQueued.InvokeAsync();
+        await PromptForNameAsync(payloads, isCameraJob: true);
     }
 
     private async Task OnPdfFileChanged(InputFileChangeEventArgs e)
@@ -91,19 +119,15 @@ public partial class QuickUpload
 
         if (!payloads.Any()) return;
 
-        await UploadQueue.EnqueuePdfUploadAsync(BeneficiaryId, payloads);
-        Messenger.AddInformation($"{payloads.Count} PDF(s) queued — uploading in background.");
-        await OnQueued.InvokeAsync();
+        await PromptForNameAsync(payloads, isCameraJob: false);
     }
 
-    // ── Webcam ──────────────────────────────────────────────────────────────
     private async Task OpenWebcamModal()
     {
         ClosePopover();
         _webcamError = null;
         await _webcamModal.ShowAsync();
 
-        // Give the modal a moment to render the <video> element before starting the stream
         await Task.Delay(150);
         var started = await JS.InvokeAsync<bool>("webcamInterop.start", _videoElementId);
         if (!started)
@@ -138,11 +162,8 @@ public partial class QuickUpload
                 ContentType = "image/jpeg"
             };
 
-            await UploadQueue.EnqueueCameraUploadAsync(BeneficiaryId, new List<UploadFilePayload> { payload });
-            Messenger.AddInformation("Photo captured — converting to PDF and uploading in background.");
-
             await CloseWebcamModalAsync();
-            await OnQueued.InvokeAsync();
+            await PromptForNameAsync(new List<UploadFilePayload> { payload }, isCameraJob: true);
         }
         finally
         {
@@ -155,5 +176,41 @@ public partial class QuickUpload
     {
         await JS.InvokeVoidAsync("webcamInterop.stop");
         await _webcamModal.HideAsync();
+    }
+
+    private async Task PromptForNameAsync(List<UploadFilePayload> payloads, bool isCameraJob)
+    {
+        _pendingPayloads = payloads;
+        _pendingIsCameraJob = isCameraJob;
+        _pendingLabel = string.Empty;
+        await _namingModal.ShowAsync();
+    }
+
+    private async Task ConfirmNamingAsync()
+    {
+        if (_pendingPayloads is null) return;
+
+        var finalName = $"{BuildFinalFileName()}.pdf"; // ✅ fix — the actual upload
+        // filename needs the extension too, not just the preview text. Without
+        // it, the server's "is not a PDF file" check rejects every upload that
+        // goes through this naming step.
+        foreach (var p in _pendingPayloads)
+            p.FileName = finalName;
+
+        if (_pendingIsCameraJob)
+            await UploadQueue.EnqueueCameraUploadAsync(BeneficiaryId, _pendingPayloads);
+        else
+            await UploadQueue.EnqueuePdfUploadAsync(BeneficiaryId, _pendingPayloads);
+
+        Messenger.AddInformation($"\"{finalName}.pdf\" queued — uploading in background.");
+        _pendingPayloads = null;
+        await _namingModal.HideAsync();
+        await OnQueued.InvokeAsync();
+    }
+
+    private async Task CancelNaming()
+    {
+        _pendingPayloads = null;
+        await _namingModal.HideAsync();
     }
 }

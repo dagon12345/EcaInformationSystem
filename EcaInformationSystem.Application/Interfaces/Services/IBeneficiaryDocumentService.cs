@@ -15,5 +15,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<(byte[] Bytes, string FileName)> DownloadAsync(Guid documentId);
 
         Task SoftDeleteAsync(Guid documentId, string userName);
+        Task RenameAsync(Guid documentId, string newFileName, string userName);
     }
 }

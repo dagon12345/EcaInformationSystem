@@ -655,7 +655,10 @@
                                                         <button class="btn-details" @onclick="() => OpenDetailsPanel(item)" title="View Details">
                                                             <i class="bi bi-info-circle"></i> Details
                                                         </button>
-                                                        <QuickUpload BeneficiaryId="@item.Id" PsgcCodeMunicipality="@item.PsgcCodeMunicipality" />
+                                                        <QuickUpload BeneficiaryId="@item.Id"
+             PsgcCodeMunicipality="@item.PsgcCodeMunicipality"
+             LastName="@item.LastName"
+             FirstName="@item.FirstName" />
                                                     </div>
                                                </td>
                                             </tr>
