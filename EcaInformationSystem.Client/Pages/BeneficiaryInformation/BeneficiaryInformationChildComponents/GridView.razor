@@ -20,14 +20,33 @@
 
                     <div class="d-flex align-items-center gap-2">
                         <div class="d-flex flex-column">
-                            <div class="d-flex align-items-center gap-2">
-                                <h5 class="mb-0">Showing</h5>
-                                <span class="badge bg-primary">@DisplayCount Record(s)</span>
-                            </div>
-                            <small class="opacity-75 mt-1">
-                                Select the checkbox to Bulk Update payment status or Create Payroll
-                            </small>
-                        </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h5 class="mb-0">Showing</h5>
+        <span class="badge bg-primary">@DisplayCount Record(s)</span>
+        @if (LocationCautionCount > 0)
+        {
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-flex align-items-center gap-1"
+                  title="Records with a location code that needs correction">
+                <i class="bi bi-geo-alt-fill"></i>
+                @LocationCautionCount Location Caution@(LocationCautionCount == 1 ? "" : "s")
+            </span>
+        }
+ @if (OtherWarningCount > 0)
+{
+    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-flex align-items-center gap-1"
+          title="Records with a minor data issue worth a quick look">
+        <i class="bi bi-info-circle-fill"></i>
+        @OtherWarningCount Heads-Up@(OtherWarningCount == 1 ? "" : "s")
+    </span>
+}
+    </div>
+    <small class="opacity-75 mt-1 d-block">
+        Select the checkbox to Bulk Update payment status or Create Payroll.
+        <span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.
+        <span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.
+    </small>
+</div>
+                          
                     </div>
 
 
@@ -94,11 +113,13 @@
                         <span class="sel-count">@checkedIds.Count selected</span>
 
                         <div class="btn-group btn-group-sm" role="group">
-                            <button type="button"
-                                    class="btn @(activeBulkTab == "payment" ? "btn-primary" : "btn-outline-secondary")"
-                                    @onclick='() => activeBulkTab = "payment"'>
-                                <i class="bi bi-cash-coin me-1"></i>Payment
-                            </button>
+                          <button type="button"
+        class="btn @(activeBulkTab == "payment" ? "btn-primary" : "btn-outline-secondary")"
+        @onclick='() => activeBulkTab = "payment"'>
+    <i class="bi bi-cash-coin me-1"></i>Payment
+    <i class="bi bi-info-circle text-info ms-1" 
+       title="Sets payment status, mode of payment, and payment date for all selected records."></i>
+</button>
                             <button type="button"
                                     class="btn @(activeBulkTab == "other" ? "btn-primary" : "btn-outline-secondary")"
                                     @onclick='() => activeBulkTab = "other"'>
@@ -331,12 +352,15 @@
                         <div class="tbl-scroll">
                             <table class="records-tbl">
                                 <thead>
-                                    <tr>
-                                        <th style="width:42px;">
-                                            <input type="checkbox" class="form-check-input" checked="@AreAllChecked()"
-                                                   @onchange="ToggleSelectAll" />
-                                        </th>
-                                        <th>Reference Number</th>
+    <tr>
+        <th style="width:36px;" title="Caution = location code needs correction. Heads-Up = minor data issue worth a quick look.">
+            Issues
+        </th>
+        <th style="width:42px;">
+            <input type="checkbox" class="form-check-input" checked="@AreAllChecked()"
+                   @onchange="ToggleSelectAll" />
+        </th>
+        <th>Reference Number</th>
                                         <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
                                             @onclick='() => SortBy("batchcode")'>
                                             <div class="sort-header">
@@ -400,11 +424,35 @@
                                     @foreach (var item in FilteredBeneficiaries)
                                     {
                                             <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input"
-                                                           checked="@checkedIds.Contains(item.Id)"
-                                                           @onchange="() => ToggleCheck(item.Id)" />
-                                                </td>
+   <td>
+    @{
+        var cautions = GetLocationCautions(item);
+        var warnings = GetOtherWarnings(item);
+    }
+    <div class="d-flex align-items-center gap-1">
+        @if (cautions.Any())
+        {
+            <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
+               title="@($"Caution: {string.Join("; ", cautions)}")"
+               @onclick="() => OpenDetailsPanel(item)"></i>
+        }
+        @if (warnings.Any())
+{
+    <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
+       title="@($"Heads up: {string.Join("; ", warnings)}")"
+       @onclick="() => OpenDetailsPanel(item)"></i>
+}
+        @if (!cautions.Any() && !warnings.Any())
+        {
+            <span class="text-muted">—</span>
+        }
+    </div>
+</td>
+    <td>
+        <input type="checkbox" class="form-check-input"
+               checked="@checkedIds.Contains(item.Id)"
+               @onchange="() => ToggleCheck(item.Id)" />
+    </td>
                                                 <td>
                                                     @{
                                                         var refNo = item.ReferenceNumber;
@@ -455,7 +503,19 @@
                                                 </td>
                                                 <td>@Highlight(GetSexText(item.Sex))</td>
                                                 <td>@Highlight(item.MunicipalityName)</td>
-                                                <td>@Highlight(item.BarangayName)</td>
+<td>
+    @if (string.IsNullOrWhiteSpace(item.BarangayName))
+    {
+        <span class="tbl-badge unpaid" title="Barangay code could not be matched — needs manual correction" style="cursor:pointer;"
+              @onclick="() => OpenDetailsPanel(item)">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Barangay Needs Fixing
+        </span>
+    }
+    else
+    {
+        @Highlight(item.BarangayName)
+    }
+</td>
                                                 <td>@Highlight(item.Validator)</td>
                                               <td>
                                                     @if (item.PayrollQuarter.HasValue)
@@ -604,7 +664,7 @@
                                     @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="19">
+                                            <td colspan="20">
                                                 @if (!State.IsLoading)
                                                 {
                                                     <span>No records found.</span>
@@ -645,11 +705,32 @@
                         @foreach (var item in FilteredBeneficiaries)
                         {
                             <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
-                                <div class="beneficiary-card-top">
-                                    <input type="checkbox" class="form-check-input beneficiary-card-check"
-                                    checked="@checkedIds.Contains(item.Id)"
-                                    @onchange="() => ToggleCheck(item.Id)" />
-                                    <div class="beneficiary-card-name">
+    <div class="beneficiary-card-top">
+        @{
+            var mobileCautions = GetLocationCautions(item);
+            var mobileWarnings = GetOtherWarnings(item);
+        }
+        <input type="checkbox" class="form-check-input beneficiary-card-check"
+        checked="@checkedIds.Contains(item.Id)"
+        @onchange="() => ToggleCheck(item.Id)" />
+        @if (mobileCautions.Any() || mobileWarnings.Any())
+        {
+            <div class="d-flex align-items-center gap-1">
+                @if (mobileCautions.Any())
+                {
+                    <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
+                       title="@($"Caution: {string.Join("; ", mobileCautions)}")"
+                       @onclick="() => OpenDetailsPanel(item)"></i>
+                }
+               @if (mobileWarnings.Any())
+{
+    <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
+       title="@($"Heads up: {string.Join("; ", mobileWarnings)}")"
+       @onclick="() => OpenDetailsPanel(item)"></i>
+}
+            </div>
+        }
+        <div class="beneficiary-card-name">
                                         @item.LastName, @item.FirstName
                                         @if (!string.IsNullOrWhiteSpace(item.MiddleName))
                                         {
@@ -665,9 +746,17 @@
                                     </div>
                                 }
 
-                                <div class="beneficiary-card-location">
-                                    <i class="bi bi-geo-alt me-1"></i>@item.MunicipalityName — @item.BarangayName
-                                </div>
+                              <div class="beneficiary-card-location">
+    <i class="bi bi-geo-alt me-1"></i>@item.MunicipalityName —
+    @if (string.IsNullOrWhiteSpace(item.BarangayName))
+    {
+        <span class="tbl-badge unpaid"><i class="bi bi-exclamation-triangle-fill me-1"></i>Barangay Needs Fixing</span>
+    }
+    else
+    {
+        @item.BarangayName
+    }
+</div>
 
                                 <div class="beneficiary-card-badges">
                                     <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">Age @item.Age</span>
@@ -1910,6 +1999,51 @@ protected override void OnInitialized()
     };
     State.OnChange += _stateChangeHandler;
 }
+
+// ── Caution: location hierarchy issues (Region/Province/Municipality/Barangay) ──
+private List<string> GetLocationCautions(BeneficiaryListItemDto item)
+{
+    var issues = new List<string>();
+
+    if (string.IsNullOrWhiteSpace(item.MunicipalityName))
+        issues.Add("Municipality code needs correction");
+
+    if (string.IsNullOrWhiteSpace(item.BarangayName))
+        issues.Add("Barangay code needs correction");
+
+    // Add Province/Region checks here too, if/when those name fields
+    // become available on BeneficiaryListItemDto — same null-check pattern.
+
+    return issues;
+}
+
+// ── Warning: everything else ─────────────────────────────────────────────
+private List<string> GetOtherWarnings(BeneficiaryListItemDto item)
+{
+    var issues = new List<string>();
+
+    if (item.Quarter.HasValue && !string.IsNullOrWhiteSpace(item.Batch)
+        && item.RefYear.HasValue && string.IsNullOrWhiteSpace(item.RefCode))
+        issues.Add("Reference number not generated — use bulk assign");
+
+    if (item.PaymentStatus == 2 && (item.PaymentDate == null || item.ModeOfPayment == 0))
+        issues.Add("Paid status missing payment date or mode of payment");
+
+    if (item.CoStatus == 1 && item.CoDateEndorsed == null)
+        issues.Add("CO Status is Endorsed but missing CO Date Endorsed");
+    if (item.CoStatus == 2 && item.CoDateApproved == null)
+        issues.Add("CO Status is Approved but missing CO Date Approved");
+
+    return issues;
+}
+
+private int LocationCautionCount =>
+    FilteredBeneficiaries.Count(item => GetLocationCautions(item).Any());
+
+private int OtherWarningCount =>
+    FilteredBeneficiaries.Count(item => GetOtherWarnings(item).Any());
+
+
     private async Task OnGenerateCoeClicked()
     {
         if (!checkedIds.Any())

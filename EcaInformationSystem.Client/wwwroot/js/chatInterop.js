@@ -142,5 +142,35 @@
                 notification.close();
             };
         }
+    },
+    _reactionPickerOutsideHandler: null,
+
+    registerReactionPickerOutsideClick: function (dotNetRef) {
+        this.unregisterReactionPickerOutsideClick();
+
+        this._reactionPickerOutsideHandler = function (event) {
+            const path = event.composedPath ? event.composedPath() : [];
+            const clickedInsidePicker = path.some(el =>
+                el.classList && el.classList.contains('chat-reaction-picker-floating'));
+            const clickedEmojiButton = path.some(el =>
+                el.classList && el.classList.contains('chat-emoji-corner-btn'));
+
+            // Close unless the click was on the picker itself OR the button
+            // that toggles it (the button already has its own toggle logic).
+            if (!clickedInsidePicker && !clickedEmojiButton) {
+                dotNetRef.invokeMethodAsync('OnReactionPickerOutsideClick');
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', this._reactionPickerOutsideHandler);
+        }, 0);
+    },
+
+    unregisterReactionPickerOutsideClick: function () {
+        if (this._reactionPickerOutsideHandler) {
+            document.removeEventListener('click', this._reactionPickerOutsideHandler);
+            this._reactionPickerOutsideHandler = null;
+        }
     }
 };

@@ -1,4 +1,5 @@
 ﻿using ClosedXML;
+using DocumentFormat.OpenXml.Wordprocessing;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
@@ -66,8 +67,11 @@ namespace EcaInformationSystem.Application.Services
                 nameLookup[id] = u?.FullName ?? "Unknown";
             }
 
-            return await MapToDtoWithReplyAsync(message, sender?.FullName ?? "Unknown",
-                currentUserid, currentUserRole, nameLookup, reactions);
+            var room = await _repo.GetRoomByIdAsync(dto.RoomId);
+            var isDirectRoom = room?.Type == ChatRoomType.Direct;
+
+            return await MapToDtoWithReplyAsync(message, sender?.FullName ?? "Unknown", currentUserid,
+                currentUserRole, nameLookup, reactions, isDirectRoom);
 
         }
         public async Task ClearConversationForUserAsync(Guid currentUserId, Guid roomId)
@@ -412,16 +416,19 @@ namespace EcaInformationSystem.Application.Services
                 var mentionedUser = await _repo.GetUserByIdAsync(userId);
                 mentionNameLookup[userId] = mentionedUser?.FullName ?? "Unknown";
             }
+            var room = await _repo.GetRoomByIdAsync(dto.RoomId);
+            var isDirectRoom = room?.Type == ChatRoomType.Direct;
 
             // In SendMessageAsync — new message has no reactions yet, so pass an empty list
-            return await MapToDtoWithReplyAsync(savedMessage, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup, new List<ChatMessageReaction>());
+            return await MapToDtoWithReplyAsync(savedMessage, sender?.FullName ?? "Unknown", currentUserId, currentUserRole, mentionNameLookup, new List<ChatMessageReaction>(), isDirectRoom);
         }
 
-        private async Task<ChatMessageDto> MapToDtoWithReplyAsync(ChatMessage m, string senderName,
-            Guid currentUserId, string currentUserRole, Dictionary<Guid, string>? mentionNameLookup,
-            List<ChatMessageReaction> reactions)
+        private async Task<ChatMessageDto> MapToDtoWithReplyAsync(
+               ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
+               Dictionary<Guid, string>? mentionNameLookup, List<ChatMessageReaction> reactions,
+               bool isDirectRoom = false) // ✅ NEW
         {
-            var dto = MapToDto(m, senderName, currentUserId, currentUserRole, mentionNameLookup, reactions);
+            var dto = MapToDto(m, senderName, currentUserId, currentUserRole, mentionNameLookup, reactions, isDirectRoom: isDirectRoom);
 
             if (m.ReplyToMessageId.HasValue)
             {
@@ -500,7 +507,8 @@ namespace EcaInformationSystem.Application.Services
             var nameLookup = new Dictionary<Guid, string>();
             var replyTargetIds = messages.Where(m => m.ReplyToMessageId.HasValue).Select(m => m.ReplyToMessageId!.Value).Distinct().ToList();
             var replyTargets = new Dictionary<Guid, ChatMessage>();
-           
+            var room = await _repo.GetRoomByIdAsync(request.RoomId);
+            var isDirectRoom = room?.Type == ChatRoomType.Direct;
 
             foreach (var id in replyTargetIds)
             {
@@ -517,7 +525,14 @@ namespace EcaInformationSystem.Application.Services
                  .OrderBy(m => m.SentAt)
                  .Select(m =>
                  {
-                     var dto = MapToDto(m, nameLookup.GetValueOrDefault(m.SenderId, "Unknown"), currentUserId, currentUserRole, nameLookup, reactionsLookup.GetValueOrDefault(m.Id, new()));
+                     var dto = MapToDto(
+                             m,
+                             nameLookup.GetValueOrDefault(m.SenderId, "Unknown"),
+                             currentUserId,
+                             currentUserRole,
+                             nameLookup,
+                             reactionsLookup.GetValueOrDefault(m.Id, new()),
+                             isDirectRoom: isDirectRoom); // ✅ FIXED — named argument, correctly targets the 8th parameter instead of the 7th
                      if (m.ReplyToMessageId.HasValue && replyTargets.TryGetValue(m.ReplyToMessageId.Value, out var original))
                      {
                          dto.ReplyPreview = new ChatReplyPreviewDto
@@ -714,13 +729,15 @@ namespace EcaInformationSystem.Application.Services
         private static readonly Regex MentionPattern = new(@"@(\w+)", RegexOptions.Compiled);
 
         private ChatMessageDto MapToDto(
-    ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
-    Dictionary<Guid, string>? mentionNameLookup = null,
-    List<ChatMessageReaction>? reactions = null,
-    bool forceReadOnly = false)
+            ChatMessage m, string senderName, Guid currentUserId, string currentUserRole,
+            Dictionary<Guid, string>? mentionNameLookup = null,
+            List<ChatMessageReaction>? reactions = null,
+            bool forceReadOnly = false,
+            bool isDirectRoom = false)
         {
             var canDelete = !forceReadOnly &&
-                (m.SenderId == currentUserId || currentUserRole == SuperAdminRole);
+                (m.SenderId == currentUserId ||
+                 (currentUserRole == SuperAdminRole && !isDirectRoom)); // ✅ CHANGED — SuperAdmin override no longer applies inside Direct (1:1) rooms
 
             return new ChatMessageDto
             {

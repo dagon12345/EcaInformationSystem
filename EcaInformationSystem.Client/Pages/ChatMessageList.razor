@@ -33,8 +33,7 @@
         }
         lastDate = messageDate;
 
-        <div id="msg-@message.Id" class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "") @(message.Id == ChatState.PendingScrollToMessageId ? "chat-message-highlighted" : "")"
-             @onclick="() => ToggleReactionPicker(message.Id)">
+        <div id="msg-@message.Id" class="chat-message-bubble @(message.SenderId == CurrentUserId ? "own" : "") @(message.Id == ChatState.PendingScrollToMessageId ? "chat-message-highlighted" : "")">
 
             @if (message.ReplyPreview != null)
             {
@@ -55,7 +54,7 @@
             }
             else if (_editingMessageId == message.Id)
             {
-                @* ✅ Inline edit mode *@
+                @* ✅ Edit mode — replaces content, this is intentional (you ARE changing the text) *@
                 <div class="chat-edit-box" @onclick:stopPropagation="true">
                     <textarea class="form-control form-control-sm chat-edit-input" rows="2"
                               @bind="_editDraftText" @onkeydown="e => OnEditKeyDown(e, message)"></textarea>
@@ -65,6 +64,7 @@
                     </div>
                 </div>
             }
+            @* ✅ Normal content — ALWAYS shown when not editing, regardless of delete-confirm state *@
             else
             {
                 @if (message.Attachments.Any())
@@ -96,6 +96,32 @@
                     <div class="chat-message-content">@RenderContentWithMentions(message)</div>
                 }
             }
+            @* ✅ MOVED — delete confirm now renders BELOW the content, as its own separate block,
+   not replacing anything. Only shows when NOT currently editing (can't delete while editing anyway). *@
+            @if (_confirmingDeleteMessageId == message.Id && _editingMessageId != message.Id)
+            {
+                <div class="chat-inline-confirm" @onclick:stopPropagation="true">
+                    <div class="chat-inline-confirm-text">
+                        <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                        Delete this message?
+                    </div>
+                    <div class="chat-inline-confirm-actions">
+                        <button class="chat-inline-confirm-btn chat-inline-confirm-cancel" @onclick="CancelDeleteMessage" disabled="@_isDeletingMessage">
+                            Cancel
+                        </button>
+                        <button class="chat-inline-confirm-btn chat-inline-confirm-delete" @onclick="() => ConfirmDeleteMessage(message.Id)" disabled="@_isDeletingMessage">
+                            @if (_isDeletingMessage)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <span>Delete</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            }
             <div class="chat-message-meta">
                 <small class="text-muted">
                     @message.SentAt.ToLocalTime().ToString("h:mm tt")
@@ -104,22 +130,44 @@
                         <span class="chat-edited-tag" title="@(message.EditedAt?.ToLocalTime().ToString("MMM dd, yyyy h:mm tt"))">(edited)</span>
                     }
                 </small>
-                <button class="chat-reply-btn" title="Reply" @onclick="() => ReplyTo(message)" @onclick:stopPropagation="true">
-                    <i class="bi bi-reply-fill"></i>
-                </button>
-                @if (message.SenderId == CurrentUserId && !message.IsDeleted)
-                {
-                    <button class="chat-reply-btn" title="Edit" @onclick="() => StartEditing(message)" @onclick:stopPropagation="true">
-                        <i class="bi bi-pencil-fill"></i>
+
+                <div class="chat-message-actions">
+                    <button class="chat-action-btn" title="Reply" @onclick="() => ReplyTo(message)" @onclick:stopPropagation="true">
+                        <i class="bi bi-reply-fill"></i>
                     </button>
-                }
-                @if (message.CanDelete && !message.IsDeleted)
-                {
-                    <button class="chat-delete-btn" title="Delete message" @onclick="() => DeleteAsync(message.Id)" @onclick:stopPropagation="true">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                }
+                    @if (message.SenderId == CurrentUserId && !message.IsDeleted)
+                    {
+                        <button class="chat-action-btn" title="Edit" @onclick="() => StartEditing(message)" @onclick:stopPropagation="true">
+                            <i class="bi bi-pencil-fill"></i>
+                        </button>
+                    }
+                    @if (message.CanDelete && !message.IsDeleted)
+                    {
+                        <button class="chat-action-btn chat-action-delete" title="Delete message" @onclick="() => RequestDeleteMessage(message.Id)" @onclick:stopPropagation="true">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    }
+                </div>
             </div>
+
+            @* ✅ NEW — floating emoji button, anchored to the bottom-left CORNER of the bubble itself *@
+            @if (!message.IsDeleted)
+            {
+                <button class="chat-emoji-corner-btn" title="React" @onclick="() => ToggleReactionPicker(message.Id)" @onclick:stopPropagation="true">
+                    <i class="bi bi-emoji-smile"></i>
+                </button>
+
+                @if (_activeReactionPickerId == message.Id)
+                {
+                    <div class="chat-reaction-picker-floating" @onclick:stopPropagation="true">
+                        <span @onclick="() => AddReaction(message, ReactionLike)" title="Like">👍</span>
+                        <span @onclick="() => AddReaction(message, ReactionHeart)" title="Heart">❤️</span>
+                        <span @onclick="() => AddReaction(message, ReactionHaha)" title="Haha">😂</span>
+                        <span @onclick="() => AddReaction(message, ReactionClap)" title="Clap">👏</span>
+                        <span @onclick="() => AddReaction(message, ReactionWow)" title="Wow">😮</span>
+                    </div>
+                }
+            }
             @* ✅ NEW — seen indicator, only for MY latest message *@
             @if (message.Id == _myLastMessageId && _seenInfo != null)
             {
@@ -172,17 +220,6 @@
                             </div>
                         </div>
                     }
-                </div>
-            }
-
-            @if (!message.IsDeleted && _activeReactionPickerId == message.Id)
-            {
-                <div class="chat-reaction-picker-inline" @onclick:stopPropagation="true">
-                    <span @onclick="() => AddReaction(message, ReactionLike)" title="Like">👍</span>
-                    <span @onclick="() => AddReaction(message, ReactionHeart)" title="Heart">❤️</span>
-                    <span @onclick="() => AddReaction(message, ReactionHaha)" title="Haha">😂</span>
-                    <span @onclick="() => AddReaction(message, ReactionClap)" title="Clap">👏</span>
-                    <span @onclick="() => AddReaction(message, ReactionWow)" title="Wow">😮</span>
                 </div>
             }
         </div>
@@ -254,6 +291,9 @@
 </div>
 
 @code {
+    private Guid _pendingDeleteMessageId;
+    private Guid? _confirmingDeleteMessageId;
+    private bool _isDeletingMessage;
     private Guid? _editingMessageId;
     private string _editDraftText = string.Empty;
     private List<ChatAttachmentDto> _modalAttachmentList = new();
@@ -283,6 +323,7 @@
     private Guid? _myLastMessageId;
     private ChatSeenInfoDto? _seenInfo;
     private bool _showFullSeenList;
+    private DotNetObjectReference<ChatMessageList>? _pickerDotNetRef;
 
 
     protected override void OnInitialized()
@@ -290,11 +331,39 @@
         ChatState.OnChange += HandleStateChanged; // ✅ NEW
         ChatState.SeenStatusChangedForRoom += HandleSeenStatusChangedForRoom; // ✅ NEW
     }
+    private void RequestDeleteMessage(Guid messageId)
+    {
+        _confirmingDeleteMessageId = messageId;
+        _editingMessageId = null;
+    }
+
+    private void CancelDeleteMessage()
+    {
+        _confirmingDeleteMessageId = null;
+    }
+
+    private async Task ConfirmDeleteMessage(Guid messageId)
+    {
+        try
+        {
+            _isDeletingMessage = true;
+            StateHasChanged();
+
+            await ChatState.DeleteMessageAsync(messageId);
+        }
+        finally
+        {
+            _confirmingDeleteMessageId = null;
+            _isDeletingMessage = false;
+            StateHasChanged();
+        }
+    }
     private void StartEditing(ChatMessageDto message)
     {
         _editingMessageId = message.Id;
         _editDraftText = message.Content ?? string.Empty;
         _activeReactionPickerId = null; //Close the reaction pciker if it happened to be open.
+        _confirmingDeleteMessageId = null;
     }
     private void CancelEditing()
     {
@@ -363,17 +432,41 @@
     {
         _reactorsPopupVisible = false;
     }
-    private void ToggleReactionPicker(Guid messageId)
+    private async void ToggleReactionPicker(Guid messageId)
     {
-        _activeReactionPickerId = _activeReactionPickerId == messageId ? null : messageId;
+        var wasOpenForThisMessage = _activeReactionPickerId == messageId;
+        _activeReactionPickerId = wasOpenForThisMessage ? null : messageId;
+        StateHasChanged();
+
+        if (_activeReactionPickerId != null)
+        {
+            _pickerDotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("chatInterop.registerReactionPickerOutsideClick", _pickerDotNetRef);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("chatInterop.unregisterReactionPickerOutsideClick");
+        }
     }
+    [JSInvokable]
+    public void OnReactionPickerOutsideClick()
+    {
+        if (_activeReactionPickerId != null)
+        {
+            _activeReactionPickerId = null;
+            InvokeAsync(StateHasChanged);
+            _ = JS.InvokeVoidAsync("chatInterop.unregisterReactionPickerOutsideClick");
+        }
+    }
+
     private async Task AddReaction(ChatMessageDto message, string type)
     {
         var myExisting = message.Reactions.FirstOrDefault(r => r.ReactorUserIds.Contains(CurrentUserId));
         var newType = myExisting?.Type == type ? null : type;
 
         await ChatState.SetReactionAsync(message.Id, message.RoomId, newType);
-        _activeReactionPickerId = null; // ✅ auto-close after picking, on both desktop and mobile
+        _activeReactionPickerId = null;
+        await JS.InvokeVoidAsync("chatInterop.unregisterReactionPickerOutsideClick"); // ✅ NEW
     }
     private async Task ViewFullAttachment(List<ChatAttachmentDto> allAttachments, Guid startAttachmentId)
     {
@@ -530,9 +623,6 @@
         await Task.Delay(50);
         await JS.InvokeVoidAsync("chatInterop.preserveScrollAfterPrepend", _containerId, previousHeight);
     }
-
-    private void DeleteAsync(Guid messageId) => _ = ChatState.DeleteMessageAsync(messageId);
-
     private static readonly System.Text.RegularExpressions.Regex UrlPattern = new(
     @"(https?://[^\s<]+|www\.[^\s<]+)",
     System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -561,8 +651,10 @@
     public async ValueTask DisposeAsync()
     {
         ChatState.OnChange -= HandleStateChanged;
-        ChatState.SeenStatusChangedForRoom -= HandleSeenStatusChangedForRoom; // ✅ NEW
+        ChatState.SeenStatusChangedForRoom -= HandleSeenStatusChangedForRoom;
         _dotNetRef?.Dispose();
+        _pickerDotNetRef?.Dispose();
+        await JS.InvokeVoidAsync("chatInterop.unregisterReactionPickerOutsideClick");
     }
     private static string FormatDateSeparator(DateTime date)
     {

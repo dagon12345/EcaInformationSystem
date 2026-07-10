@@ -2193,6 +2193,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeBarangay.HasValue)
                 query = query.Where(b => b.Barangay == filter.PsgcCodeBarangay.Value);
 
+            // ── Barangay data-quality filter ──────────────────────────────────────
+            if (filter.BarangayNeedsFixing == true)
+            {
+                query = query.Where(b => !_context.Barangays
+                    .Any(br => br.PsgcCodeBarangay == b.Barangay));
+            }
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(b => b.Sex == filter.Sex.Value);
             // ── Payment Status (multi-select) ────────────────────────────────────

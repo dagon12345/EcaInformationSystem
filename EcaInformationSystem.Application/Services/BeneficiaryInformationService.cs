@@ -3818,7 +3818,7 @@ namespace EcaInformationSystem.Application.Services
                     : CommonConstants.Null,
 
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,  // ✅ this one IS still single-select, per your design — int?.ToString() is fine here
-
+                filter.BarangayNeedsFixing?.ToString() ?? CommonConstants.Null,   // ✅ ADD THIS LINE
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,
@@ -4007,6 +4007,7 @@ namespace EcaInformationSystem.Application.Services
                 (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : CommonConstants.Null),
                 (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : CommonConstants.Null),
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,   // ✅ FIX: singular, matches actual query field
+                filter.BarangayNeedsFixing?.ToString() ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,                              // ✅ ADDED

@@ -89,6 +89,15 @@
                                 </span>
                             }
                         </div>
+                        @* ✅ NEW — Barangay data-quality filter *@
+                        <div class="sf-field">
+                            <label>Data Quality</label>
+                            <select value="@_barangayIssueValue" @onchange="OnBarangayIssueChanged"
+                                    disabled="@(IsLoading || State.SelectedBarangayId > 0)">
+                                <option value="">All Records</option>
+                                <option value="needsfixing">Needs Fixing — Barangay Unresolved</option>
+                            </select>
+                        </div>
 
                     </div>
                 </div>
@@ -491,6 +500,7 @@
 </div>
 
 @code {
+    private int _municipalityLoadSequence = 0;
     private record PayrollQuarterOption(int Value, string Label);
     private record PaymentStatusOption(int Value, string Label);
     // ── Birthday state ────────────────────────────────────────────────
@@ -500,6 +510,7 @@
     private int _birthdayFromDay = 0;
     private int _birthdayToMonth = 0;
     private int _birthdayToDay = 0;
+    private string _barangayIssueValue = string.Empty;
     private record MonthItem(int Value, string Label);
     private readonly List<MonthItem> _months = new()
     {
@@ -525,6 +536,13 @@
     };
     private string _refQuarterValue = string.Empty;
     private string _coStatusValue = "-1";
+
+    private void OnBarangayIssueChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _barangayIssueValue = val ?? string.Empty;
+        State.Filter.BarangayNeedsFixing = val == "needsfixing" ? true : null;
+    }
     private void OnCoStatusFilterChanged(ChangeEventArgs e)
     {
         var val = e.Value?.ToString();
@@ -684,21 +702,16 @@
     {
         State.SelectedProvinceIds = selectedIds;
         State.SelectedMunicipalityIds = new();
-        State.SelectedBarangayId = 0; // ✅ ADD — barangay depends on municipality, must reset too
+        State.SelectedBarangayId = 0;
         State.FilterMunicipalities = new();
-        State.FilterBarangays = new(); // ✅ ADD — clear barangay options when province changes
+        State.FilterBarangays = new();
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
 
-        // ✅ Cascade: load municipalities for the UNION of all selected
-        // provinces. If selectedIds is empty (= "all provinces"), load
-        // municipalities for every province currently loaded under the
-        // selected region instead.
-        var provinceIdsToLoad = selectedIds.Any()
-            ? selectedIds
-            : State.FilterProvinces.Select(p => p.PsgcCodeProvince).ToList();
-
-        await LoadMunicipalitiesForProvincesAsync(provinceIdsToLoad);
+        // ✅ No fallback — if nothing is selected, there's nothing to cascade.
+        // The Municipality dropdown is disabled in this state anyway.
+        if (selectedIds.Any())
+            await LoadMunicipalitiesForProvincesAsync(selectedIds);
     }
     private async Task OnMunicipalityMultiSelectChanged(List<int> newSelectedIds)
     {
@@ -896,6 +909,9 @@
 
             State.Filter.PageNumber = 1;
             State.Filter.PageSize = 10;
+            State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
+            // ✅ NEW
+            // (BarangayNeedsFixing is already set live by OnBarangayIssueChanged, nothing more needed here)
 
             if (IsFilterEmpty(State.Filter))
             {
@@ -920,34 +936,33 @@
     private async Task ClearFilterAsync()
     {
         State.SelectedRegionId = 0;
-        State.SelectedProvinceIds = new(); // ✅ ADD
-        State.SelectedMunicipalityIds = new(); // ✅ ADD
+        State.SelectedProvinceIds = new();
+        State.SelectedMunicipalityIds = new(); 
         State.SelectedBarangayId = 0;
-        State.SelectedPaymentStatuses = new(); // ✅ ADD
-        State.SelectedPayrollQuarters = new(); // ✅ new
+        State.SelectedPaymentStatuses = new(); 
+        State.SelectedPayrollQuarters = new(); 
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
         municipalitySelectKey++;
         barangaySelectKey++;
 
-        // ── Reset birthday selectors ──────────────────────────────────
         _specificBirthdayMonth = 0;
         _specificBirthdayDay = 0;
         _birthdayFromMonth = 0;
         _birthdayFromDay = 0;
         _birthdayToMonth = 0;
         _birthdayToDay = 0;
-        //reset compliance selector
         _coStatusValue = "-1";
+        _barangayIssueValue = string.Empty;
         State.Filter.CoStatus = null;
         _complianceValue = string.Empty;
         State.Filter.IsCompliant = null;
-        State.Filter.ComplianceMode = null; // ✅ add this
+        State.Filter.ComplianceMode = null; 
         State.Filter.IsEligible = null;
         State.Filter.EligibilityMode = null;
-        _eligibilityValue = string.Empty; // ✅ add this
-        State.Filter.GeneralSearch = null; // ✅ add this
+        _eligibilityValue = string.Empty; 
+        State.Filter.GeneralSearch = null; 
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
         State.Filter.FilterBatch = null;
@@ -955,6 +970,7 @@
         State.Filter.FilterRegionRoman = null;
         _modeOfPaymentValue = string.Empty;
         State.Filter.FilterModeOfPayment = null;
+        State.Filter.BarangayNeedsFixing = null;
         // Inside ClearAllFilters — add alongside the other clears
         State.Filter.DateAddedFrom = null;
         State.Filter.DateAddedTo = null;
@@ -997,7 +1013,8 @@
     !State.SelectedProvinceIds.Any() &&
     !State.SelectedMunicipalityIds.Any() &&
     !State.SelectedPaymentStatuses.Any() &&
-    !State.SelectedPayrollQuarters.Any() && // ✅ new
+    !State.SelectedPayrollQuarters.Any() &&
+    State.Filter.BarangayNeedsFixing == null &&
     f.PsgcCodeBarangay == null &&
     f.Sex == null &&
     f.IsCompliant == null &&
@@ -1024,6 +1041,8 @@
 
     private async Task LoadMunicipalitiesForProvincesAsync(List<int> provinceIds)
     {
+        var mySequence = ++_municipalityLoadSequence; // ✅ snapshot this call's turn
+
         try
         {
             IsFilterMunicipalityLoading = true;
@@ -1044,12 +1063,23 @@
                 combined.AddRange(result);
             }
 
+            // ✅ If a newer call has started since this one began, discard this
+            // result — it's stale, and applying it would silently reintroduce
+            // whatever province selection triggered the newer call.
+            if (mySequence != _municipalityLoadSequence)
+                return;
+
             State.FilterMunicipalities = combined
                 .DistinctBy(m => m.PsgcCodeMunicipality)
                 .OrderBy(m => m.Name)
                 .ToList();
         }
-        finally { IsFilterMunicipalityLoading = false; StateHasChanged(); }
+        finally
+        {
+            if (mySequence == _municipalityLoadSequence)
+                IsFilterMunicipalityLoading = false;
+            StateHasChanged();
+        }
     }
     private string GetQueryString(BeneficiaryFilterDto filter)
     {
