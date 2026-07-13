@@ -20,6 +20,27 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments)
+        {
+            if (assignments == null || !assignments.Any()) return;
+
+            var ids = assignments.Select(a => a.BeneficiaryId).Distinct().ToList();
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(x => ids.Contains(x.Id))
+                .ToListAsync();
+
+            var lookup = assignments.ToDictionary(a => a.BeneficiaryId);
+
+            foreach (var b in beneficiaries)
+            {
+                if (lookup.TryGetValue(b.Id, out var assignment))
+                {
+                    b.CgpPageNumber = assignment.CgpPageNumber;
+                    b.CgpPrefix = assignment.CgpPrefix;
+                }
+            }
+            // SaveChangesAsync is called by the service, after logs are added
+        }
 
         public async Task AddAsync(BeneficiaryInformation beneficiaryInformation)
         {
@@ -1877,7 +1898,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoDateApproved = x.Beneficiary.CoDateApproved,
                     RowVersion = x.Beneficiary.RowVersion,
                     HasDocuments = _context.BeneficiaryDocuments
-                    .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted)
+                    .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted),
+                    CgpPageNumber = x.Beneficiary.CgpPageNumber,
+                    CgpPrefix = x.Beneficiary.CgpPrefix
                 });
         }
 
@@ -1943,7 +1966,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             CoDateEndorsed = x.CoDateEndorsed,
             CoDateApproved = x.CoDateApproved,
             RowVersion = x.RowVersion,
-            HasDocuments = x.HasDocuments
+            HasDocuments = x.HasDocuments,
+            CgpPageNumber = x.CgpPageNumber,
+            CgpPrefix = x.CgpPrefix
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -2674,6 +2699,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public DateTime? CoDateApproved { get; set; }
             public byte[]? RowVersion { get; set; }
             public bool HasDocuments { get; set; }
+            public int? CgpPageNumber { get; set; }
+            public string? CgpPrefix { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

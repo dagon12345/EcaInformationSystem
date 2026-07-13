@@ -21,12 +21,12 @@
         public string NatureOfPayment { get; set; } = string.Empty;
         public decimal InitialCashAdvance { get; set; } = 14_000_000m;
 
-        // CGP settings
-        // CGP format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter:D4}
-        // Example:    CGP No.: RegionXIII-202403-01-26-0002
-        public string RegionCode { get; set; } = "RegionXIII";
-        public string FixedSegment { get; set; } = "01";
-        public string ShortenYear { get; set; } = "26";
+        // ✅ REMOVED — RegionCode, FixedSegment, ShortenYear
+        // CGP numbers are no longer computed here. Each CDR row's CGP number
+        // is read directly from the CgpPrefix/CgpPageNumber already assigned
+        // to those beneficiaries at Payroll generation time (see
+        // BuildCdrRowsAsync), so these settings had no effect and have been
+        // deleted to avoid implying they're configurable.
 
         // Certification block (final sheet)
         public string CertificationPeriodFrom { get; set; } = string.Empty; // e.g. March 17, 2026

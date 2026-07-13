@@ -50,6 +50,8 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime? CoDateApproved { get; set; }
         public bool IsDeleted { get; set; }
         public BeneficiaryFinding? Finding { get; set; }
+        public int? CgpPageNumber { get; set; }   // raw page number, e.g. 119 — enables min/max range math
+        public string? CgpPrefix { get; set; }    // e.g. "RegionXIII-2024-11-01-26" — everything before the number
         [Timestamp]
         public byte[] RowVersion { get; set; } = default!;
         public void Update(int? quarter, string? batch, int? refYear, string? refCode, DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,

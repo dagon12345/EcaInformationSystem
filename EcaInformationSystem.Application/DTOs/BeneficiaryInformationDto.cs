@@ -61,5 +61,7 @@ namespace EcaInformationSystem.Application.DTOs
         public string? Remarks { get; set; }
         public DateTime DateAdded { get; set; }
         public bool IsDeleted { get; set; }
+        public int? CgpPageNumber { get; set; }
+        public string? CgpPrefix { get; set; }
     }
 }

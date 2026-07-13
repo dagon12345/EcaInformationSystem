@@ -900,17 +900,15 @@ namespace EcaInformationSystem.Application.Services
                 throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
 
             var allData = (await _repo.GetByIdsAsync(settings.Ids))
-                    .DistinctBy(x => x.Id)   // ✅ keep here, remove from repository
+                    .DistinctBy(x => x.Id)
                     .ToList();
-
 
             if (!allData.Any())
                 throw new InvalidOperationException(CommonConstants.NoneOfTheRecordsFound);
 
-            // Both counters are global across the entire ZIP —
-            // they never reset between provinces or municipalities.
             int continousNo = 1;
             int cgpPageNumber = 1;
+            var cgpAssignments = new List<CgpAssignmentDto>(); // ✅ NEW — collects every assignment across the whole ZIP
 
             byte[] finalizedResult;
 
@@ -950,7 +948,8 @@ namespace EcaInformationSystem.Application.Services
                                     records,
                                     settings,
                                     ref continousNo,
-                                    ref cgpPageNumber);
+                                    ref cgpPageNumber,
+                                    cgpAssignments); // ✅ NEW
                             }
 
                             string safeProvince = SanitizeSheetName(province);
@@ -967,15 +966,33 @@ namespace EcaInformationSystem.Application.Services
                 finalizedResult = zipStream.ToArray();
             }
 
+            // ✅ NEW — persist exactly what got written into the Excel, and log it.
+            // The most recent generation always wins, overwriting any prior CGP
+            // assignment for these beneficiaries — matches your confirmed rule.
+            if (cgpAssignments.Any())
+            {
+                await _repo.BulkSetCgpAssignmentsAsync(cgpAssignments);
+
+                foreach (var a in cgpAssignments)
+                {
+                    await AddLogAsync(
+                        a.BeneficiaryId,
+                        $"CGP Number assigned: {CommonConstants.CgpNo} {a.CgpPrefix}-{a.CgpPageNumber.ToPaddedPage()}",
+                        "System (Payroll Generation)");
+                }
+
+                await _repo.SaveChangesAsync();
+            }
+
             return finalizedResult;
         }
-
         private static void BuildPayrollSheet(
-            IXLWorksheet ws,
-            List<BeneficiaryInformationDto> records,
-            PayrollSettingsDto s,
-            ref int continousNo,
-            ref int cgpPageNumber)
+             IXLWorksheet ws,
+             List<BeneficiaryInformationDto> records,
+             PayrollSettingsDto s,
+             ref int continousNo,
+             ref int cgpPageNumber,
+             List<CgpAssignmentDto> cgpAssignments)
         {
             const int COLS = 18;
             const int FONT_SIZE = 14;
@@ -1009,7 +1026,7 @@ namespace EcaInformationSystem.Application.Services
             var municipality = first?.MunicipalityName ?? "";
             var province = first?.ProvinceName ?? "";
             var milestoneYear = first?.MilestoneYear ?? 0;
-
+            string cgpPrefix = $"{s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}"; // ✅ NEW
             // =========================================================================
             // BUILD PAGE PLAN UPFRONT
             // =========================================================================
@@ -1133,7 +1150,7 @@ namespace EcaInformationSystem.Application.Services
             ws.Cell(10, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
             ws.Cell(10, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             ws.Cell(10, 3).Style.Alignment.WrapText = true;
-
+            int page1CgpNumber = cgpPageNumber;  // ✅ capture before increment
             CgpCell(10, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
             cgpPageNumber++;
 
@@ -1172,6 +1189,7 @@ namespace EcaInformationSystem.Application.Services
             // =========================================================================
             int currentRow = 15;
             int processed = 0;
+            int thisPageCgpNumber;
 
             for (int pageIndex = 0; pageIndex < pagePlan.Count; pageIndex++)
             {
@@ -1183,10 +1201,15 @@ namespace EcaInformationSystem.Application.Services
                 {
                     ws.PageSetup.AddHorizontalPageBreak(currentRow - 1);
 
+                    thisPageCgpNumber = cgpPageNumber;   // ✅ capture before increment
                     CgpCell(currentRow, $"{CommonConstants.CgpNo} {s.RegionCode}-{milestoneYear}{s.Month}-{s.FixedSegment}-{s.ShortenYear}-{cgpPageNumber.ToPaddedPage()}");
                     cgpPageNumber++;
                     ws.Row(currentRow).Height = CGP_ROW_HEIGHT;
                     currentRow++;
+                }
+                else
+                {
+                    thisPageCgpNumber = page1CgpNumber;
                 }
 
                 // ✅ Same row height on every page — page 1's smaller data
@@ -1196,6 +1219,13 @@ namespace EcaInformationSystem.Application.Services
                 {
                     int dr = currentRow;
                     decimal cashGiftAmount = PayrollSettingsDto.CalculateCashGiftAmount(rec.Age);
+
+                    cgpAssignments.Add(new CgpAssignmentDto
+                    {
+                        BeneficiaryId = rec.Id,
+                        CgpPageNumber = thisPageCgpNumber,
+                        CgpPrefix = cgpPrefix
+                    });
 
                     ws.Row(dr).Height = dataRowHeight;
 
@@ -2794,21 +2824,38 @@ namespace EcaInformationSystem.Application.Services
                 var records = group.OrderBy(x => x.LastName).ThenBy(x => x.FirstName).ToList();
                 var first = records.First();
 
-                // Payee: LASTNAME, FIRSTNAME MIDDLENAME ET AL.
                 var firstFullName = $"{first.LastName}, {first.FirstName} {first.MiddleName}".Trim().TrimEnd(',');
                 var payee = records.Count > 1
                     ? $"{firstFullName} {CommonConstants.ETAL}"
                     : firstFullName;
 
-                // Total disbursement: age 100 = ₱100,000; others = ₱10,000
                 var disbursement = records.Sum(x => x.Age >= 100 ? 100_000m : 10_000m);
 
-                // CGP format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter:D4}
-                // Example:    CGP No.: RegionXIII-202403-01-26-0002
-                var paymentMonth = group.Key.Date.Month.ToPaddedDay();
-                var cgpNumber = $"{CommonConstants.CgpNo} {settings.RegionCode}-{group.Key.MilestoneYear}{paymentMonth}-{settings.FixedSegment}-{settings.ShortenYear}-{cgpCounter.ToPaddedPage()}";
+                // ✅ CGP number now comes straight from what Payroll actually assigned to
+                // these exact records — never recomputed, so it always matches Payroll.
+                var assignedPages = records
+                    .Where(r => r.CgpPageNumber.HasValue)
+                    .Select(r => r.CgpPageNumber!.Value)
+                    .ToList();
 
-                // Nature of Payment
+                string cgpNumber;
+                if (!assignedPages.Any())
+                {
+                    // Shouldn't happen in normal flow — Paid records get a CGP number
+                    // the moment Payroll is generated for them.
+                    cgpNumber = $"{CommonConstants.CgpNo} Not yet assigned — run Payroll for this batch first";
+                }
+                else
+                {
+                    var prefix = records.First(r => !string.IsNullOrWhiteSpace(r.CgpPrefix)).CgpPrefix;
+                    var minPage = assignedPages.Min();
+                    var maxPage = assignedPages.Max();
+
+                    cgpNumber = minPage == maxPage
+                        ? $"{CommonConstants.CgpNo} {prefix}-{minPage.ToPaddedPage()}"
+                        : $"{CommonConstants.CgpNo} {prefix}-{minPage.ToPaddedPage()} to {maxPage.ToPaddedPage()}";
+                }
+
                 var locType = group.Key.Municipality.Contains(CommonConstants.City, StringComparison.OrdinalIgnoreCase)
                     ? CommonConstants.CityOf
                     : CommonConstants.MunicipalityOf;
@@ -2830,7 +2877,7 @@ namespace EcaInformationSystem.Application.Services
                     ProvinceName = group.Key.Province
                 });
 
-                cgpCounter++;
+                // ✅ cgpCounter++ removed — no longer exists
             }
 
             // Compute running balance (starts after the DV row = InitialCashAdvance)

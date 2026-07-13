@@ -79,6 +79,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public byte[]? RowVersion { get; set; }
         public bool HasDocuments { get; set; }
 
+        public int? CgpPageNumber { get; set; }
+        public string? CgpPrefix { get; set; }
+
         private string GetJsonString(JsonElement? element)
         {
             if (element == null) return string.Empty;

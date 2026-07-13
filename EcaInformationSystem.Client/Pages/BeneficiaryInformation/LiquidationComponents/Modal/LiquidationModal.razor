@@ -130,31 +130,39 @@
                                @bind="_settings.InitialCashAdvance" />
                     </div>
 
-                    <!-- CGP Settings -->
+                    <!-- ✅ CHANGED — CGP config removed, replaced with an explanatory note.
+                         RegionCode/FixedSegment/ShortenYear no longer feed into anything:
+                         the CGP number for every row is pulled directly from whatever
+                         Payroll already assigned to those exact beneficiaries. Editing
+                         those fields here would have had zero effect on the output, which
+                         was actively misleading, so they've been removed entirely. -->
                     <div class="col-12 mt-1">
-                        <h6 class="fw-bold text-primary border-bottom pb-1">
-                            CGP Number Settings
-                            <small class="fw-normal text-muted ms-2">
-                                Format: CGP No.: {RegionCode}-{MilestoneYear}{Month}-{FixedSegment}-{ShortenYear}-{counter}
-                            </small>
-                        </h6>
+                        <h6 class="fw-bold text-primary border-bottom pb-1">CGP Numbers</h6>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label fw-semibold">Region Code</label>
-                        <input class="form-control form-control-sm" placeholder="RegionXIII"
-                               @bind="_settings.RegionCode" />
+                    <div class="col-12">
+                        <div class="alert alert-info d-flex align-items-start gap-2 mb-0 py-2">
+                            <i class="bi bi-info-circle mt-1"></i>
+                            <div>
+                                CGP numbers are <strong>not configured here</strong>. Each row's CGP number
+                                is pulled directly from whatever number Payroll already assigned to those
+                                exact beneficiaries when their payroll was generated — guaranteeing it always
+                                matches the Payroll sheet for audit purposes.
+                                <br />
+                                <span class="text-muted">
+                                    If a row shows <em>"Not yet assigned"</em> in Preview, generate Payroll for
+                                    that batch first, then return here.
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label fw-semibold">Fixed Segment</label>
-                        <input class="form-control form-control-sm" placeholder="01"
-                               @bind="_settings.FixedSegment" />
+
+                    <!-- CDR Page Layout (renamed from "CGP Number Settings" — this is
+                         purely about the physical CDR document's rows-per-page, unrelated
+                         to CGP numbering) -->
+                    <div class="col-12 mt-2">
+                        <h6 class="fw-bold text-primary border-bottom pb-1">CDR Page Layout</h6>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label fw-semibold">Shorten Year</label>
-                        <input class="form-control form-control-sm" placeholder="26"
-                               @bind="_settings.ShortenYear" />
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label fw-semibold">Rows Per A4 Page</label>
                         <input class="form-control form-control-sm" type="number" min="4" max="15"
                                @bind="_settings.RowsPerPage" />
@@ -208,6 +216,16 @@
                         <span class="badge bg-danger fs-6">
                             Final Balance: ₱@(_previewRows.LastOrDefault()?.RunningBalance.ToString("N2") ?? "0.00")
                         </span>
+                        @{
+                            var missingCgpCount = _previewRows.Count(r => r.CgpNumber.Contains("Not yet assigned"));
+                        }
+                        @if (missingCgpCount > 0)
+                        {
+                            <span class="badge bg-danger fs-6">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                @missingCgpCount row(s) missing CGP — run Payroll first
+                            </span>
+                        }
                     </div>
 
                     <div style="max-height:420px; overflow-y:auto;">
@@ -238,10 +256,18 @@
                                 @for (int i = 0; i < _previewRows.Count; i++)
                                 {
                                     var row = _previewRows[i];
-                                    <tr>
+                                    var missingCgp = row.CgpNumber.Contains("Not yet assigned");
+                                    <tr class="@(missingCgp ? "table-danger" : "")">
                                         <td>@(i + 2)</td>
                                         <td>@row.PaymentDate.ToString("MM/dd/yyyy")</td>
-                                        <td style="white-space:nowrap;">@row.CgpNumber</td>
+                                        <td style="white-space:nowrap;">
+                                            @if (missingCgp)
+                                            {
+                                                <i class="bi bi-exclamation-triangle-fill text-danger me-1"
+                                                   title="This batch hasn't had Payroll generated for it yet"></i>
+                                            }
+                                            @row.CgpNumber
+                                        </td>
                                         <td>@row.Payee</td>
                                         <td>@row.NatureOfPayment</td>
                                         <td class="text-end">@row.Disbursement.ToString("N2")</td>
@@ -305,7 +331,6 @@
 
     public async Task ShowAsync(BeneficiaryFilterDto filter)
     {
-        // ✅ Map filter
         _filter = new LiquidationFilterDto
         {
             PsgcCodeProvince = filter.PsgcCodeProvince,
@@ -313,25 +338,21 @@
             PaymentDateTo = filter.PaymentDateTo,
         };
 
-        // ✅ Read logged-in user claims from JWT
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
         var fullName = user.FindFirst("FullName")?.Value ?? string.Empty;
-        var position = user.FindFirst("Position")?.Value ?? string.Empty; 
+        var position = user.FindFirst("Position")?.Value ?? string.Empty;
 
-        // ✅ Auto-fill settings from user claims
         _settings.AccountableOfficerName = fullName;
         _settings.OfficialDesignation = position;
-        _settings.DvPayee = fullName; // same as officer name
+        _settings.DvPayee = fullName;
 
-        // ✅ Auto-fill DV date fields
         _settings.DvYear = DateTime.Today.Year.ToString();
         _settings.DvMonth = DateTime.Today.Month.ToString("D2");
         _settings.InputDate = DateTime.Today;
         _settings.CertificationDate = DateTime.Today;
 
-        // ✅ Auto-fill Period From/To from the filter dates
         _settings.CertificationPeriodFrom = filter.PaymentDateFrom.HasValue
             ? filter.PaymentDateFrom.Value.ToString("MMMM dd, yyyy")
             : string.Empty;
@@ -381,6 +402,15 @@
 
             _previewRows = await response.Content
                 .ReadFromJsonAsync<List<LiquidationPreviewRowDto>>() ?? new();
+
+            // ✅ Surface missing-CGP rows immediately, not just as a table color —
+            // catch it before the PDO gets deep into settings review.
+            var missingCount = _previewRows.Count(r => r.CgpNumber.Contains("Not yet assigned"));
+            if (missingCount > 0)
+            {
+                toast.ShowError(
+                    $"{missingCount} row(s) don't have a CGP number yet — generate Payroll for those batches first, then reload the Preview.");
+            }
         }
         catch (Exception ex)
         {
