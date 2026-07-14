@@ -47,5 +47,10 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter);
         Task<PagedResultDto<BeneficiaryListItemDto>> SearchSimilarNamesAsync(BeneficiaryFilterDto filter);
+        Task BulkUpdateFiscalYearAsync(
+            List<Guid> ids,
+            int? fiscalYear,
+            string userName,
+            Dictionary<Guid, byte[]>? rowVersions);
     }
 }

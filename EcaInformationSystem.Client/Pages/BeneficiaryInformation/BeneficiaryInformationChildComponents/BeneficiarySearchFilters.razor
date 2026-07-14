@@ -168,7 +168,19 @@
                                                  SelectedIdsChanged="@(ids => { State.SelectedPayrollQuarters = ids; })"
                                                  IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payroll Quarters"
                                                  Disabled="@IsLoading" />
+                            @* ✅ FISCAL YEAR — its own separate sf-field, not nested inside Payroll Quarter *@
+                            <div class="sf-field">
+                                <label>Fiscal Year</label>
+                                <select class="form-select form-select-sm" @bind="State.Filter.FilterFiscalYear">
+                                    <option value="">-- Select --</option>
+                                    @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
+
                         @* MODE OF PAYMENT *@
                         <div class="sf-field">
                             <label>Mode of Payment</label>
@@ -965,6 +977,8 @@
         State.Filter.GeneralSearch = null; 
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
+        // ✅ Add inside ClearFilterAsync alongside the other filter clears
+        State.Filter.FilterFiscalYear = null;
         State.Filter.FilterBatch = null;
         State.Filter.FilterRefYear = null;
         State.Filter.FilterRegionRoman = null;
@@ -1030,6 +1044,8 @@
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&
     f.FilterQuarter == null &&
+    // ✅ Add this line inside IsFilterEmpty alongside the other filter checks
+    State.Filter.FilterFiscalYear == null &&
     string.IsNullOrWhiteSpace(f.FilterBatch) &&
     f.FilterRefYear == null &&
     string.IsNullOrWhiteSpace(f.FilterRegionRoman) &&

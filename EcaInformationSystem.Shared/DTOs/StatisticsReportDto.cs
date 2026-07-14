@@ -21,6 +21,7 @@
         public List<ProvinceStatisticsDto> ProvinceBreakdowns { get; set; } = new();
         public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
         public List<MilestoneYearSummaryDto> MilestoneYearSummary { get; set; } = new();
+        public Dictionary<int, int> FiscalYearBreakdown { get; set; } = new();
     }
     public class PayrollQuarterStatisticsDto
     {

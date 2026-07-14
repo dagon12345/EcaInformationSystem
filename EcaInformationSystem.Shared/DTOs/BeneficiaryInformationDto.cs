@@ -51,6 +51,7 @@ namespace EcaInformationSystem.Shared.DTOs
         [Required(ErrorMessage = "Validation Date is required.")]
         public DateTime ValidationDate { get; set; }
         public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
         public int PaymentStatus { get; set; }
         public int ModeOfPayment { get; set; }
         public DateTime? PaymentDate { get; set; }

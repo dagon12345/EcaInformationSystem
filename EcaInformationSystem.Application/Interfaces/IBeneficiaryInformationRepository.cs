@@ -42,5 +42,9 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments);
         Task<List<Guid>> FindSimilarNameIdsAsync(string term, int maxResults = 50, double minScore = 0.75);
+        Task BulkUpdateFiscalYearAsync(
+                        List<Guid> ids,
+                        int? fiscalYear,
+                        Dictionary<Guid, byte[]>? rowVersions);
     }
 }

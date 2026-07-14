@@ -21,6 +21,30 @@ namespace EcaInformationSystem.Api.Controllers
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
         }
+
+        [HttpPost("bulk-fiscal-year")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> BulkUpdateFiscalYear([FromBody] BulkUpdateFiscalYearRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkUpdateFiscalYearAsync(
+                    request.Ids,
+                    request.FiscalYear,
+                    userName,
+                    request.RowVersions);
+                return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
         [HttpPost("similar-names")]
         public async Task<IActionResult> SearchSimilarNames([FromBody] BeneficiaryFilterDto filter)
         {

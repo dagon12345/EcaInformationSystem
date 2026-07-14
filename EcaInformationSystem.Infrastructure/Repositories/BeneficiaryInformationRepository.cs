@@ -20,6 +20,35 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task BulkUpdateFiscalYearAsync(List<Guid> ids, int? fiscalYear, Dictionary<Guid, byte[]>? rowVersions)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(b => ids.Contains(b.Id) && !b.IsDeleted)
+                .ToListAsync();
+
+            foreach (var b in beneficiaries)
+            {
+                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                {
+                    _context.Entry(b)
+                            .Property(x => x.RowVersion)
+                            .OriginalValue = rv;
+                }
+
+                b.SetFiscalYear(fiscalYear);
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var conflictedNames = GetConflictedRecordNames(ex);
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: {conflictedNames}. Please refresh and try again.", ex);
+            }
+        }
         // Fallback fuzzy name search. Only call this when the normal exact/Contains
         // search already returned zero results and the search term looks name-like
         // (not a batch code, date, or status keyword). Pulls a narrow Id+Name
@@ -138,6 +167,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.PayrollQuarter.HasValue)
                 query = query.Where(b => b.PayrollQuarter == request.PayrollQuarter.Value);
 
+            if (request.FiscalYear.HasValue)
+                query = query.Where(b => b.FiscalYear == request.FiscalYear.Value);
+
             var allData = await query.ToListAsync();
 
             var report = new StatisticsReportDto
@@ -151,7 +183,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 NotApplicableCount = allData.Count(b => b.PaymentStatus == 0),
                 TotalDisbursement = allData
                     .Where(b => b.PaymentStatus == 2)
-                    .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                    .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate))),
+
+                // ✅ FIXED — inside the initializer, using allData (not filtered), b.FiscalYear (entity field)
+                FiscalYearBreakdown = allData
+                    .Where(b => b.FiscalYear.HasValue)
+                    .GroupBy(b => b.FiscalYear!.Value)
+                    .OrderBy(g => g.Key)
+                    .ToDictionary(g => g.Key, g => g.Count())
             };
 
             // Age distribution
@@ -638,6 +677,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Validator = b.Validator,
                     ValidationDate = b.ValidationDate,
                     PayrollQuarter = b.PayrollQuarter,
+                    FiscalYear = b.FiscalYear,
                     PaymentStatus = b.PaymentStatus,
                     ModeOfPayment = b.ModeOfPayment,
                     PaymentDate = b.PaymentDate,
@@ -1224,6 +1264,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.Barangay,
                     x.b.Validator,
                     x.b.PayrollQuarter,
+                    x.b.FiscalYear,
                     x.b.PaymentStatus,
                     x.b.ModeOfPayment,
                     x.b.PaymentDate,
@@ -1274,6 +1315,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
                 Validator = x.Validator,
                 PayrollQuarter = x.PayrollQuarter,
+                FiscalYear = x.FiscalYear,
                 PaymentStatus = x.PaymentStatus,
                 ModeOfPayment = x.ModeOfPayment,
                 PaymentDate = x.PaymentDate,
@@ -1853,6 +1895,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.FilterQuarter.HasValue)
                 query = query.Where(x => x.Beneficiary.Quarter == filter.FilterQuarter.Value);
 
+            if (filter.FilterFiscalYear.HasValue)
+                query = query.Where(b => b.Beneficiary.FiscalYear == filter.FilterFiscalYear);
+
             // ── Payroll Quarter Filter ────────────────────────────────────────────────
             if (filter.FilterPayrollQuarter.HasValue)
                 query = query.Where(x => x.Beneficiary.PayrollQuarter == filter.FilterPayrollQuarter.Value);
@@ -1916,6 +1961,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Validator = x.Beneficiary.Validator,
                     ValidationDate = x.Beneficiary.ValidationDate,
                     PayrollQuarter = x.Beneficiary.PayrollQuarter,
+                    FiscalYear = x.Beneficiary.FiscalYear,
                     PaymentStatus = x.Beneficiary.PaymentStatus,
                     ModeOfPayment = x.Beneficiary.ModeOfPayment,
                     PaymentDate = x.Beneficiary.PaymentDate,
@@ -1993,6 +2039,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             Validator = x.Validator ?? string.Empty,
             ValidationDate = x.ValidationDate,
             PayrollQuarter = x.PayrollQuarter,
+            FiscalYear = x.FiscalYear,
             PaymentStatus = x.PaymentStatus,
             ModeOfPayment = x.ModeOfPayment,
             PaymentDate = x.PaymentDate,
@@ -2130,6 +2177,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         Validator = b.Validator,
                         ValidationDate = b.ValidationDate,
                         PayrollQuarter = b.PayrollQuarter,
+                        FiscalYear = b.FiscalYear,
                         PaymentStatus = b.PaymentStatus,
                         ModeOfPayment = b.ModeOfPayment,
                         PaymentDate = b.PaymentDate,
@@ -2211,6 +2259,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 Validator = x.Validator ?? string.Empty,
                 ValidationDate = x.ValidationDate,
                 PayrollQuarter = x.PayrollQuarter,
+                FiscalYear = x.FiscalYear,
                 PaymentStatus = x.PaymentStatus,
                 ModeOfPayment = x.ModeOfPayment,
                 PaymentDate = x.PaymentDate,
@@ -2370,6 +2419,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.FilterQuarter.HasValue)
                 query = query.Where(b => b.Quarter == filter.FilterQuarter.Value);
+
+            if (filter.FilterFiscalYear.HasValue)
+                query = query.Where(b => b.FiscalYear == filter.FilterFiscalYear);
 
             if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
                 query = query.Where(b => b.Batch != null && b.Batch.Contains(filter.FilterBatch.Trim()));
@@ -2596,6 +2648,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? Validator { get; set; }
             public DateTime ValidationDate { get; set; }
             public int? PayrollQuarter { get; set; }
+            public int? FiscalYear { get; set; }
             public int PaymentStatus { get; set; }
             public int ModeOfPayment { get; set; }
             public DateTime? PaymentDate { get; set; }
@@ -2739,6 +2792,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? Validator { get; set; }
             public DateTime ValidationDate { get; set; }
             public int? PayrollQuarter { get; set; }
+            public int? FiscalYear { get; set; }
             public int PaymentStatus { get; set; }
             public int ModeOfPayment { get; set; }
             public DateTime? PaymentDate { get; set; }

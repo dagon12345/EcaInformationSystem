@@ -63,5 +63,15 @@ namespace EcaInformationSystem.Application.DTOs
         public bool IsDeleted { get; set; }
         public int? CgpPageNumber { get; set; }
         public string? CgpPrefix { get; set; }
+        public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
+
+        // ✅ Computed — used in the grid column, no DB column needed for this
+        public string PayrollPeriodDisplay =>
+            (PayrollQuarter.HasValue && FiscalYear.HasValue)
+                ? $"Q{PayrollQuarter} {FiscalYear}"
+                : PayrollQuarter.HasValue ? $"Q{PayrollQuarter}"
+                : FiscalYear.HasValue ? FiscalYear.ToString()!
+                : string.Empty;
     }
 }

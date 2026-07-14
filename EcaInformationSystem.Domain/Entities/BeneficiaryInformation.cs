@@ -34,6 +34,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string Validator { get; set; } =string.Empty;
         public DateTime ValidationDate { get; set; }
         public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
         public int PaymentStatus { get; set; }
         public int ModeOfPayment { get; set; }
         public DateTime? PaymentDate { get; set; }
@@ -102,6 +103,11 @@ namespace EcaInformationSystem.Domain.Entities
             CoStatus = coStatus;
             CoDateEndorsed = coDateEndorsed;
             CoDateApproved = coDateApproved;
+        }
+        // Domain method — keeps FiscalYear out of the general Update() signature
+        public void SetFiscalYear(int? fiscalYear)
+        {
+            FiscalYear = fiscalYear;
         }
     }
 }

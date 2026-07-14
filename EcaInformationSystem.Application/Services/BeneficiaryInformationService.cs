@@ -45,6 +45,25 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
         }
+        public async Task BulkUpdateFiscalYearAsync(
+              List<Guid> ids,
+              int? fiscalYear,
+              string userName,
+              Dictionary<Guid, byte[]>? rowVersions)
+        {
+            if (ids == null || !ids.Any())
+                throw new Exception(CommonConstants.NoRecordsSelected);
+
+            await _repo.BulkUpdateFiscalYearAsync(ids, fiscalYear, rowVersions);
+
+            var label = fiscalYear.HasValue ? fiscalYear.Value.ToString() : "Cleared";
+
+            foreach (var id in ids)
+                await AddLogAsync(id, $"Bulk Fiscal Year updated to: {label}", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
         // ── "Search Similar Names" — explicit, user-triggered fuzzy fallback ──────
         // Only called when the person clicks "Search Similar Names" after a normal
         // search (Full Name, Last Name, First Name, or General Search) returns zero
@@ -141,6 +160,7 @@ namespace EcaInformationSystem.Application.Services
             BarangayName = x.Barangay?.GetString(),
             Validator = x.Validator,
             PayrollQuarter = x.PayrollQuarter,
+            FiscalYear = x.FiscalYear,
             PaymentStatus = x.PaymentStatus,
             ModeOfPayment = x.ModeOfPayment,
             PaymentDate = x.PaymentDate,
@@ -524,6 +544,7 @@ namespace EcaInformationSystem.Application.Services
                 N(f.BirthdayTo),
                 // ── Reference number ──────────────────────────────────────────
                 N(f.FilterQuarter),
+                N(f.FilterFiscalYear),
                 N(f.FilterBatch),
                 N(f.FilterRefYear),
                 N(f.FilterRegionRoman),
@@ -4011,6 +4032,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.GeneralSearch ?? string.Empty,
                 filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
+                filter.FilterFiscalYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
@@ -4191,6 +4213,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.EligibilityMode ?? CommonConstants.Null,
                 filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
+                filter.FilterFiscalYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,

@@ -109,10 +109,10 @@
                         <div class="sf-field">
                             <label>Milestone Year</label>
                             <select @bind="_selectedMilestoneYear" class="ff-input">
-                                <option value="0">All Years</option>
-                                @foreach (var year in _availableMilestoneYears)
+                                <option value="0">All Milestone Years</option>
+                                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
                                 {
-                                    <option value="@year">@year</option>
+                                    <option value="@y">@y</option>
                                 }
                             </select>
                         </div>
@@ -150,6 +150,17 @@
                                 <option value="2">Q2</option>
                                 <option value="3">Q3</option>
                                 <option value="4">Q4</option>
+                            </select>
+                        </div>
+                        @* ── Fiscal Year ───────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Fiscal Year</label>
+                            <select @bind="_selectedFiscalYear" class="ff-input">
+                                <option value="0">All Fiscal Years</option>
+                                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                                {
+                                    <option value="@y">@y</option>
+                                }
                             </select>
                         </div>
                     </div>
@@ -499,11 +510,11 @@
     private List<RegionLookupDto> _regions = new();
     private List<ProvinceLookupDto> _provincesForRegion = new();
     private List<MunicipalityLookupDto> _municipalitiesForProvince = new();
-    private List<int> _availableMilestoneYears = new() { 2024, 2025, 2026 };
 
     private int _selectedRegionId;
     private int _selectedProvinceId;
     private int _selectedMunicipalityId;
+    private int _selectedFiscalYear; // 0 = all
     private int _selectedMilestoneYear;
     private int _selectedMilestone;
     private int _selectedPaymentStatus = -1;
@@ -639,7 +650,8 @@
                 MilestoneYear = _selectedMilestoneYear,
                 MilestoneAge = _selectedMilestone,
                 PaymentStatus = _selectedPaymentStatus,
-                PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null // ✅ new
+                PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,
+                FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null // ✅ new
             };
 
             var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
@@ -675,7 +687,8 @@
         _selectedPaymentStatus = -1;
         _provincesForRegion = new();
         _municipalitiesForProvince = new();
-        _selectedPayrollQuarter = 0; // ✅ new
+        _selectedPayrollQuarter = 0;
+        _selectedFiscalYear = 0; // ✅ new
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
@@ -732,6 +745,7 @@
         public int MilestoneAge { get; set; }
         public int PaymentStatus { get; set; } = -1;
         public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; } // ✅ new
     }
 
     public class StatisticsReportDto

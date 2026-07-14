@@ -27,6 +27,7 @@
         public int? Sex { get; set; }
         // For filtering by PayrollQuarter
         public int? FilterPayrollQuarter { get; set; }
+        public int? FilterFiscalYear { get; set; }
         public int? PaymentStatus { get; set; }
         public DateTime? PaymentDate { get; set; }
         public int PageNumber { get; set; } = 1;
