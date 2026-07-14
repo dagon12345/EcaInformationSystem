@@ -21,7 +21,19 @@ namespace EcaInformationSystem.Api.Controllers
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
         }
-
+        [HttpPost("similar-names")]
+        public async Task<IActionResult> SearchSimilarNames([FromBody] BeneficiaryFilterDto filter)
+        {
+            try
+            {
+                var result = await _service.SearchSimilarNamesAsync(filter);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
         [HttpPost("bulk-assign-refnumber")]
         [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> BulkAssignRefNumber([FromBody] BulkUpdateRefNumberRequestDto dto)

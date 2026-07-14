@@ -20,9 +20,17 @@
 
                     <div class="d-flex align-items-center gap-2">
                         <div class="d-flex flex-column">
+                                    @if (State.LastResultWasFuzzy && State.Beneficiaries.Any())
+    {
+        <div class="alert alert-info py-2 px-3 mb-2 d-flex align-items-center gap-2" style="font-size: 13px;">
+            <i class="bi bi-info-circle-fill"></i>
+            <span>No exact match was found — showing names similar to your search instead.</span>
+        </div>
+    }
     <div class="d-flex align-items-center gap-2 flex-wrap">
         <h5 class="mb-0">Showing</h5>
         <span class="badge bg-primary">@DisplayCount Record(s)</span>
+
         @if (LocationCautionCount > 0)
         {
             <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-flex align-items-center gap-1"
@@ -337,7 +345,6 @@
                             </select>
                         </div>
                     </div>
-
                     @* ── TABLE CONTAINER ──────────────────────────────────── *@
                     <div class="tbl-container">
 
@@ -664,19 +671,21 @@
                                             </tr>
                                    }
 
-                                    @if (!FilteredBeneficiaries.Any())
+                                  @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="20">
+                                            <td colspan="22">
                                                 @if (!State.IsLoading)
                                                 {
-                                                    <span>No records found.</span>
+                                                    <div class="d-flex flex-column align-items-center gap-2 py-3">
+                                                        <span>No records found.</span>
+                                                    </div>
                                                 }
                                             </td>
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </table>    
                         </div>
                     </div>
                     @* ── MOBILE CARD LIST — only visible below 768px via CSS ──────────────── *@
@@ -811,9 +820,11 @@
                             </div>
                         }
 
-                        @if (!FilteredBeneficiaries.Any() && !State.IsLoading)
+                       @if (!FilteredBeneficiaries.Any() && !State.IsLoading)
                         {
-                            <div class="text-center text-muted py-4">No records found.</div>
+                            <div class="d-flex flex-column align-items-center gap-2 py-4">
+                                <span class="text-muted">No records found.</span>
+                            </div>
                         }
                         @* Bottom pagination — same controls, repeated for convenience after scrolling the list *@
                         <div class="beneficiary-pag-bar-mobile">
@@ -2002,7 +2013,6 @@ protected override void OnInitialized()
     };
     State.OnChange += _stateChangeHandler;
 }
-
 // ── Caution: location hierarchy issues (Region/Province/Municipality/Barangay) ──
 private List<string> GetLocationCautions(BeneficiaryListItemDto item)
 {

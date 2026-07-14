@@ -20,6 +20,52 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        // Fallback fuzzy name search. Only call this when the normal exact/Contains
+        // search already returned zero results and the search term looks name-like
+        // (not a batch code, date, or status keyword). Pulls a narrow Id+Name
+        // projection only — not full entities — so scoring the active population
+        // in memory stays fast even without full-text search infrastructure.
+        public async Task<List<Guid>> FindSimilarNameIdsAsync(string term, int maxResults = 50, double minScore = 0.75)
+        {
+            if (string.IsNullOrWhiteSpace(term))
+                return new List<Guid>();
+
+            var candidates = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => !b.IsDeleted)
+                .Select(b => new { b.Id, b.LastName, b.FirstName, b.MiddleName })
+                .ToListAsync();
+
+            var normalizedTerm = NormalizeSearchTerm(term);
+
+            var scored = candidates
+                .Select(c =>
+                {
+                    var fullName = $"{c.LastName} {c.FirstName} {c.MiddleName}".Trim();
+
+                    // Whole-string similarity — catches close full-name matches
+                    var wholeScore = ComputeNameSimilarity(normalizedTerm, fullName);
+
+                    // Token-level similarity — catches a single mistyped word inside
+                    // an otherwise-correct name, e.g. searching "Lance" against
+                    // "URIARTE LENCE MICHAELA" should match on the "LENCE" token
+                    // even though the whole string doesn't look alike overall.
+                    var tokenScore = fullName
+                        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(tok => ComputeNameSimilarity(normalizedTerm, tok))
+                        .DefaultIfEmpty(0)
+                        .Max();
+
+                    return new { c.Id, Score = Math.Max(wholeScore, tokenScore) };
+                })
+                .Where(x => x.Score >= minScore)
+                .OrderByDescending(x => x.Score)
+                .Take(maxResults)
+                .Select(x => x.Id)
+                .ToList();
+
+            return scored;
+        }
         public async Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments)
         {
             if (assignments == null || !assignments.Any()) return;
@@ -1583,16 +1629,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x =>
                     x.Beneficiary.FirstName.Contains(filter.FirstName));
 
+            //Full Name
             if (!string.IsNullOrWhiteSpace(filter.FullName))
             {
-                var name = filter.FullName.Trim().ToLower();
-                query = query.Where(x =>
-                    (x.Beneficiary.LastName + " " +
-                     x.Beneficiary.FirstName + " " +
-                     x.Beneficiary.MiddleName).ToLower().Contains(name) ||
-                    (x.Beneficiary.FirstName + " " +
-                     x.Beneficiary.MiddleName + " " +
-                     x.Beneficiary.LastName).ToLower().Contains(name));
+                var name = NormalizeSearchTerm(filter.FullName);
+                query = query.Where(b =>
+                    (b.Beneficiary.LastName + " " + b.Beneficiary.FirstName + " " + b.Beneficiary.MiddleName)
+                    .ToLower().Contains(name) ||
+                    (b.Beneficiary.FirstName + " " + b.Beneficiary.MiddleName + " " + b.Beneficiary.LastName)
+                    .ToLower().Contains(name));
             }
 
             // ── Age ───────────────────────────────────────────────────────────────
@@ -2195,6 +2240,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
 
         #region Private functions
+        // Strips commas/periods and collapses whitespace so "URIARTE, ROSITA" and
+        // "Uriarte Rosita" both normalize to the same searchable form as the
+        // space-joined LastName+FirstName+MiddleName concatenation used in queries.
+        private static string NormalizeSearchTerm(string input)
+        {
+            var normalized = input.Trim().ToLower()
+                .Replace(",", " ")
+                .Replace(".", " ");
+
+            while (normalized.Contains("  "))
+                normalized = normalized.Replace("  ", " ");
+
+            return normalized.Trim();
+        }
         // ── Shared filter-building, used by GetPagedListAsync, CountMatchingAsync,
         // and the bulk-by-filter methods in Step 8. One source of truth for "what
         // matches this filter" — no joins, operates directly on
@@ -2290,7 +2349,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (!string.IsNullOrWhiteSpace(filter.FullName))
             {
-                var name = filter.FullName.Trim().ToLower();
+                var name = NormalizeSearchTerm(filter.FullName);
                 query = query.Where(b =>
                     (b.LastName + " " + b.FirstName + " " + b.MiddleName).ToLower().Contains(name) ||
                     (b.FirstName + " " + b.MiddleName + " " + b.LastName).ToLower().Contains(name));

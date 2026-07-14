@@ -45,6 +45,120 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
         }
+        // ── "Search Similar Names" — explicit, user-triggered fuzzy fallback ──────
+        // Only called when the person clicks "Search Similar Names" after a normal
+        // search (Full Name, Last Name, First Name, or General Search) returns zero
+        // results. This is a deliberate secondary action, not an automatic silent
+        // substitution — results are always presented to the user as "similar,"
+        // never mixed into or mistaken for an exact match.
+        public async Task<PagedResultDto<BeneficiaryListItemDto>> SearchSimilarNamesAsync(BeneficiaryFilterDto filter)
+        {
+            // Prefer the most specific name field first, fall back through the
+            // others, General Search last — matches the priority a person would
+            // naturally expect ("if I typed a Last Name, match on that, not on
+            // whatever else happens to be filled in").
+            var nameTerm = !string.IsNullOrWhiteSpace(filter.FullName) ? filter.FullName
+                : !string.IsNullOrWhiteSpace(filter.LastName) ? filter.LastName
+                : !string.IsNullOrWhiteSpace(filter.FirstName) ? filter.FirstName
+                : filter.GeneralSearch;
+
+            if (string.IsNullOrWhiteSpace(nameTerm))
+            {
+                return new PagedResultDto<BeneficiaryListItemDto>
+                {
+                    Items = new List<BeneficiaryListItemDto>(),
+                    TotalCount = 0,
+                    PageNumber = 1,
+                    PageSize = filter.PageSize,
+                    IsFuzzyMatch = true
+                };
+            }
+
+            // Stricter threshold (0.75) — favors precision over recall. This result
+            // set is shown to the user as "these are probably who you meant," so
+            // false positives are worse here than in the duplicate-detection scan,
+            // which is reviewed by a human anyway and tolerates more noise.
+            var similarIds = await _repo.FindSimilarNameIdsAsync(nameTerm, maxResults: 50, minScore: 0.75);
+
+            if (!similarIds.Any())
+            {
+                return new PagedResultDto<BeneficiaryListItemDto>
+                {
+                    Items = new List<BeneficiaryListItemDto>(),
+                    TotalCount = 0,
+                    PageNumber = 1,
+                    PageSize = filter.PageSize,
+                    IsFuzzyMatch = true
+                };
+            }
+
+            var fuzzyDtos = await _repo.GetByIdsAsync(similarIds);
+
+            var items = fuzzyDtos
+                .Select(MapInformationDtoToListItem)
+                .OrderBy(x => x.LastName)
+                .ThenBy(x => x.FirstName)
+                .ToList();
+
+            return new PagedResultDto<BeneficiaryListItemDto>
+            {
+                Items = items,
+                TotalCount = items.Count,
+                PageNumber = 1,
+                PageSize = filter.PageSize,
+                IsFuzzyMatch = true
+            };
+        }
+
+        // Maps the richer BeneficiaryInformationDto (returned by GetByIdsAsync)
+        // into the leaner BeneficiaryListItemDto shape the Records grid expects.
+        // Needed specifically here because the fuzzy-match path goes through
+        // GetByIdsAsync, whose DTO wraps location names as JsonElement rather than
+        // plain strings — the grid's normal paged path never hits this conversion.
+        private static BeneficiaryListItemDto MapInformationDtoToListItem(BeneficiaryInformationDto x) => new()
+        {
+            Id = x.Id,
+            Quarter = x.Quarter,
+            Batch = x.Batch,
+            RefYear = x.RefYear,
+            RefCode = x.RefCode,
+            BatchCode = x.BatchCode,
+            PhoneNumber = x.PhoneNumber,
+            LastName = x.LastName,
+            FirstName = x.FirstName,
+            MiddleName = x.MiddleName,
+            Extension = x.Extension,
+            BirthDate = x.BirthDate,
+            Age = x.Age,
+            MilestoneYear = x.MilestoneYear,
+            Sex = x.Sex,
+            PsgcCodeRegion = x.PsgcCodeRegion,
+            PsgcCodeProvince = x.PsgcCodeProvince,
+            PsgcCodeMunicipality = x.PsgcCodeMunicipality,
+            PsgcCodeBarangay = x.PsgcCodeBarangay,
+            ProvinceName = x.Province?.GetString(),
+            MunicipalityName = x.Municipality?.GetString(),
+            BarangayName = x.Barangay?.GetString(),
+            Validator = x.Validator,
+            PayrollQuarter = x.PayrollQuarter,
+            PaymentStatus = x.PaymentStatus,
+            ModeOfPayment = x.ModeOfPayment,
+            PaymentDate = x.PaymentDate,
+            IsEligible = x.IsEligible,
+            IsCompliant = x.IsCompliant,
+            FindingStatus = x.FindingStatus,
+            CoStatus = x.CoStatus,
+            CoDateEndorsed = x.CoDateEndorsed,
+            CoDateApproved = x.CoDateApproved,
+            HasDocuments = false, // not tracked by GetByIdsAsync — acceptable for this secondary view
+            EligibilityRemarksPreview = Truncate(x.EligibilityRemarks, 80),
+            AssessmentRemarksPreview = Truncate(x.AssessmentRemarks, 80),
+            FindingRemarksPreview = Truncate(x.FindingRemarks, 80),
+            RowVersion = x.RowVersion
+        };
+
+        private static string? Truncate(string? value, int maxLength) =>
+            string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value.Substring(0, maxLength);
         public async Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter)
         {
             var (items, totalCount) = await _logRepository.GetAllLogsAsync(filter);

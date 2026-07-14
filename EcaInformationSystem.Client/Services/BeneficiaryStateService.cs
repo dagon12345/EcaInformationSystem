@@ -48,6 +48,8 @@ public class BeneficiaryStateService
 
     // ✅ Add these two
     public DateTime? LastLoaded { get; private set; }
+    // ── Fuzzy "Search Similar Names" state ─────────────────────────────────────
+    public bool LastResultWasFuzzy { get; private set; }
     public void SetBeneficiaries(List<BeneficiaryListItemDto> items)
     {
         Beneficiaries = items;
@@ -73,30 +75,39 @@ public class BeneficiaryStateService
         HasActiveFilter = false; // ✅ reset on clear
         NotifyStateChanged();
     }
-
     public async Task LoadAsync()
     {
         IsLoading = true;
-        ErrorMessage = null; // ← clear previous error
+        ErrorMessage = null;
         NotifyStateChanged();
 
         try
         {
-
-
             var response = await _http.PostAsJsonAsync("api/beneficiary/paged-list", Filter);
             var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryListItemDto>>();
-
 
             if (response.IsSuccessStatusCode)
             {
                 Beneficiaries = result?.Items ?? new List<BeneficiaryListItemDto>();
                 TotalCount = result?.TotalCount ?? 0;
                 TotalPages = result?.TotalPages ?? 0;
+                LastResultWasFuzzy = false;
+
+                // ✅ Auto-fallback — if the exact search found nothing AND the
+                // person searched by name, automatically try the fuzzy match
+                // instead of making them click a separate button.
+                var nameTerm = !string.IsNullOrWhiteSpace(Filter.FullName) ? Filter.FullName
+                    : !string.IsNullOrWhiteSpace(Filter.LastName) ? Filter.LastName
+                    : !string.IsNullOrWhiteSpace(Filter.FirstName) ? Filter.FirstName
+                    : Filter.GeneralSearch;
+
+                if (TotalCount == 0 && !string.IsNullOrWhiteSpace(nameTerm))
+                {
+                    await TryFuzzyFallbackAsync();
+                }
             }
             else
             {
-                // Read the structured error from your global exception handler
                 ApiErrorResponse? errorBody = null;
                 try
                 {
@@ -121,6 +132,9 @@ public class BeneficiaryStateService
 
                     _ => errorBody?.Message ?? "An unexpected error occurred. Please try again."
                 };
+
+                Beneficiaries = new List<BeneficiaryListItemDto>();
+                TotalCount = 0;
             }
         }
         catch (HttpRequestException)
@@ -141,33 +155,32 @@ public class BeneficiaryStateService
         HasActiveFilter = true;
     }
 
-    private string GetQueryString(BeneficiaryFilterDto filter)
+    // ✅ Internal — silently tries the fuzzy match and swaps it into the
+    // current result set if anything is found. Never throws, never shows
+    // its own error — if it fails, the user just sees a normal empty result,
+    // same as before this feature existed.
+    private async Task TryFuzzyFallbackAsync()
     {
-        var queryString = new List<string>();
-        foreach (var prop in filter.GetType().GetProperties())
+        try
         {
-            var value = prop.GetValue(filter, null);
-            if (value == null) continue;
+            var response = await _http.PostAsJsonAsync("api/beneficiary/similar-names", Filter);
+            if (!response.IsSuccessStatusCode) return;
 
-            // ✅ Skip sentinel values — don't send -1 or 0 for Sex/PaymentStatus
-            if (value is int intVal && intVal < 0) continue;
-
-            // ✅ Skip FindingStatus sentinel (3 = "not selected")
-            if (prop.Name == nameof(BeneficiaryFilterDto.FindingStatus) && value is int fs && fs == 3) continue;
-
-            if (value is System.Collections.IEnumerable list && !(value is string))
+            var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryListItemDto>>();
+            if (result != null && result.Items.Any())
             {
-                foreach (var item in list)
-                    queryString.Add($"{prop.Name}={Uri.EscapeDataString(item.ToString() ?? "")}");
-            }
-            else
-            {
-                queryString.Add($"{prop.Name}={Uri.EscapeDataString(value.ToString() ?? "")}");
+                Beneficiaries = result.Items;
+                TotalCount = result.TotalCount;
+                TotalPages = result.TotalPages;
+                LastResultWasFuzzy = true;
             }
         }
-        return string.Join("&", queryString);
+        catch
+        {
+            // Silent — fuzzy fallback is a nice-to-have, not critical path.
+            // TotalCount stays 0, user sees the normal "no records" message.
+        }
     }
-
     public void NotifyStateChanged() => OnChange?.Invoke();
 
     // WHY: the bell badge needs the count; the grid's modal needs the full
