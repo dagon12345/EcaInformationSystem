@@ -28,6 +28,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IStatisticsService, StatisticsService>();
             services.AddScoped<IChatService, ChatService>();
             services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
+            services.AddScoped<IFormDocumentService, FormDocumentService>();
             return services;
         }
     }

@@ -1,0 +1,385 @@
+﻿@page "/forms-gateway"
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject FormDocumentClientService FormService
+@inject ToastService toast
+@inject AuthService AuthService
+@inject IJSRuntime JS
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Forms Gateway</h4>
+    @if (_isAdmin)
+    {
+        <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
+            <i class="bi bi-cloud-upload me-1"></i>Upload Form
+        </button>
+    }
+</div>
+
+<div class="forms-info-banner mb-3">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+        <strong>About this page.</strong>
+        Official NCSC forms and templates for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
+        @if (_isAdmin)
+        {
+            <span>As an Administrator, you can upload, edit, and delete forms here.</span>
+        }
+        else
+        {
+            <span>You have view and download access only.</span>
+        }
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="text-center py-4">
+        <span class="spinner-border text-primary"></span>
+    </div>
+}
+else if (!_forms.Any())
+{
+    <p class="text-muted">No forms have been uploaded yet.</p>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var form in _forms)
+        {
+            var visual = GetFileTypeVisual(form.OriginalFileName, form.ContentType);
+
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="form-card">
+                    <div class="form-card-top">
+                        <div class="form-card-icon" style="background:@(visual.Color)1A; color:@visual.Color;">
+                            <i class="bi @visual.Icon"></i>
+                        </div>
+                        <div class="form-card-typebadge" style="color:@visual.Color; border-color:@(visual.Color)40;">
+                            @visual.Label
+                        </div>
+                    </div>
+
+                    <div class="form-card-body">
+                        <div class="d-flex align-items-start justify-content-between gap-2">
+                            <h6 class="form-card-title" title="@form.Title">@form.Title</h6>
+                            @if (!string.IsNullOrWhiteSpace(form.Category))
+                            {
+                                <span class="badge bg-secondary form-card-category">@form.Category</span>
+                            }
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(form.Description))
+                        {
+                            <p class="form-card-desc">@form.Description</p>
+                        }
+
+                        <div class="form-card-meta">
+                            <div class="form-card-meta-row">
+                                <i class="bi bi-file-earmark-text"></i>
+                                <span class="text-truncate">@form.OriginalFileName</span>
+                            </div>
+                            <div class="form-card-meta-row">
+                                <i class="bi bi-hdd"></i>
+                                <span>File Size</span>
+                                <span class="form-card-size">@FormatFileSize(form.FileSizeBytes)</span>
+                            </div>
+                            <div class="form-card-meta-row">
+                                <i class="bi bi-clock-history"></i>
+                                <span>
+                                    @form.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy") · @form.UploadedBy
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="form-card-actions">
+                            <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)">
+                                <i class="bi bi-download me-1"></i>Download
+                            </button>
+
+                            @if (_isAdmin)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditModal(form)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirm(form)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ── Upload Modal (Admin only) ── *@
+<HxModal @ref="_uploadModal">
+    <HeaderTemplate><h5>Upload Form</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="mb-2">
+            <label class="ff-label">Title <span class="req">*</span></label>
+            <input class="ff-input" @bind="_uploadTitle" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Category</label>
+            <input class="ff-input" @bind="_uploadCategory" placeholder="e.g. COE, Liquidation, Payroll" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Description</label>
+            <textarea class="ff-input" rows="2" @bind="_uploadDescription"></textarea>
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">File <span class="req">*</span></label>
+            <InputFile OnChange="OnFileSelected" class="form-control" />
+            <small class="text-muted">PDF, Word, or Excel — max 10 MB.</small>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _uploadModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="SubmitUploadAsync" Disabled="@_isSaving">
+            @(_isSaving ? "Uploading..." : "Upload")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Edit Metadata Modal (Admin only) ── *@
+<HxModal @ref="_editModal">
+    <HeaderTemplate><h5>Edit Form</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="mb-2">
+            <label class="ff-label">Title <span class="req">*</span></label>
+            <input class="ff-input" @bind="_editDto.Title" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Category</label>
+            <input class="ff-input" @bind="_editDto.Category" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Description</label>
+            <textarea class="ff-input" rows="2" @bind="_editDto.Description"></textarea>
+        </div>
+        <hr />
+        <label class="ff-label">Replace File (optional)</label>
+        <InputFile OnChange="OnReplaceFileSelected" class="form-control" />
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _editModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="SubmitEditAsync" Disabled="@_isSaving">Save</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Delete Confirm ── *@
+<HxModal @ref="_deleteModal">
+    <HeaderTemplate><h5>Delete Form</h5></HeaderTemplate>
+    <BodyTemplate>
+        <p>Delete <strong>@_targetForm?.Title</strong>? This cannot be undone from the UI.</p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deleteModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmDeleteAsync">Delete</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
+    private List<FormDocumentDto> _forms = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isAdmin;
+
+    private HxModal _uploadModal = default!;
+    private HxModal _editModal = default!;
+    private HxModal _deleteModal = default!;
+
+    private string _uploadTitle = string.Empty;
+    private string? _uploadCategory;
+    private string? _uploadDescription;
+    private IBrowserFile? _uploadFile;
+
+    private FormDocumentDto? _targetForm;
+    private FormDocumentUpdateDto _editDto = new();
+    private IBrowserFile? _replaceFile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        await LoadFormsAsync();
+    }
+
+    private async Task LoadFormsAsync()
+    {
+        _isLoading = true;
+        _forms = await FormService.GetAllAsync();
+        _isLoading = false;
+    }
+
+    private Task OpenUploadModal()
+    {
+        _uploadTitle = string.Empty;
+        _uploadCategory = null;
+        _uploadDescription = null;
+        _uploadFile = null;
+        return _uploadModal.ShowAsync();
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File.Size > MaxFileSizeBytes)
+        {
+            toast.ShowError($"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — max allowed is 10 MB.");
+            _uploadFile = null;
+            return;
+        }
+        _uploadFile = e.File;
+    }
+    private void OnReplaceFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File.Size > MaxFileSizeBytes)
+        {
+            toast.ShowError($"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — max allowed is 10 MB.");
+            _replaceFile = null;
+            return;
+        }
+        _replaceFile = e.File;
+    }
+
+    private async Task SubmitUploadAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_uploadTitle))
+        {
+            toast.ShowError("Title is required.");
+            return;
+        }
+        if (_uploadFile == null)
+        {
+            toast.ShowError("Please select a file.");
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            await using var stream = _uploadFile.OpenReadStream(MaxFileSizeBytes);
+
+            var (success, error) = await FormService.UploadAsync(
+                stream, _uploadFile.Name, _uploadFile.ContentType,
+                _uploadTitle, _uploadDescription, _uploadCategory);
+
+            if (success)
+            {
+                toast.ShowSuccess("Form uploaded successfully.");
+                await _uploadModal.HideAsync();
+                await LoadFormsAsync();
+            }
+            else
+            {
+                toast.ShowError(error ?? "Upload failed.");
+            }
+        }
+        finally { _isSaving = false; }
+    }
+
+    private Task OpenEditModal(FormDocumentDto form)
+    {
+        _targetForm = form;
+        _editDto = new FormDocumentUpdateDto
+        {
+            Title = form.Title,
+            Description = form.Description,
+            Category = form.Category
+        };
+        _replaceFile = null;
+        return _editModal.ShowAsync();
+    }
+
+    private async Task SubmitEditAsync()
+    {
+        if (_targetForm == null) return;
+
+        _isSaving = true;
+        try
+        {
+            var (success, error) = await FormService.UpdateMetadataAsync(_targetForm.Id, _editDto);
+            if (!success)
+            {
+                toast.ShowError(error ?? "Update failed.");
+                return;
+            }
+
+            toast.ShowSuccess("Form updated successfully.");
+            await _editModal.HideAsync();
+            await LoadFormsAsync();
+        }
+        finally { _isSaving = false; }
+    }
+
+    private Task OpenDeleteConfirm(FormDocumentDto form)
+    {
+        _targetForm = form;
+        return _deleteModal.ShowAsync();
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_targetForm == null) return;
+
+        var (success, error) = await FormService.DeleteAsync(_targetForm.Id);
+        if (success)
+        {
+            toast.ShowSuccess("Form deleted.");
+            await LoadFormsAsync();
+        }
+        else
+        {
+            toast.ShowError(error ?? "Delete failed.");
+        }
+        await _deleteModal.HideAsync();
+    }
+
+    private async Task DownloadAsync(FormDocumentDto form)
+    {
+        var result = await FormService.DownloadAsync(form.Id, form.OriginalFileName);
+        if (result == null)
+        {
+            toast.ShowError("Could not download the file.");
+            return;
+        }
+
+        var base64 = Convert.ToBase64String(result.Value.Data);
+        await JS.InvokeVoidAsync("downloadFile", result.Value.FileName, base64, result.Value.ContentType);
+    }
+    private (string Icon, string Color, string Label) GetFileTypeVisual(string fileName, string contentType)
+    {
+        var ext = System.IO.Path.GetExtension(fileName)?.ToLowerInvariant() ?? string.Empty;
+
+        return ext switch
+        {
+            ".pdf" => ("bi-filetype-pdf", "#e53e3e", "PDF"),
+            ".doc" or ".docx" => ("bi-filetype-docx", "#2b579a", "Word"),
+            ".xls" or ".xlsx" => ("bi-filetype-xlsx", "#217346", "Excel"),
+            ".ppt" or ".pptx" => ("bi-filetype-pptx", "#d24726", "PowerPoint"),
+            ".png" => ("bi-filetype-png", "#8e44ad", "Image"),
+            ".jpg" or ".jpeg" => ("bi-filetype-jpg", "#8e44ad", "Image"),
+            ".csv" => ("bi-filetype-csv", "#217346", "CSV"),
+            ".txt" => ("bi-filetype-txt", "#6b7280", "Text"),
+            ".zip" or ".rar" => ("bi-file-earmark-zip", "#b7791f", "Archive"),
+            _ => ("bi-file-earmark", "#6b7280", "File")
+        };
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+        return $"{len:0.#} {sizes[order]}";
+    }
+}

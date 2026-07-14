@@ -45,6 +45,13 @@
         <span class="nav-label">Records</span>
     </NavLink>
 
+    @* ── Forms Gateway — visible to all roles; upload/edit/delete gated inside the page ── *@
+    <NavLink class="nav-item" href="forms-gateway">
+        <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
+        <span class="nav-label">Forms Gateway</span>
+    </NavLink>
+
+
     @* ── Liquidation — Admin only ── *@
     @if (_isAdmin)
     {
@@ -270,6 +277,8 @@
             ("View Statistics", true),  // ✅ NEW
             ("Export Excel", true),
             ("Upload PDF", true),
+            ("View / Download Forms", true),          // ✅ NEW — everyone
+            ("Upload / Edit / Delete Forms", _isAdmin), // ✅ NEW — Admin/SuperAdmin only
             ("Create record", _isAdmin || _isPdo),
             ("Bulk Ref Number", _isAdmin || _isPdo),
             ("Edit record(With Jurisdiction for PDO)", _isAdmin || _isPdo),

@@ -27,6 +27,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<ChatMention> ChatMentions => Set<ChatMention>();
         public DbSet<ChatReadStatus> ChatReadStatuses => Set<ChatReadStatus>();
         public DbSet<ChatMessageReaction> ChatMessageReactions => Set<ChatMessageReaction>();
+        public DbSet<FormDocument> FormDocuments => Set<FormDocument>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -416,6 +417,24 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                 entity.HasIndex(x => x.ChatMessageId)
                       .HasDatabaseName("IX_ChatMessageReaction_ChatMessageId");
+            });
+
+            modelBuilder.Entity<FormDocument>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Title).IsRequired().HasMaxLength(300);
+                entity.Property(x => x.Category).HasMaxLength(100);
+                entity.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(500);
+                entity.Property(x => x.ContentType).IsRequired().HasMaxLength(150);
+                entity.Property(x => x.FileData).IsRequired().HasColumnType("varbinary(max)");
+                entity.Property(x => x.UploadedBy).HasMaxLength(200);
+                entity.Property(x => x.UpdatedBy).HasMaxLength(200);
+
+                entity.Property(x => x.RowVersion).IsRowVersion();
+
+                entity.HasIndex(x => x.IsDeleted);
+                entity.HasIndex(x => x.Category);
             });
         }
     }
