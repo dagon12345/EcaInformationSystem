@@ -25,6 +25,45 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+/* Field needs updating indicator */
+.field-needs-update {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+    .field-needs-update i {
+        font-size: 0.7rem;
+    }
+
+/* Warning badge for offcanvas fields */
+.needs-update-badge {
+    background-color: #ffc107;
+    color: #212529;
+    font-size: 0.6rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Highlight row for incomplete fields in offcanvas */
+.field-incomplete {
+    border-left: 3px solid #ffc107;
+    padding-left: 0.5rem;
+}
+
+    .field-incomplete .field-label {
+        color: #856404;
+    }
 .rename-confirm-box {
     background: #f0f7ff;
     animation: fadeIn 0.15s ease;

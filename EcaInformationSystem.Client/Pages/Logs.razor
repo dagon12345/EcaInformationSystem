@@ -65,6 +65,10 @@ else
                             <input class="ff-input" placeholder="Filter by username..." @bind="_userName" />
                         </div>
                         <div class="sf-field">
+                            <label>Beneficiary Name</label>
+                            <input class="ff-input" placeholder="Last, first, or full name..." @bind="_beneficiaryName" />
+                        </div>
+                        <div class="sf-field">
                             <label>Activity contains</label>
                             <input class="ff-input" placeholder="e.g. Payment, Bulk..." @bind="_search" />
                         </div>
@@ -158,6 +162,7 @@ else
     private DateTime? _dateFrom;
     private DateTime? _dateTo;
     private string? _userName;
+    private string? _beneficiaryName;
     private string? _search;
 
     private LogFilterDto _filter = new() { PageNumber = 1, PageSize = 50 };
@@ -202,6 +207,7 @@ else
         _filter.DateFrom = _dateFrom;
         _filter.DateTo = _dateTo;
         _filter.UserName = string.IsNullOrWhiteSpace(_userName) ? null : _userName.Trim();
+        _filter.BeneficiaryName = string.IsNullOrWhiteSpace(_beneficiaryName) ? null : _beneficiaryName.Trim();
         _filter.Search = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
         _filter.PageNumber = 1;
         await LoadLogsAsync();
@@ -212,6 +218,7 @@ else
         _dateFrom = null;
         _dateTo = null;
         _userName = null;
+        _beneficiaryName = null;
         _search = null;
         _filter = new() { PageNumber = 1, PageSize = _filter.PageSize };
         await LoadLogsAsync();

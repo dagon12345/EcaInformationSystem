@@ -376,6 +376,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 Validator = filter.Validator,
                 BatchCode = filter.BatchCode,
                 GeneralSearch = filter.GeneralSearch,  // ✅ CRITICAL: Include GeneralSearch
+                DataQualityIssue = filter.DataQualityIssue,   // ✅ ADD
                 PageNumber = 1,
                 PageSize = int.MaxValue
             };
@@ -1274,6 +1275,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.CoDateEndorsed,
                     x.b.CoDateApproved,
                     x.b.RowVersion,
+                    x.b.DateEndorsed,
+                    x.b.DateApplied,
+                    x.b.NcscRrn,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
                     FindingStatus = x.finding != null ? x.finding.FindingStatus : (int?)null,
@@ -1329,7 +1333,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 EligibilityRemarksPreview = x.EligibilityRemarksPreview,
                 AssessmentRemarksPreview = x.AssessmentRemarksPreview,
                 FindingRemarksPreview = x.FindingRemarksPreview,
-                RowVersion = x.RowVersion
+                RowVersion = x.RowVersion,
+                DateEndorsed = x.DateEndorsed,
+                DateApplied = x.DateApplied,
+                NcscRrn = x.NcscRrn
             }).ToList();
 
             return new PagedResultDto<BeneficiaryListItemDto>
@@ -2327,11 +2334,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.PsgcCodeBarangay.HasValue)
                 query = query.Where(b => b.Barangay == filter.PsgcCodeBarangay.Value);
 
-            // ── Barangay data-quality filter ──────────────────────────────────────
-            if (filter.BarangayNeedsFixing == true)
+            if (!string.IsNullOrWhiteSpace(filter.DataQualityIssue))
             {
-                query = query.Where(b => !_context.Barangays
-                    .Any(br => br.PsgcCodeBarangay == b.Barangay));
+                switch (filter.DataQualityIssue)
+                {
+                    case "location":
+                        query = query.Where(b => !_context.Barangays.Any(br => br.PsgcCodeBarangay == b.Barangay)
+                            || !_context.Municipalities.Any(m => m.PsgcCodeMunicipality == b.Municipality));
+                        break;
+                    case "headsup":
+                        query = query.Where(b => b.PaymentStatus == 2 && (b.PaymentDate == null || b.ModeOfPayment == 0));
+                        break;
+                    case "incomplete":
+                        query = query.Where(b => b.DateEndorsed == null || b.DateApplied == null
+                            || string.IsNullOrWhiteSpace(b.PhoneNumber) || b.NcscRrn == null);
+                        break;
+                }
             }
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(b => b.Sex == filter.Sex.Value);

@@ -60,7 +60,7 @@
         public string? GeneralSearch { get; set; } // General search - scans all relevant columns with OR logic
         public int? CoStatus { get; set; }
         public int? FilterModeOfPayment { get; set; }
-        public bool? BarangayNeedsFixing { get; set; }
+        public string? DataQualityIssue { get; set; } // "location" | "headsup" | "incomplete"
 
     }
 }

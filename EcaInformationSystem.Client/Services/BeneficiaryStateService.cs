@@ -261,7 +261,7 @@ public class BeneficiaryStateService
             : "null";
 
         return string.Join("|",
-            "dup_scan_v4",  // ✅ Version bump — invalidates every cache entry
+            "dup_scan_v5",  // ✅ Version bump — invalidates every cache entry
                             // ever produced by the broken logic above, so old
                             // poisoned entries can't be coincidentally hit.
                             // ── Location ──────────────────────────────────────────────────
@@ -305,7 +305,8 @@ public class BeneficiaryStateService
             N(f.Validator),
             N(f.BatchCode),
             // ── General Search ────────────────────────────────────────────
-            N(f.GeneralSearch)
+            N(f.GeneralSearch),
+            N(f.DataQualityIssue) // ✅ ADD
         );
     }
     public List<DuplicateScanNotificationDto> DuplicateScanNotifications { get; private set; } = new();
@@ -377,6 +378,7 @@ public class BeneficiaryStateService
         Validator = f.Validator,
         BatchCode = f.BatchCode,
         GeneralSearch = f.GeneralSearch,
+        DataQualityIssue = f.DataQualityIssue,   // ✅ ADD
         PageNumber = f.PageNumber,
         PageSize = f.PageSize
     };
@@ -655,6 +657,17 @@ public class BeneficiaryStateService
             parts.Add($"Batch Code: {filter.BatchCode}");
         if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
             parts.Add($"Search: {filter.GeneralSearch}");
+        if (!string.IsNullOrWhiteSpace(filter.DataQualityIssue))
+        {
+            var label = filter.DataQualityIssue switch
+            {
+                "location" => "Caution — Location Needs Correction",
+                "headsup" => "Heads-Up — Missing Payment Info",
+                "incomplete" => "Incomplete — Missing Grantee Details",
+                _ => filter.DataQualityIssue
+            };
+            parts.Add($"Data Quality: {label}");
+        }
 
         return parts.Count > 0 ? string.Join(", ", parts) : "Full Dataset";
     }

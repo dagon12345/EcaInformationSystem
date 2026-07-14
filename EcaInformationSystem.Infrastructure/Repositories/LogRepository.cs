@@ -32,13 +32,31 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(l => l.CreatedAt >= filter.DateFrom.Value.Date);
 
             if (filter.DateTo.HasValue)
-                query = query.Where(l => l.CreatedAt < filter.DateTo.Value.Date.AddDays(1)); // inclusive end-of-day
+                query = query.Where(l => l.CreatedAt < filter.DateTo.Value.Date.AddDays(1));
 
             if (!string.IsNullOrWhiteSpace(filter.UserName))
                 query = query.Where(l => l.UserName.Contains(filter.UserName));
 
             if (!string.IsNullOrWhiteSpace(filter.Search))
                 query = query.Where(l => l.Activity.Contains(filter.Search));
+
+            if (!string.IsNullOrWhiteSpace(filter.BeneficiaryName))
+            {
+                // ✅ Same normalization as the beneficiary search filter's FullName
+                // matching — strip commas/periods and collapse whitespace, so
+                // "ABAA, ASINDINA" matches the same way "ABAA ASINDINA" does.
+                var term = NormalizeSearchTerm(filter.BeneficiaryName);
+
+                var matchingBeneficiaryIds = await _context.BeneficiaryInformations
+                    .Where(b =>
+                        (b.LastName + " " + b.FirstName + " " + b.MiddleName).ToLower().Contains(term) ||
+                        (b.FirstName + " " + b.MiddleName + " " + b.LastName).ToLower().Contains(term))
+                    .Select(b => b.Id)
+                    .ToListAsync();
+
+                query = query.Where(l => l.BeneficiaryInformationId.HasValue
+                    && matchingBeneficiaryIds.Contains(l.BeneficiaryInformationId.Value));
+            }
 
             var totalCount = await query.CountAsync();
 
@@ -106,6 +124,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
+        }
+        // Strips commas/periods and collapses whitespace so "ABAA, ASINDINA" and
+        // "Abaa Asindina" both normalize to the same searchable form as the
+        // space-joined LastName+FirstName+MiddleName concatenation used in the query.
+        private static string NormalizeSearchTerm(string input)
+        {
+            var normalized = input.Trim().ToLower()
+                .Replace(",", " ")
+                .Replace(".", " ");
+
+            while (normalized.Contains("  "))
+                normalized = normalized.Replace("  ", " ");
+
+            return normalized.Trim();
         }
     }
 }

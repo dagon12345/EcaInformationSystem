@@ -47,12 +47,21 @@
         @OtherWarningCount Heads-Up@(OtherWarningCount == 1 ? "" : "s")
     </span>
 }
+@if (IncompleteDetailsCount > 0)
+{
+    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle d-flex align-items-center gap-1"
+          title="Records missing required details">
+        <i class="bi bi-person-fill-exclamation"></i>
+        @IncompleteDetailsCount Incomplete@(IncompleteDetailsCount == 1 ? "" : "s")
+    </span>
+}
     </div>
-    <small class="opacity-75 mt-1 d-block">
-        Select the checkbox to Bulk Update payment status or Create Payroll.
-        <span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.
-        <span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.
-    </small>
+<small class="opacity-75 mt-1 d-block">
+    Select the checkbox to Bulk Update payment status or Create Payroll.
+    <span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.
+    <span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.
+    <span class="text-danger"><i class="bi bi-person-fill-exclamation"></i> Incomplete</span> — missing required details.
+</small>
 </div>
                           
                     </div>
@@ -446,10 +455,11 @@
                                     @foreach (var item in FilteredBeneficiaries)
                                     {
                                             <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
-   <td>
+<td>
     @{
         var cautions = GetLocationCautions(item);
         var warnings = GetOtherWarnings(item);
+        var incompleteIssues = GetIncompleteDetails(item);
     }
     <div class="d-flex align-items-center gap-1">
         @if (cautions.Any())
@@ -459,12 +469,18 @@
                @onclick="() => OpenDetailsPanel(item)"></i>
         }
         @if (warnings.Any())
-{
-    <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
-       title="@($"Heads up: {string.Join("; ", warnings)}")"
-       @onclick="() => OpenDetailsPanel(item)"></i>
-}
-        @if (!cautions.Any() && !warnings.Any())
+        {
+            <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
+               title="@($"Heads up: {string.Join("; ", warnings)}")"
+               @onclick="() => OpenDetailsPanel(item)"></i>
+        }
+        @if (incompleteIssues.Any())
+        {
+            <i class="bi bi-person-fill-exclamation text-danger" style="cursor:pointer;"
+               title="@($"Incomplete: {string.Join("; ", incompleteIssues)}")"
+               @onclick="() => OpenDetailsPanel(item)"></i>
+        }
+        @if (!cautions.Any() && !warnings.Any() && !incompleteIssues.Any())
         {
             <span class="text-muted">—</span>
         }
@@ -691,7 +707,7 @@
                                   @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="21">
+                                            <td colspan="22">
                                                 @if (!State.IsLoading)
                                                 {
                                                     <div class="d-flex flex-column align-items-center gap-2 py-3">
@@ -734,39 +750,46 @@
                         @foreach (var item in FilteredBeneficiaries)
                         {
                             <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
-    <div class="beneficiary-card-top">
-        @{
-            var mobileCautions = GetLocationCautions(item);
-            var mobileWarnings = GetOtherWarnings(item);
-        }
-        <input type="checkbox" class="form-check-input beneficiary-card-check"
-        checked="@checkedIds.Contains(item.Id)"
-        @onchange="() => ToggleCheck(item.Id)" />
-        @if (mobileCautions.Any() || mobileWarnings.Any())
+<div class="beneficiary-card-top">
+    @{
+        var mobileCautions = GetLocationCautions(item);
+        var mobileWarnings = GetOtherWarnings(item);
+        var mobileIncomplete = GetIncompleteDetails(item);
+    }
+    <input type="checkbox" class="form-check-input beneficiary-card-check"
+           checked="@checkedIds.Contains(item.Id)"
+           @onchange="() => ToggleCheck(item.Id)" />
+    @if (mobileCautions.Any() || mobileWarnings.Any() || mobileIncomplete.Any())
+    {
+        <div class="d-flex align-items-center gap-1">
+            @if (mobileCautions.Any())
+            {
+                <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
+                   title="@($"Caution: {string.Join("; ", mobileCautions)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+            @if (mobileWarnings.Any())
+            {
+                <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
+                   title="@($"Heads up: {string.Join("; ", mobileWarnings)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+            @if (mobileIncomplete.Any())
+            {
+                <i class="bi bi-person-fill-exclamation text-danger" style="cursor:pointer;"
+                   title="@($"Incomplete: {string.Join("; ", mobileIncomplete)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+        </div>
+    }
+    <div class="beneficiary-card-name">
+        @item.LastName, @item.FirstName
+        @if (!string.IsNullOrWhiteSpace(item.MiddleName))
         {
-            <div class="d-flex align-items-center gap-1">
-                @if (mobileCautions.Any())
-                {
-                    <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
-                       title="@($"Caution: {string.Join("; ", mobileCautions)}")"
-                       @onclick="() => OpenDetailsPanel(item)"></i>
-                }
-               @if (mobileWarnings.Any())
-{
-    <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
-       title="@($"Heads up: {string.Join("; ", mobileWarnings)}")"
-       @onclick="() => OpenDetailsPanel(item)"></i>
-}
-            </div>
+            <span>&nbsp;@item.MiddleName</span>
         }
-        <div class="beneficiary-card-name">
-                                        @item.LastName, @item.FirstName
-                                        @if (!string.IsNullOrWhiteSpace(item.MiddleName))
-                                        {
-                                            <span>&nbsp;@item.MiddleName</span>
-                                        }
-                                    </div>
-                                </div>
+    </div>
+</div>
 
                                 @if (!string.IsNullOrWhiteSpace(item.BatchCode))
                                 {
@@ -1084,62 +1107,195 @@
                 </div>
             </div>
 
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Identity Information</h6>
-            <div class="row g-2 mb-4">
-                <div class="col-6"><small class="text-muted d-block">Last Name</small><span>@(selectedDetails.LastName ??
-                                                                                                                                                                                                                                              "—")</span></div>
-                    <div class="col-6"><small class="text-muted d-block">First
-                        Name</small><span>@selectedDetails.FirstName</span></div>
-                        <div class="col-6"><small class="text-muted d-block">Middle Name</small><span>@(selectedDetails.MiddleName
-                                                                                                                                                                                                                                                                                                                                        ?? "—")</span></div>
-                            <div class="col-6"><small class="text-muted d-block">Extension</small><span>@(selectedDetails.Extension ??
-                                                                                                                                                                                                                                                                                                                                                                                   "—")</span></div>
-                                <div class="col-6"><small class="text-muted d-block">Birth
-                                    Date</small><span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span></div>
-                                    <div class="col-6"><small class="text-muted d-block">Age</small><span>@selectedDetails.Age</span></div>
-                                    <div class="col-6"><small
-                                        class="text-muted d-block">Sex</small><span>@GetSexText(selectedDetails.Sex)</span></div>
-                                        <div class="col-6"><small class="text-muted d-block">Phone Number</small><span>@(selectedDetails.PhoneNumber
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ?? "—")</span></div>
-                                            <div class="col-6"><small class="text-muted d-block">OSCA ID
-                                                Number</small><span>@(selectedDetails.OscaIdNumber ?? "—")</span></div>
-                                                <div class="col-6"><small class="text-muted d-block">NCSC
-                                                    RRN</small><span>@(selectedDetails.NcscRrn?.ToString() ?? "—")</span></div>
-                                                    <div class="col-6"><small class="text-muted d-block">Batch Code</small><span>@(selectedDetails.BatchCode ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           "—")</span></div>
-                                                        <div class="col-6"><small class="text-muted d-block">Date
-                                                            Applied</small><span>@(selectedDetails.DateApplied?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                                                            <div class="col-6"><small class="text-muted d-block">Date
-                                                                Endorsed</small><span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                                                                <div class="col-6"><small class="text-muted d-block">OSCA ID Date
-                                                                    Issued</small><span>@(selectedDetails.OscaIdDateIssued?.ToString("MMMM dd, yyyy") ?? "—")</span>
-                                                                </div>
-                                                            </div>
+<h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Identity Information</h6>
+<div class="row g-2 mb-4">
+    <div class="col-6">
+        <small class="text-muted d-block">Last Name</small>
+        <span>@(selectedDetails.LastName ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">First Name</small>
+        <span>@selectedDetails.FirstName</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Middle Name</small>
+        <span>@(selectedDetails.MiddleName ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Extension</small>
+        @if (string.IsNullOrWhiteSpace(selectedDetails.Extension))
+        {
+            <span class="text-muted">N/A</span>
+        }
+        else
+        {
+            <span>@selectedDetails.Extension</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Birth Date</small>
+        <span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Age</small>
+        <span>@selectedDetails.Age</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Sex</small>
+        <span>@GetSexText(selectedDetails.Sex)</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Phone Number</small>
+        @if (string.IsNullOrWhiteSpace(selectedDetails.PhoneNumber))
+        {
+            <span class="text-muted">N/A</span>
+        }
+        else
+        {
+            <span>@selectedDetails.PhoneNumber</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">OSCA ID Number</small>
+        <span>@(selectedDetails.OscaIdNumber ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">NCSC RRN</small>
+        @if (selectedDetails.NcscRrn == null)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@selectedDetails.NcscRrn?.ToString()</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Batch Code</small>
+        <span>@(selectedDetails.BatchCode ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Date Applied</small>
+        @if (selectedDetails.DateApplied == null)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@selectedDetails.DateApplied?.ToString("MMMM dd, yyyy")</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Date Endorsed</small>
+        @if (selectedDetails.DateEndorsed == null)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy")</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">OSCA ID Date Issued</small>
+        @if (selectedDetails.OscaIdDateIssued == null)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@selectedDetails.OscaIdDateIssued?.ToString("MMMM dd, yyyy")</span>
+        }
+    </div>
+</div>
+<h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Demographic Information</h6>
+<div class="row g-2 mb-4">
+    <div class="col-6">
+        <small class="text-muted d-block">Civil Status</small>
+        @if (selectedDetails.CivilStatus == null || selectedDetails.CivilStatus == 0)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@GetCivilStatusText(selectedDetails.CivilStatus)</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Citizenship</small>
+        @if (selectedDetails.Citizenship == null || selectedDetails.Citizenship == 0)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@GetCitizenshipText(selectedDetails.Citizenship)</span>
+        }
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Indigenous People</small>
+        <span>@(selectedDetails.IsIndigenousPeople ? "Yes" : "No")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Person with Disability</small>
+        <span>@(selectedDetails.IsPersonWithDisability ? "Yes" : "No")</span>
+    </div>
+</div>
 
-                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Demographic Information</h6>
-                                                            <div class="row g-2 mb-4">
-                                                                <div class="col-6"><small class="text-muted d-block">Civil
-                                                                    Status</small><span>@GetCivilStatusText(selectedDetails.CivilStatus)</span></div>
-                                                                    <div class="col-6"><small
-                                                                        class="text-muted d-block">Citizenship</small><span>@GetCitizenshipText(selectedDetails.Citizenship)</span>
-                                                                    </div>
-                                                                    <div class="col-6"><small class="text-muted d-block">Indigenous
-                                                                        People</small><span>@(selectedDetails.IsIndigenousPeople ? "Yes" : "No")</span></div>
-                                                                        <div class="col-6"><small class="text-muted d-block">Person with
-                                                                            Disability</small><span>@(selectedDetails.IsPersonWithDisability ? "Yes" : "No")</span></div>
-                                                                        </div>
-
-                                                                        <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Address Information</h6>
-                                                                        <div class="row g-2 mb-4">
-                                                                            <div class="col-6"><small class="text-muted d-block">Region</small><span>@selectedDetails.Region</span>
-                                                                            </div>
-                                                                            <div class="col-6"><small class="text-muted d-block">Province</small><span>@selectedDetails.Province</span>
-                                                                            </div>
-                                                                            <div class="col-6"><small
-                                                                                class="text-muted d-block">Municipality</small><span>@selectedDetails.Municipality</span></div>
-                                                                                <div class="col-6"><small class="text-muted d-block">Barangay</small><span>@selectedDetails.Barangay</span>
-                                                                                </div>
-                                                                            </div>
+ <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Address Information</h6>
+<div class="row g-2 mb-4">
+    <div class="col-6">
+        <small class="text-muted d-block">Region</small>
+        <span>@(selectedDetails.RegionName ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Province</small>
+        <span>@(selectedDetails.ProvinceName ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Municipality</small>
+        <span>@(selectedDetails.MunicipalityName ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Barangay</small>
+        @if (string.IsNullOrWhiteSpace(selectedDetails.BarangayName) || selectedDetails.PsgcCodeBarangay == 0)
+        {
+            <span class="text-warning d-flex align-items-center gap-1">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Not set
+                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
+            </span>
+        }
+        else
+        {
+            <span>@selectedDetails.BarangayName</span>
+        }
+    </div>
+</div>
 
                                                                             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
                                                                             <div class="row g-2 mb-4">
@@ -2928,6 +3084,18 @@ Convert.ToBase64String(fileBytes));
     }
 
     #region Private helpers/mappers
+    private List<string> GetIncompleteDetails(BeneficiaryListItemDto item)
+{
+    var issues = new List<string>();
+    if (item.DateEndorsed == null) issues.Add("Date Endorsed missing");
+    if (item.DateApplied == null) issues.Add("Date Applied missing");
+    if (string.IsNullOrWhiteSpace(item.PhoneNumber)) issues.Add("Phone Number missing");
+    if (item.NcscRrn == null) issues.Add("NCSC RRN missing");
+    return issues;
+}
+
+private int IncompleteDetailsCount =>
+    FilteredBeneficiaries.Count(item => GetIncompleteDetails(item).Any());
     // ✅ Add this helper — called wherever an HTTP response comes back
     private async Task HandleApiResponseAsync(
         HttpResponseMessage response, string successMessage, Func<Task>? onSuccess = null)

@@ -58,6 +58,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? FindingRemarksPreview { get; set; }
 
         public byte[]? RowVersion { get; set; }
+        public DateTime? DateEndorsed { get; set; }
+        public DateTime? DateApplied { get; set; }
+        public int? NcscRrn { get; set; }
 
 
         // ✅ Now passes RefCode — generated once, stored in DB

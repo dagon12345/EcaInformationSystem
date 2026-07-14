@@ -89,13 +89,14 @@
                                 </span>
                             }
                         </div>
-                        @* ✅ NEW — Barangay data-quality filter *@
                         <div class="sf-field">
                             <label>Data Quality</label>
-                            <select value="@_barangayIssueValue" @onchange="OnBarangayIssueChanged"
+                            <select value="@_dataQualityValue" @onchange="OnDataQualityChanged"
                                     disabled="@(IsLoading || State.SelectedBarangayId > 0)">
                                 <option value="">All Records</option>
-                                <option value="needsfixing">Needs Fixing — Barangay Unresolved</option>
+                                <option value="location">Caution — Location Needs Correction</option>
+                                <option value="headsup">Heads-Up — Missing Payment Info</option>
+                                <option value="incomplete">Incomplete — Missing Grantee Details</option>
                             </select>
                         </div>
 
@@ -553,7 +554,8 @@
     {
         var val = e.Value?.ToString();
         _barangayIssueValue = val ?? string.Empty;
-        State.Filter.BarangayNeedsFixing = val == "needsfixing" ? true : null;
+        _dataQualityValue = string.Empty;
+        State.Filter.DataQualityIssue = null;
     }
     private void OnCoStatusFilterChanged(ChangeEventArgs e)
     {
@@ -600,6 +602,13 @@
     private string _eligibilityValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
     private string _modeOfPaymentValue = string.Empty;
+    private string _dataQualityValue = string.Empty;
+
+    private void OnDataQualityChanged(ChangeEventArgs e)
+    {
+        _dataQualityValue = e.Value?.ToString() ?? string.Empty;
+        State.Filter.DataQualityIssue = string.IsNullOrWhiteSpace(_dataQualityValue) ? null : _dataQualityValue;
+    }
     private void OnModeOfPaymentChanged(ChangeEventArgs e)
     {
         var val = e.Value?.ToString();
@@ -949,10 +958,10 @@
     {
         State.SelectedRegionId = 0;
         State.SelectedProvinceIds = new();
-        State.SelectedMunicipalityIds = new(); 
+        State.SelectedMunicipalityIds = new();
         State.SelectedBarangayId = 0;
-        State.SelectedPaymentStatuses = new(); 
-        State.SelectedPayrollQuarters = new(); 
+        State.SelectedPaymentStatuses = new();
+        State.SelectedPayrollQuarters = new();
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
@@ -970,11 +979,11 @@
         State.Filter.CoStatus = null;
         _complianceValue = string.Empty;
         State.Filter.IsCompliant = null;
-        State.Filter.ComplianceMode = null; 
+        State.Filter.ComplianceMode = null;
         State.Filter.IsEligible = null;
         State.Filter.EligibilityMode = null;
-        _eligibilityValue = string.Empty; 
-        State.Filter.GeneralSearch = null; 
+        _eligibilityValue = string.Empty;
+        State.Filter.GeneralSearch = null;
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
         // ✅ Add inside ClearFilterAsync alongside the other filter clears
@@ -984,7 +993,8 @@
         State.Filter.FilterRegionRoman = null;
         _modeOfPaymentValue = string.Empty;
         State.Filter.FilterModeOfPayment = null;
-        State.Filter.BarangayNeedsFixing = null;
+        _dataQualityValue = string.Empty;
+        State.Filter.DataQualityIssue = null;
         // Inside ClearAllFilters — add alongside the other clears
         State.Filter.DateAddedFrom = null;
         State.Filter.DateAddedTo = null;
@@ -1028,7 +1038,7 @@
     !State.SelectedMunicipalityIds.Any() &&
     !State.SelectedPaymentStatuses.Any() &&
     !State.SelectedPayrollQuarters.Any() &&
-    State.Filter.BarangayNeedsFixing == null &&
+    string.IsNullOrWhiteSpace(State.Filter.DataQualityIssue) &&
     f.PsgcCodeBarangay == null &&
     f.Sex == null &&
     f.IsCompliant == null &&

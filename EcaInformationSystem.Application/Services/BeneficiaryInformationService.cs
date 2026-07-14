@@ -553,7 +553,8 @@ namespace EcaInformationSystem.Application.Services
                 // ── Other ─────────────────────────────────────────────────────
                 N(f.Validator),
                 N(f.BatchCode),
-                N(f.GeneralSearch),               // ✅ ADDED - CRITICAL!
+                N(f.GeneralSearch),
+                N(f.DataQualityIssue),
                 ListN(f.FilterPayrollQuarters)   // ✅ new
             );
         }
@@ -625,6 +626,7 @@ namespace EcaInformationSystem.Application.Services
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
                 PayrollQuarter = dto.PayrollQuarter,
+                FiscalYear = dto.FiscalYear,
                 PaymentStatus = dto.PaymentStatus,
                 ModeOfPayment = dto.ModeOfPayment,
                 PaymentDate = dto.PaymentDate,
@@ -945,19 +947,19 @@ namespace EcaInformationSystem.Application.Services
             }
 
             beneficiary.Update(
-                dto.Quarter, dto.Batch, dto.RefYear, refCodeToSave,
-                dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
-                dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
-                dto.LastName, dto.FirstName, dto.MiddleName,
-                dto.Extension, dto.BirthDate, dto.PhoneNumber,
-                dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
-                dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
-                dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
-                dto.IsCompliant, dto.Validator, dto.ValidationDate,
-                dto.PayrollQuarter, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,
-                dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
-                dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
-                dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
+                     dto.Quarter, dto.Batch, dto.RefYear, refCodeToSave,
+                     dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
+                     dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
+                     dto.LastName, dto.FirstName, dto.MiddleName,
+                     dto.Extension, dto.BirthDate, dto.PhoneNumber,
+                     dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
+                     dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
+                     dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
+                     dto.IsCompliant, dto.Validator, dto.ValidationDate,
+                     dto.PayrollQuarter, dto.FiscalYear, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,  // ✅ FiscalYear inserted
+                     dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
+                     dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
+                     dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
 
             await _repo.UpdateAsync(beneficiary);
 
@@ -3910,6 +3912,18 @@ namespace EcaInformationSystem.Application.Services
             if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))
                 parts.Add($"Search: {filter.GeneralSearch}");
 
+            if (!string.IsNullOrWhiteSpace(filter.DataQualityIssue))
+            {
+                var label = filter.DataQualityIssue switch
+                {
+                    "location" => "Caution — Location Needs Correction",
+                    "headsup" => "Heads-Up — Missing Payment Info",
+                    "incomplete" => "Incomplete — Missing Grantee Details",
+                    _ => filter.DataQualityIssue
+                };
+                parts.Add($"Data Quality: {label}");
+            }
+
             return parts.Count > 0 ? string.Join(", ", parts) : "Full Dataset";
         }
 
@@ -4000,7 +4014,7 @@ namespace EcaInformationSystem.Application.Services
                     : CommonConstants.Null,
 
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,  // ✅ this one IS still single-select, per your design — int?.ToString() is fine here
-                filter.BarangayNeedsFixing?.ToString() ?? CommonConstants.Null,   // ✅ ADD THIS LINE
+                filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,
@@ -4190,7 +4204,7 @@ namespace EcaInformationSystem.Application.Services
                 (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : CommonConstants.Null),
                 (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : CommonConstants.Null),
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,   // ✅ FIX: singular, matches actual query field
-                filter.BarangayNeedsFixing?.ToString() ?? CommonConstants.Null,
+                filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
                 filter.FullName ?? string.Empty,                              // ✅ ADDED
@@ -4349,6 +4363,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.PayrollQuarter != dto.PayrollQuarter)
                 changes.Add($"Payroll Quarter '{beneficiary.PayrollQuarter}' → '{dto.PayrollQuarter}'");
+
+            if (beneficiary.FiscalYear != dto.FiscalYear)
+                changes.Add($"Fiscal Year '{beneficiary.FiscalYear}' → '{dto.FiscalYear}'");
 
             return changes;
         }
