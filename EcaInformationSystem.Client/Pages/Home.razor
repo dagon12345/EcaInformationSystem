@@ -278,8 +278,6 @@ else
     private bool _isPdo;
     private List<string> _jurisdictionNames = new();
 
-    private bool _isLoadingDuplicates = true;
-    private int _duplicatePairCount;
 
     private void ToggleProvince(string name) =>
     _expandedProvince = _expandedProvince == name ? null : name;

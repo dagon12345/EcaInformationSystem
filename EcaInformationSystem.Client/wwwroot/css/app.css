@@ -25,6 +25,95 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.payment-cell {
+    border-left: 3px solid transparent;
+    padding-left: 10px !important;
+}
+
+.payment-cell--paid {
+    border-left-color: #16a34a;
+}
+
+.payment-cell--unpaid {
+    border-left-color: #dc2626;
+}
+
+.payment-cell--pending {
+    border-left-color: #d97706;
+}
+
+.payment-cell--no-g {
+    border-left-color: #94a3b8;
+}
+
+.payment-cell-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.payment-cell-count {
+    margin-left: 0 !important;
+}
+
+.payment-cell-period {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    font-weight: 600;
+}
+
+.clickable-cell {
+    cursor: pointer;
+    transition: background-color .12s;
+}
+
+    .clickable-cell:hover {
+        background: var(--row-hover);
+    }
+.payment-timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+.payment-timeline-item {
+    position: relative;
+    padding-bottom: 16px;
+}
+
+    /* Connector line running down to the next node */
+    .payment-timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -18px;
+        top: 6px;
+        bottom: -10px;
+        width: 2px;
+        background: var(--bs-border-color);
+    }
+
+    .payment-timeline-item:last-child::before {
+        display: none;
+    }
+
+/* The dot marker on each node */
+.payment-timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px currentColor;
+}
+
+/* Subtle highlight for the "current" entry so it stands out at a glance */
+.payment-timeline-item--current .payment-timeline-content {
+    background: var(--bs-primary-bg-subtle);
+    border-radius: 6px;
+    padding: 8px;
+}
 .forms-layout {
     display: flex;
     gap: 20px;

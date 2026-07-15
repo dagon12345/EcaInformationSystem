@@ -1,5 +1,6 @@
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Domain.Entities;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -17,27 +18,30 @@ namespace EcaInformationSystem.Application.Services
             if (role == "Admin" || role == "SuperAdmin")
                 return null;
 
-            // PDO — check jurisdiction
             if (role == "PDO")
             {
                 var user = await _repo.GetByUserNameAsync(userName);
                 if (user is null)
                     return "User account not found.";
 
-                var allowed = user.Jurisdictions
+                var jurisdictions = user.Jurisdictions ?? new List<PdoJurisdiction>();
+
+                var allowed = jurisdictions
                     .Select(j => j.PsgcCodeMunicipality)
                     .ToHashSet();
 
                 if (!allowed.Contains(municipalityCode))
                 {
-                    var jurisdictionNames = user.Jurisdictions
+                    var jurisdictionNames = jurisdictions
                         .Select(j => j.MunicipalityName)
+                        .Where(n => !string.IsNullOrWhiteSpace(n))
                         .OrderBy(n => n);
 
-                    var allowedList = string.Join(", ", jurisdictionNames);
+                    var allowedList = jurisdictionNames.Any()
+                        ? string.Join(", ", jurisdictionNames)
+                        : "no municipalities";
 
-                    return $"Access denied. You are only authorized to manage records " +
-                           $"in: {allowedList}.";
+                    return $"Access denied. You are only authorized to manage records in: {allowedList}.";
                 }
 
                 return null;

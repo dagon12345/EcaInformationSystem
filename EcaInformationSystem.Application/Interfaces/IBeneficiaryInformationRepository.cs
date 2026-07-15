@@ -39,12 +39,13 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
         Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);
-        Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments);
         Task<List<Guid>> FindSimilarNameIdsAsync(string term, int maxResults = 50, double minScore = 0.75);
-        Task BulkUpdateFiscalYearAsync(
-                        List<Guid> ids,
-                        int? fiscalYear,
-                        Dictionary<Guid, byte[]>? rowVersions);
+        Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId);
+        Task BulkAddPaymentHistoryAsync(List<Guid> beneficiaryIds, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string? remarks, string userName);
+        Task EditPaymentHistoryEntryAsync(Guid historyId, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string? remarks, string userName);
+        Task<PaymentHistoryDeletedInfoDto> DeletePaymentHistoryAsync(Guid historyId);
     }
 }

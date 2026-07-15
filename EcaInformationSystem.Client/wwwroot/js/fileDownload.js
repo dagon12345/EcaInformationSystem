@@ -9,4 +9,9 @@ window.downloadFileFromStream = async (fileName, contentStreamReference) => {
     anchorElement.click();
     anchorElement.remove();
     URL.revokeObjectURL(url);
-}
+};
+
+window.scrollToElement = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};

@@ -152,47 +152,41 @@
                                     @onclick='() => activeBulkTab = "refnumber"'>
                                 <i class="bi bi-hash me-1"></i>Ref Number
                             </button>
-                             <button type="button"
-                                    class="btn @(activeBulkTab == "payrollquarter" ? "btn-primary" : "btn-outline-secondary")"
-                                    @onclick='() => activeBulkTab = "payrollquarter"'>
-                                <i class="bi bi-calendar3-range me-1"></i>Payroll Qtr / FY
-                            </button>
-
                         </div>
 
-                        @* ── Tab content — always rendered, no role checks ── *@
-                        @if (activeBulkTab == "payment")
-                        {
-                            <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
-                                <option value="">-- Set Payment Status --</option>
-                                <option value="0">N/A</option>
-                                <option value="1">Unpaid</option>
-                                <option value="2">Paid</option>
-                                <option value="3">Pending</option>
-                            </select>
-                            <select class="form-select form-select-sm w-auto" @bind="bulkModeOfPayment"
-                                    disabled="@(bulkPaymentStatus != 2)">
-                                <option value="">-- Mode of Payment --</option>
-                                <option value="1">Cash Advance by SDO</option>
-                                <option value="2">Bank Transfer</option>
-                            </select>
-                            <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
-                                       @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
-                                <button class="btn btn-sm btn-primary" @onclick="OpenBulkUpdateModal"
-                                    disabled="@(!checkedIds.Any() || bulkPaymentStatus == null
-                                                || (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-                                                || IsBulkUpdating)">
-                                @if (IsBulkUpdating)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-1"></span>
-                                    <span>Updating...</span>
-                                }
-                                else
-                                {
-                                    <span>Apply Payment</span>
-                                }
-                            </button>
-                        }
+@if (activeBulkTab == "payment")
+{
+    <select class="form-select form-select-sm w-auto" @bind="bulkPaymentStatus">
+        <option value="">-- Set Payment Status --</option>
+        <option value="0">N/A</option>
+        <option value="1">Unpaid</option>
+        <option value="2">Paid</option>
+        <option value="3">Pending</option>
+    </select>
+    <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarterOnly" disabled="@(bulkPaymentStatus != 2)">
+        <option value="">-- Quarter --</option>
+        <option value="1">Q1</option><option value="2">Q2</option>
+        <option value="3">Q3</option><option value="4">Q4</option>
+    </select>
+    <select class="form-select form-select-sm w-auto" @bind="_bulkFiscalYear" disabled="@(bulkPaymentStatus != 2)">
+        <option value="">-- Fiscal Year --</option>
+        @foreach (var year in _availableMilestoneYears)
+        {
+            <option value="@year">@year</option>
+        }
+    </select>
+    <select class="form-select form-select-sm w-auto" @bind="bulkModeOfPayment" disabled="@(bulkPaymentStatus != 2)">
+        <option value="">-- Mode of Payment --</option>
+        <option value="1">Cash Advance by SDO</option>
+        <option value="2">Bank Transfer</option>
+    </select>
+    <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
+               @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
+   <button class="btn btn-sm btn-primary" @onclick="OpenBulkPaymentHistoryModal"
+        disabled="@(!checkedIds.Any() || bulkPaymentStatus == null || IsBulkUpdating)">
+    Record Payment
+</button>
+}
 
                         @if (activeBulkTab == "other")
                         {
@@ -287,47 +281,6 @@
                                 }
                             </button>
                         }
-@if (activeBulkTab == "payrollquarter")
-{
-    <span class="text-muted small fw-semibold me-1">Quarter:</span>
-    <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarterOnly">
-        <option value="">-- No Change --</option>
-        <option value="1">Q1</option>
-        <option value="2">Q2</option>
-        <option value="3">Q3</option>
-        <option value="4">Q4</option>
-    </select>
-
-                            <span class="text-muted small fw-semibold ms-2 me-1">Fiscal Year:</span>
-                            <select class="form-select form-select-sm w-auto" @bind="_bulkFiscalYear">
-                                <option value="">-- No Change --</option>
-                                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
-                                {
-                                    <option value="@y">@y</option>
-                                }
-                            </select>
-
-    <button class="btn btn-sm btn-primary" @onclick="OpenBulkQuarterFiscalYearModal"
-            disabled="@(!checkedIds.Any()
-                        || (bulkPayrollQuarterOnly == null && _bulkFiscalYear == null)
-                        || IsBulkUpdatingPayrollQuarter || _isBulkUpdatingFiscalYear)">
-        @if (IsBulkUpdatingPayrollQuarter || _isBulkUpdatingFiscalYear)
-        {
-            <span class="spinner-border spinner-border-sm me-1"></span>
-            <span>Updating...</span>
-        }
-        else
-        {
-            <span>Apply Changes</span>
-        }
-    </button>
-
-    <button class="btn btn-sm btn-outline-danger" @onclick="OpenClearQuarterFiscalYearModal"
-            disabled="@(!checkedIds.Any() || IsBulkUpdatingPayrollQuarter || _isBulkUpdatingFiscalYear)">
-        Clear Both
-    </button>
-}
-
                         <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection"
                                 disabled="@(!checkedIds.Any())">
                             Clear Selection
@@ -440,7 +393,7 @@
                                         <th>Municipality</th>
                                         <th>Barangay</th>
                                         <th>Validator</th>
-                                        <th>Payroll Qtr & FY</th>
+                                        <th>Payment Quarter & FY</th>
                                         <th>Payment</th>
                                         <th>Mode</th>
                                         <th>Eligible</th>
@@ -567,11 +520,27 @@
         <span class="text-muted small">—</span>
     }
 </td>
-                                                <td>
-                                                    <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
-                                                        @Highlight(GetPaymentStatusText(item.PaymentStatus))
-                                                    </span>
-                                                </td>
+<td class="clickable-cell payment-cell payment-cell--@GetPaymentBadgeClass(item.PaymentStatus)"
+    title="@(item.PaymentHistorySummary ?? "No payment history yet")"
+    @onclick="() => OpenDetailsPanelAndFocusPaymentHistory(item)">
+    <div class="payment-cell-status">
+        <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
+            @Highlight(GetPaymentStatusText(item.PaymentStatus))
+        </span>
+        @if (item.PaymentHistoryCount > 1)
+        {
+            <span class="tbl-badge pending payment-cell-count">
+                <i class="bi bi-clock-history"></i> ×@item.PaymentHistoryCount
+            </span>
+        }
+    </div>
+    @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
+    {
+        <div class="payment-cell-period">
+            @Highlight($"Q{item.PayrollQuarter} {item.FiscalYear?.ToString() ?? ""}".Trim())
+        </div>
+    }
+</td>
                                                 <td>
                                                     @if (item.PaymentStatus == 2)
                                                     {
@@ -703,11 +672,10 @@
                                                </td>
                                             </tr>
                                    }
-
-                                  @if (!FilteredBeneficiaries.Any())
+                                    @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="22">
+                                            <td colspan="21">
                                                 @if (!State.IsLoading)
                                                 {
                                                     <div class="d-flex flex-column align-items-center gap-2 py-3">
@@ -821,9 +789,13 @@
                                     }
                                     @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
 {
-    <span class="tbl-badge">
-        @($"{(item.PayrollQuarter.HasValue ? $"Q{item.PayrollQuarter}" : "—")} {item.FiscalYear?.ToString() ?? ""}".Trim())
-    </span>
+                                        <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
+                                            @GetPaymentStatusText(item.PaymentStatus)
+                                            @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
+                                            {
+                                                <text> · Q@(item.PayrollQuarter) @(item.FiscalYear)</text>
+                                            }
+                                        </span>
 }
                                 </div>
 
@@ -893,42 +865,6 @@
         </div>
     </div>
 </div>
-<HxModal @ref="bulkQuarterFiscalYearModal">
-    <HeaderTemplate>
-        <h5 class="modal-title">Confirm Update</h5>
-    </HeaderTemplate>
-<BodyTemplate>
-    <p>You are about to update <strong>@checkedIds.Count</strong> record(s):</p>
-    @if (_clearingQuarterFiscalYear)
-    {
-        <p class="mb-0">Payroll Quarter → <strong>Cleared</strong>, Fiscal Year → <strong>Cleared</strong></p>
-    }
-    else
-    {
-        <p class="mb-0">
-            Payroll Quarter → <strong>@(bulkPayrollQuarterOnly.HasValue ? $"Q{bulkPayrollQuarterOnly}" : "No change")</strong>,
-            Fiscal Year → <strong>@(_bulkFiscalYear?.ToString() ?? "No change")</strong>
-        </p>
-    }
-    <p class="text-muted small mt-2 mb-0">
-        Only the fields you set will change — leaving a field blank leaves it untouched.
-    </p>
-</BodyTemplate>
-    <FooterTemplate>
-        <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkQuarterFiscalYearModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkQuarterFiscalYearAsync"
-                  Disabled="@(IsBulkUpdatingPayrollQuarter || _isBulkUpdatingFiscalYear)">
-            @if (IsBulkUpdatingPayrollQuarter || _isBulkUpdatingFiscalYear)
-            {
-                <span>Updating...</span>
-            }
-            else
-            {
-                <span>Yes, Update</span>
-            }
-        </HxButton>
-    </FooterTemplate>
-</HxModal>
 
 <HxModal @ref="bulkRefNumberModal">
     <HeaderTemplate>
@@ -1297,31 +1233,136 @@
     </div>
 </div>
 
-                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
-                                                                            <div class="row g-2 mb-4">
-                                                                                <div class="col-6"><small class="text-muted d-block">Validator</small><span>@(selectedDetails.Validator ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      "—")</span></div>
-                                                                                    <div class="col-6"><small class="text-muted d-block">Validation Date</small><span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span></div>
-                                                                                        <div class="col-6"><small class="text-muted d-block">Payroll Quarter</small>
-                                                                                            <span>@(selectedDetails.PayrollQuarter.HasValue ? $"Q{selectedDetails.PayrollQuarter}" : "—")</span>
-                                                                                        </div>
-                                                                                        <div class="col-6">
-    <small class="text-muted d-block">Fiscal Year</small>
-    <span>@(selectedDetails.FiscalYear?.ToString() ?? "—")</span>
+ <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
+ <div class="row g-2 mb-4">
+     <div class="col-6">
+         <small class="text-muted d-block">Validator</small>
+         <span>@(selectedDetails.Validator ??"—")</span>
+     </div>
+         <div class="col-6">
+             <small class="text-muted d-block">Validation Date</small>
+             <span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span>
+         </div>
 </div>
-                                                                                        <div class="col-6">
-                                                                                            <small class="text-muted d-block">Payment Status</small>
-                                                                                            <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
-                                                                                                @GetPaymentStatusText(selectedDetails.PaymentStatus)
-                                                                                            </span>
-                                                                                        </div>
-                                                                                        <div class="col-6"><small class="text-muted d-block">Payment
-                                                                                            Date</small><span>@(selectedDetails.PaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</span></div>
-                                                                                            <div class="col-6"><small class="text-muted d-block">Mode of
-                                                                                                Payment</small><span>@GetModeOfPaymentText(selectedDetails.ModeOfPayment)</span></div>
-                                                                                                <div class="col-12"><small class="text-muted d-block">Remarks</small><span>@(selectedDetails.Remarks ??
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         "—")</span></div>
-                                                                                                </div>
+           <h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-clock-history me-1"></i>Payment History</span>
+    @if (_isAdmin)
+    {
+        <button class="btn btn-sm btn-primary" @onclick="() => OpenAddPaymentHistoryModal(selectedDetails!.Id)">
+            <i class="bi bi-plus-circle me-1"></i>Record Payment
+        </button>
+    }
+</h6>
+
+<div class="row g-2 mb-3">
+    <div class="col-6">
+        <small class="text-muted d-block">Current Status</small>
+        <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
+            @GetPaymentStatusText(selectedDetails.PaymentStatus)
+        </span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Current Period</small>
+        <span>@(selectedDetails.PayrollQuarter.HasValue ? $"Q{selectedDetails.PayrollQuarter}" : "—") @(selectedDetails.FiscalYear?.ToString() ?? "")</span>
+    </div>
+</div>
+
+@if (isLoadingPaymentHistory)
+{
+    <div class="text-center py-3">
+        <span class="spinner-border spinner-border-sm text-primary"></span>
+        <span class="ms-2 text-muted small">Loading payment history...</span>
+    </div>
+}
+else if (!paymentHistory.Any())
+{
+    <div class="alert alert-secondary py-2 px-3 small mb-4">
+        <i class="bi bi-info-circle me-1"></i>No payment records yet for this beneficiary.
+    </div>
+}
+else
+{
+    <div class="payment-timeline mb-4">
+        @foreach (var entry in paymentHistory)
+        {
+            <div class="payment-timeline-item @(entry.IsCurrent ? "payment-timeline-item--current" : "")">
+                <div class="payment-timeline-marker @GetPaymentBadgeClass(entry.PaymentStatus)"></div>
+                <div class="payment-timeline-content">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="tbl-badge @GetPaymentBadgeClass(entry.PaymentStatus)">
+                                @GetPaymentStatusText(entry.PaymentStatus)
+                            </span>
+                            @if (entry.IsCurrent)
+                            {
+                                <span class="badge bg-primary ms-1" style="font-size:9px;">CURRENT</span>
+                            }
+                            @if (entry.DateModified.HasValue)
+                            {
+                                <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">CORRECTED</span>
+                            }
+                        </div>
+                        <small class="text-muted">
+                            @entry.DateCreated.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")
+                        </small>
+                    </div>
+
+                    <div class="row g-1 mt-1" style="font-size:12px;">
+                        @if (entry.PayrollQuarter.HasValue || entry.FiscalYear.HasValue)
+                        {
+                            <div class="col-6">
+                                <span class="text-muted">Period:</span>
+                                @(entry.PayrollQuarter.HasValue ? $"Q{entry.PayrollQuarter}" : "—")
+                                @(entry.FiscalYear?.ToString() ?? "")
+                            </div>
+                        }
+                        @if (entry.PaymentDate.HasValue)
+                        {
+                            <div class="col-6">
+                                <span class="text-muted">Paid:</span>
+                                @entry.PaymentDate.Value.ToString("MMM dd, yyyy")
+                            </div>
+                        }
+                        @if (entry.PaymentStatus == 2)
+                        {
+                            <div class="col-6">
+                                <span class="text-muted">Mode:</span>
+                                @GetModeOfPaymentText(entry.ModeOfPayment)
+                            </div>
+                        }
+                        <div class="col-12 text-muted" style="font-size:10px;">
+                            Recorded by @entry.CreatedBy
+                            @if (entry.DateModified.HasValue)
+                            {
+                                <span>· Corrected by @entry.ModifiedBy on @entry.DateModified.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                            }
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                    {
+                        <div class="mt-1" style="font-size:11px;">
+                            <span class="text-muted">Remarks:</span> @entry.Remarks
+                        </div>
+                    }
+                    @if (_isAdmin)
+                    {
+                        <div class="d-flex gap-2 mt-1">
+                            <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
+                                    @onclick="() => OpenEditPaymentHistoryModal(entry)">
+                                <i class="bi bi-pencil-square me-1"></i>Correct this entry
+                            </button>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-danger" style="font-size:11px;"
+                                    @onclick="() => ConfirmDeletePaymentHistory(entry)">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
 
                                                                                                 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
                                                                                                 <div class="row g-2 mb-4">
@@ -1472,6 +1513,140 @@
                                                                                                         </div>
                                                                                                     </FooterTemplate>
                                                                                                 </HxOffcanvas>
+                                                                                                <HxModal @ref="addPaymentHistoryModal">
+    <HeaderTemplate><h5 class="modal-title">Record New Payment</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label small">Payroll Quarter</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.PayrollQuarter">
+                    <option value="">-- None --</option>
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Fiscal Year</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.FiscalYear">
+                    <option value="">-- None --</option>
+                    @foreach (var year in _availableMilestoneYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Status</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.PaymentStatus">
+                    <option value="0">N/A</option>
+                    <option value="1">Unpaid</option>
+                    <option value="2">Paid</option>
+                    <option value="3">Pending</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Mode of Payment</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.ModeOfPayment"
+                        disabled="@(_newPayment.PaymentStatus != 2)">
+                    <option value="">-- Select --</option>
+                    <option value="1">Cash Advance by SDO</option>
+                    <option value="2">Bank Transfer</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Date</label>
+                <input type="date" class="form-control form-control-sm" @bind="_newPayment.PaymentDate"
+                       disabled="@(_newPayment.PaymentStatus != 2)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Remarks</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="_newPayment.Remarks"></textarea>
+            </div>
+        </div>
+        @if (_newPayment.PaymentStatus == 2 &&
+             (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Paid status.
+            </div>
+        }
+    </BodyTemplate>
+<FooterTemplate>
+    <HxButton Color="ThemeColor.Secondary" @onclick="() => addPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+    <HxButton Color="ThemeColor.Primary" @onclick="OpenAddPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
+        @(_isSavingPaymentHistory ? "Saving..." : "Add Record")
+    </HxButton>
+</FooterTemplate>
+</HxModal>
+
+<HxModal @ref="editPaymentHistoryModal">
+    <HeaderTemplate><h5 class="modal-title">Correct Payment Record</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="alert alert-warning py-2 px-3 small">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            This edits the existing record in place. If this is actually a NEW payment
+            event, close this and use "Record Payment" instead.
+        </div>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label small">Payroll Quarter</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.PayrollQuarter">
+                    <option value="">-- None --</option>
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Fiscal Year</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.FiscalYear">
+                    <option value="">-- None --</option>
+                    @foreach (var year in _availableMilestoneYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Status</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.PaymentStatus">
+                    <option value="0">N/A</option>
+                    <option value="1">Unpaid</option>
+                    <option value="2">Paid</option>
+                    <option value="3">Pending</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Mode of Payment</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.ModeOfPayment"
+                        disabled="@(_editPayment.PaymentStatus != 2)">
+                    <option value="">-- Select --</option>
+                    <option value="1">Cash Advance by SDO</option>
+                    <option value="2">Bank Transfer</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Date</label>
+                <input type="date" class="form-control form-control-sm" @bind="_editPayment.PaymentDate"
+                       disabled="@(_editPayment.PaymentStatus != 2)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Remarks</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="_editPayment.Remarks"></textarea>
+            </div>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => editPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="OpenEditPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
+            @(_isSavingPaymentHistory ? "Saving..." : "Save Correction")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
                                                                                                 <HxModal @ref="logModal" Size="ModalSize.ExtraLarge">
                                                                                                     <HeaderTemplate>
@@ -2115,9 +2290,50 @@
                                                                                                     </FooterTemplate>
                                                                                                 </HxModal>
 <CoeModal @ref="_coeModal" />
+<HxModal @ref="bulkPaymentHistoryModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Confirm Bulk Payment Record</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            You are about to record a new
+            <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong> payment entry
+            for <strong>@checkedIds.Count</strong> beneficiary record(s).
+        </p>
+        @if (bulkPaymentStatus == 2)
+        {
+            <ul class="mb-0">
+                <li>Period: <strong>Q@(bulkPayrollQuarterOnly) @(_bulkFiscalYear)</strong></li>
+                <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
+                <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
+            </ul>
+        }
+        <p class="mt-2 mb-0 text-muted small">
+            This adds a new history entry to each selected record — it does not
+            overwrite existing entries.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkPaymentHistoryConfirmedAsync" Disabled="@IsBulkUpdating">
+            @(IsBulkUpdating ? "Recording..." : "Yes, Record Payment")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
 @code {
-    private HxModal bulkQuarterFiscalYearModal = default!;
+    private HxModal bulkPaymentHistoryModal = default!;
+    private PaymentHistoryDto? _pendingDeletePaymentHistory;
+    private readonly List<int> _availableMilestoneYears = new() { 2024, 2025, 2026, 2027, 2028, 2029, 2030 };
+    private bool _isAdmin;
+    private HxModal editPaymentHistoryModal = default!;
+    private EditPaymentHistoryRequestDto _editPayment = new();
+    private HxModal addPaymentHistoryModal = default!;
+    private AddPaymentHistoryDto _newPayment = new();
+    private Guid _newPaymentBeneficiaryId;
+    private bool _isSavingPaymentHistory;
+    private List<PaymentHistoryDto> paymentHistory = new();
+    private bool isLoadingPaymentHistory;
     private bool _clearingQuarterFiscalYear = false;
     private int? _bulkFiscalYear;
     private bool _isBulkUpdatingFiscalYear;
@@ -2203,78 +2419,240 @@ protected override void OnInitialized()
     };
     State.OnChange += _stateChangeHandler;
 }
-private async Task OpenBulkQuarterFiscalYearModal()
+private async Task OpenBulkPaymentHistoryModal()
 {
-    if (!checkedIds.Any() || (bulkPayrollQuarterOnly == null && _bulkFiscalYear == null)) return;
-    _clearingQuarterFiscalYear = false;
-    await bulkQuarterFiscalYearModal.ShowAsync();
+    if (bulkPaymentStatus == null || !checkedIds.Any()) return;
+    if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+    { toast.ShowError("Payment Date is required when status is Paid."); return; }
+    if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
+    { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
+    if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
+    { toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid."); return; }
+
+    await bulkPaymentHistoryModal.ShowAsync();
+}
+private async Task ExecuteBulkPaymentHistoryConfirmedAsync()
+{
+    await bulkPaymentHistoryModal.HideAsync();
+    await ExecuteBulkAddPaymentHistoryAsync();
+}
+private async Task OpenDetailsPanelAndFocusPaymentHistory(BeneficiaryListItemDto item)
+{
+    await OpenDetailsPanel(item);
+    await Task.Delay(150); // let the offcanvas finish rendering before scrolling
+    await JS.InvokeVoidAsync("scrollToElement", "payment-history-anchor");
+}
+private async Task ConfirmDeletePaymentHistory(PaymentHistoryDto entry)
+{
+    _pendingDeletePaymentHistory = entry;
+    pendingAction = "delete-payment-history";
+    confirmationTitle = "Delete Payment Record";
+    confirmationMessage =
+        $"Delete this {GetPaymentStatusText(entry.PaymentStatus)} payment record dated " +
+        $"{entry.DateCreated.ToLocalTime():MMM dd, yyyy}? This cannot be undone.";
+    await confirmModal.ShowAsync();
 }
 
-private async Task OpenClearQuarterFiscalYearModal()
+private async Task DeletePaymentHistoryEntryAsync()
 {
-    if (!checkedIds.Any()) return;
-    _clearingQuarterFiscalYear = true;
-    await bulkQuarterFiscalYearModal.ShowAsync();
+    if (_pendingDeletePaymentHistory == null) return;
+
+    var response = await Http.DeleteAsync(
+        $"api/beneficiary/payment-history/{_pendingDeletePaymentHistory.Id}");
+
+    await HandleApiResponseAsync(response, "Payment record deleted.", async () =>
+    {
+        if (selectedDetails != null)
+            await LoadPaymentHistoryAsync(selectedDetails.Id);
+        State.Invalidate();
+        await State.LoadAsync();
+    });
+
+    _pendingDeletePaymentHistory = null;
+}
+    private async Task ExecuteBulkAddPaymentHistoryAsync()
+    {
+        if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+        {
+            toast.ShowError("Payment Date is required when status is Paid.");
+            return;
+        }
+        if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
+        {
+            toast.ShowError("Mode of Payment is required when status is Paid.");
+            return;
+        }
+        if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
+        {
+            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+            return;
+        }
+
+        try
+        {
+            IsBulkUpdating = true;
+            var request = new BulkAddPaymentHistoryRequestDto
+            {
+                Ids = checkedIds.ToList(),
+                PayrollQuarter = bulkPayrollQuarterOnly,
+                FiscalYear = _bulkFiscalYear,
+                PaymentStatus = bulkPaymentStatus!.Value,
+                ModeOfPayment = bulkModeOfPayment,
+                PaymentDate = bulkPaymentDate
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+
+            await HandleApiResponseAsync(response,
+                $"Recorded payment for {checkedIds.Count} record(s).",
+                async () =>
+                {
+                    ClearSelection();
+                    State.Invalidate();
+                    await State.LoadAsync();
+                });
+        }
+        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+        finally { IsBulkUpdating = false; }
+    }
+private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
+{
+    _editPayment = new EditPaymentHistoryRequestDto
+    {
+        HistoryId = entry.Id,
+        BeneficiaryId = entry.BeneficiaryInformationId,
+        PayrollQuarter = entry.PayrollQuarter,
+        FiscalYear = entry.FiscalYear,
+        PaymentStatus = entry.PaymentStatus,
+        ModeOfPayment = entry.ModeOfPayment,
+        PaymentDate = entry.PaymentDate,
+        Remarks = entry.Remarks
+    };
+    await editPaymentHistoryModal.ShowAsync();
 }
 
-private async Task ExecuteBulkQuarterFiscalYearAsync()
+private async Task OpenEditPaymentConfirmation()
+{
+    if (_editPayment.PaymentStatus == 2 && !_editPayment.PaymentDate.HasValue)
+    {
+        toast.ShowError("Payment Date is required when status is Paid.");
+        return;
+    }
+
+    pendingAction = "edit-payment-history";
+    confirmationTitle = "Confirm Payment Correction";
+    confirmationMessage =
+        $"Correct this payment record in place, setting it to " +
+        $"{GetPaymentStatusText(_editPayment.PaymentStatus)}" +
+        (_editPayment.PayrollQuarter.HasValue || _editPayment.FiscalYear.HasValue
+            ? $" for Q{_editPayment.PayrollQuarter} {_editPayment.FiscalYear}"
+            : "") +
+        "? This overwrites the existing entry and cannot be undone.";
+
+    await editPaymentHistoryModal.HideAsync();
+    await confirmModal.ShowAsync();
+}
+
+private async Task SubmitEditPaymentHistoryAsync()
 {
     try
     {
-        IsBulkUpdatingPayrollQuarter = true;
-        _isBulkUpdatingFiscalYear = true;
+        _isSavingPaymentHistory = true;
+        var response = await Http.PostAsJsonAsync("api/beneficiary/edit-payment-history", _editPayment);
 
-        var ids = checkedIds.ToList();
-        bool quarterOk = true;
-        bool fiscalOk = true;
-
-        // ── Payroll Quarter ──────────────────────────────────────────────
-        if (_clearingQuarterFiscalYear || bulkPayrollQuarterOnly != null)
+        if (response.IsSuccessStatusCode)
         {
-            var quarterRequest = new
-            {
-                Ids = ids,
-                PayrollQuarter = _clearingQuarterFiscalYear ? (int?)null : bulkPayrollQuarterOnly
-            };
-            var quarterResponse = await Http.PostAsJsonAsync("api/beneficiary/bulk-payroll-quarter", quarterRequest);
-            quarterOk = quarterResponse.IsSuccessStatusCode;
-            await HandleApiResponseAsync(quarterResponse, "Payroll Quarter updated.");
+            toast.ShowSuccess("Payment record corrected.");
+            await LoadPaymentHistoryAsync(_editPayment.BeneficiaryId);
+            State.Invalidate();
+            await State.LoadAsync();
         }
-
-        // ── Fiscal Year ──────────────────────────────────────────────────
-        if (_clearingQuarterFiscalYear || _bulkFiscalYear != null)
+        else
         {
-            var fiscalRequest = new
-            {
-                Ids = ids,
-                FiscalYear = _clearingQuarterFiscalYear ? (int?)null : _bulkFiscalYear
-            };
-            var fiscalResponse = await Http.PostAsJsonAsync("api/beneficiary/bulk-fiscal-year", fiscalRequest);
-            fiscalOk = fiscalResponse.IsSuccessStatusCode;
-            await HandleApiResponseAsync(fiscalResponse, "Fiscal Year updated.");
+            var body = await response.Content.ReadAsStringAsync();
+            toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                ? "Access denied. Only Administrators can record or correct payments."
+                : (string.IsNullOrWhiteSpace(body) ? "Something went wrong." : body));
         }
-
-        if (quarterOk && fiscalOk)
-        {
-            toast.ShowSuccess(_clearingQuarterFiscalYear
-                ? $"Cleared Payroll Quarter and Fiscal Year for {ids.Count} record(s)."
-                : $"Updated {ids.Count} record(s).");
-
-            bulkPayrollQuarterOnly = null;
-            _bulkFiscalYear = null;
-            _clearingQuarterFiscalYear = false;
-            ClearSelection();
-            await bulkQuarterFiscalYearModal.HideAsync();
-        }
-
-        State.Invalidate();
-        await State.LoadAsync();
     }
-    catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
     finally
     {
-        IsBulkUpdatingPayrollQuarter = false;
-        _isBulkUpdatingFiscalYear = false;
+        _isSavingPaymentHistory = false;
+    }
+}
+private async Task OpenAddPaymentHistoryModal(Guid beneficiaryId)
+{
+    _newPaymentBeneficiaryId = beneficiaryId;
+    _newPayment = new AddPaymentHistoryDto();
+    await addPaymentHistoryModal.ShowAsync();
+}
+
+private async Task OpenAddPaymentConfirmation()
+{
+    if (_newPayment.PaymentStatus == 2 && !_newPayment.PaymentDate.HasValue)
+    {
+        toast.ShowError("Payment Date is required when status is Paid.");
+        return;
+    }
+    if (_newPayment.PaymentStatus == 2 && !_newPayment.ModeOfPayment.HasValue)
+    {
+        toast.ShowError("Mode of Payment is required when status is Paid.");
+        return;
+    }
+    if (_newPayment.PaymentStatus == 2 &&
+        (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+    {
+        toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+        return;
+    }
+
+    pendingAction = "add-payment-history";
+    confirmationTitle = "Confirm New Payment Record";
+    confirmationMessage =
+        $"Record a new {GetPaymentStatusText(_newPayment.PaymentStatus)} payment entry" +
+        (_newPayment.PayrollQuarter.HasValue || _newPayment.FiscalYear.HasValue
+            ? $" for Q{_newPayment.PayrollQuarter} {_newPayment.FiscalYear}"
+            : "") +
+        "? This adds a new history entry — it does not overwrite the current one.";
+
+    await addPaymentHistoryModal.HideAsync();
+    await confirmModal.ShowAsync();
+}
+
+private async Task SubmitAddPaymentHistoryAsync()
+{
+    try
+    {
+        _isSavingPaymentHistory = true;
+        var request = new BulkAddPaymentHistoryRequestDto
+        {
+            Ids = new List<Guid> { _newPaymentBeneficiaryId },
+            PayrollQuarter = _newPayment.PayrollQuarter,
+            FiscalYear = _newPayment.FiscalYear,
+            PaymentStatus = _newPayment.PaymentStatus,
+            ModeOfPayment = _newPayment.ModeOfPayment,
+            PaymentDate = _newPayment.PaymentDate,
+            Remarks = _newPayment.Remarks
+        };
+        var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            toast.ShowSuccess("Payment record added.");
+            await LoadPaymentHistoryAsync(_newPaymentBeneficiaryId);
+            State.Invalidate();
+            await State.LoadAsync();
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                ? "Access denied. Only Administrators can record or correct payments."
+                : (string.IsNullOrWhiteSpace(body) ? "Something went wrong." : body));
+        }
+    }
+    finally
+    {
+        _isSavingPaymentHistory = false;
     }
 }
 // ── Caution: location hierarchy issues (Region/Province/Municipality/Barangay) ──
@@ -2340,15 +2718,19 @@ private int OtherWarningCount =>
         }
     }
 
-    // ✅ Keep OnAfterRenderAsync but remove role reading
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+   protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if(!firstRender) return;
-
+        if (!firstRender) return;
+    
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+    
         activeBulkTab = "payment";
-
-        if(State.HasActiveFilter && State.IsStale())
+    
+        if (State.HasActiveFilter && State.IsStale())
             await State.LoadAsync();
+    
+        StateHasChanged();
     }
 // BeneficiaryRecordsGrid.razor — make this safe to actually see failures,
 // and defer the modal-show to AFTER the current render/event cycle settles,
@@ -2715,27 +3097,46 @@ public void Dispose()
     }
 
     private async Task OpenDetailsPanel(BeneficiaryListItemDto item)
+{
+    try
     {
-        try
+        var fullDetails = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{item.Id}");
+        if (fullDetails is null)
         {
-            var fullDetails = await Http.GetFromJsonAsync<BeneficiaryInformationDto>(
-                $"api/beneficiary/edit/{item.Id}");
-
-            if (fullDetails is null)
-            {
-                toast.ShowError("Record not found — it may have been deleted.");
-                return;
-            }
-
-            selectedDetails = fullDetails;
-            StateHasChanged();
-            await detailsOffcanvas.ShowAsync();
+            toast.ShowError("Record not found — it may have been deleted.");
+            return;
         }
-        catch (Exception ex)
-        {
-            toast.ShowError($"Failed to load details: {ex.Message}");
-        }
+
+        selectedDetails = fullDetails;
+        StateHasChanged();
+        await detailsOffcanvas.ShowAsync();
+
+        await LoadPaymentHistoryAsync(item.Id);
     }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to load details: {ex.Message}");
+    }
+}
+private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
+{
+    try
+    {
+        isLoadingPaymentHistory = true;
+        StateHasChanged();
+        paymentHistory = await Http.GetFromJsonAsync<List<PaymentHistoryDto>>(
+            $"api/beneficiary/payment-history/{beneficiaryId}") ?? new();
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to load payment history: {ex.Message}");
+    }
+    finally
+    {
+        isLoadingPaymentHistory = false;
+        StateHasChanged();
+    }
+}
 
     private async Task OpenPayrollModal()
     {
@@ -2754,26 +3155,29 @@ public void Dispose()
         finally { IsGeneratingPayroll = false; }
     }
 
-    private async Task ConfirmActionAsync()
-    {
-        try
-        {
-            IsSaving = true;
-            errorMessage = null;
-            successMessage = null;
-            await confirmModal.HideAsync();
-            if (string.IsNullOrWhiteSpace(pendingAction)) { errorMessage = "No action selected."; return; }
-            switch (pendingAction)
-            {
-                case "delete": await SoftDeleteBeneficiaryAsync(); break;
-                case "navigate": Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}"); break;
-                case "generate-payroll": await OpenPayrollModal(); break;
-                default: errorMessage = "Unknown action."; break;
-            }
-        }
-        catch (Exception ex) { errorMessage = $"An error occurred while processing. {ex.Message}"; }
-        finally { IsSaving = false; pendingAction = string.Empty; selectedDeleteItem = null; }
-    }
+   private async Task ConfirmActionAsync()
+   {
+       try
+       {
+           IsSaving = true;
+           errorMessage = null;
+           successMessage = null;
+           await confirmModal.HideAsync();
+           if (string.IsNullOrWhiteSpace(pendingAction)) { errorMessage = "No action selected."; return; }
+           switch (pendingAction)
+           {
+               case "delete": await SoftDeleteBeneficiaryAsync(); break;
+               case "navigate": Navigation.NavigateTo($"/beneficiary-edit/{selectedDetails!.Id}"); break;
+               case "generate-payroll": await OpenPayrollModal(); break;
+               case "delete-payment-history": await DeletePaymentHistoryEntryAsync(); break;
+               case "add-payment-history": await SubmitAddPaymentHistoryAsync(); break;
+               case "edit-payment-history": await SubmitEditPaymentHistoryAsync(); break;
+               default: errorMessage = "Unknown action."; break;
+           }
+       }
+       catch (Exception ex) { errorMessage = $"An error occurred while processing. {ex.Message}"; }
+       finally { IsSaving = false; pendingAction = string.Empty; selectedDeleteItem = null; }
+   }
 
     private async Task SoftDeleteBeneficiaryAsync()
     {

@@ -387,7 +387,6 @@
         </div>
         <div class="form-section-body">
             <div class="form-grid">
-                @* ── Payment ── *@
                 <div class="ff">
                     <label class="ff-label">Payment Status</label>
                     <select class="ff-input" value="@model.PaymentStatus" @onchange="OnPaymentStatusChangeRequested">
@@ -397,16 +396,68 @@
                         <option value="3">Pending</option>
                     </select>
                 </div>
+
                 <div class="ff">
-                    <label class="ff-label">Mode of Payment</label>
-                    <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment"
-                                 disabled="@(model.PaymentStatus != 2)">
+                    <label class="ff-label">
+                        Payroll Quarter
+                        @if (model.PaymentStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <select class="ff-input" @bind="model.PayrollQuarter">
+                        <option value="">-- Select Quarter --</option>
+                        <option value="1">Q1 (Jan–Mar)</option>
+                        <option value="2">Q2 (Apr–Jun)</option>
+                        <option value="3">Q3 (Jul–Sep)</option>
+                        <option value="4">Q4 (Oct–Dec)</option>
+                    </select>
+                    @if (model.PaymentStatus == 2 && !model.PayrollQuarter.HasValue)
+                    {
+                        <div class="ff-err">Required when status is Paid.</div>
+                    }
+                </div>
+
+                <div class="ff">
+                    <label class="ff-label">
+                        Fiscal Year
+                        @if (model.PaymentStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <select class="ff-input" @bind="model.FiscalYear">
+                        <option value="">-- Select --</option>
+                        @foreach (var year in _availableMilestoneYears)
+                        {
+                            <option value="@year">@year</option>
+                        }
+                    </select>
+                    @if (model.PaymentStatus == 2 && !model.FiscalYear.HasValue)
+                    {
+                        <div class="ff-err">Required when status is Paid.</div>
+                    }
+                </div>
+
+                <div class="ff">
+                    <label class="ff-label">
+                        Mode of Payment
+                        @if (model.PaymentStatus == 2)
+                        {
+                            <span class="req">*</span>
+                        }
+                    </label>
+                    <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment" disabled="@(model.PaymentStatus != 2)">
                         <option value="0">Select Mode</option>
                         <option value="1">Cash Advance by SDO</option>
                         <option value="2">Bank Transfer</option>
                     </InputSelect>
+                    @if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
+                    {
+                        <div class="ff-err">Required when status is Paid.</div>
+                    }
                 </div>
-                @* Payment Date *@
+
                 <div class="ff">
                     <label class="ff-label">
                         Payment Date
@@ -421,29 +472,6 @@
                     {
                         <div class="ff-err">Payment Date is required when status is Paid.</div>
                     }
-                </div>
-
-                @* ── Payroll Quarter — independent of Payment Status ── *@
-                <div class="ff">
-                    <label class="ff-label">Payroll Quarter</label>
-                    <select class="ff-input" @bind="model.PayrollQuarter">
-                        <option value="">-- Select Quarter --</option>
-                        <option value="1">Q1 (Jan–Mar)</option>
-                        <option value="2">Q2 (Apr–Jun)</option>
-                        <option value="3">Q3 (Jul–Sep)</option>
-                        <option value="4">Q4 (Oct–Dec)</option>
-                    </select>
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">Fiscal Year</label>
-                    <select class="ff-input" @bind="model.FiscalYear">
-                        <option value="">-- Select --</option>
-                        @foreach (var year in _availableMilestoneYears)
-                        {
-                            <option value="@year">@year</option>
-                        }
-                    </select>
                 </div>
 
                 <div class="ff">
@@ -465,6 +493,7 @@
                         <option value="13">For CGD Island Municipality</option>
                     </InputSelect>
                 </div>
+
                 <div class="ff" style="grid-column: 1 / -1;">
                     <label class="ff-label">Remarks</label>
                     <InputTextArea class="ff-input" @bind-Value="model.Remarks" rows="2" />
@@ -472,6 +501,116 @@
             </div>
         </div>
     </div>
+    @if (IsEditMode)
+    {
+        <div class="form-section mb-3">
+            <div class="form-section-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-clock-history me-2"></i>Payment History</span>
+                @if (_isAdmin)
+                {
+                    <button type="button" class="btn btn-sm btn-light" @onclick="OpenAddPaymentHistoryModal">
+                        <i class="bi bi-plus-circle me-1"></i>Record Payment
+                    </button>
+                }
+            </div>
+            <div class="form-section-body">
+                @if (isLoadingPaymentHistory)
+                {
+                    <div class="text-center py-3">
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                        <span class="ms-2 text-muted small">Loading payment history...</span>
+                    </div>
+                }
+                else if (!paymentHistory.Any())
+                {
+                    <div class="alert alert-secondary py-2 px-3 small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>No payment records yet.
+                    </div>
+                }
+                else
+                {
+                    <div class="payment-timeline">
+                        @foreach (var entry in paymentHistory)
+                        {
+                            <div class="payment-timeline-item @(entry.IsCurrent ? "payment-timeline-item--current" : "")">
+                                <div class="payment-timeline-marker @GetPaymentBadgeClass(entry.PaymentStatus)"></div>
+                                <div class="payment-timeline-content">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <span class="tbl-badge @GetPaymentBadgeClass(entry.PaymentStatus)">
+                                                @GetPaymentStatusText(entry.PaymentStatus)
+                                            </span>
+                                            @if (entry.IsCurrent)
+                                            {
+                                                <span class="badge bg-primary ms-1" style="font-size:9px;">CURRENT</span>
+                                            }
+                                            @if (entry.DateModified.HasValue)
+                                            {
+                                                <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">CORRECTED</span>
+                                            }
+                                        </div>
+                                        <small class="text-muted">
+                                            @entry.DateCreated.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")
+                                        </small>
+                                    </div>
+                                    <div class="row g-1 mt-1" style="font-size:12px;">
+                                        @if (entry.PayrollQuarter.HasValue || entry.FiscalYear.HasValue)
+                                        {
+                                            <div class="col-6">
+                                                <span class="text-muted">Period:</span>
+                                                @(entry.PayrollQuarter.HasValue ? $"Q{entry.PayrollQuarter}" : "—")
+                                                @(entry.FiscalYear?.ToString() ?? "")
+                                            </div>
+                                        }
+                                        @if (entry.PaymentDate.HasValue)
+                                        {
+                                            <div class="col-6">
+                                                <span class="text-muted">Paid:</span>
+                                                @entry.PaymentDate.Value.ToString("MMM dd, yyyy")
+                                            </div>
+                                        }
+                                        @if (entry.PaymentStatus == 2)
+                                        {
+                                            <div class="col-6">
+                                                <span class="text-muted">Mode:</span>
+                                                @(entry.ModeOfPayment == 1 ? "Cash Advance by SDO" : entry.ModeOfPayment == 2 ? "Bank Transfer" : "—")
+                                            </div>
+                                        }
+                                        <div class="col-12 text-muted" style="font-size:10px;">
+                                            Recorded by @entry.CreatedBy
+                                            @if (entry.DateModified.HasValue)
+                                            {
+                                                <span>· Corrected by @entry.ModifiedBy on @entry.DateModified.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                                    {
+                                        <div class="mt-1" style="font-size:11px;">
+                                            <span class="text-muted">Remarks:</span> @entry.Remarks
+                                        </div>
+                                    }
+                                    @if (_isAdmin)
+                                    {
+                                        <div class="d-flex gap-2 mt-1">
+                                            <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
+                                                    @onclick="() => OpenEditPaymentHistoryModal(entry)">
+                                                <i class="bi bi-pencil-square me-1"></i>Correct
+                                            </button>
+                                            <button type="button" class="btn btn-link btn-sm p-0 text-danger" style="font-size:11px;"
+                                                    @onclick="() => ConfirmDeletePaymentHistory(entry)">
+                                                <i class="bi bi-trash me-1"></i>Delete
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
     @* ── CO Status ── *@
     <div class="form-section mb-3">
         <div class="form-section-header">
@@ -611,7 +750,140 @@
     </div>
 
 </EditForm>
+<HxModal @ref="addPaymentHistoryModal">
+    <HeaderTemplate><h5 class="modal-title">Record New Payment</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label small">Payroll Quarter</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.PayrollQuarter">
+                    <option value="">-- None --</option>
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Fiscal Year</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.FiscalYear">
+                    <option value="">-- None --</option>
+                    @foreach (var year in _availableMilestoneYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Status</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.PaymentStatus">
+                    <option value="0">N/A</option>
+                    <option value="1">Unpaid</option>
+                    <option value="2">Paid</option>
+                    <option value="3">Pending</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Mode of Payment</label>
+                <select class="form-select form-select-sm" @bind="_newPayment.ModeOfPayment"
+                        disabled="@(_newPayment.PaymentStatus != 2)">
+                    <option value="">-- Select --</option>
+                    <option value="1">Cash Advance by SDO</option>
+                    <option value="2">Bank Transfer</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Date</label>
+                <input type="date" class="form-control form-control-sm" @bind="_newPayment.PaymentDate"
+                       disabled="@(_newPayment.PaymentStatus != 2)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Remarks</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="_newPayment.Remarks"></textarea>
+            </div>
+        </div>
+        @if (_newPayment.PaymentStatus == 2 &&
+             (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Paid status.
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => addPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="OpenAddPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
+            Add Record
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
+<HxModal @ref="editPaymentHistoryModal">
+    <HeaderTemplate><h5 class="modal-title">Correct Payment Record</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="alert alert-warning py-2 px-3 small">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            This edits the existing record in place. If this is actually a NEW payment
+            event, close this and use "Record Payment" instead.
+        </div>
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label small">Payroll Quarter</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.PayrollQuarter">
+                    <option value="">-- None --</option>
+                    <option value="1">Q1</option>
+                    <option value="2">Q2</option>
+                    <option value="3">Q3</option>
+                    <option value="4">Q4</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Fiscal Year</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.FiscalYear">
+                    <option value="">-- None --</option>
+                    @foreach (var year in _availableMilestoneYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Status</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.PaymentStatus">
+                    <option value="0">N/A</option>
+                    <option value="1">Unpaid</option>
+                    <option value="2">Paid</option>
+                    <option value="3">Pending</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Mode of Payment</label>
+                <select class="form-select form-select-sm" @bind="_editPayment.ModeOfPayment"
+                        disabled="@(_editPayment.PaymentStatus != 2)">
+                    <option value="">-- Select --</option>
+                    <option value="1">Cash Advance by SDO</option>
+                    <option value="2">Bank Transfer</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">Payment Date</label>
+                <input type="date" class="form-control form-control-sm" @bind="_editPayment.PaymentDate"
+                       disabled="@(_editPayment.PaymentStatus != 2)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label small">Remarks</label>
+                <textarea class="form-control form-control-sm" rows="2" @bind="_editPayment.Remarks"></textarea>
+            </div>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => editPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="OpenEditPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
+            Save Correction
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 @* Confirmation modal — unchanged *@
 <HxModal @ref="confirmModal">
     <HeaderTemplate>
@@ -725,6 +997,14 @@
 
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
+    private List<PaymentHistoryDto> paymentHistory = new();
+    private bool isLoadingPaymentHistory;
+    private HxModal addPaymentHistoryModal = default!;
+    private HxModal editPaymentHistoryModal = default!;
+    private AddPaymentHistoryDto _newPayment = new();
+    private EditPaymentHistoryRequestDto _editPayment = new();
+    private bool _isSavingPaymentHistory;
+    private PaymentHistoryDto? _pendingDeletePaymentHistory;
     private readonly List<int> _availableMilestoneYears = new() { 2024, 2025, 2026, 2027, 2028, 2029, 2030 };
     [Parameter] public bool IsEditMode { get; set; } = false;
     [Parameter] public Guid? EditId { get; set; } = null;
@@ -802,6 +1082,173 @@
 
         StateHasChanged();
     }
+    private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
+    {
+        try
+        {
+            isLoadingPaymentHistory = true;
+            StateHasChanged();
+            paymentHistory = await Http.GetFromJsonAsync<List<PaymentHistoryDto>>(
+                $"api/beneficiary/payment-history/{beneficiaryId}") ?? new();
+        }
+        catch (Exception ex) { toast.ShowError($"Failed to load payment history: {ex.Message}"); }
+        finally { isLoadingPaymentHistory = false; StateHasChanged(); }
+    }
+
+    private async Task OpenAddPaymentHistoryModal()
+    {
+        _newPayment = new AddPaymentHistoryDto();
+        await addPaymentHistoryModal.ShowAsync();
+    }
+    private async Task OpenAddPaymentConfirmation()
+    {
+        if (_newPayment.PaymentStatus == 2 && !_newPayment.PaymentDate.HasValue)
+        { toast.ShowError("Payment Date is required when status is Paid."); return; }
+        if (_newPayment.PaymentStatus == 2 && !_newPayment.ModeOfPayment.HasValue)
+        { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
+        if (_newPayment.PaymentStatus == 2 && (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+        { toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid."); return; }
+
+        pendingAction = "add-payment-history";
+        confirmationTitle = "Confirm New Payment Record";
+        confirmationMessage =
+            $"Record a new {PaymentStatusLabel(_newPayment.PaymentStatus)} payment entry" +
+            (_newPayment.PayrollQuarter.HasValue || _newPayment.FiscalYear.HasValue
+                ? $" for Q{_newPayment.PayrollQuarter} {_newPayment.FiscalYear}"
+                : "") +
+            "? This adds a new history entry — it does not overwrite the current one.";
+
+        await addPaymentHistoryModal.HideAsync();
+        await confirmModal.ShowAsync();
+    }
+
+    private async Task SubmitAddPaymentHistoryAsync()
+    {
+        try
+        {
+            _isSavingPaymentHistory = true;
+            var request = new BulkAddPaymentHistoryRequestDto
+            {
+                Ids = new List<Guid> { model.Id },
+                PayrollQuarter = _newPayment.PayrollQuarter,
+                FiscalYear = _newPayment.FiscalYear,
+                PaymentStatus = _newPayment.PaymentStatus,
+                ModeOfPayment = _newPayment.ModeOfPayment,
+                PaymentDate = _newPayment.PaymentDate,
+                Remarks = _newPayment.Remarks
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess("Payment record added.");
+                await LoadPaymentHistoryAsync(model.Id);
+                State.Invalidate();
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Access denied. Only Administrators can record or correct payments."
+                    : (string.IsNullOrWhiteSpace(body) ? "Something went wrong." : body));
+            }
+        }
+        finally { _isSavingPaymentHistory = false; }
+    }
+
+    private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
+    {
+        _editPayment = new EditPaymentHistoryRequestDto
+        {
+            HistoryId = entry.Id,
+            BeneficiaryId = model.Id,
+            PayrollQuarter = entry.PayrollQuarter,
+            FiscalYear = entry.FiscalYear,
+            PaymentStatus = entry.PaymentStatus,
+            ModeOfPayment = entry.ModeOfPayment,
+            PaymentDate = entry.PaymentDate,
+            Remarks = entry.Remarks
+        };
+        await editPaymentHistoryModal.ShowAsync();
+    }
+
+    private async Task OpenEditPaymentConfirmation()
+    {
+        if (_editPayment.PaymentStatus == 2 && !_editPayment.PaymentDate.HasValue)
+        { toast.ShowError("Payment Date is required when status is Paid."); return; }
+
+        pendingAction = "edit-payment-history";
+        confirmationTitle = "Confirm Payment Correction";
+        confirmationMessage =
+            $"Correct this payment record in place, setting it to " +
+            $"{PaymentStatusLabel(_editPayment.PaymentStatus)}" +
+            (_editPayment.PayrollQuarter.HasValue || _editPayment.FiscalYear.HasValue
+                ? $" for Q{_editPayment.PayrollQuarter} {_editPayment.FiscalYear}"
+                : "") +
+            "? This overwrites the existing entry and cannot be undone.";
+
+        await editPaymentHistoryModal.HideAsync();
+        await confirmModal.ShowAsync();
+    }
+
+    private async Task SubmitEditPaymentHistoryAsync()
+    {
+        try
+        {
+            _isSavingPaymentHistory = true;
+            var response = await Http.PostAsJsonAsync("api/beneficiary/edit-payment-history", _editPayment);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess("Payment record corrected.");
+                await LoadPaymentHistoryAsync(model.Id);
+                State.Invalidate();
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Access denied. Only Administrators can record or correct payments."
+                    : (string.IsNullOrWhiteSpace(body) ? "Something went wrong." : body));
+            }
+        }
+        finally { _isSavingPaymentHistory = false; }
+    }
+
+    private async Task ConfirmDeletePaymentHistory(PaymentHistoryDto entry)
+    {
+        _pendingDeletePaymentHistory = entry;
+        pendingAction = "delete-payment-history";
+        confirmationTitle = "Delete Payment Record";
+        confirmationMessage =
+            $"Delete this {PaymentStatusLabel(entry.PaymentStatus)} payment record dated " +
+            $"{entry.DateCreated.ToLocalTime():MMM dd, yyyy}? This cannot be undone.";
+        await confirmModal.ShowAsync();
+    }
+
+    private async Task DeletePaymentHistoryEntryAsync()
+    {
+        if (_pendingDeletePaymentHistory == null) return;
+
+        var response = await Http.DeleteAsync(
+            $"api/beneficiary/payment-history/{_pendingDeletePaymentHistory.Id}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            toast.ShowSuccess("Payment record deleted.");
+            await LoadPaymentHistoryAsync(model.Id);
+            State.Invalidate();
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                ? "Access denied. Only Administrators can record or correct payments."
+                : (string.IsNullOrWhiteSpace(body) ? "Something went wrong." : body));
+        }
+        _pendingDeletePaymentHistory = null;
+    }
+
     private void OnCoStatusChanged()
     {
         StateHasChanged();
@@ -843,15 +1290,6 @@
         ApplyEligibilityRules();
     }
     #region Address cascade
-    private void OnPaymentDateChanged(ChangeEventArgs e)
-    {
-        if (DateTime.TryParse(e.Value?.ToString(), out var d))
-            model.PaymentDate = d;
-        else
-            model.PaymentDate = null;
-
-        StateHasChanged();
-    }
     private async Task LoadFormRegionsAsync()
     {
         try
@@ -996,6 +1434,7 @@
 
             ApplyEligibilityRules();
             await LoadFindingAsync(id);
+            await LoadPaymentHistoryAsync(id);
         }
         finally { _isLoadingRecord = false; IsLoading = false; StateHasChanged(); }
     }
@@ -1185,20 +1624,12 @@
             {
                 case "add": await AddBeneficiaryAsync(); break;
                 case "edit": await UpdateBeneficiaryAsync(); break;
+                case "delete-payment-history": await DeletePaymentHistoryEntryAsync(); break;
+                case "add-payment-history": await SubmitAddPaymentHistoryAsync(); break;
+                case "edit-payment-history": await SubmitEditPaymentHistoryAsync(); break;
             }
         }
         catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
-    }
-
-    private void OnCitizenshipChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var v)) { model.Citizenship = v; ApplyEligibilityRules(); }
-    }
-    private void OnDateOfDeathChanged(ChangeEventArgs e)
-    {
-        if (DateTime.TryParse(e.Value?.ToString(), out var d)) { model.DateOfDeath = d; model.IsDeceased = true; }
-        else { model.DateOfDeath = null; model.IsDeceased = false; }
-        ApplyEligibilityRules();
     }
 
     private void OnIsDeceasedChanged(ChangeEventArgs e)
@@ -1219,24 +1650,30 @@
             if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
             {
                 toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
-                IsLoading = false;
                 return;
             }
             if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
             {
                 toast.ShowError("CO Date Approved is required when CO Status is Approved.");
-                IsLoading = false;
                 return;
             }
-            // ✅ Payment date required if Paid
+
+            // ✅ Payment guards — single copy each, no duplicates
             if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
             {
                 toast.ShowError("Payment Date is required when Payment Status is Paid.");
                 return;
             }
-
-            // ✅ Payroll Quarter is independent of Payment Status — no requirement,
-            // no clearing. Whatever the user set stays set regardless of status.
+            if (model.PaymentStatus == 2 && (!model.PayrollQuarter.HasValue || !model.FiscalYear.HasValue))
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when Payment Status is Paid.");
+                return;
+            }
+            if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
+            {
+                toast.ShowError("Mode of Payment is required when Payment Status is Paid.");
+                return;
+            }
             if (model.PaymentStatus != 2)
             {
                 model.PaymentDate = null;
@@ -1249,21 +1686,15 @@
                 return;
             }
 
-            
             // ── 1. Update beneficiary record ──────────────────────────────────
             var response = await Http.PutAsJsonAsync($"api/Beneficiary/{model.Id}", model);
 
-            // ── Jurisdiction blocked ──────────────────────────────────────────
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 var message = await response.Content.ReadAsStringAsync();
-                toast.ShowError(message);
-                return;
-            }
-
-            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
-                toast.ShowError("Access denied. You do not have permission to edit records.");
+                toast.ShowError(string.IsNullOrWhiteSpace(message)
+                    ? "Access denied. You do not have permission to edit records."
+                    : message);
                 return;
             }
             if (!response.IsSuccessStatusCode)
@@ -1272,15 +1703,10 @@
                 toast.ShowError($"Update failed: {error}");
                 return;
             }
+
             // ── Only save findings if admin ───────────────────────────────────
             if (_isAdmin)
             {
-                if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
-                {
-                    toast.ShowError("Finding Remarks are required when finding is Unresolved.");
-                    return;
-                }
-
                 var findingDto = new UpsertBeneficiaryFindingDto
                 {
                     FindingStatus = findingStatusInput,
@@ -1289,14 +1715,9 @@
 
                 var (success, findingError) = await FindingService.UpsertAsync(model.Id, findingDto);
                 if (!success)
-                {
-                    toast.ShowWarning(
-                        $"Record updated but finding could not be saved: {findingError}");
-                }
+                    toast.ShowWarning($"Record updated but finding could not be saved: {findingError}");
                 else
-                {
                     toast.ShowSuccess("Record and findings updated successfully.");
-                }
             }
             else
             {
@@ -1311,113 +1732,115 @@
             IsLoading = false;
         }
     }
-
     private async Task AddBeneficiaryAsync()
     {
         IsLoading = true;
-        errorMessage = null;
-        successMessage = null;
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
 
-        // ── Guards ────────────────────────────────────────────────────────────
-        if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
-        {
-            toast.ShowError(
-                "CO Date Endorsed is required when CO Status is Endorsed.");
-            IsLoading = false; return;
-        }
-        if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
-        {
-            toast.ShowError(
-                "CO Date Approved is required when CO Status is Approved.");
-            IsLoading = false; return;
-        }
-        if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
-        {
-            toast.ShowError(
-                "Payment Date is required when Payment Status is Paid.");
-            IsLoading = false; return;
-        }
-        // ✅ Payroll Quarter is independent of Payment Status — no requirement,
-        // no clearing.
-        if (model.PaymentStatus != 2)
-        {
-            model.PaymentDate = null;
-        }
+            if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
+            {
+                toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
+                return;
+            }
+            if (model.CoStatus == 2 && !model.CoDateApproved.HasValue)
+            {
+                toast.ShowError("CO Date Approved is required when CO Status is Approved.");
+                return;
+            }
+            if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
+            {
+                toast.ShowError("Payment Date is required when Payment Status is Paid.");
+                return;
+            }
+            if (model.PaymentStatus == 2 && (!model.PayrollQuarter.HasValue || !model.FiscalYear.HasValue))
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when Payment Status is Paid.");
+                return;
+            }
+            if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
+            {
+                toast.ShowError("Mode of Payment is required when Payment Status is Paid.");
+                return;
+            }
+            if (model.PaymentStatus != 2)
+            {
+                model.PaymentDate = null;
+            }
 
-        // ✅ Warn if partial ref number entry — don't block, just clear the partial
-        if (!HasRefNumber &&
-            (model.Quarter != null ||
-             !string.IsNullOrWhiteSpace(model.Batch) ||
-             model.RefYear != null))
-        {
-            toast.ShowWarning(
-                "Partial reference number cleared — fill Quarter, Batch, and Year " +
-                "together or leave all blank. Record will be saved without one.");
-            model.Quarter = null;
-            model.Batch = null;
-            model.RefYear = null;
+            if (!HasRefNumber &&
+                (model.Quarter != null || !string.IsNullOrWhiteSpace(model.Batch) || model.RefYear != null))
+            {
+                toast.ShowWarning(
+                    "Partial reference number cleared — fill Quarter, Batch, and Year " +
+                    "together or leave all blank. Record will be saved without one.");
+                model.Quarter = null;
+                model.Batch = null;
+                model.RefYear = null;
+            }
+
+            if (!HasRefNumber)
+            {
+                toast.ShowWarning("Saving without a reference number. Use Bulk Assign Ref Number in the grid to assign later.");
+            }
+
+            _pendingDto = new CreateBeneficiaryInformationDto
+            {
+                // ✅ Null if not provided
+                Quarter = model.Quarter,
+                Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
+                RefYear = model.RefYear,
+                RefCode = null,
+                DateApplied = model.DateApplied,
+                DateEndorsed = model.DateEndorsed,
+                BatchCode = model.BatchCode,
+                OscaIdNumber = model.OscaIdNumber,
+                OscaIdDateIssued = model.OscaIdDateIssued,
+                NcscRrn = model.NcscRrn,
+                LastName = model.LastName,
+                FirstName = model.FirstName,
+                MiddleName = model.MiddleName,
+                Extension = model.Extension,
+                BirthDate = model.BirthDate,
+                PhoneNumber = model.PhoneNumber,
+                Sex = model.Sex,
+                IsIndigenousPeople = model.IsIndigenousPeople,
+                IsPersonWithDisability = model.IsPersonWithDisability,
+                CivilStatus = model.CivilStatus,
+                Citizenship = model.Citizenship,
+                PsgcCodeRegion = model.PsgcCodeRegion,
+                PsgcCodeProvince = model.PsgcCodeProvince,
+                PsgcCodeMunicipality = model.PsgcCodeMunicipality,
+                PsgcCodeBarangay = model.PsgcCodeBarangay,
+                IsCompliant = model.IsCompliant,
+                Validator = model.Validator,
+                ValidationDate = model.ValidationDate,
+                PayrollQuarter = model.PayrollQuarter,
+                FiscalYear = model.FiscalYear,   // ✅ new
+                PaymentStatus = model.PaymentStatus,
+                ModeOfPayment = model.ModeOfPayment,
+                PaymentDate = model.PaymentDate,
+                IsDeceased = model.IsDeceased,
+                AssessmentRemarks = model.AssessmentRemarks,
+                EligibilityRemarks = model.EligibilityRemarks,
+                DateOfDeath = model.DateOfDeath,
+                IsEligible = model.IsEligible,
+                RemarkCategory = model.RemarkCategory,
+                Remarks = model.Remarks,
+                IsDeleted = false,
+                BypassSoftDuplicateCheck = false
+            };
+
+            await SendCreateRequestAsync(_pendingDto);
         }
-
-        // ✅ Warn if saving without ref number entirely
-        if (!HasRefNumber)
+        finally
         {
-            toast.ShowWarning(
-                "Saving without a reference number. " +
-                "Use Bulk Assign Ref Number in the grid to assign later.");
+            IsLoading = false;
         }
-
-        _pendingDto = new CreateBeneficiaryInformationDto
-        {
-            // ✅ Null if not provided
-            Quarter = model.Quarter,
-            Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
-            RefYear = model.RefYear,
-            RefCode = null,
-            DateApplied = model.DateApplied,
-            DateEndorsed = model.DateEndorsed,
-            BatchCode = model.BatchCode,
-            OscaIdNumber = model.OscaIdNumber,
-            OscaIdDateIssued = model.OscaIdDateIssued,
-            NcscRrn = model.NcscRrn,
-            LastName = model.LastName,
-            FirstName = model.FirstName,
-            MiddleName = model.MiddleName,
-            Extension = model.Extension,
-            BirthDate = model.BirthDate,
-            PhoneNumber = model.PhoneNumber,
-            Sex = model.Sex,
-            IsIndigenousPeople = model.IsIndigenousPeople,
-            IsPersonWithDisability = model.IsPersonWithDisability,
-            CivilStatus = model.CivilStatus,
-            Citizenship = model.Citizenship,
-            PsgcCodeRegion = model.PsgcCodeRegion,
-            PsgcCodeProvince = model.PsgcCodeProvince,
-            PsgcCodeMunicipality = model.PsgcCodeMunicipality,
-            PsgcCodeBarangay = model.PsgcCodeBarangay,
-            IsCompliant = model.IsCompliant,
-            Validator = model.Validator,
-            ValidationDate = model.ValidationDate,
-            PayrollQuarter = model.PayrollQuarter,
-            FiscalYear = model.FiscalYear,   // ✅ new
-            PaymentStatus = model.PaymentStatus,
-            ModeOfPayment = model.ModeOfPayment,
-            PaymentDate = model.PaymentDate,
-            IsDeceased = model.IsDeceased,
-            AssessmentRemarks = model.AssessmentRemarks,
-            EligibilityRemarks = model.EligibilityRemarks,
-            DateOfDeath = model.DateOfDeath,
-            IsEligible = model.IsEligible,
-            RemarkCategory = model.RemarkCategory,
-            Remarks = model.Remarks,
-            IsDeleted = false,
-            BypassSoftDuplicateCheck = false
-        };
-
-        IsLoading = false;
-
-        // ✅ Send directly — no ref number modal gate
-        await SendCreateRequestAsync(_pendingDto);
     }
+
     private async Task SendCreateRequestAsync(CreateBeneficiaryInformationDto dto)
     {
         try
@@ -1488,6 +1911,21 @@
     #endregion
 
     #region Private Helpers
+    private string GetPaymentBadgeClass(int status) => status switch
+    {
+        1 => "unpaid",
+        2 => "paid",
+        3 => "pending",
+        _ => "no-g"
+    };
+    private string GetPaymentStatusText(int status) => status switch
+    {
+        0 => "N/A",
+        1 => "Unpaid",
+        2 => "Paid",
+        3 => "Pending",
+        _ => "Unknown"
+    };
     private bool IsFieldIncomplete(object? value, object? fallback = null)
     {
         if (value == null) return true;

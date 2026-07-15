@@ -33,6 +33,7 @@ namespace EcaInformationSystem.Domain.Entities
         public bool IsCompliant { get; set; }
         public string Validator { get; set; } =string.Empty;
         public DateTime ValidationDate { get; set; }
+        public Guid? CurrentPaymentHistoryId { get; set; }
         public int? PayrollQuarter { get; set; }
         public int? FiscalYear { get; set; }
         public int PaymentStatus { get; set; }

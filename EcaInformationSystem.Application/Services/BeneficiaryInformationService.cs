@@ -45,21 +45,88 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
         }
-        public async Task BulkUpdateFiscalYearAsync(
-              List<Guid> ids,
-              int? fiscalYear,
-              string userName,
-              Dictionary<Guid, byte[]>? rowVersions)
+        public async Task DeletePaymentHistoryAsync(Guid historyId, string userName)
         {
-            if (ids == null || !ids.Any())
+            var info = await _repo.DeletePaymentHistoryAsync(historyId);
+
+            var periodLabel = info.PayrollQuarter.HasValue || info.FiscalYear.HasValue
+                ? $" (Q{info.PayrollQuarter} FY{info.FiscalYear})"
+                : string.Empty;
+
+            await AddLogAsync(
+                info.BeneficiaryId,
+                $"Payment record deleted → was {MapPaymentStatusLabel(info.PaymentStatus)}{periodLabel}",
+                userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
+        public async Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId)
+        {
+            return await _repo.GetPaymentHistoryAsync(beneficiaryId);
+        }
+
+        public async Task BulkAddPaymentHistoryAsync(
+            List<Guid> beneficiaryIds, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+            string? remarks, string userName)
+        {
+            if (beneficiaryIds == null || !beneficiaryIds.Any())
                 throw new Exception(CommonConstants.NoRecordsSelected);
 
-            await _repo.BulkUpdateFiscalYearAsync(ids, fiscalYear, rowVersions);
+            // ── Business rule validation lives here, in the service layer, not the
+            // repository — the repository should stay a thin data-access layer.
+            if (paymentStatus != 0 && paymentStatus != 1 && paymentStatus != 2 && paymentStatus != 3)
+                throw new Exception(CommonConstants.InvalidPaymentStatus);
 
-            var label = fiscalYear.HasValue ? fiscalYear.Value.ToString() : "Cleared";
+            if (paymentStatus == 2 && !paymentDate.HasValue)
+                throw new Exception("Payment Date is required when status is Paid.");
 
-            foreach (var id in ids)
-                await AddLogAsync(id, $"Bulk Fiscal Year updated to: {label}", userName);
+            if (paymentStatus == 2 && !modeOfPayment.HasValue)
+                throw new Exception("Mode of Payment is required when status is Paid.");
+
+            // ── New rule enabled by the history model: a Paid record should almost
+            // always carry a period, since "which quarter was this paid for" is a
+            // real reporting/reconciliation need once you have many payment rows
+            // per beneficiary instead of one mutable field.
+            if (paymentStatus == 2 && (!payrollQuarter.HasValue || !fiscalYear.HasValue))
+                throw new Exception("Payroll Quarter and Fiscal Year are required when status is Paid.");
+
+            await _repo.BulkAddPaymentHistoryAsync(
+                beneficiaryIds, payrollQuarter, fiscalYear, paymentStatus,
+                modeOfPayment, paymentDate, remarks, userName);
+
+            var statusLabel = MapPaymentStatusLabel(paymentStatus);
+            var periodLabel = payrollQuarter.HasValue || fiscalYear.HasValue
+                ? $" (Q{payrollQuarter} FY{fiscalYear})"
+                : string.Empty;
+
+            foreach (var id in beneficiaryIds)
+                await AddLogAsync(id, $"New payment record{periodLabel} → {statusLabel}", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
+        public async Task EditPaymentHistoryEntryAsync(
+            Guid historyId, Guid beneficiaryId, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+            string? remarks, string userName)
+        {
+            if (paymentStatus == 2 && !paymentDate.HasValue)
+                throw new Exception("Payment Date is required when status is Paid.");
+
+            if (paymentStatus == 2 && !modeOfPayment.HasValue)
+                throw new Exception("Mode of Payment is required when status is Paid.");
+
+            await _repo.EditPaymentHistoryEntryAsync(
+                historyId, payrollQuarter, fiscalYear, paymentStatus,
+                modeOfPayment, paymentDate, remarks, userName);
+
+            await AddLogAsync(beneficiaryId,
+                $"Payment record corrected → {MapPaymentStatusLabel(paymentStatus)} (Q{payrollQuarter} FY{fiscalYear})",
+                userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
@@ -897,24 +964,6 @@ namespace EcaInformationSystem.Application.Services
                     id,
                     $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}",
                     userName);
-
-            await _repo.SaveChangesAsync();
-            InvalidateSummaryCache();
-        }
-
-        // ✅ NEW — independent bulk Payroll Quarter update
-        public async Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName,
-            Dictionary<Guid, byte[]>? rowVersions = null)
-        {
-            if (ids == null || !ids.Any())
-                throw new Exception(CommonConstants.NoRecordsSelected);
-
-            await _repo.BulkUpdatePayrollQuarterAsync(ids, payrollQuarter, rowVersions);
-
-            var label = payrollQuarter.HasValue ? $"Q{payrollQuarter}" : "Cleared";
-
-            foreach (var id in ids)
-                await AddLogAsync(id, $"Bulk Payroll Quarter update -> {label}", userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();

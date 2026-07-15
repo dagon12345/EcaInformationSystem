@@ -20,23 +20,143 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
-        public async Task BulkUpdateFiscalYearAsync(List<Guid> ids, int? fiscalYear, Dictionary<Guid, byte[]>? rowVersions)
+        public async Task<PaymentHistoryDeletedInfoDto> DeletePaymentHistoryAsync(Guid historyId)
+        {
+            var entry = await _context.BeneficiaryPaymentHistories.FindAsync(historyId);
+            if (entry == null)
+                throw new Exception("Payment history record not found.");
+
+            var info = new PaymentHistoryDeletedInfoDto
+            {
+                BeneficiaryId = entry.BeneficiaryInformationId,
+                PaymentStatus = entry.PaymentStatus,
+                PayrollQuarter = entry.PayrollQuarter,
+                FiscalYear = entry.FiscalYear
+            };
+
+            var beneficiary = await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(b => b.Id == entry.BeneficiaryInformationId);
+
+            bool wasCurrent = beneficiary != null && beneficiary.CurrentPaymentHistoryId == historyId;
+
+            _context.BeneficiaryPaymentHistories.Remove(entry);
+
+            // ✅ If we're deleting the CURRENT entry, promote the next most recent
+            // remaining entry to current — never leave a beneficiary pointing at a
+            // deleted row. If none remain, clear the pointer and the flat-column mirror.
+            if (wasCurrent && beneficiary != null)
+            {
+                var next = await _context.BeneficiaryPaymentHistories
+                    .Where(h => h.BeneficiaryInformationId == beneficiary.Id && h.Id != historyId)
+                    .OrderByDescending(h => h.PaymentDate ?? h.DateCreated)
+                    .ThenByDescending(h => h.DateCreated)
+                    .FirstOrDefaultAsync();
+
+                if (next != null)
+                {
+                    beneficiary.CurrentPaymentHistoryId = next.Id;
+                    beneficiary.PayrollQuarter = next.PayrollQuarter;
+                    beneficiary.FiscalYear = next.FiscalYear;
+                    beneficiary.PaymentStatus = next.PaymentStatus;
+                    beneficiary.ModeOfPayment = next.ModeOfPayment;
+                    beneficiary.PaymentDate = next.PaymentDate;
+                }
+                else
+                {
+                    beneficiary.CurrentPaymentHistoryId = null;
+                    beneficiary.PayrollQuarter = null;
+                    beneficiary.FiscalYear = null;
+                    beneficiary.PaymentStatus = 0;
+                    beneficiary.ModeOfPayment = 0;
+                    beneficiary.PaymentDate = null;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return info;
+        }
+        public async Task EditPaymentHistoryEntryAsync(Guid historyId, int? payrollQuarter, int? fiscalYear,
+         int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string? remarks, string userName)
+        {
+            var entry = await _context.BeneficiaryPaymentHistories.FindAsync(historyId);
+            if (entry == null)
+                throw new Exception("Payment history record not found.");
+
+            entry.PayrollQuarter = payrollQuarter;
+            entry.FiscalYear = fiscalYear;
+            entry.PaymentStatus = paymentStatus;
+            entry.ModeOfPayment = paymentStatus == 2 ? (modeOfPayment ?? 0) : 0;
+            entry.PaymentDate = paymentStatus == 2 ? paymentDate : null;
+            entry.Remarks = remarks;
+            entry.DateModified = DateTime.UtcNow;
+            entry.ModifiedBy = userName;
+
+            // ✅ NEW — only mirror if this entry is the beneficiary's CURRENT one
+            var beneficiary = await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(b => b.CurrentPaymentHistoryId == historyId);
+
+            if (beneficiary != null)
+            {
+                beneficiary.PayrollQuarter = entry.PayrollQuarter;
+                beneficiary.FiscalYear = entry.FiscalYear;
+                beneficiary.PaymentStatus = entry.PaymentStatus;
+                beneficiary.ModeOfPayment = entry.ModeOfPayment;
+                beneficiary.PaymentDate = entry.PaymentDate;
+            }
+
+            // Note: this does NOT touch CurrentPaymentHistoryId. If the entry being
+            // corrected happens to be the current one, it stays current — correcting
+            // a typo shouldn't demote a record from "current" status. If you're
+            // instead recording a genuinely NEW payment event, use
+            // BulkAddPaymentHistoryAsync (with a single-item list), not this method.
+            await _context.SaveChangesAsync();
+        }
+        public async Task BulkAddPaymentHistoryAsync(List<Guid> beneficiaryIds, int? payrollQuarter, int? fiscalYear,
+         int paymentStatus, int? modeOfPayment, DateTime? paymentDate, string? remarks, string userName)
         {
             var beneficiaries = await _context.BeneficiaryInformations
-                .Where(b => ids.Contains(b.Id) && !b.IsDeleted)
+                .Where(b => beneficiaryIds.Contains(b.Id) && !b.IsDeleted)
                 .ToListAsync();
+
+            var newHistoryEntries = new List<BeneficiaryPaymentHistory>();
 
             foreach (var b in beneficiaries)
             {
-                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
+                var history = new BeneficiaryPaymentHistory
                 {
-                    _context.Entry(b)
-                            .Property(x => x.RowVersion)
-                            .OriginalValue = rv;
-                }
+                    Id = Guid.NewGuid(),
+                    BeneficiaryInformationId = b.Id,
+                    PayrollQuarter = payrollQuarter,
+                    FiscalYear = fiscalYear,
+                    PaymentStatus = paymentStatus,
+                    ModeOfPayment = paymentStatus == 2 ? (modeOfPayment ?? 0) : 0,
+                    PaymentDate = paymentStatus == 2 ? paymentDate : null,
+                    Remarks = remarks,
+                    DateCreated = DateTime.UtcNow,
+                    CreatedBy = userName
+                };
 
-                b.SetFiscalYear(fiscalYear);
+                newHistoryEntries.Add(history);
+
+                // ── Assigning Id here, before SaveChangesAsync(), works because we
+                // generated the Guid ourselves (Guid.NewGuid()) rather than letting
+                // the database generate it. EF Core will insert both the history
+                // row and this updated pointer in the SAME SaveChangesAsync() call,
+                // in the correct dependency order (history row first, since
+                // CurrentPaymentHistoryId's FK requires it to exist), without
+                // needing a second round-trip to look up the new Id.
+                b.CurrentPaymentHistoryId = history.Id;
+
+                // ✅ NEW — mirror onto the flat columns so Payroll/Export/CDR/Statistics
+                // (which still read these directly) stay in sync with the current history entry.
+                b.PayrollQuarter = history.PayrollQuarter;
+                b.FiscalYear = history.FiscalYear;
+                b.PaymentStatus = history.PaymentStatus;
+                b.ModeOfPayment = history.ModeOfPayment;
+                b.PaymentDate = history.PaymentDate;
             }
+
+            await _context.BeneficiaryPaymentHistories.AddRangeAsync(newHistoryEntries);
 
             try
             {
@@ -48,6 +168,45 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 throw new ConcurrencyException(
                     $"The following record(s) were modified by another user: {conflictedNames}. Please refresh and try again.", ex);
             }
+        }
+        public async Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId)
+        {
+            // Fetch the current pointer in a separate narrow query rather than
+            // joining it into the main query below — this keeps the main query a
+            // single-table scan against the indexed FK, and the pointer lookup is
+            // a trivial single-row PK read that costs nothing extra.
+            var currentId = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => b.Id == beneficiaryId)
+                .Select(b => b.CurrentPaymentHistoryId)
+                .FirstOrDefaultAsync();
+
+            return await _context.BeneficiaryPaymentHistories
+                .AsNoTracking()
+                .Where(h => h.BeneficiaryInformationId == beneficiaryId)
+                // This ORDER BY is exactly what IX_PaymentHistory_Beneficiary_PaymentDate
+                // was built to satisfy — the WHERE clause above filters on the leading
+                // column of that index, and this ORDER BY matches its trailing column,
+                // so SQL Server can walk the index directly with no separate Sort step.
+                .OrderByDescending(h => h.PaymentDate ?? h.DateCreated)
+                .ThenByDescending(h => h.DateCreated)
+                .Select(h => new PaymentHistoryDto
+                {
+                    Id = h.Id,
+                    BeneficiaryInformationId = h.BeneficiaryInformationId,
+                    PayrollQuarter = h.PayrollQuarter,
+                    FiscalYear = h.FiscalYear,
+                    PaymentStatus = h.PaymentStatus,
+                    ModeOfPayment = h.ModeOfPayment,
+                    PaymentDate = h.PaymentDate,
+                    Remarks = h.Remarks,
+                    DateCreated = h.DateCreated,
+                    CreatedBy = h.CreatedBy,
+                    DateModified = h.DateModified,
+                    ModifiedBy = h.ModifiedBy,
+                    IsCurrent = h.Id == currentId
+                })
+                .ToListAsync();
         }
         // Fallback fuzzy name search. Only call this when the normal exact/Contains
         // search already returned zero results and the search term looks name-like
@@ -130,62 +289,84 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
         {
-            var query = _context.BeneficiaryInformations
-       .AsNoTracking()
-       .Where(b => !b.IsDeleted);
+            var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
 
-            // Apply filters
             if (request.Region.HasValue && request.Region.Value > 0)
                 query = query.Where(b => b.Region == request.Region.Value);
-
             if (request.Province.HasValue && request.Province.Value > 0)
                 query = query.Where(b => b.Province == request.Province.Value);
-            // In GetStatisticsReportAsync, add Municipality filter
             if (request.Municipality.HasValue && request.Municipality.Value > 0)
                 query = query.Where(b => b.Municipality == request.Municipality.Value);
 
-            // Filter by Milestone Year (2024, 2025, 2026)
             if (request.MilestoneYear > 0)
             {
                 var milestones = new[] { 80, 85, 90, 95, 100 };
                 var birthYears = milestones.Select(m => request.MilestoneYear - m).ToList();
                 query = query.Where(b => birthYears.Contains(b.BirthDate.Year));
             }
-
-            // Filter by Milestone Age
             if (request.MilestoneAge > 0)
             {
                 var birthYear = DateTime.Today.Year - request.MilestoneAge;
                 query = query.Where(b => b.BirthDate.Year == birthYear);
             }
 
-            if (request.PaymentStatus >= 0)
-                query = query.Where(b => b.PaymentStatus == request.PaymentStatus);
+            // ✅ NEW — when a specific period (Quarter/FiscalYear) or Payment Status is
+            // requested, resolve it against the FULL payment history, and remember
+            // WHICH history row matched each beneficiary so we can report on THAT
+            // record's status/date rather than whatever their current record says.
+            // This is what makes "Q1 2026" report exact Paid counts for Q1 2026, even
+            // for people who have since been repaid/corrected into Q2 2026.
+            bool hasPeriodFilter = request.PayrollQuarter.HasValue || request.FiscalYear.HasValue || request.PaymentStatus >= 0;
+            Dictionary<Guid, BeneficiaryPaymentHistory> historyLookup = new();
 
-            // ✅ Moved up — must run BEFORE ToListAsync(), was previously applied
-            // to `query` after `allData` was already materialized, so it had no effect.
-            if (request.PayrollQuarter.HasValue)
-                query = query.Where(b => b.PayrollQuarter == request.PayrollQuarter.Value);
+            if (hasPeriodFilter)
+            {
+                var historyQuery = _context.BeneficiaryPaymentHistories.AsNoTracking().AsQueryable();
 
-            if (request.FiscalYear.HasValue)
-                query = query.Where(b => b.FiscalYear == request.FiscalYear.Value);
+                if (request.PayrollQuarter.HasValue)
+                    historyQuery = historyQuery.Where(h => h.PayrollQuarter == request.PayrollQuarter.Value);
+                if (request.FiscalYear.HasValue)
+                    historyQuery = historyQuery.Where(h => h.FiscalYear == request.FiscalYear.Value);
+                if (request.PaymentStatus >= 0)
+                    historyQuery = historyQuery.Where(h => h.PaymentStatus == request.PaymentStatus);
+
+                var matches = await historyQuery
+                    .OrderByDescending(h => h.DateModified ?? h.DateCreated)
+                    .ToListAsync();
+
+                // If a beneficiary somehow has more than one row matching (e.g. two
+                // separate corrections both landing on Q1 2026), keep the most
+                // recently touched one as authoritative for this report.
+                historyLookup = matches
+                    .GroupBy(h => h.BeneficiaryInformationId)
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                query = query.Where(b => historyLookup.Keys.Contains(b.Id));
+            }
 
             var allData = await query.ToListAsync();
+
+            // ✅ Effective status/quarter/fiscal-year per beneficiary — pulled from the
+            // matched historical entry when a period filter is active, otherwise
+            // falls back to the beneficiary's current flat columns (unchanged
+            // behavior for "no filter = show me current state" queries).
+            int EffectiveStatus(BeneficiaryInformation b) =>
+                hasPeriodFilter && historyLookup.TryGetValue(b.Id, out var h) ? h.PaymentStatus : b.PaymentStatus;
+            int EffectiveQuarter(BeneficiaryInformation b) =>
+                hasPeriodFilter && historyLookup.TryGetValue(b.Id, out var h) ? (h.PayrollQuarter ?? 0) : (b.PayrollQuarter ?? 0);
 
             var report = new StatisticsReportDto
             {
                 TotalBeneficiaries = allData.Count,
                 TotalMale = allData.Count(b => b.Sex == 1),
                 TotalFemale = allData.Count(b => b.Sex == 2),
-                PaidCount = allData.Count(b => b.PaymentStatus == 2),
-                UnpaidCount = allData.Count(b => b.PaymentStatus == 1),
-                PendingCount = allData.Count(b => b.PaymentStatus == 3),
-                NotApplicableCount = allData.Count(b => b.PaymentStatus == 0),
+                PaidCount = allData.Count(b => EffectiveStatus(b) == 2),
+                UnpaidCount = allData.Count(b => EffectiveStatus(b) == 1),
+                PendingCount = allData.Count(b => EffectiveStatus(b) == 3),
+                NotApplicableCount = allData.Count(b => EffectiveStatus(b) == 0),
                 TotalDisbursement = allData
-                    .Where(b => b.PaymentStatus == 2)
+                    .Where(b => EffectiveStatus(b) == 2)
                     .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate))),
-
-                // ✅ FIXED — inside the initializer, using allData (not filtered), b.FiscalYear (entity field)
                 FiscalYearBreakdown = allData
                     .Where(b => b.FiscalYear.HasValue)
                     .GroupBy(b => b.FiscalYear!.Value)
@@ -193,7 +374,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ToDictionary(g => g.Key, g => g.Count())
             };
 
-            // Age distribution
             var milestoneAges = new[] { 80, 85, 90, 95, 100 };
             report.AgeDistribution = milestoneAges
                 .Select(m => new AgeDistributionDto
@@ -207,14 +387,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .ToList();
 
-            // Milestone Year Summary (2024, 2025, 2026)
             var milestoneYears = new[] { 2024, 2025, 2026 };
             report.MilestoneYearSummary = milestoneYears
                 .Select(year =>
                 {
                     var birthYears = milestoneAges.Select(m => year - m).ToList();
                     var records = allData.Where(b => birthYears.Contains(b.BirthDate.Year)).ToList();
-
                     return new MilestoneYearSummaryDto
                     {
                         Year = year,
@@ -228,22 +406,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .ToList();
 
-            // Province breakdown
-            var provinceGroups = allData
-                .GroupBy(b => b.Province)
-                .Select(g => new
-                {
-                    ProvinceCode = g.Key,
-                    Items = g.ToList()
-                })
-                .ToList();
+            var provinceGroups = allData.GroupBy(b => b.Province)
+                .Select(g => new { ProvinceCode = g.Key, Items = g.ToList() }).ToList();
 
             report.ProvinceBreakdowns = provinceGroups
                 .Select(g =>
                 {
                     var provinceName = _psgcNameCache.GetProvinceName(g.ProvinceCode) ?? g.ProvinceCode.ToString();
                     var items = g.Items;
-                    var paidItems = items.Where(b => b.PaymentStatus == 2).ToList();
+                    var paidItems = items.Where(b => EffectiveStatus(b) == 2).ToList();
 
                     return new ProvinceStatisticsDto
                     {
@@ -256,27 +427,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
                         MaleCount = items.Count(b => b.Sex == 1),
                         FemaleCount = items.Count(b => b.Sex == 2),
-                        PaidCount = items.Count(b => b.PaymentStatus == 2),
-                        UnpaidCount = items.Count(b => b.PaymentStatus == 1),
-                        PendingCount = items.Count(b => b.PaymentStatus == 3),
-                        NotApplicableCount = items.Count(b => b.PaymentStatus == 0),
-                        TotalDisbursement = paidItems
-                            .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                        PaidCount = items.Count(b => EffectiveStatus(b) == 2),
+                        UnpaidCount = items.Count(b => EffectiveStatus(b) == 1),
+                        PendingCount = items.Count(b => EffectiveStatus(b) == 3),
+                        NotApplicableCount = items.Count(b => EffectiveStatus(b) == 0),
+                        TotalDisbursement = paidItems.Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
                     };
                 })
                 .OrderBy(p => p.ProvinceName)
                 .ToList();
 
-            // Municipality breakdown
-            var municipalityGroups = allData
-                .GroupBy(b => new { b.Province, b.Municipality })
-                .Select(g => new
-                {
-                    g.Key.Province,
-                    g.Key.Municipality,
-                    Items = g.ToList()
-                })
-                .ToList();
+            var municipalityGroups = allData.GroupBy(b => new { b.Province, b.Municipality })
+                .Select(g => new { g.Key.Province, g.Key.Municipality, Items = g.ToList() }).ToList();
 
             report.MunicipalityBreakdowns = municipalityGroups
                 .Select(g =>
@@ -284,7 +446,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     var provinceName = _psgcNameCache.GetProvinceName(g.Province) ?? g.Province.ToString();
                     var municipalityName = _psgcNameCache.GetMunicipalityName(g.Municipality) ?? g.Municipality.ToString();
                     var items = g.Items;
-                    var paidItems = items.Where(b => b.PaymentStatus == 2).ToList();
+                    var paidItems = items.Where(b => EffectiveStatus(b) == 2).ToList();
 
                     return new MunicipalityStatisticsDto
                     {
@@ -298,31 +460,26 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
                         MaleCount = items.Count(b => b.Sex == 1),
                         FemaleCount = items.Count(b => b.Sex == 2),
-                        TotalDisbursement = paidItems
-                            .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                        TotalDisbursement = paidItems.Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
                     };
                 })
-                .OrderBy(m => m.ProvinceName)
-                .ThenBy(m => m.MunicipalityName)
+                .OrderBy(m => m.ProvinceName).ThenBy(m => m.MunicipalityName)
                 .ToList();
 
-            // Totals
             report.TotalAge80 = report.ProvinceBreakdowns.Sum(p => p.Age80Count);
             report.TotalAge85 = report.ProvinceBreakdowns.Sum(p => p.Age85Count);
             report.TotalAge90 = report.ProvinceBreakdowns.Sum(p => p.Age90Count);
             report.TotalAge95 = report.ProvinceBreakdowns.Sum(p => p.Age95Count);
             report.TotalAge100 = report.ProvinceBreakdowns.Sum(p => p.Age100Count);
 
-            // Add PayrollQuarter breakdown to the report
             report.PayrollQuarterBreakdown = allData
-                .GroupBy(b => b.PayrollQuarter ?? 0)
+                .GroupBy(b => EffectiveQuarter(b))
                 .Select(g => new PayrollQuarterStatisticsDto
                 {
                     Quarter = g.Key,
                     Count = g.Count(),
-                    PaidCount = g.Count(b => b.PaymentStatus == 2),
-                    TotalDisbursement = g
-                        .Where(b => b.PaymentStatus == 2)
+                    PaidCount = g.Count(b => EffectiveStatus(b) == 2),
+                    TotalDisbursement = g.Where(b => EffectiveStatus(b) == 2)
                         .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
                 })
                 .OrderBy(q => q.Quarter)
@@ -1072,43 +1229,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     $"{conflictedNames}. Please refresh and try again.", ex);
             }
         }
-
-        // ✅ NEW — Payroll Quarter is now its own independent bulk action, usable
-        // regardless of a record's current Payment Status.
-        public async Task BulkUpdatePayrollQuarterAsync(
-            List<Guid> ids,
-            int? payrollQuarter,
-            Dictionary<Guid, byte[]>? rowVersions = null)
-        {
-            var beneficiaries = await _context.BeneficiaryInformations
-                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
-                .ToListAsync();
-
-            foreach (var b in beneficiaries)
-            {
-                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
-                {
-                    _context.Entry(b)
-                            .Property(x => x.RowVersion)
-                            .OriginalValue = rv;
-                }
-
-                b.PayrollQuarter = payrollQuarter;
-            }
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                var conflictedNames = GetConflictedRecordNames(ex);
-
-                throw new ConcurrencyException(
-                    $"The following record(s) were modified by another user: " +
-                    $"{conflictedNames}. Please refresh and try again.", ex);
-            }
-        }
         // WHY THIS QUERY IS FASTER THAN GetPagedAsync:
         //
         // 1. NO JOINS to Region/Province/Municipality/Barangay. Names resolved
@@ -1215,7 +1335,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
 
             var baseQuery = await BuildNarrowFilterQuery(filter);
-
             var totalCount = await baseQuery.CountAsync();
 
             string sortColumn = filter.SortColumn?.ToLower() ?? "default";
@@ -1232,10 +1351,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 _ => baseQuery.OrderBy(b => b.LastName).ThenBy(b => b.FirstName).ThenBy(b => b.MiddleName)
             };
 
-            // ── Single LEFT JOIN to Finding only (1:1, won't multiply rows).
-            // HasDocuments via EXISTS-style Any() — reliably translates to SQL
-            // Server's EXISTS(...), generally the fastest pattern for "does at
-            // least one related row exist."
+            // ── Step 1: page the beneficiaries + Findings join only (single GroupJoin, known-good shape) ──
             var pageRaw = await sorted
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
@@ -1264,11 +1380,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.Municipality,
                     x.b.Barangay,
                     x.b.Validator,
-                    x.b.PayrollQuarter,
-                    x.b.FiscalYear,
-                    x.b.PaymentStatus,
-                    x.b.ModeOfPayment,
-                    x.b.PaymentDate,
                     x.b.IsEligible,
                     x.b.IsCompliant,
                     x.b.CoStatus,
@@ -1278,6 +1389,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.DateEndorsed,
                     x.b.DateApplied,
                     x.b.NcscRrn,
+                    x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
                     FindingStatus = x.finding != null ? x.finding.FindingStatus : (int?)null,
@@ -1292,51 +1404,92 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .ToListAsync();
 
-            // ── Name resolution in C#, zero SQL cost, via the cache from Step 4.
-            var items = pageRaw.Select(x => new BeneficiaryListItemDto
+            var pageIds = pageRaw.Select(x => x.Id).ToList();
+
+            var historyCounts = await _context.BeneficiaryPaymentHistories
+                .Where(h => pageIds.Contains(h.BeneficiaryInformationId))
+                .GroupBy(h => h.BeneficiaryInformationId)
+                .Select(g => new { BeneficiaryId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.BeneficiaryId, x => x.Count);
+
+            var recentHistory = await _context.BeneficiaryPaymentHistories
+                .Where(h => pageIds.Contains(h.BeneficiaryInformationId))
+                .OrderByDescending(h => h.PaymentDate ?? h.DateCreated)
+                .ThenByDescending(h => h.DateCreated)
+                .ToListAsync();
+
+            var summaryByBeneficiary = recentHistory
+                .GroupBy(h => h.BeneficiaryInformationId)
+                .ToDictionary(g => g.Key, g => string.Join(" • ", g.Take(3).Select(h =>
+                 $"Q{(h.PayrollQuarter?.ToString() ?? "-")} {h.FiscalYear?.ToString() ?? ""}: {PaymentStatusLabelFor(h.PaymentStatus)}"
+                .Trim())));
+
+            // ── Step 2: fetch current payment history rows for just this page, in one small query ──
+            var historyIds = pageRaw
+                .Where(x => x.CurrentPaymentHistoryId.HasValue)
+                .Select(x => x.CurrentPaymentHistoryId!.Value)
+                .Distinct()
+                .ToList();
+
+            var historyLookup = historyIds.Any()
+                ? await _context.BeneficiaryPaymentHistories
+                    .AsNoTracking()
+                    .Where(h => historyIds.Contains(h.Id))
+                    .ToDictionaryAsync(h => h.Id)
+                : new Dictionary<Guid, BeneficiaryPaymentHistory>();
+
+            // ── Step 3: merge in memory ──
+            var items = pageRaw.Select(x =>
             {
-                Id = x.Id,
-                Quarter = x.Quarter,
-                Batch = x.Batch,
-                RefYear = x.RefYear,
-                RefCode = x.RefCode,
-                BatchCode = x.BatchCode,
-                PhoneNumber = x.PhoneNumber,
-                LastName = x.LastName,
-                FirstName = x.FirstName ?? string.Empty,
-                MiddleName = x.MiddleName,
-                Extension = x.Extension,
-                BirthDate = x.BirthDate,
-                Age = ComputeAge(x.BirthDate),
-                MilestoneYear = ComputeMilestoneYear(x.BirthDate),
-                Sex = x.Sex,
-                PsgcCodeRegion = x.Region,
-                PsgcCodeProvince = x.Province,
-                PsgcCodeMunicipality = x.Municipality,
-                PsgcCodeBarangay = x.Barangay,
-                ProvinceName = _psgcNameCache.GetProvinceName(x.Province),
-                MunicipalityName = _psgcNameCache.GetMunicipalityName(x.Municipality),
-                BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
-                Validator = x.Validator,
-                PayrollQuarter = x.PayrollQuarter,
-                FiscalYear = x.FiscalYear,
-                PaymentStatus = x.PaymentStatus,
-                ModeOfPayment = x.ModeOfPayment,
-                PaymentDate = x.PaymentDate,
-                IsEligible = x.IsEligible,
-                IsCompliant = x.IsCompliant,
-                FindingStatus = x.FindingStatus,
-                CoStatus = x.CoStatus,
-                CoDateEndorsed = x.CoDateEndorsed,
-                CoDateApproved = x.CoDateApproved,
-                HasDocuments = x.HasDocuments,
-                EligibilityRemarksPreview = x.EligibilityRemarksPreview,
-                AssessmentRemarksPreview = x.AssessmentRemarksPreview,
-                FindingRemarksPreview = x.FindingRemarksPreview,
-                RowVersion = x.RowVersion,
-                DateEndorsed = x.DateEndorsed,
-                DateApplied = x.DateApplied,
-                NcscRrn = x.NcscRrn
+                historyLookup.TryGetValue(x.CurrentPaymentHistoryId ?? Guid.Empty, out var current);
+
+                return new BeneficiaryListItemDto
+                {
+                    Id = x.Id,
+                    Quarter = x.Quarter,
+                    Batch = x.Batch,
+                    RefYear = x.RefYear,
+                    RefCode = x.RefCode,
+                    BatchCode = x.BatchCode,
+                    PhoneNumber = x.PhoneNumber,
+                    LastName = x.LastName,
+                    FirstName = x.FirstName ?? string.Empty,
+                    MiddleName = x.MiddleName,
+                    Extension = x.Extension,
+                    BirthDate = x.BirthDate,
+                    Age = ComputeAge(x.BirthDate),
+                    MilestoneYear = ComputeMilestoneYear(x.BirthDate),
+                    Sex = x.Sex,
+                    PsgcCodeRegion = x.Region,
+                    PsgcCodeProvince = x.Province,
+                    PsgcCodeMunicipality = x.Municipality,
+                    PsgcCodeBarangay = x.Barangay,
+                    ProvinceName = _psgcNameCache.GetProvinceName(x.Province),
+                    MunicipalityName = _psgcNameCache.GetMunicipalityName(x.Municipality),
+                    BarangayName = _psgcNameCache.GetBarangayName(x.Barangay),
+                    Validator = x.Validator,
+                    PayrollQuarter = current?.PayrollQuarter,
+                    FiscalYear = current?.FiscalYear,
+                    PaymentStatus = current?.PaymentStatus ?? 0,
+                    ModeOfPayment = current?.ModeOfPayment ?? 0,
+                    PaymentHistoryCount = historyCounts.TryGetValue(x.Id, out var c) ? c : 0,
+                    PaymentHistorySummary = summaryByBeneficiary.TryGetValue(x.Id, out var s) ? s : null,
+                    PaymentDate = current?.PaymentDate,
+                    IsEligible = x.IsEligible,
+                    IsCompliant = x.IsCompliant,
+                    FindingStatus = x.FindingStatus,
+                    CoStatus = x.CoStatus,
+                    CoDateEndorsed = x.CoDateEndorsed,
+                    CoDateApproved = x.CoDateApproved,
+                    HasDocuments = x.HasDocuments,
+                    EligibilityRemarksPreview = x.EligibilityRemarksPreview,
+                    AssessmentRemarksPreview = x.AssessmentRemarksPreview,
+                    FindingRemarksPreview = x.FindingRemarksPreview,
+                    RowVersion = x.RowVersion,
+                    DateEndorsed = x.DateEndorsed,
+                    DateApplied = x.DateApplied,
+                    NcscRrn = x.NcscRrn
+                };
             }).ToList();
 
             return new PagedResultDto<BeneficiaryListItemDto>
@@ -2353,9 +2506,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(b => b.Sex == filter.Sex.Value);
-            // ── Payment Status (multi-select) ────────────────────────────────────
-            if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
-                query = query.Where(b => filter.PaymentStatuses.Contains(b.PaymentStatus));
 
             if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
                 query = query.Where(b => b.ModeOfPayment == filter.FilterModeOfPayment.Value);
@@ -2437,9 +2587,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.FilterQuarter.HasValue)
                 query = query.Where(b => b.Quarter == filter.FilterQuarter.Value);
-
-            if (filter.FilterFiscalYear.HasValue)
-                query = query.Where(b => b.FiscalYear == filter.FilterFiscalYear);
 
             if (!string.IsNullOrWhiteSpace(filter.FilterBatch))
                 query = query.Where(b => b.Batch != null && b.Batch.Contains(filter.FilterBatch.Trim()));
@@ -2588,13 +2735,28 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 var matchingIds = await BuildFindingStatusIdQueryAsync(filter.FindingStatus.Value);
                 query = query.Where(b => matchingIds.Contains(b.Id));
             }
+            // ✅ NEW — match against the FULL payment history, not just the current
+            // mirror. A single history row must satisfy every specified criterion
+            // together (e.g. "Q1 2026 Paid" means one entry that IS Q1, FY2026, AND
+            // Paid — not three different entries each satisfying one piece). This is
+            // what lets "go back" filtering (Q1 2026) still find someone whose current
+            // status has since moved on to Q2 2026 — essential for accurate historical
+            // reporting/statistics.
+            bool hasStatuses = filter.PaymentStatuses != null && filter.PaymentStatuses.Any();
+            bool hasQuarter = filter.FilterPayrollQuarter.HasValue;
+            bool hasQuarters = filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any();
+            bool hasFiscalYear = filter.FilterFiscalYear.HasValue;
 
-            // ── Payroll Quarter Filter ──────────────────────────────────────────────
-            if (filter.FilterPayrollQuarter.HasValue)
-                query = query.Where(b => b.PayrollQuarter == filter.FilterPayrollQuarter.Value);
-
-            if (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())
-                query = query.Where(b => filter.FilterPayrollQuarters.Contains(b.PayrollQuarter ?? 0));
+            if (hasStatuses || hasQuarter || hasQuarters || hasFiscalYear)
+            {
+                query = query.Where(b => _context.BeneficiaryPaymentHistories.Any(h =>
+                    h.BeneficiaryInformationId == b.Id
+                    && (!hasStatuses || filter.PaymentStatuses!.Contains(h.PaymentStatus))
+                    && (!hasQuarter || h.PayrollQuarter == filter.FilterPayrollQuarter!.Value)
+                    && (!hasQuarters || filter.FilterPayrollQuarters!.Contains(h.PayrollQuarter ?? 0))
+                    && (!hasFiscalYear || h.FiscalYear == filter.FilterFiscalYear!.Value)
+                ));
+            }
 
 
             return query;
@@ -2716,6 +2878,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             PartiallyDifferent,
             Conflicting
         }
+        private static string PaymentStatusLabelFor(int status) => status switch
+        {
+            1 => "Unpaid",
+            2 => "Paid",
+            3 => "Pending",
+            _ => "N/A"
+        };
 
         // ── Private helper — builds a clear reason label for the reviewer ─────────────
         private static string BuildDuplicateReason(

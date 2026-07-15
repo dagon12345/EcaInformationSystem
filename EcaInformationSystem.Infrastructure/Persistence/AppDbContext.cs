@@ -30,6 +30,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<FormDocument> FormDocuments => Set<FormDocument>();
         public DbSet<FormFolder> FormFolders => Set<FormFolder>();
         public DbSet<FormActivityLog> FormActivityLogs => Set<FormActivityLog>();
+        public DbSet<BeneficiaryPaymentHistory> BeneficiaryPaymentHistories => Set<BeneficiaryPaymentHistory>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -468,6 +469,30 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => x.CreatedAt).IsDescending();
                 entity.HasIndex(x => x.FolderId);
                 entity.HasIndex(x => x.FormDocumentId);
+            });
+            modelBuilder.Entity<BeneficiaryPaymentHistory>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne(x => x.Beneficiary)
+                      .WithMany()
+                      .HasForeignKey(x => x.BeneficiaryInformationId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => new { x.BeneficiaryInformationId, x.PaymentDate })
+                      .HasDatabaseName("IX_PaymentHistory_Beneficiary_PaymentDate");
+
+                entity.HasIndex(x => new { x.FiscalYear, x.PayrollQuarter, x.PaymentStatus })
+                      .HasDatabaseName("IX_PaymentHistory_FiscalYear_Quarter_Status");
+
+                entity.Property(x => x.CreatedBy).HasMaxLength(256);
+                entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+            });
+
+            modelBuilder.Entity<BeneficiaryInformation>(entity =>
+            {
+                entity.HasIndex(b => b.CurrentPaymentHistoryId)
+                      .HasDatabaseName("IX_BeneficiaryInformation_CurrentPaymentHistoryId");
             });
         }
     }

@@ -44,13 +44,17 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings);
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
         Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
-        Task BulkUpdatePayrollQuarterAsync(List<Guid> ids, int? payrollQuarter, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter);
         Task<PagedResultDto<BeneficiaryListItemDto>> SearchSimilarNamesAsync(BeneficiaryFilterDto filter);
-        Task BulkUpdateFiscalYearAsync(
-            List<Guid> ids,
-            int? fiscalYear,
-            string userName,
-            Dictionary<Guid, byte[]>? rowVersions);
+        Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId);
+        Task BulkAddPaymentHistoryAsync(
+            List<Guid> beneficiaryIds, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+            string? remarks, string userName);
+        Task EditPaymentHistoryEntryAsync(
+            Guid historyId, Guid beneficiaryId, int? payrollQuarter, int? fiscalYear,
+            int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
+            string? remarks, string userName);
+        Task DeletePaymentHistoryAsync(Guid historyId, string userName);
     }
 }

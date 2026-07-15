@@ -51,6 +51,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
         public DateTime? PaymentDate { get; set; }
+        public int PaymentHistoryCount { get; set; }
+        public string? PaymentHistorySummary { get; set; }   // ✅ new — hover tooltip text
         public bool HasDocuments { get; set; }
 
         public string? EligibilityRemarksPreview { get; set; }

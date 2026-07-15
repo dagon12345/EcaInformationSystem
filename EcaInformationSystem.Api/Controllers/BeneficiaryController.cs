@@ -21,24 +21,63 @@ namespace EcaInformationSystem.Api.Controllers
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
         }
-
-        [HttpPost("bulk-fiscal-year")]
+        [HttpDelete("payment-history/{historyId:guid}")]
         [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> BulkUpdateFiscalYear([FromBody] BulkUpdateFiscalYearRequestDto request)
+        public async Task<IActionResult> DeletePaymentHistory(Guid historyId)
         {
             try
             {
                 var userName = User.Identity?.Name ?? "System";
-                await _service.BulkUpdateFiscalYearAsync(
-                    request.Ids,
-                    request.FiscalYear,
-                    userName,
-                    request.RowVersions);
+                await _service.DeletePaymentHistoryAsync(historyId, userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+        [HttpGet("payment-history/{beneficiaryId:guid}")]
+        public async Task<IActionResult> GetPaymentHistory(Guid beneficiaryId)
+        {
+            var result = await _service.GetPaymentHistoryAsync(beneficiaryId);
+            return Ok(result);
+        }
+
+        [HttpPost("bulk-add-payment-history")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> BulkAddPaymentHistory([FromBody] BulkAddPaymentHistoryRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkAddPaymentHistoryAsync(
+                    request.Ids, request.PayrollQuarter, request.FiscalYear,
+                    request.PaymentStatus, request.ModeOfPayment, request.PaymentDate,
+                    request.Remarks, userName);
                 return Ok();
             }
             catch (ConcurrencyException ex)
             {
                 return Conflict(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("edit-payment-history")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> EditPaymentHistory([FromBody] EditPaymentHistoryRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.EditPaymentHistoryEntryAsync(
+                    request.HistoryId, request.BeneficiaryId, request.PayrollQuarter,
+                    request.FiscalYear, request.PaymentStatus, request.ModeOfPayment,
+                    request.PaymentDate, request.Remarks, userName);
+                return Ok();
             }
             catch (Exception ex)
             {
@@ -349,30 +388,6 @@ namespace EcaInformationSystem.Api.Controllers
                      userName,
                      request.RowVersions);
 
-                return Ok();
-            }
-            catch (ConcurrencyException ex)
-            {
-                return Conflict(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-        // ✅ NEW — independent of Payment Status entirely
-        [HttpPost("bulk-payroll-quarter")]
-        [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> BulkUpdatePayrollQuarter([FromBody] BulkUpdatePayrollQuarterRequestDto request)
-        {
-            try
-            {
-                var userName = User.Identity?.Name ?? "System";
-                await _service.BulkUpdatePayrollQuarterAsync(
-                    request.Ids,
-                    request.PayrollQuarter,
-                    userName,
-                    request.RowVersions);
                 return Ok();
             }
             catch (ConcurrencyException ex)
