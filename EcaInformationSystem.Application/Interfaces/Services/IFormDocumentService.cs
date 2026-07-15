@@ -6,11 +6,11 @@ namespace EcaInformationSystem.Application.Interfaces.Services
     public interface IFormDocumentService
     {
         Task<List<FormDocumentDto>> GetAllAsync();
+        Task<List<FormDocumentDto>> SearchAsync(FormDocumentSearchDto filter);
         Task<(byte[] Data, string ContentType, string FileName)?> DownloadAsync(Guid id);
 
-        // Admin/SuperAdmin only — enforced at controller level, service trusts the caller
         Task<FormDocumentDto> UploadAsync(IFormFile file, string title, string? description,
-            string? category, string userName);
+            string? category, Guid? folderId, string userName);
 
         Task<FormDocumentDto> ReplaceFileAsync(Guid id, IFormFile file, string userName);
         Task UpdateMetadataAsync(Guid id, FormDocumentUpdateDto dto, string userName);

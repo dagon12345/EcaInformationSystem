@@ -2,125 +2,274 @@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @inject FormDocumentClientService FormService
+@inject FormFolderClientService FolderService
 @inject ToastService toast
 @inject AuthService AuthService
 @inject IJSRuntime JS
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h4 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Forms Gateway</h4>
-    @if (_isAdmin)
-    {
-        <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
-            <i class="bi bi-cloud-upload me-1"></i>Upload Form
-        </button>
-    }
-</div>
+<div class="forms-layout">
 
-<div class="forms-info-banner mb-3">
-    <i class="bi bi-info-circle-fill"></i>
-    <div>
-        <strong>About this page.</strong>
-        Official NCSC forms and templates for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
+    @* ── Folder Sidebar ── *@
+    <div class="forms-sidebar">
+        <div class="forms-sidebar-header">
+            <span>Folders</span>
+            @if (_isAdmin)
+            {
+                <button class="btn btn-sm btn-link p-0" @onclick="OpenCreateFolderModal" title="New Folder">
+                    <i class="bi bi-folder-plus"></i>
+                </button>
+            }
+        </div>
+
+        <div class="forms-folder-item @(_selectedFolderId == null && !_uncategorizedOnly ? "active" : "")"
+             @onclick="() => SelectFolder(null, false)">
+            <i class="bi bi-collection"></i>
+            <span>All Forms</span>
+            <span class="folder-count">@_allCount</span>
+        </div>
+
+        <div class="forms-folder-item @(_uncategorizedOnly ? "active" : "")"
+             @onclick="() => SelectFolder(null, true)">
+            <i class="bi bi-inbox"></i>
+            <span>Uncategorized</span>
+            <span class="folder-count">@_uncategorizedCount</span>
+        </div>
+
+        <hr class="my-2" />
+
+        @foreach (var folder in _folders)
+        {
+            <div class="forms-folder-item @(_selectedFolderId == folder.Id ? "active" : "")"
+                 @onclick="() => SelectFolder(folder.Id, false)">
+                <i class="bi bi-folder-fill"></i>
+                <span class="text-truncate" title="@folder.Name">@folder.Name</span>
+                <span class="folder-count">@folder.DocumentCount</span>
+
+                @if (_isAdmin)
+                {
+                    <div class="folder-actions" @onclick:stopPropagation="true">
+                        <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(folder)" title="Rename"></i>
+                        <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(folder)" title="Delete"></i>
+                    </div>
+                }
+            </div>
+        }
+
         @if (_isAdmin)
         {
-            <span>As an Administrator, you can upload, edit, and delete forms here.</span>
+            <hr class="my-2" />
+            <button class="btn btn-sm btn-outline-secondary w-100" @onclick="() => ShowActivityLog()">
+                <i class="bi bi-clock-history me-1"></i>Activity Log
+            </button>
+        }
+    </div>
+
+    @* ── Main Panel ── *@
+    <div class="forms-main">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div>
+                <h4 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Forms Gateway</h4>
+                <small class="text-muted">@GetCurrentFolderLabel()</small>
+            </div>
+            @if (_isAdmin)
+            {
+                <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
+                    <i class="bi bi-cloud-upload me-1"></i>Upload Form
+                </button>
+            }
+        </div>
+
+        <div class="forms-info-banner mb-3">
+            <i class="bi bi-info-circle-fill"></i>
+            <div>
+                <strong>About this page.</strong>
+                Official NCSC forms and templates for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
+                @if (_isAdmin)
+                {
+                    <span>As an Administrator, you can manage folders and upload, edit, or delete forms here.</span>
+                }
+                else
+                {
+                    <span>You have view, search, and download access only.</span>
+                }
+            </div>
+        </div>
+
+        @* ── Search bar ── *@
+        <div class="forms-search-bar mb-3">
+            <i class="bi bi-search"></i>
+            <input type="text" class="forms-search-input" placeholder="Search by title, description, category, or file name..."
+                   value="@_searchTerm" @oninput="OnSearchInput" />
+            @if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                <button class="forms-search-clear" @onclick="ClearSearch" title="Clear search">
+                    <i class="bi bi-x-circle-fill"></i>
+                </button>
+            }
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="text-center py-4">
+                <span class="spinner-border text-primary"></span>
+            </div>
+        }
+        else if (!_displayedForms.Any())
+        {
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-search" style="font-size:28px;"></i>
+                <p class="mt-2 mb-0">
+                    @(string.IsNullOrWhiteSpace(_searchTerm) ? "No forms in this folder yet." : $"No results for \"{_searchTerm}\".")
+                </p>
+            </div>
         }
         else
         {
-            <span>You have view and download access only.</span>
+            <div class="row g-3">
+                @foreach (var form in _displayedForms)
+                {
+                    var visual = GetFileTypeVisual(form.OriginalFileName, form.ContentType);
+
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="form-card">
+                            <div class="form-card-top">
+                                <div class="form-card-icon" style="background:@(visual.Color)1A; color:@visual.Color;">
+                                    <i class="bi @visual.Icon"></i>
+                                </div>
+                                <div class="form-card-typebadge" style="color:@visual.Color; border-color:@(visual.Color)40;">
+                                    @visual.Label
+                                </div>
+                            </div>
+
+                            <div class="form-card-body">
+                                <div class="d-flex align-items-start justify-content-between gap-2">
+                                    <h6 class="form-card-title" title="@form.Title">@form.Title</h6>
+                                    @if (!string.IsNullOrWhiteSpace(form.Category))
+                                    {
+                                        <span class="badge bg-secondary form-card-category">@form.Category</span>
+                                    }
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(form.Description))
+                                {
+                                    <p class="form-card-desc">@form.Description</p>
+                                }
+
+                                @if (_selectedFolderId == null && !_uncategorizedOnly && !string.IsNullOrWhiteSpace(form.FolderName))
+                                {
+                                    <div class="form-card-folder-tag">
+                                        <i class="bi bi-folder-fill"></i>@form.FolderName
+                                    </div>
+                                }
+
+                                <div class="form-card-meta">
+                                    <div class="form-card-meta-row">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                        <span class="text-truncate">@form.OriginalFileName</span>
+                                    </div>
+                                    <div class="form-card-meta-row">
+                                        <i class="bi bi-hdd"></i>
+                                        <span>File Size</span>
+                                        <span class="form-card-size">@FormatFileSize(form.FileSizeBytes)</span>
+                                    </div>
+                                    <div class="form-card-meta-row">
+                                        <i class="bi bi-clock-history"></i>
+                                        <span>@form.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy") · @form.UploadedBy</span>
+                                    </div>
+                                </div>
+
+                                <div class="form-card-actions">
+                                    <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </button>
+
+                                    @if (_isAdmin)
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditModal(form)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirm(form)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </div>
 </div>
 
-@if (_isLoading)
-{
-    <div class="text-center py-4">
-        <span class="spinner-border text-primary"></span>
-    </div>
-}
-else if (!_forms.Any())
-{
-    <p class="text-muted">No forms have been uploaded yet.</p>
-}
-else
-{
-    <div class="row g-3">
-        @foreach (var form in _forms)
-        {
-            var visual = GetFileTypeVisual(form.OriginalFileName, form.ContentType);
+@* ── Create/Edit Folder Modal ── *@
+<HxModal @ref="_folderModal">
+    <HeaderTemplate><h5>@(_editingFolder == null ? "New Folder" : "Rename Folder")</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="mb-2">
+            <label class="ff-label">Folder Name <span class="req">*</span></label>
+            <input class="ff-input" @bind="_folderNameInput" maxlength="150" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Description</label>
+            <textarea class="ff-input" rows="2" @bind="_folderDescriptionInput"></textarea>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _folderModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="SubmitFolderAsync" Disabled="@_isSaving">Save</HxButton>
+    </FooterTemplate>
+</HxModal>
 
-            <div class="col-12 col-md-6 col-lg-4">
-                <div class="form-card">
-                    <div class="form-card-top">
-                        <div class="form-card-icon" style="background:@(visual.Color)1A; color:@visual.Color;">
-                            <i class="bi @visual.Icon"></i>
-                        </div>
-                        <div class="form-card-typebadge" style="color:@visual.Color; border-color:@(visual.Color)40;">
-                            @visual.Label
-                        </div>
-                    </div>
+@* ── Delete Folder Confirm (CAUTION) ── *@
+<HxModal @ref="_deleteFolderModal">
+    <HeaderTemplate>
+        <h5 class="text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Folder</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            You're about to delete <strong>@_targetFolder?.Name</strong>.
+            @if (_targetFolder?.DocumentCount > 0)
+            {
+                <span>
+                    This folder contains <strong>@_targetFolder.DocumentCount file(s)</strong> —
+                    they will <u>not</u> be deleted, but will be moved to <strong>Uncategorized</strong>.
+                </span>
+            }
+            else
+            {
+                <span>This folder is empty.</span>
+            }
+        </p>
+        <p class="text-muted small mb-2">Type the folder name below to confirm.</p>
+        <input class="ff-input" @bind="_deleteFolderConfirmText" placeholder="@_targetFolder?.Name" />
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deleteFolderModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmDeleteFolderAsync"
+                  Disabled="@(_deleteFolderConfirmText != _targetFolder?.Name)">
+            <i class="bi bi-trash me-1"></i>Delete Folder
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
-                    <div class="form-card-body">
-                        <div class="d-flex align-items-start justify-content-between gap-2">
-                            <h6 class="form-card-title" title="@form.Title">@form.Title</h6>
-                            @if (!string.IsNullOrWhiteSpace(form.Category))
-                            {
-                                <span class="badge bg-secondary form-card-category">@form.Category</span>
-                            }
-                        </div>
-
-                        @if (!string.IsNullOrWhiteSpace(form.Description))
-                        {
-                            <p class="form-card-desc">@form.Description</p>
-                        }
-
-                        <div class="form-card-meta">
-                            <div class="form-card-meta-row">
-                                <i class="bi bi-file-earmark-text"></i>
-                                <span class="text-truncate">@form.OriginalFileName</span>
-                            </div>
-                            <div class="form-card-meta-row">
-                                <i class="bi bi-hdd"></i>
-                                <span>File Size</span>
-                                <span class="form-card-size">@FormatFileSize(form.FileSizeBytes)</span>
-                            </div>
-                            <div class="form-card-meta-row">
-                                <i class="bi bi-clock-history"></i>
-                                <span>
-                                    @form.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy") · @form.UploadedBy
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="form-card-actions">
-                            <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)">
-                                <i class="bi bi-download me-1"></i>Download
-                            </button>
-
-                            @if (_isAdmin)
-                            {
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditModal(form)" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteConfirm(form)" title="Delete">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            }
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-    </div>
-}
-
-@* ── Upload Modal (Admin only) ── *@
+@* ── Upload Modal ── *@
 <HxModal @ref="_uploadModal">
     <HeaderTemplate><h5>Upload Form</h5></HeaderTemplate>
     <BodyTemplate>
         <div class="mb-2">
             <label class="ff-label">Title <span class="req">*</span></label>
             <input class="ff-input" @bind="_uploadTitle" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Folder</label>
+            <select class="ff-input" @bind="_uploadFolderId">
+                <option value="">-- Uncategorized --</option>
+                @foreach (var folder in _folders)
+                {
+                    <option value="@folder.Id">@folder.Name</option>
+                }
+            </select>
         </div>
         <div class="mb-2">
             <label class="ff-label">Category</label>
@@ -144,13 +293,23 @@ else
     </FooterTemplate>
 </HxModal>
 
-@* ── Edit Metadata Modal (Admin only) ── *@
+@* ── Edit Form Metadata Modal ── *@
 <HxModal @ref="_editModal">
     <HeaderTemplate><h5>Edit Form</h5></HeaderTemplate>
     <BodyTemplate>
         <div class="mb-2">
             <label class="ff-label">Title <span class="req">*</span></label>
             <input class="ff-input" @bind="_editDto.Title" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Folder</label>
+            <select class="ff-input" @bind="_editFolderId">
+                <option value="">-- Uncategorized --</option>
+                @foreach (var folder in _folders)
+                {
+                    <option value="@folder.Id">@folder.Name</option>
+                }
+            </select>
         </div>
         <div class="mb-2">
             <label class="ff-label">Category</label>
@@ -170,9 +329,9 @@ else
     </FooterTemplate>
 </HxModal>
 
-@* ── Delete Confirm ── *@
+@* ── Delete Form Confirm ── *@
 <HxModal @ref="_deleteModal">
-    <HeaderTemplate><h5>Delete Form</h5></HeaderTemplate>
+    <HeaderTemplate><h5 class="text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Form</h5></HeaderTemplate>
     <BodyTemplate>
         <p>Delete <strong>@_targetForm?.Title</strong>? This cannot be undone from the UI.</p>
     </BodyTemplate>
@@ -182,45 +341,290 @@ else
     </FooterTemplate>
 </HxModal>
 
+@* ── Activity Log Modal (Admin only) ── *@
+<HxModal @ref="_activityLogModal" Size="ModalSize.Large">
+    <HeaderTemplate><h5><i class="bi bi-clock-history me-2"></i>Folder & Form Activity Log</h5></HeaderTemplate>
+    <BodyTemplate>
+        @if (!_activityLogs.Any())
+        {
+            <p class="text-muted">No activity recorded yet.</p>
+        }
+        else
+        {
+            <div class="table-responsive" style="max-height:60vh;">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>When</th>
+                            <th>Action</th>
+                            <th>Target</th>
+                            <th>Details</th>
+                            <th>By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in _activityLogs)
+                        {
+                            <tr>
+                                <td class="text-nowrap small">@log.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")</td>
+                                <td><span class="badge bg-light text-dark border">@log.Action</span></td>
+                                <td>@log.TargetName</td>
+                                <td class="small text-muted">@log.Details</td>
+                                <td class="small">@log.UserName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _activityLogModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @code {
-    private const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
-    private List<FormDocumentDto> _forms = new();
+    private const long MaxFileSizeBytes = 10 * 1024 * 1024;
+
+    private List<FormFolderDto> _folders = new();
+    private List<FormDocumentDto> _displayedForms = new();
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _isAdmin;
 
+    private Guid? _selectedFolderId = null;
+    private bool _uncategorizedOnly = false;
+    private int _allCount = 0;
+    private int _uncategorizedCount = 0;
+
+    private string _searchTerm = string.Empty;
+    private System.Threading.CancellationTokenSource? _searchDebounceCts;
+
+    // Folder modals
+    private HxModal _folderModal = default!;
+    private HxModal _deleteFolderModal = default!;
+    private FormFolderDto? _editingFolder;
+    private FormFolderDto? _targetFolder;
+    private string _folderNameInput = string.Empty;
+    private string? _folderDescriptionInput;
+    private string _deleteFolderConfirmText = string.Empty;
+
+    // Form modals
     private HxModal _uploadModal = default!;
     private HxModal _editModal = default!;
     private HxModal _deleteModal = default!;
+    private HxModal _activityLogModal = default!;
 
     private string _uploadTitle = string.Empty;
     private string? _uploadCategory;
     private string? _uploadDescription;
+    private Guid? _uploadFolderId;
     private IBrowserFile? _uploadFile;
 
     private FormDocumentDto? _targetForm;
     private FormDocumentUpdateDto _editDto = new();
+    private Guid? _editFolderId;
     private IBrowserFile? _replaceFile;
+
+    private List<FormActivityLogDto> _activityLogs = new();
 
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
         _isAdmin = AuthService.IsAdmin();
+        await LoadFoldersAsync();
         await LoadFormsAsync();
+    }
+
+    private async Task LoadFoldersAsync()
+    {
+        _folders = await FolderService.GetAllAsync();
     }
 
     private async Task LoadFormsAsync()
     {
         _isLoading = true;
-        _forms = await FormService.GetAllAsync();
+        StateHasChanged();
+
+        var allForms = await FormService.GetAllAsync();
+        _allCount = allForms.Count;
+        _uncategorizedCount = allForms.Count(f => f.FolderId == null);
+
+        await ApplyCurrentViewAsync();
         _isLoading = false;
     }
 
+    private async Task ApplyCurrentViewAsync()
+    {
+        var filter = new FormDocumentSearchDto
+        {
+            SearchTerm = _searchTerm,
+            FolderId = _selectedFolderId,
+            UncategorizedOnly = _uncategorizedOnly
+        };
+
+        _displayedForms = await FormService.SearchAsync(filter);
+        StateHasChanged();
+    }
+
+    private async Task SelectFolder(Guid? folderId, bool uncategorized)
+    {
+        _selectedFolderId = folderId;
+        _uncategorizedOnly = uncategorized;
+        _isLoading = true;
+        await ApplyCurrentViewAsync();
+        _isLoading = false;
+    }
+
+    private string GetCurrentFolderLabel()
+    {
+        if (_uncategorizedOnly) return "Uncategorized forms";
+        if (_selectedFolderId == null) return $"All forms ({_allCount})";
+        var f = _folders.FirstOrDefault(x => x.Id == _selectedFolderId);
+        return f != null ? $"Folder: {f.Name}" : "Forms";
+    }
+
+    // ── Search (debounced) ──────────────────────────────────────────────────
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? string.Empty;
+
+        _searchDebounceCts?.Cancel();
+        _searchDebounceCts = new System.Threading.CancellationTokenSource();
+        var token = _searchDebounceCts.Token;
+
+        _ = DebouncedSearchAsync(token);
+    }
+
+    private async Task DebouncedSearchAsync(System.Threading.CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(350, token);
+            if (token.IsCancellationRequested) return;
+            await InvokeAsync(async () =>
+            {
+                await ApplyCurrentViewAsync();
+            });
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        await ApplyCurrentViewAsync();
+    }
+
+    // ── Folder CRUD ──────────────────────────────────────────────────────────
+    private Task OpenCreateFolderModal()
+    {
+        _editingFolder = null;
+        _folderNameInput = string.Empty;
+        _folderDescriptionInput = null;
+        return _folderModal.ShowAsync();
+    }
+
+    private Task OpenEditFolderModal(FormFolderDto folder)
+    {
+        _editingFolder = folder;
+        _folderNameInput = folder.Name;
+        _folderDescriptionInput = folder.Description;
+        return _folderModal.ShowAsync();
+    }
+
+    private async Task SubmitFolderAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_folderNameInput))
+        {
+            toast.ShowError("Folder name is required.");
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            (bool Success, string? Error) result;
+
+            if (_editingFolder == null)
+            {
+                result = await FolderService.CreateAsync(new FormFolderCreateDto
+                {
+                    Name = _folderNameInput,
+                    Description = _folderDescriptionInput
+                });
+            }
+            else
+            {
+                result = await FolderService.UpdateAsync(_editingFolder.Id, new FormFolderUpdateDto
+                {
+                    Name = _folderNameInput,
+                    Description = _folderDescriptionInput
+                });
+            }
+
+            if (result.Success)
+            {
+                toast.ShowSuccess(_editingFolder == null ? "Folder created." : "Folder renamed.");
+                await _folderModal.HideAsync();
+                await LoadFoldersAsync();
+            }
+            else
+            {
+                toast.ShowError(result.Error ?? "Operation failed.");
+            }
+        }
+        finally { _isSaving = false; }
+    }
+
+    private Task OpenDeleteFolderConfirm(FormFolderDto folder)
+    {
+        _targetFolder = folder;
+        _deleteFolderConfirmText = string.Empty;
+        return _deleteFolderModal.ShowAsync();
+    }
+
+    private async Task ConfirmDeleteFolderAsync()
+    {
+        if (_targetFolder == null) return;
+
+        var (success, affectedCount, error) = await FolderService.DeleteAsync(_targetFolder.Id);
+        if (success)
+        {
+            toast.ShowSuccess(affectedCount > 0
+                ? $"Folder deleted. {affectedCount} file(s) moved to Uncategorized."
+                : "Folder deleted.");
+
+            if (_selectedFolderId == _targetFolder.Id)
+            {
+                _selectedFolderId = null;
+                _uncategorizedOnly = false;
+            }
+
+            await LoadFoldersAsync();
+            await LoadFormsAsync();
+        }
+        else
+        {
+            toast.ShowError(error ?? "Delete failed.");
+        }
+
+        await _deleteFolderModal.HideAsync();
+    }
+
+    private async Task ShowActivityLog()
+    {
+        _activityLogs = await FolderService.GetActivityLogAsync();
+        await _activityLogModal.ShowAsync();
+    }
+
+    // ── Upload ───────────────────────────────────────────────────────────────
     private Task OpenUploadModal()
     {
         _uploadTitle = string.Empty;
         _uploadCategory = null;
         _uploadDescription = null;
+        _uploadFolderId = _selectedFolderId; // pre-select current folder for convenience
         _uploadFile = null;
         return _uploadModal.ShowAsync();
     }
@@ -235,6 +639,7 @@ else
         }
         _uploadFile = e.File;
     }
+
     private void OnReplaceFileSelected(InputFileChangeEventArgs e)
     {
         if (e.File.Size > MaxFileSizeBytes)
@@ -266,12 +671,13 @@ else
 
             var (success, error) = await FormService.UploadAsync(
                 stream, _uploadFile.Name, _uploadFile.ContentType,
-                _uploadTitle, _uploadDescription, _uploadCategory);
+                _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId);
 
             if (success)
             {
                 toast.ShowSuccess("Form uploaded successfully.");
                 await _uploadModal.HideAsync();
+                await LoadFoldersAsync();
                 await LoadFormsAsync();
             }
             else
@@ -282,14 +688,17 @@ else
         finally { _isSaving = false; }
     }
 
+    // ── Edit / Delete Form ──────────────────────────────────────────────────
     private Task OpenEditModal(FormDocumentDto form)
     {
         _targetForm = form;
+        _editFolderId = form.FolderId;
         _editDto = new FormDocumentUpdateDto
         {
             Title = form.Title,
             Description = form.Description,
-            Category = form.Category
+            Category = form.Category,
+            FolderId = form.FolderId
         };
         _replaceFile = null;
         return _editModal.ShowAsync();
@@ -298,6 +707,8 @@ else
     private async Task SubmitEditAsync()
     {
         if (_targetForm == null) return;
+
+        _editDto.FolderId = _editFolderId;
 
         _isSaving = true;
         try
@@ -311,6 +722,7 @@ else
 
             toast.ShowSuccess("Form updated successfully.");
             await _editModal.HideAsync();
+            await LoadFoldersAsync();
             await LoadFormsAsync();
         }
         finally { _isSaving = false; }
@@ -330,6 +742,7 @@ else
         if (success)
         {
             toast.ShowSuccess("Form deleted.");
+            await LoadFoldersAsync();
             await LoadFormsAsync();
         }
         else
@@ -351,6 +764,8 @@ else
         var base64 = Convert.ToBase64String(result.Value.Data);
         await JS.InvokeVoidAsync("downloadFile", result.Value.FileName, base64, result.Value.ContentType);
     }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
     private (string Icon, string Color, string Label) GetFileTypeVisual(string fileName, string contentType)
     {
         var ext = System.IO.Path.GetExtension(fileName)?.ToLowerInvariant() ?? string.Empty;

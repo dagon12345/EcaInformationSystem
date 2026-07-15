@@ -68,6 +68,8 @@ namespace EcaInformationSystem.Infrastructure
 
             services.AddScoped<IChatRepository, ChatRepository>();
             services.AddScoped<IFormDocumentRepository, FormDocumentRepository>();
+            services.AddScoped<IFormFolderRepository, FormFolderRepository>();
+            services.AddScoped<IFormActivityLogRepository, FormActivityLogRepository>();
             return services;
         }
     }

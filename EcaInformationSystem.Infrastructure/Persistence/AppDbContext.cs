@@ -28,6 +28,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<ChatReadStatus> ChatReadStatuses => Set<ChatReadStatus>();
         public DbSet<ChatMessageReaction> ChatMessageReactions => Set<ChatMessageReaction>();
         public DbSet<FormDocument> FormDocuments => Set<FormDocument>();
+        public DbSet<FormFolder> FormFolders => Set<FormFolder>();
+        public DbSet<FormActivityLog> FormActivityLogs => Set<FormActivityLog>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -419,6 +421,17 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                       .HasDatabaseName("IX_ChatMessageReaction_ChatMessageId");
             });
 
+            modelBuilder.Entity<FormFolder>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Name).IsRequired().HasMaxLength(150);
+                entity.Property(x => x.CreatedBy).HasMaxLength(200);
+                entity.Property(x => x.UpdatedBy).HasMaxLength(200);
+
+                entity.HasIndex(x => x.IsDeleted);
+                entity.HasIndex(x => x.Name);
+            });
+
             modelBuilder.Entity<FormDocument>(entity =>
             {
                 entity.HasKey(x => x.Id);
@@ -435,6 +448,26 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                 entity.HasIndex(x => x.IsDeleted);
                 entity.HasIndex(x => x.Category);
+
+                // ✅ NEW — nullable FK; SetNull means a folder delete never cascades to files
+                entity.HasOne(x => x.Folder)
+                    .WithMany(f => f.Documents)
+                    .HasForeignKey(x => x.FolderId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(x => x.FolderId);
+            });
+
+            modelBuilder.Entity<FormActivityLog>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Action).IsRequired().HasMaxLength(50);
+                entity.Property(x => x.TargetName).IsRequired().HasMaxLength(300);
+                entity.Property(x => x.UserName).HasMaxLength(200);
+
+                entity.HasIndex(x => x.CreatedAt).IsDescending();
+                entity.HasIndex(x => x.FolderId);
+                entity.HasIndex(x => x.FormDocumentId);
             });
         }
     }

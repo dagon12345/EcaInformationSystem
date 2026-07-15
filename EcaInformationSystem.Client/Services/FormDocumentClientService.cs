@@ -15,9 +15,17 @@ namespace EcaInformationSystem.Client.Services
         public async Task<List<FormDocumentDto>> GetAllAsync()
             => await _http.GetFromJsonAsync<List<FormDocumentDto>>("api/formdocument") ?? new();
 
+        // ✅ NEW
+        public async Task<List<FormDocumentDto>> SearchAsync(FormDocumentSearchDto filter)
+        {
+            var response = await _http.PostAsJsonAsync("api/formdocument/search", filter);
+            if (!response.IsSuccessStatusCode) return new();
+            return await response.Content.ReadFromJsonAsync<List<FormDocumentDto>>() ?? new();
+        }
+
         public async Task<(bool Success, string? Error)> UploadAsync(
             Stream fileStream, string fileName, string contentType,
-            string title, string? description, string? category)
+            string title, string? description, string? category, Guid? folderId)
         {
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -27,6 +35,7 @@ namespace EcaInformationSystem.Client.Services
             content.Add(new StringContent(title), "title");
             if (!string.IsNullOrWhiteSpace(description)) content.Add(new StringContent(description), "description");
             if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
+            if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
 
             var response = await _http.PostAsync("api/formdocument/upload", content);
             if (response.IsSuccessStatusCode) return (true, null);
@@ -49,7 +58,6 @@ namespace EcaInformationSystem.Client.Services
             return (false, await response.Content.ReadAsStringAsync());
         }
 
-        // Returns the raw bytes + suggested filename so the caller can trigger a browser download
         public async Task<(byte[] Data, string FileName, string ContentType)?> DownloadAsync(Guid id, string fallbackFileName)
         {
             var response = await _http.GetAsync($"api/formdocument/{id}/download");

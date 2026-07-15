@@ -38,4 +38,5 @@ builder.Services.AddHxMessenger();
 builder.Services.AddSingleton<ChatClientService>();
 builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddScoped<FormDocumentClientService>();
+builder.Services.AddScoped<FormFolderClientService>();
 await builder.Build().RunAsync();

@@ -19,25 +19,25 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         private string CurrentUser =>
-            User.FindFirst(ClaimTypes.Name)?.Value
-            ?? User.FindFirst("sub")?.Value
-            ?? "Unknown";
+            User.FindFirst(ClaimTypes.Name)?.Value ?? User.FindFirst("sub")?.Value ?? "Unknown";
 
-        // ── Everyone authenticated can view & download ─────────────────────
         [HttpGet]
         public async Task<ActionResult<List<FormDocumentDto>>> GetAll()
             => Ok(await _service.GetAllAsync());
+
+        // ✅ NEW — search endpoint, available to everyone (view/download roles included)
+        [HttpPost("search")]
+        public async Task<ActionResult<List<FormDocumentDto>>> Search([FromBody] FormDocumentSearchDto filter)
+            => Ok(await _service.SearchAsync(filter));
 
         [HttpGet("{id:guid}/download")]
         public async Task<IActionResult> Download(Guid id)
         {
             var result = await _service.DownloadAsync(id);
             if (result == null) return NotFound();
-
             return File(result.Value.Data, result.Value.ContentType, result.Value.FileName);
         }
 
-        // ── Admin / SuperAdmin only ─────────────────────────────────────────
         [HttpPost("upload")]
         [Authorize(Policy = "AdminOnly")]
         [RequestSizeLimit(10 * 1024 * 1024)]
@@ -45,17 +45,16 @@ namespace EcaInformationSystem.Api.Controllers
             [FromForm] IFormFile file,
             [FromForm] string title,
             [FromForm] string? description,
-            [FromForm] string? category)
+            [FromForm] string? category,
+            [FromForm] Guid? folderId)
         {
             try
             {
-                var dto = await _service.UploadAsync(file, title, description, category, CurrentUser);
+                var dto = await _service.UploadAsync(file, title, description, category, folderId, CurrentUser);
                 return Ok(dto);
             }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+            catch (KeyNotFoundException ex) { return BadRequest(ex.Message); }
         }
 
         [HttpPut("{id:guid}/file")]
@@ -63,10 +62,7 @@ namespace EcaInformationSystem.Api.Controllers
         [RequestSizeLimit(10 * 1024 * 1024)]
         public async Task<ActionResult<FormDocumentDto>> ReplaceFile(Guid id, [FromForm] IFormFile file)
         {
-            try
-            {
-                return Ok(await _service.ReplaceFileAsync(id, file, CurrentUser));
-            }
+            try { return Ok(await _service.ReplaceFileAsync(id, file, CurrentUser)); }
             catch (KeyNotFoundException) { return NotFound(); }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         }

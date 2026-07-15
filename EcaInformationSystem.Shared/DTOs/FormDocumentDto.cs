@@ -4,6 +4,8 @@
     public class FormDocumentDto
     {
         public Guid Id { get; set; }
+        public Guid? FolderId { get; set; }          // ✅ NEW
+        public string? FolderName { get; set; }       // ✅ NEW
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Category { get; set; }
@@ -21,5 +23,13 @@
         public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Category { get; set; }
+        public Guid? FolderId { get; set; }
+    }
+    // ✅ NEW — search/filter payload
+    public class FormDocumentSearchDto
+    {
+        public string? SearchTerm { get; set; }   // matches Title, Description, OriginalFileName, Category
+        public Guid? FolderId { get; set; }       // null = all folders; use Guid.Empty sentinel for "Uncategorized" if you want that too
+        public bool UncategorizedOnly { get; set; } = false;
     }
 }

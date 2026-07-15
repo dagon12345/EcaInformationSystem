@@ -8,6 +8,8 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<FormDocument?> GetByIdAsync(Guid id);
         Task<List<FormDocument>> GetAllAsync();
         Task UpdateAsync(FormDocument doc);
+        Task EnsureFolderExistsAsync(Guid folderId);   // ✅ NEW
+        Task DetachFromFolderAsync(Guid folderId);     // ✅ NEW
         Task SaveChangesAsync();
     }
 }
