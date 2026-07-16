@@ -1,0 +1,537 @@
+﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject PostsClientService PostsClient
+@inject IConfiguration Configuration
+
+<div class="feed-container">
+
+    <div class="feed-header">
+        <div class="feed-header-icon"><i class="bi bi-heart-fill"></i></div>
+        <div>
+            <div class="feed-header-title">News Feed</div>
+            <div class="feed-header-subtitle">Updates from NCSC Caraga Region</div>
+        </div>
+    </div>
+
+    @if (_isAuthenticated)
+    {
+        <div class="feed-composer">
+            <div class="feed-avatar feed-avatar--sm">U</div>
+            <div class="feed-composer-input-wrap">
+                <textarea class="feed-composer-textarea" rows="1" placeholder="Share an update..."
+                          @bind="_newPostContent" maxlength="2000"
+                          @onfocus="() => _composerExpanded = true"></textarea>
+                @if (_composerExpanded || !string.IsNullOrWhiteSpace(_newPostContent))
+                {
+                    <div class="feed-composer-actions">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CollapseComposer">Cancel</button>
+                        <button class="btn btn-sm btn-primary" @onclick="SubmitPostAsync"
+                                disabled="@(_isPosting || string.IsNullOrWhiteSpace(_newPostContent))">
+                            @(_isPosting ? "Posting..." : "Post")
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (_isLoading && !_posts.Any())
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else if (!_posts.Any())
+    {
+        <div class="feed-empty">
+            <i class="bi bi-inbox"></i>
+            <p>No posts yet. Be the first to share an update.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var post in _posts)
+        {
+            <div class="feed-post" @onmouseenter="() => TrackViewOnce(post.Id)">
+                <div class="feed-post-header">
+                    <div class="feed-avatar">@GetInitials(post.AuthorName)</div>
+                    <div class="feed-post-header-text">
+                        <div class="feed-post-author">@post.AuthorName</div>
+                        <div class="feed-post-meta">
+                            @if (!string.IsNullOrWhiteSpace(post.AuthorPosition))
+                            {
+                                <span>@post.AuthorPosition</span>
+                                <span class="feed-dot">&middot;</span>
+                            }
+                            <span>@post.CreatedAt.ToLocalTime().ToString("MMM dd 'at' h:mm tt")</span>
+                        </div>
+                    </div>
+                    @if (post.CanDelete)
+                    {
+                        <button class="feed-post-menu-btn" title="Delete post" @onclick="() => RequestDeletePost(post.Id)">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    }
+                </div>
+
+                <p class="feed-post-content">@post.Content</p>
+
+                @if (post.LikeCount > 0 || post.CommentCount > 0 || post.ViewCount > 0)
+                {
+                    <div class="feed-post-stats">
+                        <span class="feed-stats-left">
+                            @if (post.LikeCount > 0)
+                            {
+                                <span class="feed-stats-like-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
+                                @:@post.LikeCount
+                            }
+                        </span>
+                        <span class="feed-stats-right">
+                            @if (post.CommentCount > 0)
+                            {
+                                <span>@post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")</span>
+                            }
+                            <span>@post.ViewCount view@(post.ViewCount == 1 ? "" : "s")</span>
+                        </span>
+                    </div>
+                }
+
+                <div class="feed-post-actionbar">
+                    <button class="feed-actionbar-btn @(post.IsLikedByViewer ? "feed-actionbar-btn--active" : "")"
+                            @onclick="() => ToggleLikeAsync(post)">
+                        <i class="bi @(post.IsLikedByViewer ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> Like
+                    </button>
+                    <button class="feed-actionbar-btn" @onclick="() => ToggleComments(post.Id)">
+                        <i class="bi bi-chat"></i> Comment
+                    </button>
+                </div>
+
+                @if (_expandedPostId == post.Id)
+                {
+                    <div class="feed-comments">
+                        @if (_comments.TryGetValue(post.Id, out var comments))
+                        {
+                            @foreach (var c in comments)
+                            {
+                                <div class="feed-comment">
+                                    <div class="feed-comment-avatar">@GetInitials(c.AuthorName)</div>
+                                    <div class="feed-comment-body">
+                                        <div class="feed-comment-meta">
+                                            <span class="feed-comment-author">@c.AuthorName</span>
+                                            <span class="feed-comment-time">@c.CreatedAt.ToLocalTime().ToString("MMM dd, h:mm tt")</span>
+                                            @if (c.CanDelete)
+                                            {
+                                                <button class="feed-comment-delete-btn" title="Delete comment"
+                                                        @onclick="() => RequestDeleteComment(post.Id, c.Id)">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                        <p class="feed-comment-text">@c.Content</p>
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @if (_isAuthenticated)
+                        {
+                            <div class="feed-comment-input-row">
+                                <input class="form-control form-control-sm" placeholder="Write a comment..."
+                                       value="@GetCommentDraft(post.Id)"
+                                       @oninput="e => _newCommentContent[post.Id] = e.Value?.ToString() ?? string.Empty"
+                                       @onkeydown="e => HandleCommentKeydown(e, post.Id)" />
+                                <button class="btn btn-sm btn-primary feed-send-btn" title="Send"
+                                        @onclick="() => SubmitCommentAsync(post.Id)">
+                                    <i class="bi bi-send-fill"></i>
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted" style="font-size:12px;">Sign in to comment.</p>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_hasMore)
+        {
+            <div class="text-center my-3">
+                <button class="btn btn-outline-primary btn-sm" @onclick="LoadMoreAsync" disabled="@_isLoading">
+                    @(_isLoading ? "Loading..." : "Load more")
+                </button>
+            </div>
+        }
+    }
+</div>
+@if (_showDeleteModal)
+{
+    <div class="modal-backdrop-custom" @onclick="CancelDelete"></div>
+    <div class="delete-confirm-modal">
+        <h5>Delete @( _deleteTargetType == DeleteTargetType.Post ? "post" : "comment" )?</h5>
+        <p class="text-muted" style="font-size:13px;">This action cannot be undone.</p>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="CancelDelete">Cancel</button>
+            <button class="btn btn-sm btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_isDeleting">
+                @(_isDeleting ? "Deleting..." : "Delete")
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _composerExpanded;
+
+    private List<PostDto> _posts = new();
+    private Dictionary<Guid, List<PostCommentDto>> _comments = new();
+    private Dictionary<Guid, string> _newCommentContent = new();
+    private HashSet<Guid> _viewedThisSession = new();
+
+    private Guid? _expandedPostId;
+    private string _newPostContent = string.Empty;
+    private string _viewerKey = string.Empty;
+
+    private int _pageNumber = 1;
+    private const int PageSize = 10;
+    private bool _hasMore = true;
+    private bool _isLoading;
+    private bool _isPosting;
+    private bool _isAuthenticated;
+
+    private enum DeleteTargetType { Post, Comment }
+    private bool _showDeleteModal;
+    private bool _isDeleting;
+    private DeleteTargetType _deleteTargetType;
+    private Guid _deleteTargetPostId;
+    private Guid _deleteTargetCommentId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _viewerKey = await JS.InvokeAsync<string>("viewerKey.get");
+        }
+        catch
+        {
+            _viewerKey = Guid.NewGuid().ToString();
+        }
+
+        Http.DefaultRequestHeaders.Remove("X-Viewer-Key");
+        Http.DefaultRequestHeaders.Add("X-Viewer-Key", _viewerKey);
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        await LoadFeedAsync(reset: true);
+        await ConnectRealtimeAsync();
+    }
+    private void CollapseComposer()
+    {
+        _composerExpanded = false;
+        _newPostContent = string.Empty;
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        PostsClient.PostCreated += OnPostCreated;
+        PostsClient.PostDeleted += OnPostDeleted;
+        PostsClient.LikeUpdated += OnLikeUpdated;
+        PostsClient.ViewUpdated += OnViewUpdated;
+        PostsClient.CommentAdded += OnCommentAdded;
+        PostsClient.CommentDeleted += OnCommentDeleted;
+
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "postsHub").ToString();
+            await PostsClient.ConnectAsync(hubUrl);
+        }
+        catch { }
+    }
+
+    private void OnPostCreated(PostDto post)
+    {
+        if (_posts.Any(p => p.Id == post.Id)) return;
+        _posts.Insert(0, post);
+        _newCommentContent.TryAdd(post.Id, string.Empty);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPostDeleted(Guid postId)
+    {
+        _posts.RemoveAll(p => p.Id == postId);
+        _comments.Remove(postId);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLikeUpdated(Guid postId, int likeCount)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (post != null) { post.LikeCount = likeCount; InvokeAsync(StateHasChanged); }
+    }
+
+    private void OnViewUpdated(Guid postId, int viewCount)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (post != null) { post.ViewCount = viewCount; InvokeAsync(StateHasChanged); }
+    }
+
+    private void OnCommentAdded(Guid postId, PostCommentDto comment)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (post == null) return;
+
+        if (_comments.TryGetValue(postId, out var list))
+        {
+            if (!list.Any(c => c.Id == comment.Id))
+            {
+                list.Add(comment);
+                post.CommentCount = list.Count;
+            }
+        }
+        else
+        {
+            post.CommentCount++;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCommentDeleted(Guid postId, Guid commentId)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (_comments.TryGetValue(postId, out var list))
+        {
+            var removed = list.RemoveAll(c => c.Id == commentId);
+            if (post != null && removed > 0) post.CommentCount = list.Count;
+        }
+        else if (post != null)
+        {
+            post.CommentCount = Math.Max(0, post.CommentCount - 1);
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
+    private string GetCommentDraft(Guid postId)
+        => _newCommentContent.TryGetValue(postId, out var val) ? val : string.Empty;
+
+    private async Task HandleCommentKeydown(KeyboardEventArgs e, Guid postId)
+    {
+        if (e.Key == "Enter")
+            await SubmitCommentAsync(postId);
+    }
+
+    private async Task LoadFeedAsync(bool reset)
+    {
+        _isLoading = true;
+        if (reset) { _pageNumber = 1; _posts.Clear(); }
+        StateHasChanged();
+
+        try
+        {
+            var result = await Http.GetFromJsonAsync<PagedResultDto<PostDto>>(
+                $"api/posts/feed?pageNumber={_pageNumber}&pageSize={PageSize}");
+
+            if (result != null)
+            {
+                _posts.AddRange(result.Items);
+                _hasMore = _posts.Count < result.TotalCount;
+
+                foreach (var post in result.Items)
+                    _newCommentContent.TryAdd(post.Id, string.Empty);
+            }
+        }
+        catch { }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _pageNumber++;
+        await LoadFeedAsync(reset: false);
+    }
+
+    private async Task SubmitPostAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newPostContent)) return;
+        _isPosting = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/posts", new CreatePostDto { Content = _newPostContent });
+            if (response.IsSuccessStatusCode)
+            {
+                var created = await response.Content.ReadFromJsonAsync<PostDto>();
+                if (created != null && !_posts.Any(p => p.Id == created.Id))
+                {
+                    _posts.Insert(0, created);
+                    _newCommentContent.TryAdd(created.Id, string.Empty);
+                }
+                _newPostContent = string.Empty;
+                _composerExpanded = false;   // ✅ add this line at the end of the success branch
+            }
+        }
+        finally
+        {
+            _isPosting = false;
+        }
+    }
+
+    private async Task ToggleLikeAsync(PostDto post)
+    {
+        post.IsLikedByViewer = !post.IsLikedByViewer;
+        post.LikeCount += post.IsLikedByViewer ? 1 : -1;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsync($"api/posts/{post.Id}/like", null);
+            var result = await response.Content.ReadFromJsonAsync<LikeToggleResultDto>();
+            if (result != null)
+            {
+                post.IsLikedByViewer = result.IsLiked;
+                post.LikeCount = result.LikeCount;
+            }
+        }
+        catch { }
+    }
+
+    private async Task TrackViewOnce(Guid postId)
+    {
+        if (_viewedThisSession.Contains(postId)) return;
+        _viewedThisSession.Add(postId);
+        try { await Http.PostAsync($"api/posts/{postId}/view", null); }
+        catch { }
+    }
+
+    private async Task ToggleComments(Guid postId)
+    {
+        if (_expandedPostId == postId)
+        {
+            _expandedPostId = null;
+            return;
+        }
+
+        _expandedPostId = postId;
+        if (!_comments.ContainsKey(postId))
+        {
+            var result = await Http.GetFromJsonAsync<PagedResultDto<PostCommentDto>>(
+                $"api/posts/{postId}/comments?pageNumber=1&pageSize=50");
+            _comments[postId] = result?.Items?.ToList() ?? new();
+        }
+    }
+
+    private async Task SubmitCommentAsync(Guid postId)
+    {
+        if (!_newCommentContent.TryGetValue(postId, out var content) || string.IsNullOrWhiteSpace(content))
+            return;
+
+        var response = await Http.PostAsJsonAsync($"api/posts/{postId}/comments", new CreateCommentDto { Content = content });
+        if (response.IsSuccessStatusCode)
+        {
+            var created = await response.Content.ReadFromJsonAsync<PostCommentDto>();
+            if (created != null)
+            {
+                if (!_comments.ContainsKey(postId)) _comments[postId] = new();
+
+                if (!_comments[postId].Any(c => c.Id == created.Id))
+                {
+                    _comments[postId].Add(created);
+                    var post = _posts.FirstOrDefault(p => p.Id == postId);
+                    if (post != null) post.CommentCount = _comments[postId].Count;
+                }
+            }
+            _newCommentContent[postId] = string.Empty;
+        }
+    }
+
+    private void RequestDeletePost(Guid postId)
+    {
+        _deleteTargetType = DeleteTargetType.Post;
+        _deleteTargetPostId = postId;
+        _showDeleteModal = true;
+    }
+
+    private void RequestDeleteComment(Guid postId, Guid commentId)
+    {
+        _deleteTargetType = DeleteTargetType.Comment;
+        _deleteTargetPostId = postId;
+        _deleteTargetCommentId = commentId;
+        _showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        if (_isDeleting) return;
+        _showDeleteModal = false;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        _isDeleting = true;
+        try
+        {
+            if (_deleteTargetType == DeleteTargetType.Post)
+                await DeletePostAsync(_deleteTargetPostId);
+            else
+                await DeleteCommentAsync(_deleteTargetPostId, _deleteTargetCommentId);
+        }
+        finally
+        {
+            _isDeleting = false;
+            _showDeleteModal = false;
+        }
+    }
+
+    private async Task DeletePostAsync(Guid postId)
+    {
+        var response = await Http.DeleteAsync($"api/posts/{postId}");
+        if (response.IsSuccessStatusCode)
+        {
+            _posts.RemoveAll(p => p.Id == postId);
+            _comments.Remove(postId);
+        }
+    }
+
+    private async Task DeleteCommentAsync(Guid postId, Guid commentId)
+    {
+        var response = await Http.DeleteAsync($"api/posts/comments/{commentId}");
+        if (response.IsSuccessStatusCode)
+        {
+            if (_comments.TryGetValue(postId, out var list))
+                list.RemoveAll(c => c.Id == commentId);
+
+            var post = _posts.FirstOrDefault(p => p.Id == postId);
+            if (post != null) post.CommentCount = Math.Max(0, post.CommentCount - 1);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        PostsClient.PostCreated -= OnPostCreated;
+        PostsClient.PostDeleted -= OnPostDeleted;
+        PostsClient.LikeUpdated -= OnLikeUpdated;
+        PostsClient.ViewUpdated -= OnViewUpdated;
+        PostsClient.CommentAdded -= OnCommentAdded;
+        PostsClient.CommentDeleted -= OnCommentDeleted;
+        await Task.CompletedTask;
+    }
+}

@@ -1,5 +1,6 @@
 ﻿using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Entities.ChatEntities;
+using EcaInformationSystem.Domain.Entities.PostEntities;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcaInformationSystem.Infrastructure.Persistence
@@ -31,6 +32,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<FormFolder> FormFolders => Set<FormFolder>();
         public DbSet<FormActivityLog> FormActivityLogs => Set<FormActivityLog>();
         public DbSet<BeneficiaryPaymentHistory> BeneficiaryPaymentHistories => Set<BeneficiaryPaymentHistory>();
+        //PostEntities
+        public DbSet<Post> Posts => Set<Post>();
+        public DbSet<PostComment> PostComments => Set<PostComment>();
+        public DbSet<PostLike> PostLikes => Set<PostLike>();
+        public DbSet<PostView> PostViews => Set<PostView>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -493,6 +499,63 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             {
                 entity.HasIndex(b => b.CurrentPaymentHistoryId)
                       .HasDatabaseName("IX_BeneficiaryInformation_CurrentPaymentHistoryId");
+            });
+            // ═══════════════════════════════════════════════════════════════════
+            // POSTS / FEED FEATURE
+            // ═══════════════════════════════════════════════════════════════════
+            modelBuilder.Entity<Post>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Content).IsRequired().HasMaxLength(2000);
+
+                // Feed always orders newest-first — this is the one index that matters most.
+                entity.HasIndex(x => new { x.IsDeleted, x.CreatedAt })
+                      .HasDatabaseName("IX_Post_IsDeleted_CreatedAt");
+            });
+
+            modelBuilder.Entity<PostComment>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Content).IsRequired().HasMaxLength(1000);
+
+                // Shadow FK — no nav property needed on Post, same idea as ChatMessageReaction.
+                entity.HasOne<Post>()
+                      .WithMany()
+                      .HasForeignKey(x => x.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => new { x.PostId, x.IsDeleted, x.CreatedAt })
+                      .HasDatabaseName("IX_PostComment_Post_CreatedAt");
+            });
+
+            modelBuilder.Entity<PostLike>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne<Post>()
+                      .WithMany()
+                      .HasForeignKey(x => x.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // ✅ Enforces "one like per viewer per post" at the DB level —
+                // ToggleLikeAsync relies on this to swap, not stack.
+                entity.HasIndex(x => new { x.PostId, x.LikerKey })
+                      .IsUnique()
+                      .HasDatabaseName("UQ_PostLike_Post_Liker");
+            });
+
+            modelBuilder.Entity<PostView>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.HasOne<Post>()
+                      .WithMany()
+                      .HasForeignKey(x => x.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => new { x.PostId, x.ViewerKey })
+                      .IsUnique()
+                      .HasDatabaseName("UQ_PostView_Post_Viewer");
             });
         }
     }

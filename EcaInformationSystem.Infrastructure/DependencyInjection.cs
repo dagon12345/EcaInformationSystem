@@ -70,6 +70,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IFormDocumentRepository, FormDocumentRepository>();
             services.AddScoped<IFormFolderRepository, FormFolderRepository>();
             services.AddScoped<IFormActivityLogRepository, FormActivityLogRepository>();
+            services.AddScoped<IPostRepository, PostRepository>();
             return services;
         }
     }

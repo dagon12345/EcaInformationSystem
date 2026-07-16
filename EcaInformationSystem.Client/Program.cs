@@ -39,4 +39,5 @@ builder.Services.AddSingleton<ChatClientService>();
 builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddScoped<FormDocumentClientService>();
 builder.Services.AddScoped<FormFolderClientService>();
+builder.Services.AddScoped<PostsClientService>();
 await builder.Build().RunAsync();

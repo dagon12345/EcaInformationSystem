@@ -181,7 +181,7 @@ var app = builder.Build();
 // always carry Access-Control-Allow-Origin headers.
 app.UseCors("WasmPolicy");
 
-
+app.MapHub<PostsHub>("/postsHub");
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),
     branch => branch.UseResponseCompression()

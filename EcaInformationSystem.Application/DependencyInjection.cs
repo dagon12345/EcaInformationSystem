@@ -30,6 +30,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
             services.AddScoped<IFormDocumentService, FormDocumentService>();
             services.AddScoped<IFormFolderService, FormFolderService>();
+            services.AddScoped<IPostService, PostService>();
             return services;
         }
     }

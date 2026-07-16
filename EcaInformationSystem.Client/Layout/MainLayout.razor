@@ -3,7 +3,6 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
-@attribute [Authorize]
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
@@ -106,8 +105,8 @@
 
     private static readonly Dictionary<string, string> PageNames = new()
     {
-        { "", "Dashboard"    },
-        { "dashboard", "Dashboard"    },
+        { "", "Feed"    },
+        { "dashboard", "Feed"    },
         { "statistics", "Statistics"  },
         { "beneficiary-create", "Create Record"},
         { "beneficiary-records", "Records"      },
@@ -266,13 +265,12 @@
     private async Task HandleLogout()
     {
         Current = null;
-        State.ResetGlobalDuplicateState(); // ✅ ADDED
+        State.ResetGlobalDuplicateState();
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
-        Navigation.NavigateTo("/login", true);
+        Navigation.NavigateTo("/", true);   // was "/login" — now lands on the public feed
     }
-
     public void Dispose()
     {
         Current = null;
