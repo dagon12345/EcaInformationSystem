@@ -433,9 +433,9 @@
                title="@($"Incomplete: {string.Join("; ", incompleteIssues)}")"
                @onclick="() => OpenDetailsPanel(item)"></i>
         }
-        @if (!cautions.Any() && !warnings.Any() && !incompleteIssues.Any())
+        @if (!cautions.Any() && !warnings.Any() && !GetIncompleteDetails(item).Any())
         {
-            <span class="text-muted">—</span>
+            <i class="bi bi-check-circle-fill text-success" title="No issues found"></i>
         }
     </div>
 </td>
@@ -745,10 +745,14 @@
             @if (mobileIncomplete.Any())
             {
                 <i class="bi bi-person-fill-exclamation text-danger" style="cursor:pointer;"
-                   title="@($"Incomplete: {string.Join("; ", mobileIncomplete)}")"
+                   title="@($"Incomplete details please check: {string.Join("; ", mobileIncomplete)}")"
                    @onclick="() => OpenDetailsPanel(item)"></i>
             }
         </div>
+    }
+    else
+    {
+        <i class="bi bi-check-circle-fill text-success" title="No issues found"></i>
     }
     <div class="beneficiary-card-name">
         @item.LastName, @item.FirstName
@@ -1513,7 +1517,7 @@ else
                                                                                                         </div>
                                                                                                     </FooterTemplate>
                                                                                                 </HxOffcanvas>
-                                                                                                <HxModal @ref="addPaymentHistoryModal">
+<HxModal @ref="addPaymentHistoryModal">
     <HeaderTemplate><h5 class="modal-title">Record New Payment</h5></HeaderTemplate>
     <BodyTemplate>
         <div class="row g-2">

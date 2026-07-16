@@ -101,9 +101,12 @@ namespace EcaInformationSystem.Application.Services
             var periodLabel = payrollQuarter.HasValue || fiscalYear.HasValue
                 ? $" (Q{payrollQuarter} FY{fiscalYear})"
                 : string.Empty;
+            var paymentDateLabel = paymentDate.HasValue 
+                ? $"Payment Date {paymentDate.Value.ToString("MMMM dd, yyyy")}" 
+                : string.Empty;
 
             foreach (var id in beneficiaryIds)
-                await AddLogAsync(id, $"New payment record{periodLabel} → {statusLabel}", userName);
+                await AddLogAsync(id, $"New payment record{periodLabel} {paymentDateLabel} → {statusLabel}", userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
@@ -124,8 +127,12 @@ namespace EcaInformationSystem.Application.Services
                 historyId, payrollQuarter, fiscalYear, paymentStatus,
                 modeOfPayment, paymentDate, remarks, userName);
 
+            var paymentDateLabel = paymentDate.HasValue
+                ? $"Payment Date {paymentDate.Value.ToString("MMMM dd, yyyy")}"
+                : string.Empty;
+
             await AddLogAsync(beneficiaryId,
-                $"Payment record corrected → {MapPaymentStatusLabel(paymentStatus)} (Q{payrollQuarter} FY{fiscalYear})",
+                $"Payment record corrected → {MapPaymentStatusLabel(paymentStatus)} (Q{payrollQuarter} FY{fiscalYear}) {paymentDateLabel}",
                 userName);
 
             await _repo.SaveChangesAsync();
