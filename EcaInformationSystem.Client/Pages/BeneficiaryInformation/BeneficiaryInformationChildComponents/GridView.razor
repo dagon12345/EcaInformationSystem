@@ -407,7 +407,7 @@
                                 <tbody>
                                     @foreach (var item in FilteredBeneficiaries)
                                     {
-                                            <tr class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
+                                            <tr @key="item.Id" class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
 <td>
     @{
         var cautions = GetLocationCautions(item);
@@ -717,7 +717,7 @@
                     }
                         @foreach (var item in FilteredBeneficiaries)
                         {
-                            <div class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
+                            <div @key="item.Id" class="beneficiary-card @(checkedIds.Contains(item.Id) ? "beneficiary-card--checked" : "")">
 <div class="beneficiary-card-top">
     @{
         var mobileCautions = GetLocationCautions(item);
@@ -1349,9 +1349,16 @@ else
                             <span class="text-muted">Remarks:</span> @entry.Remarks
                         </div>
                     }
-                    @if (_isAdmin)
+                  @if (_isAdmin)
                     {
                         <div class="d-flex gap-2 mt-1">
+                            @if (!entry.IsCurrent)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 text-success" style="font-size:11px;"
+                                        @onclick="() => ConfirmSetAsCurrent(entry)">
+                                    <i class="bi bi-star-fill me-1"></i>Set as Current
+                                </button>
+                            }
                             <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
                                     @onclick="() => OpenEditPaymentHistoryModal(entry)">
                                 <i class="bi bi-pencil-square me-1"></i>Correct this entry
@@ -1362,7 +1369,7 @@ else
                             </button>
                         </div>
                     }
-                </div>
+                  </div>
             </div>
         }
     </div>
@@ -2326,6 +2333,7 @@ else
 </HxModal>
 
 @code {
+    private PaymentHistoryDto? _pendingSetCurrentEntry;
     private HxModal bulkPaymentHistoryModal = default!;
     private PaymentHistoryDto? _pendingDeletePaymentHistory;
     private readonly List<int> _availableMilestoneYears = new() { 2024, 2025, 2026, 2027, 2028, 2029, 2030 };
@@ -2423,6 +2431,35 @@ protected override void OnInitialized()
     };
     State.OnChange += _stateChangeHandler;
 }
+private async Task ConfirmSetAsCurrent(PaymentHistoryDto entry)
+{
+    _pendingSetCurrentEntry = entry;
+    pendingAction = "set-current-payment-history";
+    confirmationTitle = "Set as Current Payment";
+    confirmationMessage =
+        $"Mark this {GetPaymentStatusText(entry.PaymentStatus)} entry from " +
+        $"{entry.DateCreated.ToLocalTime():MMM dd, yyyy hh:mm tt} as the beneficiary's " +
+        $"current payment status? This updates what Payroll/Export/Statistics see as their status.";
+    await confirmModal.ShowAsync();
+}
+
+private async Task SetCurrentPaymentHistoryEntryAsync()
+{
+    if (_pendingSetCurrentEntry == null || selectedDetails == null) return;
+
+    var request = new SetCurrentPaymentHistoryRequestDto { BeneficiaryId = selectedDetails.Id };
+    var response = await Http.PostAsJsonAsync(
+        $"api/beneficiary/payment-history/{_pendingSetCurrentEntry.Id}/set-current", request);
+
+    await HandleApiResponseAsync(response, "Current payment entry updated.", async () =>
+    {
+        await LoadPaymentHistoryAsync(selectedDetails.Id);
+        State.Invalidate();
+        await State.LoadAsync();
+    });
+
+    _pendingSetCurrentEntry = null;
+}
 private async Task OpenBulkPaymentHistoryModal()
 {
     if (bulkPaymentStatus == null || !checkedIds.Any()) return;
@@ -2511,6 +2548,7 @@ private async Task DeletePaymentHistoryEntryAsync()
                 async () =>
                 {
                     ClearSelection();
+                    StateHasChanged();  
                     State.Invalidate();
                     await State.LoadAsync();
                 });
@@ -3176,6 +3214,7 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
                case "delete-payment-history": await DeletePaymentHistoryEntryAsync(); break;
                case "add-payment-history": await SubmitAddPaymentHistoryAsync(); break;
                case "edit-payment-history": await SubmitEditPaymentHistoryAsync(); break;
+                case "set-current-payment-history": await SetCurrentPaymentHistoryEntryAsync(); break;
                default: errorMessage = "Unknown action."; break;
            }
        }

@@ -15,6 +15,17 @@ namespace EcaInformationSystem.Api.Controllers
         public LiquidationController(IBeneficiaryInformationService service)
             => _service = service;
 
+        [HttpGet("cgp-members")]
+        public async Task<IActionResult> GetCgpMembers(
+      [FromQuery] Guid cgpGenerationId, [FromQuery] int municipalityCode, [FromQuery] int milestoneYear)
+        {
+            if (cgpGenerationId == Guid.Empty)
+                return BadRequest(new { message = "cgpGenerationId is required." });
+
+            var members = await _service.GetCgpRangeMembersAsync(cgpGenerationId, municipalityCode, milestoneYear);
+            return Ok(members);
+        }
+
         /// <summary>Returns the grouped CDR preview rows for the modal table.</summary>
         [HttpPost("preview")]
         public async Task<IActionResult> Preview([FromBody] GenerateCdrRequestDto request)

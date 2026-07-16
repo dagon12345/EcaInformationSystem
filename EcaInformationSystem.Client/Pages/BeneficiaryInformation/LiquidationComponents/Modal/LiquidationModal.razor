@@ -192,104 +192,192 @@
 
                 </div>
             }
-
-            <!-- ── PREVIEW TAB ── -->
             @if (_activeTab == "preview")
             {
-                @if (!_previewRows.Any())
+                @if (_cgpDrillDownActive)
                 {
-                    <div class="alert alert-info mb-0">
-                        Click <strong>Preview</strong> tab to load the CDR rows preview.
+                    <!-- ── CGP DRILL-DOWN VIEW ── -->
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CloseCgpDrillDown">
+                            <i class="bi bi-arrow-left me-1"></i> Back to Preview
+                        </button>
+                        <h6 class="mb-0">Grantees on @_cgpDrillDownLabel</h6>
                     </div>
+
+                    @if (_isLoadingCgpMembers)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 mb-0">Loading grantees...</p>
+                        </div>
+                    }
+                    else if (!_cgpMembers.Any())
+                    {
+                        <div class="alert alert-info mb-0">No grantees found for this CGP number.</div>
+                    }
+                    else
+                    {
+                        <div class="d-flex gap-2 mb-2 flex-wrap">
+                            <span class="badge bg-primary fs-6">@_cgpMembers.Count Total</span>
+                            <span class="badge bg-success fs-6">@_cgpMembers.Count(m => m.PaymentStatus == 2) Paid</span>
+                            <span class="badge bg-danger fs-6">@_cgpMembers.Count(m => m.PaymentStatus == 1) Unpaid</span>
+                            <span class="badge bg-warning text-dark fs-6">@_cgpMembers.Count(m => m.PaymentStatus == 3) Pending</span>
+                        </div>
+                        <small class="text-muted d-block mb-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Shows everyone on this Payroll page block, across all payment dates —
+                            grantees paid on <strong>@_cgpDrillDownDate?.ToString("MMM dd, yyyy")</strong> (this row) are highlighted.
+                        </small>
+
+                        <div style="max-height:380px; overflow-y:auto;">
+                            <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size:12px;">
+                                <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                                    <tr>
+                                        <th style="width:60px;">Page</th>
+                                        <th>Full Name</th>
+                                        <th>OSCA ID</th>
+                                        <th>Status</th>
+                                        <th>Payment Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var m in _cgpMembers)
+                                    {
+                                        var isCurrentRowDate = _cgpDrillDownDate.HasValue && m.PaymentDate?.Date == _cgpDrillDownDate.Value.Date;
+                                        <tr class="@(isCurrentRowDate ? "table-primary" : "")">
+                                            <td>@(m.CgpPageNumber?.ToString("D4") ?? "—")</td>
+                                            <td>
+                                                @m.FullName
+                                                @if (isCurrentRowDate)
+                                                {
+                                                    <span class="badge bg-primary ms-1" style="font-size:9px;">This row</span>
+                                                }
+                                            </td>
+                                            <td>@(string.IsNullOrWhiteSpace(m.OscaIdNumber) ? "—" : m.OscaIdNumber)</td>
+                                            <td><span class="badge @GetCgpMemberStatusBadgeClass(m.PaymentStatus)">@GetCgpMemberStatusLabel(m.PaymentStatus)</span></td>
+                                            <td>@(m.PaymentDate?.ToString("MMM dd, yyyy") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
                 else
                 {
-                    <!-- Summary -->
-                    <div class="d-flex gap-3 mb-2 flex-wrap">
-                        <span class="badge bg-primary fs-6">@_previewRows.Count CDR Rows</span>
-                        <span class="badge bg-success fs-6">
-                            Initial: ₱@_settings.InitialCashAdvance.ToString("N2")
-                        </span>
-                        <span class="badge bg-warning text-dark fs-6">
-                            Total Disbursed: ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
-                        </span>
-                        <span class="badge bg-danger fs-6">
-                            Final Balance: ₱@(_previewRows.LastOrDefault()?.RunningBalance.ToString("N2") ?? "0.00")
-                        </span>
-                        @{
-                            var missingCgpCount = _previewRows.Count(r => r.CgpNumber.Contains("Not yet assigned"));
-                        }
-                        @if (missingCgpCount > 0)
+                    <!-- ── PREVIEW TAB ── -->
+                    @if (_activeTab == "preview")
+                    {
+                        @if (!_previewRows.Any())
                         {
-                            <span class="badge bg-danger fs-6">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                @missingCgpCount row(s) missing CGP — run Payroll first
-                            </span>
+                            <div class="alert alert-info mb-0">
+                                Click <strong>Preview</strong> tab to load the CDR rows preview.
+                            </div>
                         }
-                    </div>
-
-                    <div style="max-height:420px; overflow-y:auto;">
-                        <table class="table table-sm table-bordered table-hover align-middle mb-0"
-                               style="font-size:12px;">
-                            <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Date</th>
-                                    <th>CGP No.</th>
-                                    <th>Payee</th>
-                                    <th>Nature of Payment</th>
-                                    <th class="text-end">Disbursement (₱)</th>
-                                    <th class="text-end">Balance (₱)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- DV Row 0001 -->
-                                <tr class="table-info fw-bold">
-                                    <td>1</td>
-                                    <td>@_settings.InputDate.ToString("MM/dd/yyyy")</td>
-                                    <td>DV: @_settings.DvYear-@_settings.DvMonth-0001</td>
-                                    <td>@_settings.DvPayee</td>
-                                    <td>@_settings.NatureOfPayment</td>
-                                    <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
-                                    <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
-                                </tr>
-                                @for (int i = 0; i < _previewRows.Count; i++)
-                                {
-                                    var row = _previewRows[i];
-                                    var missingCgp = row.CgpNumber.Contains("Not yet assigned");
-                                    <tr class="@(missingCgp ? "table-danger" : "")">
-                                        <td>@(i + 2)</td>
-                                        <td>@row.PaymentDate.ToString("MM/dd/yyyy")</td>
-                                        <td style="white-space:nowrap;">
-                                            @if (missingCgp)
-                                            {
-                                                <i class="bi bi-exclamation-triangle-fill text-danger me-1"
-                                                   title="This batch hasn't had Payroll generated for it yet"></i>
-                                            }
-                                            @row.CgpNumber
-                                        </td>
-                                        <td>@row.Payee</td>
-                                        <td>@row.NatureOfPayment</td>
-                                        <td class="text-end">@row.Disbursement.ToString("N2")</td>
-                                        <td class="text-end @(row.RunningBalance < 0 ? "text-danger" : "")">
-                                            @row.RunningBalance.ToString("N2")
-                                        </td>
-                                    </tr>
+                        else
+                        {
+                            <!-- Summary -->
+                            <div class="d-flex gap-3 mb-2 flex-wrap">
+                                <span class="badge bg-primary fs-6">@_previewRows.Count CDR Rows</span>
+                                <span class="badge bg-success fs-6">
+                                    Initial: ₱@_settings.InitialCashAdvance.ToString("N2")
+                                </span>
+                                <span class="badge bg-warning text-dark fs-6">
+                                    Total Disbursed: ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
+                                </span>
+                                <span class="badge bg-danger fs-6">
+                                    Final Balance: ₱@(_previewRows.LastOrDefault()?.RunningBalance.ToString("N2") ?? "0.00")
+                                </span>
+                                @{
+                                    var missingCgpCount = _previewRows.Count(r => r.CgpNumber.Contains("Not yet assigned"));
                                 }
-                            </tbody>
-                            <tfoot class="table-light fw-bold">
-                                <tr>
-                                    <td colspan="5" class="text-end">Total Disbursed:</td>
-                                    <td class="text-end">
-                                        ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
-                                    </td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
+                                @if (missingCgpCount > 0)
+                                {
+                                    <span class="badge bg-danger fs-6">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        @missingCgpCount row(s) missing CGP — run Payroll first
+                                    </span>
+                                }
+                            </div>
+
+                            <div style="max-height:420px; overflow-y:auto;">
+                                <table class="table table-sm table-bordered table-hover align-middle mb-0"
+                                       style="font-size:12px;">
+                                    <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Date</th>
+                                            <th>CGP No.</th>
+                                            <th>Payee</th>
+                                            <th>Nature of Payment</th>
+                                            <th class="text-end">Disbursement (₱)</th>
+                                            <th class="text-end">Balance (₱)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- DV Row 0001 -->
+                                        <tr class="table-info fw-bold">
+                                            <td>1</td>
+                                            <td>@_settings.InputDate.ToString("MM/dd/yyyy")</td>
+                                            <td>DV: @_settings.DvYear-@_settings.DvMonth-0001</td>
+                                            <td>@_settings.DvPayee</td>
+                                            <td>@_settings.NatureOfPayment</td>
+                                            <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
+                                            <td class="text-end">@_settings.InitialCashAdvance.ToString("N2")</td>
+                                        </tr>
+                                        @for (int i = 0; i < _previewRows.Count; i++)
+                                        {
+                                            var row = _previewRows[i];
+                                            var missingCgp = row.CgpNumber.Contains("Not yet assigned");
+                                            <tr class="@(missingCgp ? "table-danger" : "")">
+                                                <td>@(i + 2)</td>
+                                                <td>@row.PaymentDate.ToString("MM/dd/yyyy")</td>
+                                                <td style="white-space:nowrap;">
+                                                    @if (missingCgp)
+                                                    {
+                                                        <i class="bi bi-exclamation-triangle-fill text-danger me-1"
+                                                           title="This batch hasn't had Payroll generated for it yet"></i>
+                                                        @row.CgpNumber
+                                                    }
+                                                    else if (row.CgpGenerationId.HasValue)
+                                                    {
+                                                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-underline"
+                                                                title="Click to view grantees included in this CGP number"
+                                                                @onclick="() => ShowCgpMembersAsync(row)">
+                                                            @row.CgpNumber
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {   
+                                                        @row.CgpNumber
+                                                    }
+                                                </td>
+                                                <td>@row.Payee</td>
+                                                <td>@row.NatureOfPayment</td>
+                                                <td class="text-end">@row.Disbursement.ToString("N2")</td>
+                                                <td class="text-end @(row.RunningBalance < 0 ? "text-danger" : "")">
+                                                    @row.RunningBalance.ToString("N2")
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot class="table-light fw-bold">
+                                        <tr>
+                                            <td colspan="5" class="text-end">Total Disbursed:</td>
+                                            <td class="text-end">
+                                                ₱@_previewRows.Sum(x => x.Disbursement).ToString("N2")
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        }
+                    }
                 }
             }
+
+       
         }
     </BodyTemplate>
 
@@ -321,6 +409,11 @@
 </HxModal>
 
 @code {
+    private bool _cgpDrillDownActive;
+    private string _cgpDrillDownLabel = string.Empty;
+    private DateTime? _cgpDrillDownDate;
+    private List<CgpRangeMemberDto> _cgpMembers = new();
+    private bool _isLoadingCgpMembers;
     private HxModal _modal = default!;
     private LiquidationSettingsDto _settings = new();
     private List<LiquidationPreviewRowDto> _previewRows = new();
@@ -329,6 +422,67 @@
     private bool _isLoading;
     private bool _isGenerating;
 
+private async Task ShowCgpMembersAsync(LiquidationPreviewRowDto row)
+{
+    if (row.CgpGenerationId == null || row.CgpGenerationId == Guid.Empty)
+        return;
+
+    _cgpDrillDownActive = true;
+    _cgpDrillDownLabel = row.CgpNumber;
+    _cgpDrillDownDate = row.PaymentDate;
+    _cgpMembers = new();
+    StateHasChanged();
+
+    try
+    {
+        _isLoadingCgpMembers = true;
+        StateHasChanged();
+
+        var url = $"api/liquidation/cgp-members?cgpGenerationId={row.CgpGenerationId}" +
+                  $"&municipalityCode={row.PsgcCodeMunicipality}&milestoneYear={row.MilestoneYear}";
+
+        var response = await Http.GetAsync(url);
+        if (response.IsSuccessStatusCode)
+        {
+            _cgpMembers = await response.Content.ReadFromJsonAsync<List<CgpRangeMemberDto>>() ?? new();
+        }
+        else
+        {
+            toast.ShowError("Failed to load grantees for this CGP number.");
+        }
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Error loading grantees: {ex.Message}");
+    }
+    finally
+    {
+        _isLoadingCgpMembers = false;
+        StateHasChanged();
+    }
+}
+
+    private void CloseCgpDrillDown()
+    {
+        _cgpDrillDownActive = false;
+        _cgpMembers = new();
+    }
+
+    private static string GetCgpMemberStatusLabel(int status) => status switch
+    {
+        1 => "Unpaid",
+        2 => "Paid",
+        3 => "Pending",
+        _ => "N/A"
+    };
+
+    private static string GetCgpMemberStatusBadgeClass(int status) => status switch
+    {
+        1 => "bg-danger",
+        2 => "bg-success",
+        3 => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
     public async Task ShowAsync(BeneficiaryFilterDto filter)
     {
         _filter = new LiquidationFilterDto

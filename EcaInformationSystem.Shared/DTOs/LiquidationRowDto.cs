@@ -15,6 +15,9 @@
         public int MilestoneYear { get; set; }
         public string MunicipalityName { get; set; } = string.Empty;
         public string ProvinceName { get; set; } = string.Empty;
+        public string? CgpPrefix { get; set; }
+        public Guid? CgpGenerationId { get; set; }   // ✅ NEW
+        public int PsgcCodeMunicipality { get; set; }
     }
 
     /// <summary>Preview row shown in modal before export</summary>
@@ -30,5 +33,8 @@
         public string ProvinceName { get; set; } = string.Empty;
         public int MilestoneYear { get; set; }
         public int Count { get; set; }
+        public string? CgpPrefix { get; set; }
+        public Guid? CgpGenerationId { get; set; }   // ✅ NEW
+        public int PsgcCodeMunicipality { get; set; }
     }
 }

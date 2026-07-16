@@ -81,8 +81,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public bool HasDocuments { get; set; }
 
         public int? CgpPageNumber { get; set; }
+        public Guid? CgpGenerationId { get; set; }
         public string? CgpPrefix { get; set; }
-
         private string GetJsonString(JsonElement? element)
         {
             if (element == null) return string.Empty;

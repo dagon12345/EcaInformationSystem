@@ -21,6 +21,20 @@ namespace EcaInformationSystem.Api.Controllers
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
         }
+        [HttpPost("payment-history/{historyId}/set-current")]
+        public async Task<IActionResult> SetCurrentPaymentHistory(Guid historyId, [FromBody] SetCurrentPaymentHistoryRequestDto request)
+        {
+            var userName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "Unknown";
+            try
+            {
+                await _service.SetCurrentPaymentHistoryAsync(request.BeneficiaryId, historyId, userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
         [HttpDelete("payment-history/{historyId:guid}")]
         [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> DeletePaymentHistory(Guid historyId)

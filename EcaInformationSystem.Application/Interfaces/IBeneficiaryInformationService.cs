@@ -56,5 +56,7 @@ namespace EcaInformationSystem.Application.Interfaces
             int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
             string? remarks, string userName);
         Task DeletePaymentHistoryAsync(Guid historyId, string userName);
+        Task<List<CgpRangeMemberDto>> GetCgpRangeMembersAsync(Guid cgpGenerationId, int municipalityCode, int milestoneYear);
+        Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName);
     }
 }

@@ -20,6 +20,133 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
+        {
+            var beneficiary = await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(b => b.Id == beneficiaryId);
+            if (beneficiary == null)
+                throw new Exception("Beneficiary not found.");
+
+            var entry = await _context.BeneficiaryPaymentHistories
+                .FirstOrDefaultAsync(h => h.Id == historyId && h.BeneficiaryInformationId == beneficiaryId);
+            if (entry == null)
+                throw new Exception("Payment history entry not found for this beneficiary.");
+
+            // ✅ Mirror this entry's values onto the flat columns — same pattern as
+            // BulkAddPaymentHistoryAsync/EditPaymentHistoryEntryAsync, so
+            // Payroll/Export/CDR/Statistics stay consistent with whichever entry
+            // is now marked current.
+            beneficiary.CurrentPaymentHistoryId = entry.Id;
+            beneficiary.PayrollQuarter = entry.PayrollQuarter;
+            beneficiary.FiscalYear = entry.FiscalYear;
+            beneficiary.PaymentStatus = entry.PaymentStatus;
+            beneficiary.ModeOfPayment = entry.ModeOfPayment;
+            beneficiary.PaymentDate = entry.PaymentDate;
+
+            await _context.SaveChangesAsync();
+        }
+        // ✅ FIXED — now takes the actual generation ID as a parameter instead of
+        // generating a fresh random Guid on every call (which previously guaranteed
+        // this always returned an empty list, since nothing could ever match a
+        // brand-new random Guid).
+        public async Task<List<CgpRangeMemberDto>> GetCgpRangeMembersAsync(Guid cgpGenerationId, int municipalityCode, int milestoneYear)
+        {
+            if (cgpGenerationId == Guid.Empty) return new();
+
+            // ✅ Deliberately unfiltered by PaymentStatus — the whole point of this
+            // view is to show everyone on the page, Paid and Unpaid alike, for
+            // audit transparency.
+            var raw = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => !b.IsDeleted
+                    && b.CgpGenerationId == cgpGenerationId
+                    && b.Municipality == municipalityCode)
+                .Select(b => new
+                {
+                    b.Id,
+                    b.LastName,
+                    b.FirstName,
+                    b.MiddleName,
+                    b.CgpPageNumber,
+                    b.PaymentStatus,
+                    b.OscaIdNumber,
+                    b.PaymentDate,
+                    b.BirthDate
+                })
+                .ToListAsync();
+
+            return raw
+                .Select(r => new
+                {
+                    r.Id,
+                    FullName = FormatDuplicateName(r.LastName, r.FirstName, r.MiddleName),
+                    r.CgpPageNumber,
+                    r.PaymentStatus,
+                    OscaId = r.OscaIdNumber ?? string.Empty,
+                    r.PaymentDate,
+                    MilestoneYear = ComputeMilestoneYear(r.BirthDate)
+                })
+                .Where(x => x.MilestoneYear == milestoneYear)
+                .OrderBy(x => x.CgpPageNumber)
+                .ThenBy(x => x.FullName)
+                .Select(x => new CgpRangeMemberDto
+                {
+                    Id = x.Id,
+                    FullName = x.FullName,
+                    CgpPageNumber = x.CgpPageNumber,
+                    PaymentStatus = x.PaymentStatus,
+                    OscaIdNumber = x.OscaId,
+                    PaymentDate = x.PaymentDate,
+                    MilestoneYear = x.MilestoneYear
+                })
+                .ToList();
+        }
+        // ✅ FIXED — now keyed by CgpGenerationId (guaranteed unique per Payroll run)
+        // instead of CgpPrefix (which can coincidentally collide across two separate
+        // generation runs if settings + the alphabetically-first record's milestone
+        // year happen to match). This is what the Paid+Unpaid range math in
+        // BuildCdrRowsAsync relies on to avoid blending two unrelated runs together.
+        public async Task<List<CgpRangeCandidateDto>> GetCgpRangeCandidatesAsync(List<(Guid CgpGenerationId, int MunicipalityCode)> keys)
+        {
+            if (keys == null || !keys.Any()) return new();
+
+            var generationIds = keys.Select(k => k.CgpGenerationId).Distinct().ToList();
+            var municipalityCodes = keys.Select(k => k.MunicipalityCode).Distinct().ToList();
+
+            // ✅ Deliberately NOT filtering by PaymentStatus — we need Paid AND
+            // Unpaid beneficiaries who share the same payroll page-block, so the
+            // printed CGP range reflects the true full span, not just who's Paid.
+            var raw = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => !b.IsDeleted
+                    && b.CgpGenerationId.HasValue
+                    && generationIds.Contains(b.CgpGenerationId!.Value)
+                    && municipalityCodes.Contains(b.Municipality))
+                .Select(b => new
+                {
+                    b.CgpGenerationId,
+                    b.CgpPrefix,
+                    b.CgpPageNumber,
+                    b.Municipality,
+                    b.BirthDate
+                })
+                .ToListAsync();
+
+            // Exact-pair filter in memory — EF can't do tuple .Contains() directly.
+            var keySet = keys.ToHashSet();
+
+            return raw
+                .Where(r => keySet.Contains((r.CgpGenerationId!.Value, r.Municipality)))
+                .Select(r => new CgpRangeCandidateDto
+                {
+                    CgpGenerationId = r.CgpGenerationId!.Value,
+                    CgpPrefix = r.CgpPrefix ?? string.Empty,
+                    CgpPageNumber = r.CgpPageNumber,
+                    PsgcCodeMunicipality = r.Municipality,
+                    MilestoneYear = ComputeMilestoneYear(r.BirthDate)
+                })
+                .ToList();
+        }
         public async Task<PaymentHistoryDeletedInfoDto> DeletePaymentHistoryAsync(Guid historyId)
         {
             var entry = await _context.BeneficiaryPaymentHistories.FindAsync(historyId);
@@ -171,10 +298,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         }
         public async Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId)
         {
-            // Fetch the current pointer in a separate narrow query rather than
-            // joining it into the main query below — this keeps the main query a
-            // single-table scan against the indexed FK, and the pointer lookup is
-            // a trivial single-row PK read that costs nothing extra.
             var currentId = await _context.BeneficiaryInformations
                 .AsNoTracking()
                 .Where(b => b.Id == beneficiaryId)
@@ -184,12 +307,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return await _context.BeneficiaryPaymentHistories
                 .AsNoTracking()
                 .Where(h => h.BeneficiaryInformationId == beneficiaryId)
-                // This ORDER BY is exactly what IX_PaymentHistory_Beneficiary_PaymentDate
-                // was built to satisfy — the WHERE clause above filters on the leading
-                // column of that index, and this ORDER BY matches its trailing column,
-                // so SQL Server can walk the index directly with no separate Sort step.
-                .OrderByDescending(h => h.PaymentDate ?? h.DateCreated)
-                .ThenByDescending(h => h.DateCreated)
+                // ✅ CHANGED — sort strictly by when the entry was added (DateCreated),
+                // not by PaymentDate. A future-dated PaymentDate no longer jumps an
+                // older entry above a more recently recorded one.
+                .OrderByDescending(h => h.DateCreated)
                 .Select(h => new PaymentHistoryDto
                 {
                     Id = h.Id,
@@ -271,6 +392,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 {
                     b.CgpPageNumber = assignment.CgpPageNumber;
                     b.CgpPrefix = assignment.CgpPrefix;
+                    b.CgpGenerationId = assignment.CgpGenerationId;
                 }
             }
             // SaveChangesAsync is called by the service, after logs are added
@@ -2151,6 +2273,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     HasDocuments = _context.BeneficiaryDocuments
                     .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted),
                     CgpPageNumber = x.Beneficiary.CgpPageNumber,
+                    CgpGenerationId = x.Beneficiary.CgpGenerationId,
                     CgpPrefix = x.Beneficiary.CgpPrefix
                 });
         }
@@ -2220,6 +2343,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             RowVersion = x.RowVersion,
             HasDocuments = x.HasDocuments,
             CgpPageNumber = x.CgpPageNumber,
+            CgpGenerationId = x.CgpGenerationId,
             CgpPrefix = x.CgpPrefix
         };
 
@@ -2747,17 +2871,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             bool hasQuarters = filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any();
             bool hasFiscalYear = filter.FilterFiscalYear.HasValue;
 
-            if (hasStatuses || hasQuarter || hasQuarters || hasFiscalYear)
-            {
-                query = query.Where(b => _context.BeneficiaryPaymentHistories.Any(h =>
-                    h.BeneficiaryInformationId == b.Id
-                    && (!hasStatuses || filter.PaymentStatuses!.Contains(h.PaymentStatus))
-                    && (!hasQuarter || h.PayrollQuarter == filter.FilterPayrollQuarter!.Value)
-                    && (!hasQuarters || filter.FilterPayrollQuarters!.Contains(h.PayrollQuarter ?? 0))
-                    && (!hasFiscalYear || h.FiscalYear == filter.FilterFiscalYear!.Value)
-                ));
-            }
+            // ✅ CHANGED — Grid search filters against the beneficiary's CURRENT payment
+            // status only (the flat PaymentStatus/PayrollQuarter/FiscalYear columns,
+            // which every payment-history write path keeps mirrored to whichever entry
+            // is marked current). This is intentionally narrower than Statistics, which
+            // still needs to search the FULL history (e.g. "who was Paid in Q1 2026 at
+            // any point, even if since corrected/moved to Q2") — that logic stays
+            // untouched wherever Statistics builds its own query.
+            if (hasStatuses)
+                query = query.Where(b => filter.PaymentStatuses!.Contains(b.PaymentStatus));
 
+            if (hasQuarter)
+                query = query.Where(b => b.PayrollQuarter == filter.FilterPayrollQuarter!.Value);
+
+            if (hasQuarters)
+                query = query.Where(b => filter.FilterPayrollQuarters!.Contains(b.PayrollQuarter ?? 0));
+
+            if (hasFiscalYear)
+                query = query.Where(b => b.FiscalYear == filter.FilterFiscalYear!.Value);
 
             return query;
         }
@@ -3000,6 +3131,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public byte[]? RowVersion { get; set; }
             public bool HasDocuments { get; set; }
             public int? CgpPageNumber { get; set; }
+            public Guid? CgpGenerationId { get; set; }
             public string? CgpPrefix { get; set; }
         }
 

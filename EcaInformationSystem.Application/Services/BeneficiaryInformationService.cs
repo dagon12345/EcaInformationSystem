@@ -45,6 +45,17 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
         }
+        public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
+        {
+            await _repo.SetCurrentPaymentHistoryAsync(beneficiaryId, historyId, userName);
+            await AddLogAsync(beneficiaryId, "Marked a different payment history entry as current", userName);
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+        public async Task<List<CgpRangeMemberDto>> GetCgpRangeMembersAsync(Guid cgpGenerationId, int municipalityCode, int milestoneYear)
+        {
+            return await _repo.GetCgpRangeMembersAsync(cgpGenerationId, municipalityCode, milestoneYear);
+        }
         public async Task DeletePaymentHistoryAsync(Guid historyId, string userName)
         {
             var info = await _repo.DeletePaymentHistoryAsync(historyId);
@@ -1102,6 +1113,7 @@ namespace EcaInformationSystem.Application.Services
             int continousNo = 1;
             int cgpPageNumber = 1;
             var cgpAssignments = new List<CgpAssignmentDto>(); // ✅ NEW — collects every assignment across the whole ZIP
+            var generationId = Guid.NewGuid(); // ✅ NEW — one ID for this entire run
 
             byte[] finalizedResult;
 
@@ -1383,6 +1395,7 @@ namespace EcaInformationSystem.Application.Services
             int currentRow = 15;
             int processed = 0;
             int thisPageCgpNumber;
+            var generationId = Guid.NewGuid(); // ✅ NEW — one ID for this entire run
 
             for (int pageIndex = 0; pageIndex < pagePlan.Count; pageIndex++)
             {
@@ -1417,7 +1430,8 @@ namespace EcaInformationSystem.Application.Services
                     {
                         BeneficiaryId = rec.Id,
                         CgpPageNumber = thisPageCgpNumber,
-                        CgpPrefix = cgpPrefix
+                        CgpPrefix = cgpPrefix,
+                        CgpGenerationId = generationId // ✅ NEW
                     });
 
                     ws.Row(dr).Height = dataRowHeight;
@@ -2967,18 +2981,16 @@ namespace EcaInformationSystem.Application.Services
 
         #endregion Excel updating and Importing - END
         #region Payroll Liquidation - Start
-        // ── Shared helper: build grouped CDR rows from filtered data ──────────────
         private async Task<List<LiquidationRowDto>> BuildCdrRowsAsync(
             LiquidationFilterDto filter,
             LiquidationSettingsDto settings)
         {
-            // ✅ Internally map to BeneficiaryFilterDto — no conflict with other filters
             var beneficiaryFilter = new BeneficiaryFilterDto
             {
                 PageNumber = 1,
                 PageSize = 10000,
-                PaymentStatus = 2,           // always Paid
-                PaymentDate = null,        // use range not single date
+                PaymentStatus = 2,
+                PaymentDate = null,
                 PaymentDateFrom = filter.PaymentDateFrom,
                 PaymentDateTo = filter.PaymentDateTo,
                 PsgcCodeProvince = filter.PsgcCodeProvince,
@@ -2996,8 +3008,26 @@ namespace EcaInformationSystem.Application.Services
             if (!data.Any())
                 throw new InvalidOperationException(CommonConstants.NoPaidRecordsMessage);
 
-            // CGP counter starts at 2 (row 1 = DV cash advance = 0001)
-            int cgpCounter = 2;
+            // ✅ NEW — build the TRUE full CGP page range per {CgpGenerationId, Municipality,
+            // MilestoneYear}, including Unpaid beneficiaries in the same payroll
+            // page-block. Paid-only min/max would silently truncate the printed
+            // range whenever the block's first/last page belonged to someone Unpaid.
+            var cgpLookupKeys = data
+                .Where(x => x.CgpGenerationId.HasValue)
+                .Select(x => (CgpGenerationId: x.CgpGenerationId!.Value, MunicipalityCode: x.PsgcCodeMunicipality))
+                .Distinct()
+                .ToList();
+
+            var cgpCandidates = await _repo.GetCgpRangeCandidatesAsync(cgpLookupKeys);
+
+            var cgpRangeMap = cgpCandidates
+                .Where(c => c.CgpPageNumber.HasValue)
+                .GroupBy(c => (c.CgpGenerationId, c.PsgcCodeMunicipality, c.MilestoneYear))
+                .ToDictionary(
+                    g => g.Key,
+                    g => (Min: g.Min(x => x.CgpPageNumber!.Value), Max: g.Max(x => x.CgpPageNumber!.Value)));
+
+            int cgpCounter = 2; // kept only as a fallback label if something is ever unassigned
             var cdrRows = new List<LiquidationRowDto>();
 
             var groups = data
@@ -3024,35 +3054,51 @@ namespace EcaInformationSystem.Application.Services
 
                 var disbursement = records.Sum(x => x.Age >= 100 ? 100_000m : 10_000m);
 
-                // ✅ CGP number now comes straight from what Payroll actually assigned to
-                // these exact records — never recomputed, so it always matches Payroll.
-                var assignedPages = records
-                    .Where(r => r.CgpPageNumber.HasValue)
-                    .Select(r => r.CgpPageNumber!.Value)
-                    .ToList();
+                var cgpGenerationId = records.FirstOrDefault(r => r.CgpGenerationId.HasValue)?.CgpGenerationId;
+                var cgpPrefix = records.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.CgpPrefix))?.CgpPrefix;
+                var muniCode = first.PsgcCodeMunicipality;
 
                 string cgpNumber;
-                if (!assignedPages.Any())
+
+                if (cgpGenerationId == null || string.IsNullOrWhiteSpace(cgpPrefix))
                 {
-                    // Shouldn't happen in normal flow — Paid records get a CGP number
-                    // the moment Payroll is generated for them.
                     cgpNumber = $"{CommonConstants.CgpNo} Not yet assigned — run Payroll for this batch first";
                 }
                 else
                 {
-                    var prefix = records.First(r => !string.IsNullOrWhiteSpace(r.CgpPrefix)).CgpPrefix;
-                    var minPage = assignedPages.Min();
-                    var maxPage = assignedPages.Max();
+                    var lookupKey = (cgpGenerationId.Value, muniCode, group.Key.MilestoneYear);
 
-                    cgpNumber = minPage == maxPage
-                        ? $"{CommonConstants.CgpNo} {prefix}-{minPage.ToPaddedPage()}"
-                        : $"{CommonConstants.CgpNo} {prefix}-{minPage.ToPaddedPage()} to {maxPage.ToPaddedPage()}";
+                    (int Min, int Max) range;
+                    if (cgpRangeMap.TryGetValue(lookupKey, out var fullRange))
+                    {
+                        range = fullRange;
+                    }
+                    else
+                    {
+                        // Fallback — shouldn't normally happen, since these exact
+                        // records are already part of `data` and thus already
+                        // included in the candidate lookup above.
+                        var assignedPages = records
+                            .Where(r => r.CgpPageNumber.HasValue)
+                            .Select(r => r.CgpPageNumber!.Value)
+                            .ToList();
+
+                        range = assignedPages.Any()
+                            ? (assignedPages.Min(), assignedPages.Max())
+                            : (0, 0);
+                    }
+
+                    cgpNumber = range.Min == range.Max
+                        ? $"{CommonConstants.CgpNo} {cgpPrefix}-{range.Min.ToPaddedPage()}"
+                        : $"{CommonConstants.CgpNo} {cgpPrefix}-{range.Min.ToPaddedPage()} to {range.Max.ToPaddedPage()}";
                 }
 
-                var locType = group.Key.Municipality.Contains(CommonConstants.City, StringComparison.OrdinalIgnoreCase)
-                    ? CommonConstants.CityOf
-                    : CommonConstants.MunicipalityOf;
-                var location = $"{locType} {group.Key.Municipality}";
+                // ✅ FIXED — City names that already include "City of" no longer get
+                // double-prefixed into "City of City of X".
+                var location = group.Key.Municipality.Contains(CommonConstants.City, StringComparison.OrdinalIgnoreCase)
+                    ? group.Key.Municipality
+                    : $"{CommonConstants.MunicipalityOf} {group.Key.Municipality}";
+
                 var provinceStr = !string.IsNullOrWhiteSpace(group.Key.Province)
                     ? $", {CommonConstants.ProvinceOf} {group.Key.Province}"
                     : string.Empty;
@@ -3067,13 +3113,13 @@ namespace EcaInformationSystem.Application.Services
                     Disbursement = disbursement,
                     MilestoneYear = group.Key.MilestoneYear,
                     MunicipalityName = group.Key.Municipality,
-                    ProvinceName = group.Key.Province
+                    ProvinceName = group.Key.Province,
+                    CgpPrefix = cgpPrefix,                 // ✅ NEW
+                    CgpGenerationId = cgpGenerationId,       // ✅ NEW
+                    PsgcCodeMunicipality = muniCode          // ✅ NEW
                 });
-
-                // ✅ cgpCounter++ removed — no longer exists
             }
 
-            // Compute running balance (starts after the DV row = InitialCashAdvance)
             var runningBalance = settings.InitialCashAdvance;
             foreach (var row in cdrRows)
             {
@@ -3084,7 +3130,6 @@ namespace EcaInformationSystem.Application.Services
             return cdrRows;
         }
 
-        // ── Preview: return rows for the modal table ───────────────────────────────
         public async Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(
             LiquidationFilterDto filter,
             LiquidationSettingsDto settings)
@@ -3101,7 +3146,10 @@ namespace EcaInformationSystem.Application.Services
                 RunningBalance = r.CashAdvanceBalance,
                 MunicipalityName = r.MunicipalityName,
                 ProvinceName = r.ProvinceName,
-                MilestoneYear = r.MilestoneYear
+                MilestoneYear = r.MilestoneYear,
+                CgpPrefix = r.CgpPrefix,
+                CgpGenerationId = r.CgpGenerationId,          // ✅ NEW
+                PsgcCodeMunicipality = r.PsgcCodeMunicipality
             }).ToList();
         }
 

@@ -30,7 +30,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Pages\BeneficiaryInformation\LiquidationComponents\Modal\" />
     <Folder Include="wwwroot\audio\" />
   </ItemGroup>
 
