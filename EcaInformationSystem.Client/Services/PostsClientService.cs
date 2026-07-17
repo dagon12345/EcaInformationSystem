@@ -1,5 +1,6 @@
 ﻿using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.SignalR.Client;
+using System.Reflection.Metadata;
 
 namespace EcaInformationSystem.Client.Services
 {
@@ -15,6 +16,7 @@ namespace EcaInformationSystem.Client.Services
         public event Action<Guid, int>? ViewUpdated;
         public event Action<Guid, PostCommentDto>? CommentAdded;
         public event Action<Guid, Guid>? CommentDeleted;
+        public event Action<Guid, string, DateTime?, List<PostImageDto>>? PostEdited;
 
         public async Task ConnectAsync(string hubUrl)
         {
@@ -31,6 +33,7 @@ namespace EcaInformationSystem.Client.Services
             _hubConnection.On<Guid, int>("ViewUpdated", (id, count) => ViewUpdated?.Invoke(id, count));
             _hubConnection.On<Guid, PostCommentDto>("CommentAdded", (postId, comment) => CommentAdded?.Invoke(postId, comment));
             _hubConnection.On<Guid, Guid>("CommentDeleted", (postId, commentId) => CommentDeleted?.Invoke(postId, commentId));
+            _hubConnection.On<Guid, string, DateTime?, List<PostImageDto>>("PostEdited", (id, content, editedAt, images) => PostEdited?.Invoke(id, content, editedAt, images));
 
             try
             {

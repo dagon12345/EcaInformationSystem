@@ -2,6 +2,8 @@
 @using EcaInformationSystem.Shared.DTOs
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Json
 @implements IAsyncDisposable
 @inject HttpClient Http
 @inject AuthenticationStateProvider AuthStateProvider
@@ -25,14 +27,39 @@
             <div class="feed-avatar feed-avatar--sm">U</div>
             <div class="feed-composer-input-wrap">
                 <textarea class="feed-composer-textarea" rows="1" placeholder="Share an update..."
-                          @bind="_newPostContent" maxlength="2000"
-                          @onfocus="() => _composerExpanded = true"></textarea>
-                @if (_composerExpanded || !string.IsNullOrWhiteSpace(_newPostContent))
+                          value="@_newPostContent" maxlength="2000"
+                          @onfocus="() => _composerExpanded = true"
+                          @oninput="OnComposerInput"
+                          @ref="_composerTextareaRef"></textarea>
+
+                @if (_selectedImages.Any())
+                {
+                    <div class="feed-composer-preview-grid">
+                        @for (int i = 0; i < _selectedImages.Count; i++)
+                        {
+                            var index = i;
+                            <div class="feed-composer-preview-item">
+                                <img src="@_selectedImages[index].PreviewDataUrl" alt="preview" />
+                                <button type="button" class="feed-composer-preview-remove" @onclick="() => RemoveSelectedImage(index)">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    <div class="feed-composer-preview-count">@_selectedImages.Count / @MaxImages photos selected</div>
+                }
+
+                @if (_composerExpanded || !string.IsNullOrWhiteSpace(_newPostContent) || _selectedImages.Any())
                 {
                     <div class="feed-composer-actions">
+                        <InputFile OnChange="OnImagesSelected" multiple accept="image/*" class="feed-composer-file-input" id="feedImageInput" />
+                        <label for="feedImageInput" class="btn btn-sm btn-outline-secondary feed-composer-image-btn">
+                            <i class="bi bi-image"></i> Photo
+                        </label>
+                        <div class="flex-grow-1"></div>
                         <button class="btn btn-sm btn-outline-secondary" @onclick="CollapseComposer">Cancel</button>
                         <button class="btn btn-sm btn-primary" @onclick="SubmitPostAsync"
-                                disabled="@(_isPosting || string.IsNullOrWhiteSpace(_newPostContent))">
+                                disabled="@(_isPosting || (string.IsNullOrWhiteSpace(_newPostContent) && !_selectedImages.Any()))">
                             @(_isPosting ? "Posting..." : "Post")
                         </button>
                     </div>
@@ -72,45 +99,142 @@
                             <span>@post.CreatedAt.ToLocalTime().ToString("MMM dd 'at' h:mm tt")</span>
                         </div>
                     </div>
+
                     @if (post.CanDelete)
                     {
-                        <button class="feed-post-menu-btn" title="Delete post" @onclick="() => RequestDeletePost(post.Id)">
-                            <i class="bi bi-trash3"></i>
-                        </button>
+                        <div class="feed-post-header-actions">
+                            @if (_editingPostId != post.Id)
+                            {
+                                <button class="feed-post-menu-btn" title="Edit post" @onclick="() => StartEdit(post)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            }
+                            <button class="feed-post-menu-btn" title="Delete post" @onclick="() => RequestDeletePost(post.Id)">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
                     }
                 </div>
 
-                <p class="feed-post-content">@post.Content</p>
-
-                @if (post.LikeCount > 0 || post.CommentCount > 0 || post.ViewCount > 0)
+                @if (_editingPostId == post.Id)
                 {
-                    <div class="feed-post-stats">
-                        <span class="feed-stats-left">
-                            @if (post.LikeCount > 0)
-                            {
-                                <span class="feed-stats-like-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
-                                @:@post.LikeCount
-                            }
-                        </span>
-                        <span class="feed-stats-right">
-                            @if (post.CommentCount > 0)
-                            {
-                                <span>@post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")</span>
-                            }
-                            <span>@post.ViewCount view@(post.ViewCount == 1 ? "" : "s")</span>
-                        </span>
+                    <div class="feed-post-edit-box">
+                        <textarea class="feed-edit-textarea"
+                                  value="@_editContent" maxlength="2000"
+                                  @oninput="OnEditInput"
+                                  @ref="_editTextareaRef"></textarea>
+
+                        @if (_editingImages.Any())
+                        {
+                            <div class="feed-composer-preview-grid">
+                                @foreach (var img in _editingImages)
+                                {
+                                    var imgId = img.Id;
+                                    <div class="feed-composer-preview-item">
+                                        <img src="@GetImageUrl(imgId, thumbnail: true)" alt="preview" />
+                                        <button type="button" class="feed-composer-preview-remove" @onclick="() => RemoveExistingEditImage(imgId)">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (_editNewImages.Any())
+                        {
+                            <div class="feed-composer-preview-grid">
+                                @for (int i = 0; i < _editNewImages.Count; i++)
+                                {
+                                    var index = i;
+                                    <div class="feed-composer-preview-item">
+                                        <img src="@_editNewImages[index].PreviewDataUrl" alt="preview" />
+                                        <button type="button" class="feed-composer-preview-remove" @onclick="() => _editNewImages.RemoveAt(index)">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <InputFile OnChange="OnEditImagesSelected" multiple accept="image/*" class="feed-composer-file-input" id="editImageInput" />
+                            <label for="editImageInput" class="btn btn-sm btn-outline-secondary feed-composer-image-btn">
+                                <i class="bi bi-image"></i> Add photo
+                            </label>
+                            <div class="flex-grow-1"></div>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="CancelEdit">Cancel</button>
+                            <button class="btn btn-sm btn-primary" @onclick="() => SaveEditAsync(post)" disabled="@_isSavingEdit">
+                                @(_isSavingEdit ? "Saving..." : "Save")
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="feed-post-content">
+                        @post.Content
+                        @if (post.EditedAt.HasValue)
+                        {
+                            <span class="feed-post-edited-tag">(edited)</span>
+                        }
+                    </p>
+                }
+
+                @if (post.Images.Any() && _editingPostId != post.Id)
+                {
+                    <div class="feed-image-grid feed-image-grid--@Math.Min(post.Images.Count, 5)">
+                        @{
+                            var displayCount = Math.Min(post.Images.Count, 4);
+                            var overflowCount = post.Images.Count - 4;
+                        }
+                        @for (int i = 0; i < displayCount; i++)
+                        {
+                            var img = post.Images[i];
+                            var index = i;
+                            var isLastTile = i == 3 && overflowCount > 0;
+                            <div class="feed-image-tile" @onclick="() => OpenLightbox(post, index)">
+                                <img src="@GetImageUrl(img.Id, thumbnail: true)" alt="post image" loading="lazy" />
+                                @if (isLastTile)
+                                {
+                                    <div class="feed-image-overflow">+@overflowCount</div>
+                                }
+                            </div>
+                        }
                     </div>
                 }
 
-                <div class="feed-post-actionbar">
-                    <button class="feed-actionbar-btn @(post.IsLikedByViewer ? "feed-actionbar-btn--active" : "")"
-                            @onclick="() => ToggleLikeAsync(post)">
-                        <i class="bi @(post.IsLikedByViewer ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> Like
-                    </button>
-                    <button class="feed-actionbar-btn" @onclick="() => ToggleComments(post.Id)">
-                        <i class="bi bi-chat"></i> Comment
-                    </button>
-                </div>
+                @if (_editingPostId != post.Id)
+                {
+                    @if (post.LikeCount > 0 || post.CommentCount > 0 || post.ViewCount > 0)
+                    {
+                        <div class="feed-post-stats">
+                            <span class="feed-stats-left">
+                                @if (post.LikeCount > 0)
+                                {
+                                    <span class="feed-stats-like-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
+                                    @:@post.LikeCount
+                                }
+                            </span>
+                            <span class="feed-stats-right">
+                                @if (post.CommentCount > 0)
+                                {
+                                    <span>@post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")</span>
+                                }
+                                <span>@post.ViewCount view@(post.ViewCount == 1 ? "" : "s")</span>
+                            </span>
+                        </div>
+                    }
+
+                    <div class="feed-post-actionbar">
+                        <button class="feed-actionbar-btn @(post.IsLikedByViewer ? "feed-actionbar-btn--active" : "")"
+                                @onclick="() => ToggleLikeAsync(post)">
+                            <i class="bi @(post.IsLikedByViewer ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> Like
+                        </button>
+                        <button class="feed-actionbar-btn" @onclick="() => ToggleComments(post.Id)">
+                            <i class="bi bi-chat"></i> Comment
+                        </button>
+                    </div>
+                }
 
                 @if (_expandedPostId == post.Id)
                 {
@@ -171,6 +295,28 @@
         }
     }
 </div>
+
+@if (_lightboxImageId.HasValue)
+{
+    <div class="feed-lightbox-backdrop" tabindex="0" @ref="_lightboxBackdropRef"
+         @onclick="CloseLightbox" @onkeydown="HandleLightboxKeydown">
+        <button class="feed-lightbox-close" @onclick="CloseLightbox"><i class="bi bi-x-lg"></i></button>
+        @if (_lightboxHasPrev)
+        {
+            <button class="feed-lightbox-nav feed-lightbox-nav--prev" @onclick:stopPropagation="true" @onclick="() => NavigateLightbox(-1)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+        }
+        <img class="feed-lightbox-image" src="@GetImageUrl(_lightboxImageId.Value, thumbnail: false)" alt="post image" @onclick:stopPropagation="true" />
+        @if (_lightboxHasNext)
+        {
+            <button class="feed-lightbox-nav feed-lightbox-nav--next" @onclick:stopPropagation="true" @onclick="() => NavigateLightbox(1)">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        }
+    </div>
+}
+
 @if (_showDeleteModal)
 {
     <div class="modal-backdrop-custom" @onclick="CancelDelete"></div>
@@ -187,7 +333,9 @@
 }
 
 @code {
-    private bool _composerExpanded;
+    private const int MaxImages = 10;
+    private const long MaxImageBytes = 8 * 1024 * 1024; // 8MB per image, client-side guard
+    private const int PageSize = 10;
 
     private List<PostDto> _posts = new();
     private Dictionary<Guid, List<PostCommentDto>> _comments = new();
@@ -197,20 +345,50 @@
     private Guid? _expandedPostId;
     private string _newPostContent = string.Empty;
     private string _viewerKey = string.Empty;
+    private bool _composerExpanded;
 
     private int _pageNumber = 1;
-    private const int PageSize = 10;
     private bool _hasMore = true;
     private bool _isLoading;
     private bool _isPosting;
     private bool _isAuthenticated;
 
+    // ── Edit state ──────────────────────────────────────────────────────
+    private Guid? _editingPostId;
+    private string _editContent = string.Empty;
+    private bool _isSavingEdit;
+    private List<PostImageDto> _editingImages = new();
+    private List<SelectedImage> _editNewImages = new();
+
+    // ── Image selection (composer) ──────────────────────────────────────
+    private class SelectedImage
+    {
+        public byte[] Data { get; set; } = default!;
+        public string ContentType { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+        public string PreviewDataUrl { get; set; } = string.Empty;
+    }
+
+    private List<SelectedImage> _selectedImages = new();
+
+    // ── Lightbox ─────────────────────────────────────────────────────────
+    private Guid? _lightboxImageId;
+    private List<Guid> _lightboxImageIds = new();
+    private int _lightboxIndex;
+    private bool _lightboxHasPrev => _lightboxIndex > 0;
+    private bool _lightboxHasNext => _lightboxIndex < _lightboxImageIds.Count - 1;
+
+    // ── Delete confirmation ─────────────────────────────────────────────
     private enum DeleteTargetType { Post, Comment }
     private bool _showDeleteModal;
     private bool _isDeleting;
     private DeleteTargetType _deleteTargetType;
     private Guid _deleteTargetPostId;
     private Guid _deleteTargetCommentId;
+
+    private ElementReference _composerTextareaRef;
+    private ElementReference _editTextareaRef;
+    private ElementReference _lightboxBackdropRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -232,10 +410,34 @@
         await LoadFeedAsync(reset: true);
         await ConnectRealtimeAsync();
     }
-    private void CollapseComposer()
+    private void HandleLightboxKeydown(KeyboardEventArgs e)
     {
-        _composerExpanded = false;
-        _newPostContent = string.Empty;
+        switch (e.Key)
+        {
+            case "ArrowLeft":
+                NavigateLightbox(-1);
+                break;
+            case "ArrowRight":
+                NavigateLightbox(1);
+                break;
+            case "Escape":
+                CloseLightbox();
+                break;
+        }
+    }
+    private async Task OnComposerInput(ChangeEventArgs e)
+    {
+        _newPostContent = e.Value?.ToString() ?? string.Empty;
+        _composerExpanded = true;
+        try { await JS.InvokeVoidAsync("feedInterop.autoGrow", _composerTextareaRef); }
+        catch { }
+    }
+
+    private async Task OnEditInput(ChangeEventArgs e)
+    {
+        _editContent = e.Value?.ToString() ?? string.Empty;
+        try { await JS.InvokeVoidAsync("feedInterop.autoGrow", _editTextareaRef); }
+        catch { }
     }
 
     private async Task ConnectRealtimeAsync()
@@ -246,6 +448,7 @@
         PostsClient.ViewUpdated += OnViewUpdated;
         PostsClient.CommentAdded += OnCommentAdded;
         PostsClient.CommentDeleted += OnCommentDeleted;
+        PostsClient.PostEdited += OnPostEdited;
 
         try
         {
@@ -319,6 +522,18 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnPostEdited(Guid postId, string content, DateTime? editedAt, List<PostImageDto> images)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (post != null && _editingPostId != postId) // don't clobber if this client is mid-edit
+        {
+            post.Content = content;
+            post.EditedAt = editedAt;
+            post.Images = images;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
     private static string GetInitials(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "U";
@@ -370,28 +585,177 @@
         await LoadFeedAsync(reset: false);
     }
 
+    private async Task OnImagesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(MaxImages))
+        {
+            if (_selectedImages.Count >= MaxImages) break;
+            if (file.Size > MaxImageBytes) continue; // silently skip oversized — could surface a toast if you want
+
+            using var stream = file.OpenReadStream(MaxImageBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            _selectedImages.Add(new SelectedImage
+            {
+                Data = bytes,
+                ContentType = file.ContentType,
+                FileName = file.Name,
+                PreviewDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}"
+            });
+        }
+        _composerExpanded = true;
+        StateHasChanged();
+    }
+
+    private void RemoveSelectedImage(int index)
+    {
+        _selectedImages.RemoveAt(index);
+    }
+
+    private void CollapseComposer()
+    {
+        _composerExpanded = false;
+        _newPostContent = string.Empty;
+        _selectedImages.Clear();
+    }
+
     private async Task SubmitPostAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newPostContent)) return;
+        if (string.IsNullOrWhiteSpace(_newPostContent) && !_selectedImages.Any()) return;
         _isPosting = true;
         try
         {
-            var response = await Http.PostAsJsonAsync("api/posts", new CreatePostDto { Content = _newPostContent });
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(_newPostContent ?? string.Empty), "content");
+
+            foreach (var img in _selectedImages)
+            {
+                var byteContent = new ByteArrayContent(img.Data);
+                byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+                    string.IsNullOrWhiteSpace(img.ContentType) ? "application/octet-stream" : img.ContentType);
+                form.Add(byteContent, "images", img.FileName);
+            }
+
+            var response = await Http.PostAsync("api/posts", form);
             if (response.IsSuccessStatusCode)
             {
                 var created = await response.Content.ReadFromJsonAsync<PostDto>();
-                if (created != null && !_posts.Any(p => p.Id == created.Id))
+                if (created != null)
                 {
-                    _posts.Insert(0, created);
+                    // If the SignalR broadcast already inserted this post (with
+                    // CanDelete=false, since it's meant for OTHER viewers), replace
+                    // it with the authoritative HTTP response instead of skipping.
+                    var existingIndex = _posts.FindIndex(p => p.Id == created.Id);
+                    if (existingIndex >= 0)
+                    {
+                        _posts[existingIndex] = created;
+                    }
+                    else
+                    {
+                        _posts.Insert(0, created);
+                    }
                     _newCommentContent.TryAdd(created.Id, string.Empty);
                 }
                 _newPostContent = string.Empty;
-                _composerExpanded = false;   // ✅ add this line at the end of the success branch
+                _selectedImages.Clear();
+                _composerExpanded = false;
             }
         }
         finally
         {
             _isPosting = false;
+        }
+    }
+    private async void StartEdit(PostDto post)
+    {
+        _editingPostId = post.Id;
+        _editContent = post.Content;
+        _editingImages = post.Images.ToList();
+        _editNewImages.Clear();
+
+        await Task.Delay(1); // let the textarea render first
+        try { await JS.InvokeVoidAsync("feedInterop.autoGrow", _editTextareaRef); }
+        catch { }
+    }
+
+    private void CancelEdit()
+    {
+        _editingPostId = null;
+        _editContent = string.Empty;
+        _editingImages.Clear();
+        _editNewImages.Clear();
+    }
+
+    private void RemoveExistingEditImage(Guid imageId)
+    {
+        _editingImages.RemoveAll(i => i.Id == imageId);
+    }
+
+    private async Task OnEditImagesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(MaxImages))
+        {
+            if (_editingImages.Count + _editNewImages.Count >= MaxImages) break;
+            if (file.Size > MaxImageBytes) continue;
+
+            using var stream = file.OpenReadStream(MaxImageBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            _editNewImages.Add(new SelectedImage
+            {
+                Data = bytes,
+                ContentType = file.ContentType,
+                FileName = file.Name,
+                PreviewDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(bytes)}"
+            });
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveEditAsync(PostDto post)
+    {
+        if (string.IsNullOrWhiteSpace(_editContent) && !_editingImages.Any() && !_editNewImages.Any()) return;
+        _isSavingEdit = true;
+        try
+        {
+            var removedIds = post.Images
+                .Where(orig => !_editingImages.Any(kept => kept.Id == orig.Id))
+                .Select(i => i.Id.ToString());
+
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(_editContent ?? string.Empty), "content");
+            form.Add(new StringContent(string.Join(",", removedIds)), "removeImageIds");
+
+            foreach (var img in _editNewImages)
+            {
+                var byteContent = new ByteArrayContent(img.Data);
+                byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+                    string.IsNullOrWhiteSpace(img.ContentType) ? "application/octet-stream" : img.ContentType);
+                form.Add(byteContent, "newImages", img.FileName);
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/posts/{post.Id}") { Content = form };
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PostDto>();
+                if (result != null)
+                {
+                    post.Content = result.Content;
+                    post.EditedAt = result.EditedAt;
+                    post.Images = result.Images;
+                }
+                CancelEdit();
+            }
+        }
+        finally
+        {
+            _isSavingEdit = false;
         }
     }
 
@@ -463,6 +827,38 @@
         }
     }
 
+    private string GetImageUrl(Guid imageId, bool thumbnail)
+    {
+        var apiBase = Http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
+        return thumbnail ? $"{apiBase}/api/posts/images/{imageId}/thumb" : $"{apiBase}/api/posts/images/{imageId}";
+    }
+
+    private async void OpenLightbox(PostDto post, int index)
+    {
+        _lightboxImageIds = post.Images.OrderBy(i => i.DisplayOrder).Select(i => i.Id).ToList();
+        _lightboxIndex = index;
+        _lightboxImageId = _lightboxImageIds[index];
+
+        StateHasChanged();
+        await Task.Delay(1); // let the backdrop render before focusing it
+        try { await _lightboxBackdropRef.FocusAsync(); }
+        catch { }
+    }
+
+    private void CloseLightbox()
+    {
+        _lightboxImageId = null;
+        _lightboxImageIds.Clear();
+    }
+
+    private void NavigateLightbox(int delta)
+    {
+        var newIndex = _lightboxIndex + delta;
+        if (newIndex < 0 || newIndex >= _lightboxImageIds.Count) return;
+        _lightboxIndex = newIndex;
+        _lightboxImageId = _lightboxImageIds[newIndex];
+    }
+
     private void RequestDeletePost(Guid postId)
     {
         _deleteTargetType = DeleteTargetType.Post;
@@ -532,6 +928,7 @@
         PostsClient.ViewUpdated -= OnViewUpdated;
         PostsClient.CommentAdded -= OnCommentAdded;
         PostsClient.CommentDeleted -= OnCommentDeleted;
+        PostsClient.PostEdited -= OnPostEdited;
         await Task.CompletedTask;
     }
 }

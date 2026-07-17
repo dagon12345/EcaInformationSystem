@@ -9,29 +9,70 @@ namespace EcaInformationSystem.Application.Services
     {
         private readonly IPostRepository _repo;
         private const string SuperAdminRole = "SuperAdmin";
-
-        public PostService(IPostRepository repo)
+        private readonly IPostImageProcessingService _imageProcessor;
+        public PostService(IPostRepository repo, IPostImageProcessingService imageProcessor)
         {
             _repo = repo;
+            _imageProcessor = imageProcessor;
         }
-
-        public Task<PagedResultDto<PostDto>> GetFeedAsync(int pageNumber, int pageSize, string? viewerKey, Guid? viewerUserId, string? viewerRole)
-            => _repo.GetFeedAsync(pageNumber, pageSize, viewerKey, viewerUserId, viewerRole);
-
-        public async Task<PostDto> CreatePostAsync(CreatePostDto dto, Guid authorUserId, string authorName, string? authorPosition)
+        public async Task<PostDto> EditPostAsync(Guid postId, string content, List<Guid> removeImageIds, List<PostImageUploadDto> newImages, Guid requestingUserId, string requestingRole)
         {
-            var post = new Post
-            {
-                Id = Guid.NewGuid(),
-                AuthorUserId = authorUserId,
-                AuthorName = authorName,
-                AuthorPosition = authorPosition,
-                Content = dto.Content.Trim(),
-                CreatedAt = DateTime.UtcNow,
-                IsDeleted = false
-            };
+            var post = await _repo.GetEntityByIdAsync(postId)
+                ?? throw new Exception("Post not found.");
 
-            await _repo.AddPostAsync(post);
+            bool isOwner = post.AuthorUserId == requestingUserId;
+            bool isSuperAdmin = requestingRole == SuperAdminRole;
+
+            if (!isOwner && !isSuperAdmin)
+                throw new UnauthorizedAccessException("You can only edit your own posts.");
+
+            post.Content = content?.Trim() ?? string.Empty;
+            post.EditedAt = DateTime.UtcNow;
+
+            // ✅ Compute the "kept" images BEFORE removal is applied — EF Core's
+            // RemoveRange only marks entities for deletion, it doesn't hide them
+            // from a fresh DB query until SaveChangesAsync runs. Doing the count
+            // in-memory here avoids a race where a follow-up query still sees
+            // the not-yet-deleted rows.
+            var existingImages = await _repo.GetImageMetaAsync(postId);
+            var keptImages = existingImages.Where(i => !removeImageIds.Contains(i.Id)).ToList();
+
+            if (removeImageIds.Any())
+                await _repo.RemoveImagesAsync(postId, removeImageIds);
+
+            var newImageDtos = new List<PostImageDto>();
+            if (newImages.Any())
+            {
+                int order = keptImages.Count;
+                var entities = new List<Domain.Entities.PostEntities.PostImage>();
+
+                foreach (var img in newImages)
+                {
+                    using var stream = new MemoryStream(img.Data);
+                    var (fullData, thumbData, width, height) = await _imageProcessor.ProcessAsync(stream);
+
+                    var entity = new Domain.Entities.PostEntities.PostImage
+                    {
+                        Id = Guid.NewGuid(),
+                        PostId = postId,
+                        FileName = img.FileName,
+                        ContentType = "image/jpeg",
+                        ImageData = fullData,
+                        ThumbnailData = thumbData,
+                        Width = width,
+                        Height = height,
+                        DisplayOrder = order,
+                        UploadedAt = DateTime.UtcNow
+                    };
+
+                    entities.Add(entity);
+                    newImageDtos.Add(new PostImageDto { Id = entity.Id, DisplayOrder = order, Width = width, Height = height });
+                    order++;
+                }
+
+                await _repo.AddImagesAsync(entities);
+            }
+
             await _repo.SaveChangesAsync();
 
             return new PostDto
@@ -42,12 +83,109 @@ namespace EcaInformationSystem.Application.Services
                 AuthorPosition = post.AuthorPosition,
                 Content = post.Content,
                 CreatedAt = post.CreatedAt,
-                LikeCount = 0,
+                EditedAt = post.EditedAt,
+                CanDelete = true,
+                CanEdit = true,
+                Images = keptImages.Concat(newImageDtos).OrderBy(i => i.DisplayOrder).ToList()
+            };
+        }
+        public async Task<PostDto> EditPostAsync(Guid postId, string content, Guid requestingUserId, string requestingRole)
+        {
+            var post = await _repo.GetEntityByIdAsync(postId)
+                ?? throw new Exception("Post not found.");
+
+            bool isOwner = post.AuthorUserId == requestingUserId;
+            bool isSuperAdmin = requestingRole == SuperAdminRole;
+
+            if (!isOwner && !isSuperAdmin)
+                throw new UnauthorizedAccessException("You can only edit your own posts.");
+
+            post.Content = content.Trim();
+            post.EditedAt = DateTime.UtcNow;
+            await _repo.SaveChangesAsync();
+
+            return new PostDto { Id = post.Id, Content = post.Content, EditedAt = post.EditedAt };
+        }
+        public Task<PagedResultDto<PostDto>> GetFeedAsync(int pageNumber, int pageSize, string? viewerKey, Guid? viewerUserId, string? viewerRole)
+            => _repo.GetFeedAsync(pageNumber, pageSize, viewerKey, viewerUserId, viewerRole);
+
+        public async Task<PostDto> CreatePostAsync(CreatePostDto dto, List<PostImageUploadDto> images, Guid authorUserId, string authorName, string? authorPosition)
+        {
+            if (images.Count > 10)
+                throw new InvalidOperationException("A post can have at most 10 images.");
+
+            var post = new Post
+            {
+                Id = Guid.NewGuid(),
+                AuthorUserId = authorUserId,
+                AuthorName = authorName,
+                AuthorPosition = authorPosition,
+                Content = dto.Content?.Trim() ?? string.Empty,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false
+            };
+
+            await _repo.AddPostAsync(post);
+
+            var imageDtos = new List<PostImageDto>();
+            if (images.Any())
+            {
+                var entities = new List<Domain.Entities.PostEntities.PostImage>();
+                int order = 0;
+
+                foreach (var img in images)
+                {
+                    using var stream = new MemoryStream(img.Data);
+                    var (fullData, thumbData, width, height) = await _imageProcessor.ProcessAsync(stream);
+
+                    var entity = new Domain.Entities.PostEntities.PostImage
+                    {
+                        Id = Guid.NewGuid(),
+                        PostId = post.Id,
+                        FileName = img.FileName,
+                        ContentType = "image/jpeg", // re-encoded as JPEG regardless of source format
+                        ImageData = fullData,
+                        ThumbnailData = thumbData,
+                        Width = width,
+                        Height = height,
+                        DisplayOrder = order,
+                        UploadedAt = DateTime.UtcNow
+                    };
+
+                    entities.Add(entity);
+                    imageDtos.Add(new PostImageDto { Id = entity.Id, DisplayOrder = order, Width = width, Height = height });
+                    order++;
+                }
+
+                await _repo.AddImagesAsync(entities);
+            }
+
+            await _repo.SaveChangesAsync();
+
+            return new PostDto
+            {
+                Id = post.Id,
+                AuthorUserId = post.AuthorUserId,
+                AuthorName = post.AuthorName,
+                AuthorPosition = post.AuthorPosition,
+                Content = post.Content,
+                CreatedAt = post.CreatedAt,
+                //Reactions = new ReactionSummaryDto(),
+                //ViewerReactionType = null,
                 CommentCount = 0,
                 ViewCount = 0,
-                IsLikedByViewer = false,
-                CanDelete = true
+                CanDelete = true,
+                Images = imageDtos
             };
+        }
+
+        public async Task<(byte[] data, string contentType)?> GetImageAsync(Guid imageId, bool thumbnail)
+        {
+            var image = await _repo.GetImageEntityAsync(imageId);
+            if (image == null) return null;
+
+            var bytes = thumbnail ? image.ThumbnailData : image.ImageData;
+            return (bytes, image.ContentType);
         }
 
         public async Task<LikeToggleResultDto> ToggleLikeAsync(Guid postId, string likerKey, bool isAnonymous)

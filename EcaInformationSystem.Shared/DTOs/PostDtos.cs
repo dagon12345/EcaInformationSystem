@@ -15,6 +15,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public int ViewCount { get; set; }
         public bool IsLikedByViewer { get; set; }
         public bool CanDelete { get; set; }
+        public DateTime? EditedAt { get; set; }   // add to PostDto
+        public bool CanEdit { get; set; }         // add to PostDto — same rule as CanDelete
+
+        public List<PostImageDto> Images { get; set; } = new();
     }
 
     public class CreatePostDto
@@ -44,5 +48,23 @@ namespace EcaInformationSystem.Shared.DTOs
     {
         public bool IsLiked { get; set; }
         public int LikeCount { get; set; }
+    }
+    public class PostImageDto
+    {
+        public Guid Id { get; set; }
+        public int DisplayOrder { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+    public class PostImageUploadDto
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public byte[] Data { get; set; } = default!;
+    }
+    public class EditPostDto
+    {
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.MaxLength(2000)]
+        public string Content { get; set; } = string.Empty;
     }
 }

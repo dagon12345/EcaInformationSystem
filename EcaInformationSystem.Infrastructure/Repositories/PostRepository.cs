@@ -14,7 +14,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             _context = context;
         }
+        public async Task RemoveImagesAsync(Guid postId, List<Guid> imageIds)
+        {
+            var images = await _context.PostImages
+                .Where(i => i.PostId == postId && imageIds.Contains(i.Id))
+                .ToListAsync();
+            _context.PostImages.RemoveRange(images);
+        }
 
+        public async Task<List<PostImageDto>> GetImageMetaAsync(Guid postId)
+            => await _context.PostImages.AsNoTracking()
+                .Where(i => i.PostId == postId)
+                .OrderBy(i => i.DisplayOrder)
+                .Select(i => new PostImageDto { Id = i.Id, DisplayOrder = i.DisplayOrder, Width = i.Width, Height = i.Height })
+                .ToListAsync();
+        public async Task AddImagesAsync(List<PostImage> images) => await _context.PostImages.AddRangeAsync(images);
+        public async Task<PostImage?> GetImageEntityAsync(Guid imageId)
+            => await _context.PostImages.FirstOrDefaultAsync(i => i.Id == imageId);
         public async Task<PagedResultDto<PostDto>> GetFeedAsync(int pageNumber, int pageSize, string? viewerKey, Guid? viewerUserId, string? viewerRole)
         {
             pageNumber = pageNumber < 1 ? 1 : pageNumber;
@@ -63,6 +79,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             bool isSuperAdmin = viewerRole == SuperAdminRole;
 
+
+            // ✅ NEW — image metadata only, no ImageData/ThumbnailData bytes here.
+            // The grid just needs dimensions to lay out correctly; actual bytes are
+            // fetched lazily per-image via the dedicated image endpoint below.
+            var imageMeta = await _context.PostImages.AsNoTracking()
+                .Where(i => postIds.Contains(i.PostId))
+                .OrderBy(i => i.DisplayOrder)
+                .Select(i => new { i.Id, i.PostId, i.DisplayOrder, i.Width, i.Height })
+                .ToListAsync();
+
+
             var items = page.Select(p => new PostDto
             {
                 Id = p.Id,
@@ -76,7 +103,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 ViewCount = viewCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
                 IsLikedByViewer = likedByViewer.Contains(p.Id),
                 CanDelete = viewerUserId.HasValue &&
-                    (viewerUserId.Value == p.AuthorUserId || isSuperAdmin)
+                    (viewerUserId.Value == p.AuthorUserId || isSuperAdmin),
+                Images = imageMeta
+                      .Where(i => i.PostId == p.Id)
+                      .Select(i => new PostImageDto
+                      {
+                          Id = i.Id,
+                          DisplayOrder = i.DisplayOrder,
+                          Width = i.Width,
+                          Height = i.Height
+                      })
+                      .ToList()
             }).ToList();
 
             return new PagedResultDto<PostDto>

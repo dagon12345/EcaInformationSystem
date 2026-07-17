@@ -448,6 +448,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.Municipality.HasValue && request.Municipality.Value > 0)
                 query = query.Where(b => b.Municipality == request.Municipality.Value);
 
+            // ✅ NEW — Milestone Year filter (was completely missing before)
+            // Mirrors the same bracket rule used in BuildNarrowFilterQuery: a beneficiary
+            // "belongs" to milestoneYear if BirthYear + one of {80,85,90,95,100} == milestoneYear,
+            // and that resulting year is >= 2024 (program start).
+            if (request.MilestoneYear > 0)
+            {
+                var milestonesForYearFilter = new[] { 80, 85, 90, 95, 100 };
+                var targetYear = request.MilestoneYear;
+
+                query = query.Where(b =>
+                    milestonesForYearFilter.Any(m =>
+                        b.BirthDate.Year + m == targetYear &&
+                        b.BirthDate.Year + m >= 2024));
+            }
             // ── Milestone Age filter ─────────────────────────────────────────────
             // ✅ FIXED — matches the same "bracket" rule used by AgeDistribution
             // below (age >= m && age < m+5), not an exact birth-year match. This is

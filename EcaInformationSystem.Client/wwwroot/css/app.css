@@ -25,6 +25,11 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   NEWS FEED — single source of truth, do not duplicate elsewhere
+   ═══════════════════════════════════════════════════════════════════ */
+
 /* ── Feed header ───────────────────────────────────────────────────── */
 .feed-header {
     display: flex;
@@ -87,6 +92,8 @@
     resize: none;
     outline: none;
     min-height: 40px;
+    max-height: 280px;
+    overflow-y: auto;
     transition: border-radius 0.15s ease;
 }
 
@@ -98,9 +105,64 @@
 
 .feed-composer-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
     gap: 8px;
     margin-top: 8px;
+}
+
+.feed-composer-file-input {
+    display: none;
+}
+
+.feed-composer-image-btn {
+    cursor: pointer;
+}
+
+.feed-composer-preview-grid {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.feed-composer-preview-item {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+
+    .feed-composer-preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.feed-composer-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.feed-composer-preview-count {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
 }
 
 /* ── Empty state ───────────────────────────────────────────────────── */
@@ -124,22 +186,18 @@
 /* ── Post card ─────────────────────────────────────────────────────── */
 .feed-post {
     background: #fff;
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    transition: box-shadow 0.15s ease;
+    border-radius: 10px;
+    padding: 12px 14px 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    border: 1px solid #eceef1;
 }
-
-    .feed-post:hover {
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
 
 .feed-post-header {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .feed-avatar {
@@ -168,18 +226,31 @@
 }
 
 .feed-post-author {
-    font-weight: 700;
-    font-size: 13.5px;
-    color: #1a1a1a;
-    line-height: 1.3;
+    font-weight: 600;
+    font-size: 14px;
+    color: #050505;
+    line-height: 1.25;
+}
+
+.feed-post-position {
+    font-weight: 400;
+    font-size: 12px;
+    color: #6b7280;
+    margin-left: 4px;
 }
 
 .feed-post-meta {
-    font-size: 11.5px;
-    color: #8a8f98;
+    font-size: 12.5px;
+    color: #65676b;
     display: flex;
     gap: 4px;
     align-items: center;
+}
+
+.feed-post-time {
+    font-size: 11.5px;
+    color: #9ca3af;
+    margin-top: 1px;
 }
 
 .feed-dot {
@@ -200,13 +271,149 @@
         background: #fef2f2;
     }
 
+.feed-post-header-actions {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+}
+
 .feed-post-content {
-    font-size: 14px;
-    line-height: 1.5;
-    color: #1f2937;
+    font-size: 14.5px;
+    line-height: 1.42;
+    color: #050505;
     white-space: pre-wrap;
     word-break: break-word;
-    margin: 0 0 8px 0;
+    margin: 2px 0 10px 0;
+}
+
+.feed-post-edited-tag {
+    font-size: 11.5px;
+    color: #8a8d91;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+/* ── Edit box ──────────────────────────────────────────────────────── */
+.feed-post-edit-box {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.feed-edit-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 100px;
+    max-height: 320px;
+    overflow-y: auto;
+    resize: none;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    font-family: inherit;
+    outline: none;
+}
+
+    .feed-edit-textarea:focus {
+        border-color: #0C447C;
+        box-shadow: 0 0 0 2px #0C447C22;
+    }
+
+.feed-post-edit-box .d-flex {
+    flex-wrap: wrap;
+}
+
+/* ── Post image grid — Facebook/X-style bounded layouts ──────────────── */
+.feed-image-grid {
+    display: grid;
+    gap: 3px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+/* 1 image — full width, capped height, whole image visible (no crop) */
+.feed-image-grid--1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(200px, 420px);
+    background: #f0f2f5;
+}
+
+    .feed-image-grid--1 .feed-image-tile img {
+        object-fit: contain;
+    }
+
+/* 2 images — even split, square-ish tiles */
+.feed-image-grid--2 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 260px;
+}
+
+/* 3 images — one tall on left, two stacked on right */
+.feed-image-grid--3 {
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: 130px 130px;
+}
+
+    .feed-image-grid--3 .feed-image-tile:nth-child(1) {
+        grid-row: 1 / 3;
+        grid-column: 1;
+    }
+
+    .feed-image-grid--3 .feed-image-tile:nth-child(2) {
+        grid-row: 1;
+        grid-column: 2;
+    }
+
+    .feed-image-grid--3 .feed-image-tile:nth-child(3) {
+        grid-row: 2;
+        grid-column: 2;
+    }
+
+/* 4 and 5+ images — even 2x2 grid, overflow tile shows +N */
+.feed-image-grid--4,
+.feed-image-grid--5 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 160px 160px;
+}
+
+/* ── Tile itself — every tile is a hard-bounded box, never grows past it ── */
+.feed-image-tile {
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    background: #eef0f2;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
+    .feed-image-tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 20%;
+        display: block;
+    }
+
+    .feed-image-tile:hover img {
+        filter: brightness(0.94);
+    }
+
+.feed-image-overflow {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 26px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: -0.5px;
 }
 
 /* ── Stats line ────────────────────────────────────────────────────── */
@@ -214,9 +421,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
-    color: #8a8f98;
-    padding: 4px 0 8px;
+    font-size: 12.5px;
+    color: #65676b;
+    padding: 6px 0;
 }
 
 .feed-stats-left {
@@ -245,8 +452,8 @@
 /* ── Action bar (Like / Comment) ──────────────────────────────────── */
 .feed-post-actionbar {
     display: flex;
-    border-top: 1px solid #f0f1f3;
-    padding-top: 4px;
+    border-top: 1px solid #eceef1;
+    padding-top: 2px;
 }
 
 .feed-actionbar-btn {
@@ -254,7 +461,7 @@
     border: none;
     background: transparent;
     color: #65676b;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 600;
     padding: 8px 0;
     border-radius: 6px;
@@ -269,7 +476,7 @@
     }
 
 .feed-actionbar-btn--active {
-    color: #0C447C;
+    color: #0866ff;
 }
 
 /* ── Comments ──────────────────────────────────────────────────────── */
@@ -360,7 +567,65 @@
     border-radius: 50%;
 }
 
-/* ── Delete modal (unchanged) ──────────────────────────────────────── */
+/* ── Lightbox ──────────────────────────────────────────────────────── */
+.feed-lightbox-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+.feed-lightbox-image {
+    max-width: 90vw;
+    max-height: 88vh;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.feed-lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 18px;
+}
+
+.feed-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 20px;
+}
+
+.feed-lightbox-nav--prev {
+    left: 20px;
+}
+
+.feed-lightbox-nav--next {
+    right: 20px;
+}
+/* ── Feed width cap — keeps posts compact even on wide desktop screens ── */
+.feed-container {
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
 .modal-backdrop-custom {
     position: fixed;
     inset: 0;
@@ -381,230 +646,7 @@
     z-index: 1050;
     box-shadow: 0 12px 40px rgba(0,0,0,0.25);
 }
-/* ── Post card ─────────────────────────────────────────────────────── */
-.feed-post {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 14px;
-}
 
-.feed-post-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 8px;
-}
-
-.feed-avatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #0C447C;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.feed-post-header-text {
-    min-width: 0;
-}
-
-.feed-post-author {
-    font-weight: 700;
-    font-size: 14px;
-    color: #1a1a1a;
-}
-
-.feed-post-position {
-    font-weight: 400;
-    font-size: 12px;
-    color: #6b7280;
-    margin-left: 4px;
-}
-
-.feed-post-time {
-    font-size: 11.5px;
-    color: #9ca3af;
-    margin-top: 1px;
-}
-
-.feed-post-content {
-    font-size: 14px;
-    line-height: 1.5;
-    color: #1f2937;
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin: 0 0 10px 0;
-}
-
-/* ── Actions row ───────────────────────────────────────────────────── */
-.feed-post-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #f1f3f5;
-}
-
-.feed-action-btn {
-    border: 1px solid #e5e7eb;
-    background: #fff;
-    color: #4b5563;
-    font-size: 12.5px;
-    border-radius: 20px;
-    padding: 4px 12px;
-}
-
-.feed-action-btn--active {
-    background: #e7f0fb;
-    border-color: #0C447C;
-    color: #0C447C;
-}
-
-.feed-view-count {
-    font-size: 12px;
-    color: #9ca3af;
-    display: flex;
-    align-items: center;
-}
-
-.feed-delete-icon-btn {
-    border: none;
-    background: transparent;
-    color: #d1d5db;
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-
-    .feed-delete-icon-btn:hover {
-        color: #dc2626;
-        background: #fef2f2;
-    }
-
-/* ── Comments ──────────────────────────────────────────────────────── */
-.feed-comments {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #f1f3f5;
-}
-
-.feed-comment {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.feed-comment-avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: #64748b;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.feed-comment-body {
-    background: #f8f9fb;
-    border-radius: 10px;
-    padding: 6px 10px;
-    flex: 1;
-    min-width: 0;
-}
-
-.feed-comment-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-}
-
-.feed-comment-author {
-    font-weight: 700;
-    font-size: 12px;
-    color: #1a1a1a;
-}
-
-.feed-comment-time {
-    font-size: 10.5px;
-    color: #9ca3af;
-}
-
-.feed-comment-delete-btn {
-    border: none;
-    background: transparent;
-    color: #d1d5db;
-    font-size: 11px;
-    padding: 0 2px;
-    margin-left: auto;
-}
-
-    .feed-comment-delete-btn:hover {
-        color: #dc2626;
-    }
-
-.feed-comment-text {
-    font-size: 13px;
-    color: #374151;
-    line-height: 1.4;
-    margin: 2px 0 0 0;
-    word-break: break-word;
-}
-
-.feed-comment-input-row {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.feed-send-btn {
-    width: 36px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.modal-backdrop-custom {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 1040;
-}
-
-.delete-confirm-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: #fff;
-    border-radius: 10px;
-    padding: 20px 24px;
-    width: 320px;
-    max-width: 90vw;
-    z-index: 1050;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-}
-.feed-post-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.feed-post-delete-row {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 6px;
-}
 .payment-cell {
     border-left: 3px solid transparent;
     padding-left: 10px !important;

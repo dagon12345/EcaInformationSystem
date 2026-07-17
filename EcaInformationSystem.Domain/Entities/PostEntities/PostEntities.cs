@@ -11,6 +11,7 @@
         public bool IsDeleted { get; set; }
         public string? DeletedBy { get; set; }
         public DateTime? DeletedAt { get; set; }
+        public DateTime? EditedAt { get; set; }
     }
 
     public class PostComment
@@ -45,5 +46,18 @@
         public Guid PostId { get; set; }
         public string ViewerKey { get; set; } = string.Empty;
         public DateTime ViewedAt { get; set; }
+    }
+    public class PostImage
+    {
+        public Guid Id { get; set; }
+        public Guid PostId { get; set; }
+        public string FileName { get; set; } = string.Empty;
+        public string ContentType { get; set; } = string.Empty;
+        public byte[] ImageData { get; set; } = default!;       // resized/compressed full version
+        public byte[] ThumbnailData { get; set; } = default!;   // small grid-preview version
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public int DisplayOrder { get; set; }
+        public DateTime UploadedAt { get; set; }
     }
 }

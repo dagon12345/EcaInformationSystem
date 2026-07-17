@@ -10,23 +10,28 @@
 		<InvariantGlobalization>true</InvariantGlobalization>
 	</PropertyGroup>
 
-	<!-- ✅ NEW — trimming only runs on Release publish, never on Debug builds -->
+	<!-- ✅ Release-only: trimming, fingerprinting, and compression only matter for the
+       published artifact — none of this should run on a local F5/Ctrl+Shift+B. -->
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<PublishTrimmed>true</PublishTrimmed>
 	</PropertyGroup>
 
-	<!-- ✅ NEW — explicitly off for Debug, so no ambiguity, no design-time build surprises -->
+	<!-- ✅ Debug-only: everything here is explicitly OFF so there's no ambiguity and
+       no per-build recomputation of things that don't matter until you publish. -->
 	<PropertyGroup Condition="'$(Configuration)'=='Debug'">
 		<PublishTrimmed>false</PublishTrimmed>
 		<RunAOTCompilation>false</RunAOTCompilation>
-	</PropertyGroup>
-
-	<!-- ✅ NEW — skip Blazor's brotli/gzip static asset compression on Debug builds.
-       This runs on every single build otherwise, recompressing everything in
-       wwwroot (js/, css/, images, chatInterop.js, etc.) even though it's only
-       needed for the final publish. -->
-	<PropertyGroup Condition="'$(Configuration)'=='Debug'">
 		<CompressionEnabled>false</CompressionEnabled>
+
+		<!-- ✅ NEW — skips recomputing content-hash filenames for every static asset
+		 (JS/CSS/images) on every single build. Only matters for production cache-busting. -->
+		<WasmFingerprintAssets>false</WasmFingerprintAssets>
+
+		<!-- ✅ NEW — skips Roslyn analyzer execution (including ones shipped by
+		 Havit.Blazor and other referenced packages) during local Debug builds.
+		 Analyzers still run in the editor for live squiggles; this only
+		 disables the redundant build-time re-run. -->
+		<RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
 	</PropertyGroup>
 
 	<ItemGroup>

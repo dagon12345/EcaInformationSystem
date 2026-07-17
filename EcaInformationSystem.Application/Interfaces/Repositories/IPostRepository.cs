@@ -17,5 +17,9 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task SoftDeletePostAsync(Post post, string deletedBy);
         Task SoftDeleteCommentAsync(PostComment comment, string deletedBy);
         Task SaveChangesAsync();
+        Task AddImagesAsync(List<PostImage> images);
+        Task<PostImage?> GetImageEntityAsync(Guid imageId);
+        Task RemoveImagesAsync(Guid postId, List<Guid> imageIds);
+        Task<List<PostImageDto>> GetImageMetaAsync(Guid postId);
     }
 }

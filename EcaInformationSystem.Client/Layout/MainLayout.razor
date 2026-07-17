@@ -269,7 +269,7 @@
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
-        Navigation.NavigateTo("/", true);   // was "/login" — now lands on the public feed
+        Navigation.NavigateTo("/login", true);   // was "/login" — now lands on the public feed
     }
     public void Dispose()
     {

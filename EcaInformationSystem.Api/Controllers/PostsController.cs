@@ -42,7 +42,46 @@ namespace EcaInformationSystem.Api.Controllers
             var headerKey = Request.Headers[ViewerKeyHeader].ToString();
             return string.IsNullOrWhiteSpace(headerKey) ? null : headerKey;
         }
+        [HttpPut("{id:guid}")]
+        [Authorize]
+        [RequestSizeLimit(209_715_200)]
+        public async Task<IActionResult> EditPost(
+          Guid id,
+          [FromForm] string? content,
+          [FromForm] string? removeImageIds,
+          [FromForm(Name = "newImages")] List<IFormFile>? newImages)
+        {
+            var userId = GetUserId();
+            if (userId == null) return Unauthorized();
 
+            var removeIds = string.IsNullOrWhiteSpace(removeImageIds)
+                ? new List<Guid>()
+                : removeImageIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => Guid.TryParse(s.Trim(), out var g) ? g : (Guid?)null)
+                    .Where(g => g.HasValue)
+                    .Select(g => g!.Value)
+                    .ToList();
+
+            var uploads = new List<PostImageUploadDto>();
+            foreach (var file in newImages ?? new List<IFormFile>())
+            {
+                if (file.Length == 0) continue;
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                uploads.Add(new PostImageUploadDto { FileName = file.FileName, ContentType = file.ContentType, Data = ms.ToArray() });
+            }
+
+            try
+            {
+                var result = await _postService.EditPostAsync(id, content ?? string.Empty, removeIds, uploads, userId.Value, GetRole());
+                await _hub.Clients.All.SendAsync("PostEdited", id, result.Content, result.EditedAt, result.Images);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Forbid(ex.Message);
+            }
+        }
         [HttpGet("feed")]
         [AllowAnonymous]
         public async Task<IActionResult> GetFeed([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
@@ -55,19 +94,61 @@ namespace EcaInformationSystem.Api.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreatePost([FromBody] CreatePostDto dto)
+        [RequestSizeLimit(209_715_200)]
+        public async Task<IActionResult> CreatePost(
+             [FromForm] string? content,
+             [FromForm(Name = "images")] List<IFormFile>? images)
         {
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
 
-            var result = await _postService.CreatePostAsync(dto, userId.Value, GetFullName(), GetPosition());
+            var imgList = images ?? new List<IFormFile>();
+            if (imgList.Count > 10)
+                return BadRequest("A post can have at most 10 images.");
 
-            // ✅ CanDelete is viewer-relative — broadcast a copy with it false so
-            // OTHER clients don't render a delete button that isn't theirs to use.
+            var uploads = new List<PostImageUploadDto>();
+            foreach (var file in imgList)
+            {
+                if (file.Length == 0) continue;
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                uploads.Add(new PostImageUploadDto
+                {
+                    FileName = file.FileName,
+                    ContentType = file.ContentType,
+                    Data = ms.ToArray()
+                });
+            }
+
+            var dto = new CreatePostDto { Content = content ?? string.Empty };
+            var result = await _postService.CreatePostAsync(dto, uploads, userId.Value, GetFullName(), GetPosition());
+
             var broadcastCopy = CloneWithCanDelete(result, false);
             await _hub.Clients.All.SendAsync("PostCreated", broadcastCopy);
 
             return Ok(result);
+        }
+
+        [HttpGet("images/{imageId:guid}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetImage(Guid imageId)
+        {
+            var result = await _postService.GetImageAsync(imageId, thumbnail: false);
+            if (result == null) return NotFound();
+
+            Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+            return File(result.Value.data, result.Value.contentType);
+        }
+
+        [HttpGet("images/{imageId:guid}/thumb")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetImageThumbnail(Guid imageId)
+        {
+            var result = await _postService.GetImageAsync(imageId, thumbnail: true);
+            if (result == null) return NotFound();
+
+            Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+            return File(result.Value.data, result.Value.contentType);
         }
 
         [HttpDelete("{id:guid}")]
@@ -181,11 +262,12 @@ namespace EcaInformationSystem.Api.Controllers
             AuthorPosition = source.AuthorPosition,
             Content = source.Content,
             CreatedAt = source.CreatedAt,
-            LikeCount = source.LikeCount,
+            LikeCount = source.LikeCount,           // ✅ add
+            IsLikedByViewer = false,                // ✅ add — viewer-relative, other clients start unlliked
             CommentCount = source.CommentCount,
             ViewCount = source.ViewCount,
-            IsLikedByViewer = false, // viewer-relative, same reasoning
-            CanDelete = canDelete
+            CanDelete = canDelete,
+            Images = source.Images
         };
     }
 }

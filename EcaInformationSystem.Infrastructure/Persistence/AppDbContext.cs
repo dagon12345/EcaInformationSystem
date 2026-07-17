@@ -37,6 +37,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<PostComment> PostComments => Set<PostComment>();
         public DbSet<PostLike> PostLikes => Set<PostLike>();
         public DbSet<PostView> PostViews => Set<PostView>();
+        public DbSet<PostImage> PostImages => Set<PostImage>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -556,6 +557,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.PostId, x.ViewerKey })
                       .IsUnique()
                       .HasDatabaseName("UQ_PostView_Post_Viewer");
+            });
+            modelBuilder.Entity<PostImage>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.FileName).IsRequired().HasMaxLength(500);
+                entity.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+                entity.Property(x => x.ImageData).IsRequired().HasColumnType("varbinary(max)");
+                entity.Property(x => x.ThumbnailData).IsRequired().HasColumnType("varbinary(max)");
+
+                entity.HasOne<Post>()
+                      .WithMany()
+                      .HasForeignKey(x => x.PostId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(x => new { x.PostId, x.DisplayOrder })
+                      .HasDatabaseName("IX_PostImage_Post_DisplayOrder");
             });
         }
     }
