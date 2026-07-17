@@ -91,16 +91,19 @@ namespace EcaInformationSystem.Application.Services
             if (paymentStatus != 0 && paymentStatus != 1 && paymentStatus != 2 && paymentStatus != 3)
                 throw new Exception(CommonConstants.InvalidPaymentStatus);
 
-            if (paymentStatus == 2 && !paymentDate.HasValue)
-                throw new Exception("Payment Date is required when status is Paid.");
+            // AFTER
+            // ✅ CHANGED — Unpaid now also requires (and keeps) a date, since "unpaid as of
+            // this date" is meaningful data too. Mode of Payment and Payroll period stay
+            // Paid-only, since no money actually moved for an Unpaid entry.
+            if ((paymentStatus == 1 || paymentStatus == 2) && !paymentDate.HasValue)
+            {
+                var label = paymentStatus == 2 ? "Payment" : "Unpaid";
+                throw new Exception($"{label} Date is required when status is {(paymentStatus == 2 ? "Paid" : "Unpaid")}.");
+            }
 
             if (paymentStatus == 2 && !modeOfPayment.HasValue)
                 throw new Exception("Mode of Payment is required when status is Paid.");
 
-            // ── New rule enabled by the history model: a Paid record should almost
-            // always carry a period, since "which quarter was this paid for" is a
-            // real reporting/reconciliation need once you have many payment rows
-            // per beneficiary instead of one mutable field.
             if (paymentStatus == 2 && (!payrollQuarter.HasValue || !fiscalYear.HasValue))
                 throw new Exception("Payroll Quarter and Fiscal Year are required when status is Paid.");
 
@@ -128,8 +131,11 @@ namespace EcaInformationSystem.Application.Services
             int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
             string? remarks, string userName)
         {
-            if (paymentStatus == 2 && !paymentDate.HasValue)
-                throw new Exception("Payment Date is required when status is Paid.");
+            if ((paymentStatus == 1 || paymentStatus == 2) && !paymentDate.HasValue)
+            {
+                var label = paymentStatus == 2 ? "Payment" : "Unpaid";
+                throw new Exception($"{label} Date is required when status is {(paymentStatus == 2 ? "Paid" : "Unpaid")}.");
+            }
 
             if (paymentStatus == 2 && !modeOfPayment.HasValue)
                 throw new Exception("Mode of Payment is required when status is Paid.");
@@ -678,14 +684,11 @@ namespace EcaInformationSystem.Application.Services
                 Quarter = dto.Quarter,
                 Batch = dto.Batch,
                 RefYear = dto.RefYear,
-                // BeneficiaryInformationService.cs — in CreateAsync
-                // ✅ Only generate RefCode if all three ref number fields are provided
-                // If Quarter/Batch/RefYear are null, RefCode stays null too
                 RefCode = (dto.Quarter.HasValue &&
-                    !string.IsNullOrWhiteSpace(dto.Batch) &&
-                    dto.RefYear.HasValue)
-                    ? RegionRomanNumeralHelper.GenerateRefCode()
-                    : null,
+                 !string.IsNullOrWhiteSpace(dto.Batch) &&
+                 dto.RefYear.HasValue)
+                 ? RegionRomanNumeralHelper.GenerateRefCode()
+                 : null,
                 DateApplied = dto.DateApplied,
                 DateEndorsed = dto.DateEndorsed,
                 BatchCode = dto.BatchCode,
@@ -710,11 +713,6 @@ namespace EcaInformationSystem.Application.Services
                 IsCompliant = dto.IsCompliant,
                 Validator = dto.Validator,
                 ValidationDate = dto.ValidationDate,
-                PayrollQuarter = dto.PayrollQuarter,
-                FiscalYear = dto.FiscalYear,
-                PaymentStatus = dto.PaymentStatus,
-                ModeOfPayment = dto.ModeOfPayment,
-                PaymentDate = dto.PaymentDate,
                 IsDeceased = dto.IsDeceased,
                 DateOfDeath = dto.DateOfDeath,
                 IsEligible = dto.IsEligible,
@@ -724,15 +722,54 @@ namespace EcaInformationSystem.Application.Services
                 Remarks = dto.Remarks,
                 DateAdded = DateTime.UtcNow,
                 IsDeleted = false
+                // ✅ NOTE — PayrollQuarter/FiscalYear/PaymentStatus/ModeOfPayment/PaymentDate
+                // are intentionally NOT set from dto here anymore. They're now seeded
+                // below from a real Payment History entry instead, since the Create form
+                // no longer collects payment info at all (that's Payment History's job).
             };
 
+            // ✅ NEW — every new grantee starts with an explicit Pending payment
+            // history entry, rather than an ambiguous PaymentStatus = 0 (N/A). This
+            // gives the grid, dashboard, and Payment History timeline a real, visible
+            // starting state from day one, and matches how every other status change
+            // already flows through Payment History rather than flat columns.
+            var initialHistory = new BeneficiaryPaymentHistory
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = beneficiary.Id,
+                PayrollQuarter = null,
+                FiscalYear = null,
+                PaymentStatus = 3, // Pending
+                ModeOfPayment = 0,
+                PaymentDate = null,
+                Remarks = "Automatically set to Pending upon grantee registration.",
+                DateCreated = DateTime.UtcNow,
+                CreatedBy = userName
+            };
+
+            beneficiary.CurrentPaymentHistoryId = initialHistory.Id;
+            beneficiary.PayrollQuarter = initialHistory.PayrollQuarter;
+            beneficiary.FiscalYear = initialHistory.FiscalYear;
+            beneficiary.PaymentStatus = initialHistory.PaymentStatus;
+            beneficiary.ModeOfPayment = initialHistory.ModeOfPayment;
+            beneficiary.PaymentDate = initialHistory.PaymentDate;
+
             await _repo.AddAsync(beneficiary);
+            await _repo.AddPaymentHistoryEntryAsync(initialHistory);
 
             //Logging
             await AddLogAsync(
-        beneficiary.Id,
-        $"{CommonConstants.CreatedBeneficiary} {beneficiary.LastName}, {beneficiary.FirstName}",
-        userName);
+                beneficiary.Id,
+                $"{CommonConstants.CreatedBeneficiary} {beneficiary.LastName}, {beneficiary.FirstName}",
+                userName);
+
+            // ✅ NEW — separate log entry specifically for the auto-pending seed, so
+            // it shows up distinctly in the beneficiary's Logs modal, not folded into
+            // the generic "Created" entry.
+            await AddLogAsync(
+                beneficiary.Id,
+                "Payment status automatically set to Pending upon registration",
+                userName);
 
             await _repo.SaveChangesAsync();
 
@@ -772,6 +809,8 @@ namespace EcaInformationSystem.Application.Services
                     IsCompliant = beneficiary.IsCompliant,
                     Validator = beneficiary.Validator,
                     ValidationDate = beneficiary.ValidationDate,
+                    PayrollQuarter = beneficiary.PayrollQuarter,
+                    FiscalYear = beneficiary.FiscalYear,
                     PaymentStatus = beneficiary.PaymentStatus,
                     ModeOfPayment = beneficiary.ModeOfPayment,
                     PaymentDate = beneficiary.PaymentDate,
@@ -785,7 +824,6 @@ namespace EcaInformationSystem.Application.Services
                     DateAdded = beneficiary.DateAdded,
                     IsDeleted = beneficiary.IsDeleted
                 }
-
             };
         }
 
@@ -949,39 +987,6 @@ namespace EcaInformationSystem.Application.Services
 
             foreach (var id in ids)
                 await AddLogAsync(id, $"Bulk CO Status update -> {statusLabel}", userName);
-
-            await _repo.SaveChangesAsync();
-            InvalidateSummaryCache();
-        }
-
-        public async Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
-          string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
-        {
-            if (ids == null || !ids.Any())
-                throw new Exception(CommonConstants.NoRecordsSelected);
-
-            if (paymentStatus != 1 && paymentStatus != 2 &&
-                paymentStatus != 3 && paymentStatus != 0)
-                throw new Exception(CommonConstants.InvalidPaymentStatus);
-
-            if (paymentStatus == 2 && paymentDate == null)
-                throw new Exception(CommonConstants.PaymentDateRequiredForPaidStatus);
-
-            if (paymentStatus == 2 && !modeOfPayment.HasValue)
-                throw new Exception("Mode of Payment is required when status is Paid.");
-
-            await _repo.BulkUpdatePaymentStatusAsync(
-                ids, paymentStatus, modeOfPayment, paymentDate, rowVersions);
-
-            var statusLabel = paymentStatus == 2
-                ? $"{CommonConstants.PaidDate} {paymentDate.ToFullDate()})"
-                : CommonConstants.Unpaid;
-
-            foreach (var id in ids)
-                await AddLogAsync(
-                    id,
-                    $"{CommonConstants.BulkPaymentStatusUpdatedTo} {statusLabel}",
-                    userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
@@ -2145,6 +2150,78 @@ namespace EcaInformationSystem.Application.Services
             var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
             var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
 
+            // ✅ NEW — load the ENTIRE duplicate-check pool ONCE, instead of issuing
+            // a separate ExistsDuplicateAsync + FindSoftDuplicatesAsync DB call per
+            // Excel row. This is what was causing the timeout on 40+ row imports —
+            // FindSoftDuplicatesAsync alone ran 3 correlated subqueries per candidate,
+            // per row. Now it's one flat query for the whole import.
+            var duplicatePool = await _repo.GetDuplicateCheckPoolAsync();
+
+            var provinceNameByCode = provinces
+                .GroupBy(p => p.PsgcCodeProvince)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+            var municipalityNameByCode = municipalities
+                .GroupBy(m => m.PsgcCodeMunicipality)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+            var barangayNameByCode = barangays
+                .GroupBy(b => b.PsgcCodeBarangay)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+
+            // ✅ Exact-duplicate lookup — same normalization rule as
+            // ExistsDuplicateAsync in the repository (trim + lower + date-only),
+            // just pre-built into a HashSet for O(1) checks instead of a query.
+            var exactDupKeys = duplicatePool
+                .Select(d => BuildExactDupKey(d.LastName, d.FirstName, d.MiddleName, d.BirthDate))
+                .ToHashSet();
+
+            // ✅ Soft-duplicate matching — same 365-day window + 0.75 score threshold
+            // as FindSoftDuplicatesAsync, done in-memory against the pool instead of
+            // a fresh query (with subqueries) per row.
+            List<SoftDuplicateCandidateDto> FindSoftDuplicatesInMemory(string firstName, string lastName, DateTime birthDate)
+            {
+                if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
+                    return new List<SoftDuplicateCandidateDto>();
+
+                var incomingFullName = string.Join(" ",
+                    new[] { firstName?.Trim(), lastName?.Trim() }
+                    .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+                return duplicatePool
+                    .Where(c => Math.Abs((c.BirthDate - birthDate).TotalDays) <= 365)
+                    .Select(c =>
+                    {
+                        var existingFullName = string.Join(" ",
+                            new[] { c.FirstName?.Trim(), c.LastName?.Trim() }
+                            .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+                        var score = string.IsNullOrWhiteSpace(existingFullName)
+                            ? 0.0
+                            : NameSimilarityHelper.ComputeNameSimilarity(incomingFullName, existingFullName);
+
+                        return new { Candidate = c, Score = score };
+                    })
+                    .Where(x => x.Score >= 0.75)
+                    .Select(x => new SoftDuplicateCandidateDto
+                    {
+                        ExistingId = x.Candidate.Id,
+                        ExistingFullName = string.Join(", ",
+                            new[] { x.Candidate.LastName?.Trim(), x.Candidate.FirstName?.Trim() }
+                            .Where(s => !string.IsNullOrWhiteSpace(s))) +
+                            (string.IsNullOrWhiteSpace(x.Candidate.MiddleName)
+                                ? string.Empty
+                                : $" {x.Candidate.MiddleName.Trim()}"),
+                        ExistingMiddleName = x.Candidate.MiddleName?.Trim() ?? string.Empty,
+                        ExistingBirthDate = x.Candidate.BirthDate,
+                        ExistingOscaId = x.Candidate.OscaIdNumber ?? string.Empty,
+                        ExistingProvince = provinceNameByCode.GetValueOrDefault(x.Candidate.Province, string.Empty),
+                        ExistingMunicipality = municipalityNameByCode.GetValueOrDefault(x.Candidate.Municipality, string.Empty),
+                        ExistingBarangay = barangayNameByCode.GetValueOrDefault(x.Candidate.Barangay, string.Empty),
+                        MatchScore = x.Score
+                    })
+                    .OrderByDescending(x => x.MatchScore)
+                    .ToList();
+            }
+
             using var workbook = new XLWorkbook(fileStream);
 
             if (string.IsNullOrWhiteSpace(sheetName))
@@ -2393,8 +2470,9 @@ namespace EcaInformationSystem.Application.Services
                         continue;
 
                     // ── Exact duplicate in DB ─────────────────────────────────────
-                    var isExactDuplicate = await _repo.ExistsDuplicateAsync(
-                        lastName, firstName, middleName, birthDate);
+                    // ✅ CHANGED — in-memory HashSet lookup instead of a DB round-trip
+                    var exactKey = BuildExactDupKey(lastName, firstName, middleName, birthDate);
+                    var isExactDuplicate = exactDupKeys.Contains(exactKey);
 
                     if (isExactDuplicate)
                     {
@@ -2409,7 +2487,8 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // ── Soft duplicate check ──────────────────────────────────────
-                    var softMatches = await _repo.FindSoftDuplicatesAsync(firstName, lastName, birthDate);
+                    // ✅ CHANGED — in-memory scan against the pre-loaded pool
+                    var softMatches = FindSoftDuplicatesInMemory(firstName, lastName, birthDate);
 
                     foreach (var match in softMatches)
                     {
@@ -2450,16 +2529,15 @@ namespace EcaInformationSystem.Application.Services
 
             return preview;
         }
-        //Confirm import
         public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(
-            Stream fileStream,
-            string fileName,
-            string sheetName,
-            string userName,
-            HashSet<int> skipRows,
-            int? quarter,      // ✅ new
-            string? batch,     // ✅ new
-            int? refYear)
+     Stream fileStream,
+     string fileName,
+     string sheetName,
+     string userName,
+     HashSet<int> skipRows,
+     int? quarter,      // ✅ new
+     string? batch,     // ✅ new
+     int? refYear)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -2473,6 +2551,7 @@ namespace EcaInformationSystem.Application.Services
 
             var result = new BeneficiaryImportResultDto();
             var beneficiariesToImport = new List<BeneficiaryInformation>();
+            var importedPaymentHistoryEntries = new List<BeneficiaryPaymentHistory>(); // ✅ NEW
 
             var regions = await _regionRepository.GetAllAsync();
             var provinces = (await _provinceRepository.GetAllProvinceAsync())
@@ -2481,6 +2560,13 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
             var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
             var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
+
+            // ✅ NEW — same fix as PreviewImportAsync: one flat query for the whole
+            // import instead of one ExistsDuplicateAsync DB call per row.
+            var duplicatePool = await _repo.GetDuplicateCheckPoolAsync();
+            var exactDupKeys = duplicatePool
+                .Select(d => BuildExactDupKey(d.LastName, d.FirstName, d.MiddleName, d.BirthDate))
+                .ToHashSet();
 
             using var workbook = new XLWorkbook(fileStream);
 
@@ -2841,10 +2927,11 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // ── Exact DB duplicate check ──────────────────────────────────
+                    // ✅ CHANGED — in-memory HashSet lookup instead of a DB round-trip
                     if (!rowHasError)
                     {
-                        var isDuplicateInDatabase = await _repo.ExistsDuplicateAsync(
-                            lastName, firstName, middleName, birthDate);
+                        var exactKey = BuildExactDupKey(lastName, firstName, middleName, birthDate);
+                        var isDuplicateInDatabase = exactDupKeys.Contains(exactKey);
 
                         if (isDuplicateInDatabase)
                         {
@@ -2863,23 +2950,20 @@ namespace EcaInformationSystem.Application.Services
                         continue;
 
                     // ── Build entity ──────────────────────────────────────────────
-                    // Use col 24 (Date of Application) as the primary DateApplied;
-                    // fall back to col 1 (Date Applied) if col 24 is empty.
                     var effectiveDateApplied = parsedDateAppliedFromCol23 ?? parsedDateApplied;
 
-                    beneficiariesToImport.Add(new BeneficiaryInformation
+                    var beneficiary = new BeneficiaryInformation
                     {
                         Id = Guid.NewGuid(),
                         Quarter = quarter,        // ✅
                         Batch = batch?.Trim(),   // ✅
                         RefYear = refYear,        // ✅
-                                                  // ✅ Only generate RefCode if all three ref number fields are provided
                         RefCode = (quarter.HasValue &&
                              !string.IsNullOrWhiteSpace(batch) &&
                              refYear.HasValue)
                              ? RegionRomanNumeralHelper.GenerateRefCode()
                             : null,
-                        DateApplied = effectiveDateApplied, //This is our column 23 
+                        DateApplied = effectiveDateApplied,
                         DateEndorsed = parsedDateEndorsed,
                         BatchCode = NullIfEmpty(batchCode),
                         OscaIdNumber = NullIfEmpty(oscaIdNumber),
@@ -2895,7 +2979,7 @@ namespace EcaInformationSystem.Application.Services
                         IsIndigenousPeople = mappedIsIndigenousPeople,
                         IsPersonWithDisability = mappedIsPersonWithDisability,
                         CivilStatus = null,
-                        Citizenship = mappedCitizenship,  // ✅ mapped from col 17
+                        Citizenship = mappedCitizenship,
                         Region = region!.PsgcCodeRegion,
                         Province = province!.PsgcCodeProvince,
                         Municipality = municipality!.PsgcCodeMunicipality,
@@ -2905,9 +2989,6 @@ namespace EcaInformationSystem.Application.Services
                                                     ? CommonConstants.None
                                                     : validator.Trim(),
                         ValidationDate = ParseNullableDate(validationDateRaw) ?? DateTime.Today,
-                        PaymentStatus = mappedPaymentStatus ?? 3,   // set default to 3 (pending) if emtpy.
-                        ModeOfPayment = 0,
-                        PaymentDate = null,
                         DateOfDeath = parsedDateofDeath,
                         IsDeceased = parsedDateofDeath.HasValue,
                         IsEligible = mappedEligibility!.Value,
@@ -2916,7 +2997,31 @@ namespace EcaInformationSystem.Application.Services
                         Remarks = null,
                         DateAdded = DateTime.UtcNow,
                         IsDeleted = false
-                    });
+                    };
+
+                    var importedPaymentHistory = new BeneficiaryPaymentHistory
+                    {
+                        Id = Guid.NewGuid(),
+                        BeneficiaryInformationId = beneficiary.Id,
+                        PayrollQuarter = null,
+                        FiscalYear = null,
+                        PaymentStatus = mappedPaymentStatus ?? 3,
+                        ModeOfPayment = 0,
+                        PaymentDate = null,
+                        Remarks = "Set from Excel import.",
+                        DateCreated = DateTime.UtcNow,
+                        CreatedBy = userName
+                    };
+
+                    beneficiary.CurrentPaymentHistoryId = importedPaymentHistory.Id;
+                    beneficiary.PayrollQuarter = importedPaymentHistory.PayrollQuarter;
+                    beneficiary.FiscalYear = importedPaymentHistory.FiscalYear;
+                    beneficiary.PaymentStatus = importedPaymentHistory.PaymentStatus;
+                    beneficiary.ModeOfPayment = importedPaymentHistory.ModeOfPayment;
+                    beneficiary.PaymentDate = importedPaymentHistory.PaymentDate;
+
+                    beneficiariesToImport.Add(beneficiary);
+                    importedPaymentHistoryEntries.Add(importedPaymentHistory);
                 }
                 catch (Exception ex)
                 {
@@ -2949,11 +3054,14 @@ namespace EcaInformationSystem.Application.Services
                     userName);
             }
 
+            foreach (var historyEntry in importedPaymentHistoryEntries)
+            {
+                await _repo.AddPaymentHistoryEntryAsync(historyEntry);
+            }
+
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
-            // After saving
             result.ImportedCount = beneficiariesToImport.Count;
-            // ✅ Return IDs so frontend can call bulk-assign-refnumber after modal
             result.ImportedIds = beneficiariesToImport.Select(x => x.Id).ToList();
             return result;
         }
@@ -3538,7 +3646,6 @@ namespace EcaInformationSystem.Application.Services
             // ══════════════════════════════════════════════════════════════════
             int R = 19;
 
-            // ── DV Cash Advance row (page 1 only) ────────────────────────────
             if (isFirstPage)
             {
                 ws.Row(R).Height = 105.75;
@@ -3556,7 +3663,8 @@ namespace EcaInformationSystem.Application.Services
                 S(ws.Cell(R, 3), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Left, XLAlignmentVerticalValues.Top, true);
 
-                ws.Cell(R, 4).Value = CommonConstants.ConstantUacs;
+                // ✅ CHANGED — UACS Object Code intentionally left blank on the DV row.
+                // The constant only applies starting from the actual CDR grantee rows below.
                 S(ws.Cell(R, 4), FS_SM, false, false,
                   XLAlignmentHorizontalValues.Center, XLAlignmentVerticalValues.Top);
 
@@ -3895,6 +4003,18 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
+        // ✅ Single source of truth for the "exact duplicate" key, used by both
+        // PreviewImportAsync and ConfirmImportAsync against the in-memory pool.
+        // Must match the normalization ExistsDuplicateAsync uses in the repository
+        // (trim + lowercase + date-only) so behavior stays identical to before.
+        private static string BuildExactDupKey(string? lastName, string? firstName, string? middleName, DateTime birthDate)
+        {
+            return string.Join("|",
+                (lastName ?? string.Empty).Trim().ToLower(),
+                (firstName ?? string.Empty).Trim().ToLower(),
+                (middleName ?? string.Empty).Trim().ToLower(),
+                birthDate.Date.ToString("yyyy-MM-dd"));
+        }
         private static string GetComplianceExportLabel(bool isCompliant, string? assessmentRemarks) =>
         isCompliant && !string.IsNullOrWhiteSpace(assessmentRemarks)
         ? "Yes (w/ Minor Findings)"

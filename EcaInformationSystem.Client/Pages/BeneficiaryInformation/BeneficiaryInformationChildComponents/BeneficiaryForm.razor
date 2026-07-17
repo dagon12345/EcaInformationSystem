@@ -380,100 +380,13 @@
         </div>
     </div>
 
-    @* ── Payment ── *@
+    @* ── Remarks ── *@
     <div class="form-section mb-3">
         <div class="form-section-header">
-            <i class="bi bi-cash-coin me-2"></i>Payment Information &amp; Remarks
+            <i class="bi bi-chat-left-text me-2"></i>Remarks
         </div>
         <div class="form-section-body">
             <div class="form-grid">
-                <div class="ff">
-                    <label class="ff-label">Payment Status</label>
-                    <select class="ff-input" value="@model.PaymentStatus" @onchange="OnPaymentStatusChangeRequested">
-                        <option value="0">N/A</option>
-                        <option value="1">Unpaid</option>
-                        <option value="2">Paid</option>
-                        <option value="3">Pending</option>
-                    </select>
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">
-                        Payroll Quarter
-                        @if (model.PaymentStatus == 2)
-                        {
-                            <span class="req">*</span>
-                        }
-                    </label>
-                    <select class="ff-input" @bind="model.PayrollQuarter">
-                        <option value="">-- Select Quarter --</option>
-                        <option value="1">Q1 (Jan–Mar)</option>
-                        <option value="2">Q2 (Apr–Jun)</option>
-                        <option value="3">Q3 (Jul–Sep)</option>
-                        <option value="4">Q4 (Oct–Dec)</option>
-                    </select>
-                    @if (model.PaymentStatus == 2 && !model.PayrollQuarter.HasValue)
-                    {
-                        <div class="ff-err">Required when status is Paid.</div>
-                    }
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">
-                        Fiscal Year
-                        @if (model.PaymentStatus == 2)
-                        {
-                            <span class="req">*</span>
-                        }
-                    </label>
-                    <select class="ff-input" @bind="model.FiscalYear">
-                        <option value="">-- Select --</option>
-                        @foreach (var year in _availableMilestoneYears)
-                        {
-                            <option value="@year">@year</option>
-                        }
-                    </select>
-                    @if (model.PaymentStatus == 2 && !model.FiscalYear.HasValue)
-                    {
-                        <div class="ff-err">Required when status is Paid.</div>
-                    }
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">
-                        Mode of Payment
-                        @if (model.PaymentStatus == 2)
-                        {
-                            <span class="req">*</span>
-                        }
-                    </label>
-                    <InputSelect class="ff-input" @bind-Value="model.ModeOfPayment" disabled="@(model.PaymentStatus != 2)">
-                        <option value="0">Select Mode</option>
-                        <option value="1">Cash Advance by SDO</option>
-                        <option value="2">Bank Transfer</option>
-                    </InputSelect>
-                    @if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
-                    {
-                        <div class="ff-err">Required when status is Paid.</div>
-                    }
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">
-                        Payment Date
-                        @if (model.PaymentStatus == 2)
-                        {
-                            <span class="req">*</span>
-                        }
-                    </label>
-                    <UniformDateInput Value="@model.PaymentDate" ValueChanged="@OnPaymentDateChanged"
-                                      Disabled="@(model.PaymentStatus != 2)" />
-                    @if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
-                    {
-                        <div class="ff-err">Payment Date is required when status is Paid.</div>
-                    }
-                </div>
-
                 <div class="ff">
                     <label class="ff-label">Remark Category</label>
                     <InputSelect class="ff-input" @bind-Value="model.RemarkCategory">
@@ -794,8 +707,9 @@
             </div>
             <div class="col-6">
                 <label class="form-label small">Payment Date</label>
+                <!-- ✅ Enable for both Paid AND Unpaid -->
                 <input type="date" class="form-control form-control-sm" @bind="_newPayment.PaymentDate"
-                       disabled="@(_newPayment.PaymentStatus != 2)" />
+                       disabled="@(_newPayment.PaymentStatus != 2 && _newPayment.PaymentStatus != 1)" />
             </div>
             <div class="col-12">
                 <label class="form-label small">Remarks</label>
@@ -810,11 +724,19 @@
                 Payroll Quarter and Fiscal Year are required for Paid status.
             </div>
         }
+        @if (_newPayment.PaymentStatus == 1 &&
+             (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Unpaid status.
+            </div>
+        }
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => addPaymentHistoryModal.HideAsync()">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="OpenAddPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
-            Add Record
+            @(_isSavingPaymentHistory ? "Saving..." : "Add Record")
         </HxButton>
     </FooterTemplate>
 </HxModal>
@@ -868,19 +790,37 @@
             </div>
             <div class="col-6">
                 <label class="form-label small">Payment Date</label>
+                <!-- ✅ FIXED: Using _editPayment instead of _newPayment, enabled for both Paid AND Unpaid -->
                 <input type="date" class="form-control form-control-sm" @bind="_editPayment.PaymentDate"
-                       disabled="@(_editPayment.PaymentStatus != 2)" />
+                       disabled="@(_editPayment.PaymentStatus != 2 && _editPayment.PaymentStatus != 1)" />
             </div>
             <div class="col-12">
                 <label class="form-label small">Remarks</label>
                 <textarea class="form-control form-control-sm" rows="2" @bind="_editPayment.Remarks"></textarea>
             </div>
         </div>
+        <!-- ✅ Add warning alerts for missing required fields -->
+        @if (_editPayment.PaymentStatus == 2 &&
+             (_editPayment.PayrollQuarter == null || _editPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Paid status.
+            </div>
+        }
+        @if (_editPayment.PaymentStatus == 1 &&
+             (_editPayment.PayrollQuarter == null || _editPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Unpaid status.
+            </div>
+        }
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => editPaymentHistoryModal.HideAsync()">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="OpenEditPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
-            Save Correction
+            @(_isSavingPaymentHistory ? "Saving..." : "Save Correction")
         </HxButton>
     </FooterTemplate>
 </HxModal>
@@ -895,35 +835,6 @@
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="CloseConfirmationModal">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="ConfirmActionAsync" Disabled="@IsLoading">Confirm</HxButton>
-    </FooterTemplate>
-</HxModal>
-
-<HxModal @ref="_paymentConfirmModal">
-    <HeaderTemplate>
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
-            <h5 class="mb-0">Change Payment Status?</h5>
-        </div>
-    </HeaderTemplate>
-    <BodyTemplate>
-        <p class="mb-1">
-            You are changing the payment status from
-            <strong>@PaymentStatusLabel(_originalPaymentStatus)</strong>
-            to
-            <strong class="text-primary">@PaymentStatusLabel(_pendingPaymentStatus)</strong>.
-        </p>
-        <p class="text-muted small mb-0">
-            This change will only be saved when you click
-            <strong>Update Record</strong>.
-        </p>
-    </BodyTemplate>
-    <FooterTemplate>
-        <HxButton Color="ThemeColor.Secondary" @onclick="CancelPaymentStatusChangeAsync">
-            Cancel
-        </HxButton>
-        <HxButton Color="ThemeColor.Warning" @onclick="ConfirmPaymentStatusChangeAsync">
-            <i class="bi bi-check-lg me-1"></i>Yes, Change It
-        </HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -1044,11 +955,6 @@
     private int findingStatusInput = 0;
     private string? findingRemarksInput;
     private bool isLoadingFinding;
-
-    private int _originalPaymentStatus = 0;
-    private int _pendingPaymentStatus = 0;
-    private HxModal _paymentConfirmModal = default!;
-
     //Soft duplicate state
     private List<SoftDuplicateCandidateDto> _softDuplicates = new();
     private bool _showSoftDuplicateModal = false;
@@ -1097,17 +1003,73 @@
 
     private async Task OpenAddPaymentHistoryModal()
     {
-        _newPayment = new AddPaymentHistoryDto();
+        // ✅ Reset both objects to prevent cross-contamination
+        _editPayment = new EditPaymentHistoryRequestDto();
+        _newPayment = new AddPaymentHistoryDto
+        {
+            PaymentStatus = 0, // Default to N/A
+            ModeOfPayment = 0,
+            PayrollQuarter = null,
+            FiscalYear = null,
+            PaymentDate = null,
+            Remarks = null
+        };
         await addPaymentHistoryModal.ShowAsync();
+    }
+
+    private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
+    {
+        // ✅ Reset both objects to prevent cross-contamination
+        _newPayment = new AddPaymentHistoryDto();
+        _editPayment = new EditPaymentHistoryRequestDto
+        {
+            HistoryId = entry.Id,
+            BeneficiaryId = model.Id,
+            PayrollQuarter = entry.PayrollQuarter,
+            FiscalYear = entry.FiscalYear,
+            PaymentStatus = entry.PaymentStatus,
+            ModeOfPayment = entry.ModeOfPayment,
+            PaymentDate = entry.PaymentDate,
+            Remarks = entry.Remarks
+        };
+        await editPaymentHistoryModal.ShowAsync();
     }
     private async Task OpenAddPaymentConfirmation()
     {
-        if (_newPayment.PaymentStatus == 2 && !_newPayment.PaymentDate.HasValue)
-        { toast.ShowError("Payment Date is required when status is Paid."); return; }
-        if (_newPayment.PaymentStatus == 2 && !_newPayment.ModeOfPayment.HasValue)
-        { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
-        if (_newPayment.PaymentStatus == 2 && (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
-        { toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid."); return; }
+        // ✅ Validate Paid status requirements
+        if (_newPayment.PaymentStatus == 2)
+        {
+            if (!_newPayment.PaymentDate.HasValue)
+            {
+                toast.ShowError("Payment Date is required when status is Paid.");
+                return;
+            }
+            if (!_newPayment.ModeOfPayment.HasValue || _newPayment.ModeOfPayment == 0)
+            {
+                toast.ShowError("Mode of Payment is required when status is Paid.");
+                return;
+            }
+            if (!_newPayment.PayrollQuarter.HasValue || !_newPayment.FiscalYear.HasValue)
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+                return;
+            }
+        }
+
+        // ✅ Validate Unpaid status requirements
+        if (_newPayment.PaymentStatus == 1)
+        {
+            if (!_newPayment.PaymentDate.HasValue)
+            {
+                toast.ShowError("Unpaid Date is required when status is Unpaid.");
+                return;
+            }
+            if (!_newPayment.PayrollQuarter.HasValue || !_newPayment.FiscalYear.HasValue)
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Unpaid.");
+                return;
+            }
+        }
 
         pendingAction = "add-payment-history";
         confirmationTitle = "Confirm New Payment Record";
@@ -1155,27 +1117,42 @@
         }
         finally { _isSavingPaymentHistory = false; }
     }
-
-    private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
-    {
-        _editPayment = new EditPaymentHistoryRequestDto
-        {
-            HistoryId = entry.Id,
-            BeneficiaryId = model.Id,
-            PayrollQuarter = entry.PayrollQuarter,
-            FiscalYear = entry.FiscalYear,
-            PaymentStatus = entry.PaymentStatus,
-            ModeOfPayment = entry.ModeOfPayment,
-            PaymentDate = entry.PaymentDate,
-            Remarks = entry.Remarks
-        };
-        await editPaymentHistoryModal.ShowAsync();
-    }
-
     private async Task OpenEditPaymentConfirmation()
     {
-        if (_editPayment.PaymentStatus == 2 && !_editPayment.PaymentDate.HasValue)
-        { toast.ShowError("Payment Date is required when status is Paid."); return; }
+        // ✅ Validate Paid status requirements
+        if (_editPayment.PaymentStatus == 2)
+        {
+            if (!_editPayment.PaymentDate.HasValue)
+            {
+                toast.ShowError("Payment Date is required when status is Paid.");
+                return;
+            }
+            if (!_editPayment.ModeOfPayment.HasValue || _editPayment.ModeOfPayment == 0)
+            {
+                toast.ShowError("Mode of Payment is required when status is Paid.");
+                return;
+            }
+            if (!_editPayment.PayrollQuarter.HasValue || !_editPayment.FiscalYear.HasValue)
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+                return;
+            }
+        }
+
+        // ✅ Validate Unpaid status requirements
+        if (_editPayment.PaymentStatus == 1)
+        {
+            if (!_editPayment.PaymentDate.HasValue)
+            {
+                toast.ShowError("Unpaid Date is required when status is Unpaid.");
+                return;
+            }
+            if (!_editPayment.PayrollQuarter.HasValue || !_editPayment.FiscalYear.HasValue)
+            {
+                toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Unpaid.");
+                return;
+            }
+        }
 
         pendingAction = "edit-payment-history";
         confirmationTitle = "Confirm Payment Correction";
@@ -1275,12 +1252,6 @@
     {
         model.ValidationDate = value ?? DateTime.MinValue;
         ApplyEligibilityRules();
-    }
-
-    private void OnPaymentDateChanged(DateTime? value)
-    {
-        model.PaymentDate = value;
-        StateHasChanged();
     }
 
     private void OnDateOfDeathChanged(DateTime? value)
@@ -1422,7 +1393,6 @@
             _isLoadingRecord = true;
             model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{id}") ?? model;
             model.BirthDate = model.BirthDate.Date;
-            _originalPaymentStatus = model.PaymentStatus;
 
             // Pre-populate cascade dropdowns from the loaded record's PSGC codes
             if (model.PsgcCodeRegion > 0)
@@ -1453,61 +1423,6 @@
         _formProvinces = new();
         _formMunicipalities = new();
         _formBarangays = new();
-        _originalPaymentStatus = 0; // new record starts at N/A
-    }
-
-    private async Task OnPaymentStatusChangeRequested(ChangeEventArgs e)
-    {
-        if (!int.TryParse(e.Value?.ToString(), out var newStatus))
-            return;
-
-        // Clear payment date when switching away from Paid — Payroll Quarter
-        // is independent now and is left untouched regardless of status.
-        if (newStatus != 2)
-        {
-            model.PaymentDate = null;
-        }
-        model.ModeOfPayment = 0;
-
-        // Update model.PaymentStatus immediately so the UI reacts
-        model.PaymentStatus = newStatus;
-        StateHasChanged();
-
-        // No confirmation needed if value didn't change from original or create mode
-        if (!IsEditMode || newStatus == _originalPaymentStatus)
-            return;
-
-        // Store pending and open confirmation modal
-        _pendingPaymentStatus = newStatus;
-        await _paymentConfirmModal.ShowAsync();
-    }
-    private async Task ConfirmPaymentStatusChangeAsync()
-    {
-        //Double-check in case PaymentDate was somehow cleared between steps
-        if (_pendingPaymentStatus == 2 && !model.PaymentDate.HasValue)
-        {
-            toast.ShowError("Payment Date is required for Paid Status.");
-            await _paymentConfirmModal.HideAsync();
-            return;
-        }
-        model.PaymentStatus = _pendingPaymentStatus;
-        _originalPaymentStatus = _pendingPaymentStatus; // update baseline
-        await _paymentConfirmModal.HideAsync();
-        StateHasChanged();
-    }
-
-    private async Task CancelPaymentStatusChangeAsync()
-    {
-        model.PaymentStatus = _originalPaymentStatus;
-        if (_originalPaymentStatus != 2)
-        {
-            model.PaymentDate = null;
-        }
-        model.ModeOfPayment = 0;
-
-        _pendingPaymentStatus = 0;
-        await _paymentConfirmModal.HideAsync();
-        StateHasChanged();
     }
     private string PaymentStatusLabel(int status) => status switch
     {
@@ -1658,27 +1573,6 @@
                 return;
             }
 
-            // ✅ Payment guards — single copy each, no duplicates
-            if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
-            {
-                toast.ShowError("Payment Date is required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus == 2 && (!model.PayrollQuarter.HasValue || !model.FiscalYear.HasValue))
-            {
-                toast.ShowError("Payroll Quarter and Fiscal Year are required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
-            {
-                toast.ShowError("Mode of Payment is required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus != 2)
-            {
-                model.PaymentDate = null;
-            }
-
             // ── Validate finding before sending anything ──────────────────────
             if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
             {
@@ -1750,25 +1644,6 @@
                 toast.ShowError("CO Date Approved is required when CO Status is Approved.");
                 return;
             }
-            if (model.PaymentStatus == 2 && !model.PaymentDate.HasValue)
-            {
-                toast.ShowError("Payment Date is required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus == 2 && (!model.PayrollQuarter.HasValue || !model.FiscalYear.HasValue))
-            {
-                toast.ShowError("Payroll Quarter and Fiscal Year are required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus == 2 && model.ModeOfPayment == 0)
-            {
-                toast.ShowError("Mode of Payment is required when Payment Status is Paid.");
-                return;
-            }
-            if (model.PaymentStatus != 2)
-            {
-                model.PaymentDate = null;
-            }
 
             if (!HasRefNumber &&
                 (model.Quarter != null || !string.IsNullOrWhiteSpace(model.Batch) || model.RefYear != null))
@@ -1817,11 +1692,6 @@
                 IsCompliant = model.IsCompliant,
                 Validator = model.Validator,
                 ValidationDate = model.ValidationDate,
-                PayrollQuarter = model.PayrollQuarter,
-                FiscalYear = model.FiscalYear,   // ✅ new
-                PaymentStatus = model.PaymentStatus,
-                ModeOfPayment = model.ModeOfPayment,
-                PaymentDate = model.PaymentDate,
                 IsDeceased = model.IsDeceased,
                 AssessmentRemarks = model.AssessmentRemarks,
                 EligibilityRemarks = model.EligibilityRemarks,
@@ -1870,7 +1740,7 @@
             // ── Success ───────────────────────────────────────────────────────
             if (response.IsSuccessStatusCode)
             {
-                toast.ShowSuccess("Grantee has been registered successfully.");
+                toast.ShowSuccess("Grantee has been registered successfully — payment status set to Pending.");
                 _softDuplicates.Clear();
                 _pendingDto = null;
                 _showSoftDuplicateModal = false;

@@ -163,12 +163,12 @@
         <option value="2">Paid</option>
         <option value="3">Pending</option>
     </select>
-    <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarterOnly" disabled="@(bulkPaymentStatus != 2)">
+    <select class="form-select form-select-sm w-auto" @bind="bulkPayrollQuarterOnly" disabled="@(bulkPaymentStatus != 2 && bulkPaymentStatus != 1)">
         <option value="">-- Quarter --</option>
         <option value="1">Q1</option><option value="2">Q2</option>
         <option value="3">Q3</option><option value="4">Q4</option>
     </select>
-    <select class="form-select form-select-sm w-auto" @bind="_bulkFiscalYear" disabled="@(bulkPaymentStatus != 2)">
+    <select class="form-select form-select-sm w-auto" @bind="_bulkFiscalYear" disabled="@(bulkPaymentStatus != 2 && bulkPaymentStatus != 1)">
         <option value="">-- Fiscal Year --</option>
         @foreach (var year in _availableMilestoneYears)
         {
@@ -180,8 +180,10 @@
         <option value="1">Cash Advance by SDO</option>
         <option value="2">Bank Transfer</option>
     </select>
-    <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
-               @bind-Value="bulkPaymentDate" disabled="@(bulkPaymentStatus != 2)" />
+@* AFTER — enabled for Paid (2) AND Unpaid (1) *@
+<InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
+           @bind-Value="bulkPaymentDate"
+           disabled="@(bulkPaymentStatus != 2 && bulkPaymentStatus != 1)" />
    <button class="btn btn-sm btn-primary" @onclick="OpenBulkPaymentHistoryModal"
         disabled="@(!checkedIds.Any() || bulkPaymentStatus == null || IsBulkUpdating)">
     Record Payment
@@ -901,40 +903,6 @@
     </FooterTemplate>
 </HxModal>
 
-<HxModal @ref="bulkUpdateModal">
-    <HeaderTemplate>
-        <h5 class="modal-title">Confirm Bulk Update</h5>
-    </HeaderTemplate>
-    <BodyTemplate>
-        <p>
-            You are about to set <strong>@checkedIds.Count</strong> record(s) to
-            <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong>.
-        </p>
-        @if (bulkPaymentStatus == 2)
-        {
-            <ul class="mb-0">
-                <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
-                <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
-            </ul>
-        }
-        <p class="mt-2 mb-0 text-muted small">This action cannot be undone easily. Proceed?</p>
-    </BodyTemplate>
-    <FooterTemplate>
-        <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkUpdateModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteBulkUpdateAsync" Disabled="@IsBulkUpdating">
-            @if (IsBulkUpdating)
-            {
-                <span>Updating...</span>
-            }
-            else
-            {
-
-                <span>Yes, Update</span>
-            }
-        </HxButton>
-    </FooterTemplate>
-</HxModal>
-
 <HxModal @ref="bulkOtherUpdateModal">
     <HeaderTemplate>
         <h5 class="modal-title">Confirm Bulk Update</h5>
@@ -1323,7 +1291,7 @@ else
                         @if (entry.PaymentDate.HasValue)
                         {
                             <div class="col-6">
-                                <span class="text-muted">Paid:</span>
+                                <span class="text-muted">@GetPaymentDateLabel(entry.PaymentStatus)</span>
                                 @entry.PaymentDate.Value.ToString("MMM dd, yyyy")
                             </div>
                         }
@@ -1568,8 +1536,9 @@ else
             </div>
             <div class="col-6">
                 <label class="form-label small">Payment Date</label>
+                <!-- ✅ Enable for both Paid AND Unpaid -->
                 <input type="date" class="form-control form-control-sm" @bind="_newPayment.PaymentDate"
-                       disabled="@(_newPayment.PaymentStatus != 2)" />
+                       disabled="@(_newPayment.PaymentStatus != 2 && _newPayment.PaymentStatus != 1)" />
             </div>
             <div class="col-12">
                 <label class="form-label small">Remarks</label>
@@ -1584,13 +1553,21 @@ else
                 Payroll Quarter and Fiscal Year are required for Paid status.
             </div>
         }
+        @if (_newPayment.PaymentStatus == 1 &&
+             (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Unpaid status.
+            </div>
+        }
     </BodyTemplate>
-<FooterTemplate>
-    <HxButton Color="ThemeColor.Secondary" @onclick="() => addPaymentHistoryModal.HideAsync()">Cancel</HxButton>
-    <HxButton Color="ThemeColor.Primary" @onclick="OpenAddPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
-        @(_isSavingPaymentHistory ? "Saving..." : "Add Record")
-    </HxButton>
-</FooterTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => addPaymentHistoryModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="OpenAddPaymentConfirmation" Disabled="@_isSavingPaymentHistory">
+            @(_isSavingPaymentHistory ? "Saving..." : "Add Record")
+        </HxButton>
+    </FooterTemplate>
 </HxModal>
 
 <HxModal @ref="editPaymentHistoryModal">
@@ -1642,14 +1619,31 @@ else
             </div>
             <div class="col-6">
                 <label class="form-label small">Payment Date</label>
+                <!-- ✅ Enable for both Paid AND Unpaid -->
                 <input type="date" class="form-control form-control-sm" @bind="_editPayment.PaymentDate"
-                       disabled="@(_editPayment.PaymentStatus != 2)" />
+                       disabled="@(_editPayment.PaymentStatus != 2 && _editPayment.PaymentStatus != 1)" />
             </div>
             <div class="col-12">
                 <label class="form-label small">Remarks</label>
                 <textarea class="form-control form-control-sm" rows="2" @bind="_editPayment.Remarks"></textarea>
             </div>
         </div>
+        @if (_editPayment.PaymentStatus == 2 &&
+             (_editPayment.PayrollQuarter == null || _editPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Paid status.
+            </div>
+        }
+        @if (_editPayment.PaymentStatus == 1 &&
+             (_editPayment.PayrollQuarter == null || _editPayment.FiscalYear == null))
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Payroll Quarter and Fiscal Year are required for Unpaid status.
+            </div>
+        }
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => editPaymentHistoryModal.HideAsync()">Cancel</HxButton>
@@ -2311,12 +2305,19 @@ else
             <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong> payment entry
             for <strong>@checkedIds.Count</strong> beneficiary record(s).
         </p>
+        @* AFTER *@
         @if (bulkPaymentStatus == 2)
         {
             <ul class="mb-0">
                 <li>Period: <strong>Q@(bulkPayrollQuarterOnly) @(_bulkFiscalYear)</strong></li>
                 <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
                 <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
+            </ul>
+        }
+        else if (bulkPaymentStatus == 1)
+        {
+            <ul class="mb-0">
+                <li>Unpaid Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
             </ul>
         }
         <p class="mt-2 mb-0 text-muted small">
@@ -2368,7 +2369,6 @@ else
     private CancellationTokenSource? _nameCts;
     private BeneficiaryInformationDto? selectedDetails;
     private HxOffcanvas detailsOffcanvas = default!;
-    private HxModal bulkUpdateModal = default!;
     private HxModal logModal = default!;
     private HxModal confirmModal = default!;
     private string selectedBeneficiaryName = string.Empty;
@@ -2465,6 +2465,8 @@ private async Task OpenBulkPaymentHistoryModal()
     if (bulkPaymentStatus == null || !checkedIds.Any()) return;
     if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
     { toast.ShowError("Payment Date is required when status is Paid."); return; }
+    if (bulkPaymentStatus == 1 && bulkPaymentDate == null)
+    { toast.ShowError("Unpaid Date is required when status is Unpaid."); return; }
     if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
     { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
     if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
@@ -2511,53 +2513,60 @@ private async Task DeletePaymentHistoryEntryAsync()
 
     _pendingDeletePaymentHistory = null;
 }
-    private async Task ExecuteBulkAddPaymentHistoryAsync()
-    {
-        if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-        {
-            toast.ShowError("Payment Date is required when status is Paid.");
-            return;
-        }
-        if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
-        {
-            toast.ShowError("Mode of Payment is required when status is Paid.");
-            return;
-        }
-        if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
-        {
-            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
-            return;
-        }
-
-        try
-        {
-            IsBulkUpdating = true;
-            var request = new BulkAddPaymentHistoryRequestDto
-            {
-                Ids = checkedIds.ToList(),
-                PayrollQuarter = bulkPayrollQuarterOnly,
-                FiscalYear = _bulkFiscalYear,
-                PaymentStatus = bulkPaymentStatus!.Value,
-                ModeOfPayment = bulkModeOfPayment,
-                PaymentDate = bulkPaymentDate
-            };
-            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
-
-            await HandleApiResponseAsync(response,
-                $"Recorded payment for {checkedIds.Count} record(s).",
-                async () =>
-                {
-                    ClearSelection();
-                    StateHasChanged();  
-                    State.Invalidate();
-                    await State.LoadAsync();
-                });
-        }
-        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
-        finally { IsBulkUpdating = false; }
+private async Task ExecuteBulkAddPaymentHistoryAsync()
+{
+    if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
+    { 
+         toast.ShowError("Payment Date is required when status is Paid."); return;
     }
+    if (bulkPaymentStatus == 1 && bulkPaymentDate == null)
+    { 
+         toast.ShowError("Unpaid Date is required when status is Unpaid."); return;
+    }
+    if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
+    {
+        toast.ShowError("Mode of Payment is required when status is Paid.");
+        return;
+    }
+    // ✅ CHANGED: Allow quarter/fiscal year for both Paid AND Unpaid
+    if ((bulkPaymentStatus == 2 || bulkPaymentStatus == 1) && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
+    {
+        toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid or Unpaid.");
+        return;
+    }
+
+    try
+    {
+        IsBulkUpdating = true;
+        var request = new BulkAddPaymentHistoryRequestDto
+        {
+            Ids = checkedIds.ToList(),
+            PayrollQuarter = bulkPayrollQuarterOnly,
+            FiscalYear = _bulkFiscalYear,
+            PaymentStatus = bulkPaymentStatus!.Value,
+            ModeOfPayment = bulkModeOfPayment,
+            PaymentDate = bulkPaymentDate
+        };
+        var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+
+        await HandleApiResponseAsync(response,
+            $"Recorded payment for {checkedIds.Count} record(s).",
+            async () =>
+            {
+                ClearSelection();
+                StateHasChanged();  
+                State.Invalidate();
+                await State.LoadAsync();
+            });
+    }
+    catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+    finally { IsBulkUpdating = false; }
+}
+
 private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
 {
+    // ✅ Reset both objects to prevent cross-contamination
+    _newPayment = new AddPaymentHistoryDto();
     _editPayment = new EditPaymentHistoryRequestDto
     {
         HistoryId = entry.Id,
@@ -2569,15 +2578,46 @@ private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
         PaymentDate = entry.PaymentDate,
         Remarks = entry.Remarks
     };
+    
+    await JS.InvokeVoidAsync("eval", "document.activeElement && document.activeElement.blur()");
     await editPaymentHistoryModal.ShowAsync();
 }
 
 private async Task OpenEditPaymentConfirmation()
 {
-    if (_editPayment.PaymentStatus == 2 && !_editPayment.PaymentDate.HasValue)
+    // ✅ Validate Paid status requirements
+    if (_editPayment.PaymentStatus == 2)
     {
-        toast.ShowError("Payment Date is required when status is Paid.");
-        return;
+        if (!_editPayment.PaymentDate.HasValue)
+        {
+            toast.ShowError("Payment Date is required when status is Paid.");
+            return;
+        }
+        if (!_editPayment.ModeOfPayment.HasValue || _editPayment.ModeOfPayment == 0)
+        {
+            toast.ShowError("Mode of Payment is required when status is Paid.");
+            return;
+        }
+        if (!_editPayment.PayrollQuarter.HasValue || !_editPayment.FiscalYear.HasValue)
+        {
+            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+            return;
+        }
+    }
+    
+    // ✅ Validate Unpaid status requirements
+    if (_editPayment.PaymentStatus == 1)
+    {
+        if (!_editPayment.PaymentDate.HasValue)
+        {
+            toast.ShowError("Unpaid Date is required when status is Unpaid.");
+            return;
+        }
+        if (!_editPayment.PayrollQuarter.HasValue || !_editPayment.FiscalYear.HasValue)
+        {
+            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Unpaid.");
+            return;
+        }
     }
 
     pendingAction = "edit-payment-history";
@@ -2623,28 +2663,60 @@ private async Task SubmitEditPaymentHistoryAsync()
 }
 private async Task OpenAddPaymentHistoryModal(Guid beneficiaryId)
 {
+    // ✅ Reset both objects to prevent cross-contamination
+    _editPayment = new EditPaymentHistoryRequestDto();
+    _newPayment = new AddPaymentHistoryDto
+    {
+        PaymentStatus = 0, // Default to N/A
+        ModeOfPayment = 0,
+        PayrollQuarter = null,
+        FiscalYear = null,
+        PaymentDate = null,
+        Remarks = null
+    };
+    
+    await JS.InvokeVoidAsync("eval", "document.activeElement && document.activeElement.blur()");
+
     _newPaymentBeneficiaryId = beneficiaryId;
-    _newPayment = new AddPaymentHistoryDto();
     await addPaymentHistoryModal.ShowAsync();
 }
 
+
 private async Task OpenAddPaymentConfirmation()
 {
-    if (_newPayment.PaymentStatus == 2 && !_newPayment.PaymentDate.HasValue)
+    // ✅ Validate Paid status requirements
+    if (_newPayment.PaymentStatus == 2)
     {
-        toast.ShowError("Payment Date is required when status is Paid.");
-        return;
+        if (!_newPayment.PaymentDate.HasValue)
+        {
+            toast.ShowError("Payment Date is required when status is Paid.");
+            return;
+        }
+        if (!_newPayment.ModeOfPayment.HasValue || _newPayment.ModeOfPayment == 0)
+        {
+            toast.ShowError("Mode of Payment is required when status is Paid.");
+            return;
+        }
+        if (!_newPayment.PayrollQuarter.HasValue || !_newPayment.FiscalYear.HasValue)
+        {
+            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
+            return;
+        }
     }
-    if (_newPayment.PaymentStatus == 2 && !_newPayment.ModeOfPayment.HasValue)
+    
+    // ✅ Validate Unpaid status requirements
+    if (_newPayment.PaymentStatus == 1)
     {
-        toast.ShowError("Mode of Payment is required when status is Paid.");
-        return;
-    }
-    if (_newPayment.PaymentStatus == 2 &&
-        (_newPayment.PayrollQuarter == null || _newPayment.FiscalYear == null))
-    {
-        toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Paid.");
-        return;
+        if (!_newPayment.PaymentDate.HasValue)
+        {
+            toast.ShowError("Unpaid Date is required when status is Unpaid.");
+            return;
+        }
+        if (!_newPayment.PayrollQuarter.HasValue || !_newPayment.FiscalYear.HasValue)
+        {
+            toast.ShowError("Payroll Quarter and Fiscal Year are required when status is Unpaid.");
+            return;
+        }
     }
 
     pendingAction = "add-payment-history";
@@ -3423,15 +3495,6 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         }
         catch (TaskCanceledException) { }
     }
-
-    private async Task OpenBulkUpdateModal()
-    {
-        if (bulkPaymentStatus == null || !checkedIds.Any()) return;
-        if (bulkPaymentStatus == 2 && bulkPaymentDate == null) return;
-        if (bulkPaymentStatus == 2 && bulkModeOfPayment == null) return;
-        await bulkUpdateModal.ShowAsync();
-    }
-
     private void ToggleSelectAll(ChangeEventArgs e)
     {
         if ((bool)e.Value!)
@@ -3451,36 +3514,6 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         _clearingQuarterFiscalYear = false;
     }
     private void GoToDashboardSummary() => Navigation.NavigateTo("/");
-
-    private async Task ExecuteBulkUpdateAsync()
-    {
-        try
-        {
-            IsBulkUpdating = true;
-            var request = new
-            {
-                Ids = checkedIds.ToList(),
-                PaymentStatus = bulkPaymentStatus,
-                ModeOfPayment = bulkPaymentStatus == 2 ? bulkModeOfPayment : null,
-                PaymentDate = bulkPaymentStatus == 2 ? bulkPaymentDate : null
-            };
-            var response = await Http.PostAsJsonAsync(
-                "api/beneficiary/bulk-payment-status", request);
-
-            await HandleApiResponseAsync(
-                response,
-                $"Updated {checkedIds.Count} record(s) to {GetPaymentStatusText(bulkPaymentStatus)}.",
-                async () =>
-                {
-                    ClearSelection();
-                    await bulkUpdateModal.HideAsync();
-                    State.Invalidate();
-                    await State.LoadAsync();
-                });
-        }
-        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
-        finally { IsBulkUpdating = false; }
-    }
 
     private async Task ExportExcel()
     {
@@ -3531,6 +3564,12 @@ Convert.ToBase64String(fileBytes));
     }
 
     #region Private helpers/mappers
+    private string GetPaymentDateLabel(int status) => status switch
+    {
+        2 => "Paid:",
+        1 => "Unpaid Date:",
+        _ => "Date:"
+    };
     private List<string> GetIncompleteDetails(BeneficiaryListItemDto item)
 {
     var issues = new List<string>();

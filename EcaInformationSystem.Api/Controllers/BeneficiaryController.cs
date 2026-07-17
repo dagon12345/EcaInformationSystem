@@ -384,35 +384,6 @@ namespace EcaInformationSystem.Api.Controllers
             var results = await _service.GetByIdsAsync(ids.Distinct().ToList());
             return Ok(results);
         }
-
-        [HttpPost("bulk-payment-status")]
-        [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> BulkUpdatePaymentStatus([FromBody] BulkUpdatePaymentStatusRequestDto request)
-        {
-            try
-            {
-                // Get the current logged-in user's name
-                var userName = User.Identity?.Name ?? "System";
-
-                await _service.BulkUpdatePaymentStatusAsync(
-                     request.Ids,
-                     request.PaymentStatus,
-                     request.ModeOfPayment,
-                     request.PaymentDate,
-                     userName,
-                     request.RowVersions);
-
-                return Ok();
-            }
-            catch (ConcurrencyException ex)
-            {
-                return Conflict(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
         [HttpPost("bulk-co-status")]
         [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> BulkUpdateCoStatus([FromBody] BulkUpdateCoStatusRequestDto dto)

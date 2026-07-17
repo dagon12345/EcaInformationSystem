@@ -29,8 +29,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName);
         Task<int?> GetBarangayCodeByNameAsync(string barangayName);
         Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate);
-
-        Task BulkUpdatePaymentStatusAsync(List<Guid> ids, int paymentStatus, int? modeOfPayment, DateTime? paymentDate, Dictionary<Guid, byte[]>? rowVersions = null); //Added
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
         Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);
@@ -50,5 +48,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<CgpRangeMemberDto>> GetCgpRangeMembersAsync(Guid cgpGenerationId, int municipalityCode, int milestoneYear);
         Task<List<CgpRangeCandidateDto>> GetCgpRangeCandidatesAsync(List<(Guid CgpGenerationId, int MunicipalityCode)> keys);
         Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName);
+        Task AddPaymentHistoryEntryAsync(BeneficiaryPaymentHistory entry);
+        Task<List<DuplicateCheckCandidateDto>> GetDuplicateCheckPoolAsync();
     }
 }

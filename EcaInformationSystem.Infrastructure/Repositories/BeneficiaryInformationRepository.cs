@@ -20,6 +20,33 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task<List<DuplicateCheckCandidateDto>> GetDuplicateCheckPoolAsync()
+        {
+            return await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => !b.IsDeleted)
+                .Select(b => new DuplicateCheckCandidateDto
+                {
+                    Id = b.Id,
+                    LastName = b.LastName,
+                    FirstName = b.FirstName,
+                    MiddleName = b.MiddleName,
+                    BirthDate = b.BirthDate,
+                    OscaIdNumber = b.OscaIdNumber,
+                    Province = b.Province,
+                    Municipality = b.Municipality,
+                    Barangay = b.Barangay
+                })
+                .ToListAsync();
+        }
+        // ✅ NEW — single-entry insert, used by CreateAsync to seed the initial
+        // "Pending" payment history record for a brand-new grantee. Follows the
+        // same no-save-here pattern as AddAsync(BeneficiaryInformation) — the
+        // caller's SaveChangesAsync() persists both rows together in one trip.
+        public async Task AddPaymentHistoryEntryAsync(BeneficiaryPaymentHistory entry)
+        {
+            await _context.BeneficiaryPaymentHistories.AddAsync(entry);
+        }
         public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
         {
             var beneficiary = await _context.BeneficiaryInformations
@@ -213,7 +240,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             entry.FiscalYear = fiscalYear;
             entry.PaymentStatus = paymentStatus;
             entry.ModeOfPayment = paymentStatus == 2 ? (modeOfPayment ?? 0) : 0;
-            entry.PaymentDate = paymentStatus == 2 ? paymentDate : null;
+            entry.PaymentDate = (paymentStatus == 1 || paymentStatus == 2) ? paymentDate : null;
             entry.Remarks = remarks;
             entry.DateModified = DateTime.UtcNow;
             entry.ModifiedBy = userName;
@@ -257,7 +284,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     FiscalYear = fiscalYear,
                     PaymentStatus = paymentStatus,
                     ModeOfPayment = paymentStatus == 2 ? (modeOfPayment ?? 0) : 0,
-                    PaymentDate = paymentStatus == 2 ? paymentDate : null,
+                    // ✅ CHANGED — keep the date for Unpaid too, not just Paid
+                    PaymentDate = (paymentStatus == 1 || paymentStatus == 2) ? paymentDate : null,
                     Remarks = remarks,
                     DateCreated = DateTime.UtcNow,
                     CreatedBy = userName
@@ -420,16 +448,39 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.Municipality.HasValue && request.Municipality.Value > 0)
                 query = query.Where(b => b.Municipality == request.Municipality.Value);
 
-            if (request.MilestoneYear > 0)
-            {
-                var milestones = new[] { 80, 85, 90, 95, 100 };
-                var birthYears = milestones.Select(m => request.MilestoneYear - m).ToList();
-                query = query.Where(b => birthYears.Contains(b.BirthDate.Year));
-            }
+            // ── Milestone Age filter ─────────────────────────────────────────────
+            // ✅ FIXED — matches the same "bracket" rule used by AgeDistribution
+            // below (age >= m && age < m+5), not an exact birth-year match. This is
+            // what keeps someone who turned 80 in 2026 showing up under the "80"
+            // milestone filter in 2027 when they're 81 — they haven't reached the
+            // NEXT milestone (85) yet, so they still belong in the 80 bracket.
+            // The 100 bracket is open-ended (100 and beyond, no ceiling), since
+            // there's no next milestone above it to bound it.
+            //
+            // SQL-side this is only a coarse birth-year RANGE for query efficiency;
+            // the exact bracket check (which needs month/day precision) happens
+            // in-memory below via ComputeAge(), right after allData is materialized.
             if (request.MilestoneAge > 0)
             {
-                var birthYear = DateTime.Today.Year - request.MilestoneAge;
-                query = query.Where(b => b.BirthDate.Year == birthYear);
+                var maxBirthYear = DateTime.Today.Year - request.MilestoneAge; // youngest possible in this bracket
+
+                if (request.MilestoneAge == 100)
+                {
+                    // No lower bound — 100+ has no ceiling on age, so no floor on birth year either
+                    query = query.Where(b => b.BirthDate.Year <= maxBirthYear);
+                }
+                else
+                {
+                    // ✅ FIXED — widened by one more year (was `- 4`, now `- 5`) so the
+                    // SQL prefilter stays a guaranteed SUPERSET of the true bracket.
+                    // Anyone born in what was previously the excluded year could still
+                    // be within the true age bracket if their birthday hasn't occurred
+                    // yet this calendar year — the in-memory ComputeAge() check below
+                    // is what correctly trims them out if they don't actually qualify,
+                    // so this stage should always err wide, never narrow.
+                    var minBirthYear = DateTime.Today.Year - request.MilestoneAge - 5;
+                    query = query.Where(b => b.BirthDate.Year >= minBirthYear && b.BirthDate.Year <= maxBirthYear);
+                }
             }
 
             // ✅ NEW — when a specific period (Quarter/FiscalYear) or Payment Status is
@@ -468,6 +519,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var allData = await query.ToListAsync();
 
+            // ✅ FIXED — precise in-memory refinement using exact age (month/day
+            // aware), applying the identical bracket rule AgeDistribution uses
+            // below. The SQL-level birth-year range above is only a rough
+            // prefilter; this is what actually decides membership correctly.
+            if (request.MilestoneAge > 0)
+            {
+                var m = request.MilestoneAge;
+                allData = allData.Where(b =>
+                {
+                    var age = ComputeAge(b.BirthDate);
+                    return m == 100
+                        ? age >= 100
+                        : age >= m && age < m + 5;
+                }).ToList();
+            }
             // ✅ Effective status/quarter/fiscal-year per beneficiary — pulled from the
             // matched historical entry when a period filter is active, otherwise
             // falls back to the beneficiary's current flat columns (unchanged
@@ -496,6 +562,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ToDictionary(g => g.Key, g => g.Count())
             };
 
+            // ── Age Distribution ─────────────────────────────────────────────────
+            // ✅ FIXED — 100 bracket is open-ended here too, matching the filter
+            // logic above. Without this, the displayed "100" count would silently
+            // exclude anyone 105+ even though the filter itself now correctly
+            // includes them.
+
             var milestoneAges = new[] { 80, 85, 90, 95, 100 };
             report.AgeDistribution = milestoneAges
                 .Select(m => new AgeDistributionDto
@@ -504,7 +576,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Count = allData.Count(b =>
                     {
                         var age = ComputeAge(b.BirthDate);
-                        return age >= m && age < m + 5;
+                        return m == 100
+                            ? age >= 100
+                            : age >= m && age < m + 5;
                     })
                 })
                 .ToList();
@@ -1291,59 +1365,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                var conflictedNames = GetConflictedRecordNames(ex);
-
-                throw new ConcurrencyException(
-                    $"The following record(s) were modified by another user: " +
-                    $"{conflictedNames}. Please refresh and try again.", ex);
-            }
-        }
-        public async Task BulkUpdatePaymentStatusAsync(
-        List<Guid> ids,
-        int paymentStatus,
-        int? modeOfPayment,
-        DateTime? paymentDate,
-        Dictionary<Guid, byte[]>? rowVersions = null)
-        {
-            var beneficiaries = await _context.BeneficiaryInformations
-                .Where(x => ids.Contains(x.Id) && !x.IsDeleted)
-                .ToListAsync();
-
-            foreach (var b in beneficiaries)
-            {
-                // ✅ Set the original RowVersion the client saw
-                // EF Core will now check: WHERE Id = X AND RowVersion = [client version]
-                // If DB has a newer version → DbUpdateConcurrencyException
-                if (rowVersions != null && rowVersions.TryGetValue(b.Id, out var rv))
-                {
-                    _context.Entry(b)
-                            .Property(x => x.RowVersion)
-                            .OriginalValue = rv;
-                }
-
-                b.PaymentStatus = paymentStatus;
-
-                if (paymentStatus == 2)
-                {
-                    b.PaymentDate = paymentDate;
-                    b.ModeOfPayment = modeOfPayment ?? 0;
-                    // ✅ PayrollQuarter is no longer touched here — it's independent
-                    // of Payment Status now. See BulkUpdatePayrollQuarterAsync.
-                }
-                else
-                {
-                    b.PaymentDate = null;
-                    b.ModeOfPayment = 0;
-                }
-            }
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                // ✅ Find which records caused the conflict for a better error message
                 var conflictedNames = GetConflictedRecordNames(ex);
 
                 throw new ConcurrencyException(
