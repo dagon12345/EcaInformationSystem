@@ -25,7 +25,67 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+/* ── Add these to app.css, right after your existing .udp-year-input rule ── */
 
+.udp-nav-label--clickable {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 3px 10px;
+    background: #e9f0ff;
+    color: #1F3864;
+    transition: background 0.15s, color 0.15s;
+}
+
+    .udp-nav-label--clickable:hover {
+        background: #1F3864;
+        color: #fff;
+    }
+
+.udp-years {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 4px 0;
+}
+
+.udp-year-cell {
+    background: none;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    height: 40px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: #212529;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+    .udp-year-cell:hover:not(:disabled) {
+        background: #e9f0ff;
+        border-color: #1F3864;
+        color: #1F3864;
+    }
+
+.udp-year-cell--selected {
+    background: #1F3864 !important;
+    border-color: #1F3864 !important;
+    color: #fff !important;
+    font-weight: 600;
+}
+
+.udp-year-cell--active {
+    border: 2px solid #1F3864;
+    font-weight: 600;
+}
+
+.udp-year-cell--disabled {
+    color: #adb5bd;
+    border-color: #e9ecef;
+    cursor: not-allowed;
+    pointer-events: none;
+}
 /* ═══════════════════════════════════════════════════════════════════
    NEWS FEED — single source of truth, do not duplicate elsewhere
    ═══════════════════════════════════════════════════════════════════ */

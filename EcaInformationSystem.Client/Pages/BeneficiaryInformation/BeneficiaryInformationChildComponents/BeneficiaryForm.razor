@@ -1308,7 +1308,14 @@
                 "api/Barangay/by-municipalities",
                 new LookupMultiRequestDto { Ids = new List<int> { municipalityCode } });
             if (response.IsSuccessStatusCode)
-                _formBarangays = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+            {
+                var barangays = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+                // ✅ Natural sort — "Barangay 2" before "Barangay 10", not the other
+                // way around like a plain string sort would give you.
+                _formBarangays = barangays
+                    .OrderBy(b => NaturalSortKey(b.Name), StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
             else
                 toast.ShowError($"Failed to load barangays (HTTP {(int)response.StatusCode}).");
         }
@@ -1349,6 +1356,19 @@
     private void OnFormBarangayChanged(ChangeEventArgs e)
     {
         model.PsgcCodeBarangay = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+    }
+
+    // Natural sort key: replaces every run of digits with the same digits
+    // zero-padded to a fixed width, so a plain ordinal string comparison on the
+    // resulting keys produces the same order a human would expect numerically —
+    // "Barangay 2" < "Barangay 10" — without needing a custom IComparer.
+    // Width of 10 comfortably covers any realistic barangay/street numbering.
+    private static string NaturalSortKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            value, "[0-9]+", match => match.Value.PadLeft(10, '0'));
     }
     #endregion
 
@@ -1434,15 +1454,9 @@
     };
     private void ApplyEligibilityRules()
     {
-        // ✅ Use ValidationDate as the reference point if it has been set.
-        // This means: "was this person already at milestone age ON the day they were validated?"
-        // Example: BirthDate = May 28, 1946 → 80th birthday = May 28, 2026
-        // ValidationDate = May 26, 2026 → milestone NOT yet reached → IsEligible = false
-        // ValidationDate = May 28, 2026 → milestone reached → IsEligible = true
-        // ValidationDate = May 30, 2026 → milestone already passed → IsEligible = true
         var referenceDate = model.ValidationDate != default
             ? model.ValidationDate
-            : (DateTime?)null; // falls back to DateTime.Today inside the method
+            : (DateTime?)null;
 
         var milestoneReached = ComputeMilestoneYear(model.BirthDate, referenceDate) > 0;
         var isFilipino = model.Citizenship == 1;
@@ -1450,19 +1464,6 @@
         model.IsEligible = milestoneReached && isFilipino;
         StateHasChanged();
     }
-    /// <summary>
-    /// Returns the milestone year if the person has reached a milestone age
-    /// (80, 85, 90, 95, 100) on or before EITHER:
-    /// - the ValidationDate (if provided), OR
-    /// - today's date
-    /// whichever is LATER.
-    ///
-    /// This ensures that if someone was validated slightly before their birthday
-    /// (e.g. validated March 12, birthday March 13) but their birthday has now
-    /// already passed today (June 2), they are still correctly marked eligible.
-    ///
-    /// Returns 0 if no milestone has been reached yet under either reference date.
-    /// </summary>
     private static int ComputeMilestoneYear(DateTime birthDate, DateTime? referenceDate = null)
     {
         if (birthDate == default || birthDate == DateTime.MinValue)
@@ -1470,10 +1471,6 @@
 
         var today = DateTime.Today;
 
-        // ✅ Use the LATER of ValidationDate and today.
-        // - If ValidationDate is in the future (pre-dating), use it.
-        // - If ValidationDate is in the past (e.g. March 12) but today is later
-        // (June 2) and the birthday has passed in between, today wins.
         var asOf = referenceDate.HasValue
             ? (referenceDate.Value.Date > today ? referenceDate.Value.Date : today)
             : today;
@@ -1487,7 +1484,6 @@
 
             var milestoneBirthday = new DateTime(milestoneYear, birthDate.Month, birthDate.Day);
 
-            // ✅ Milestone reached if birthday has passed on or before asOf
             if (milestoneBirthday <= asOf)
                 return milestoneYear;
         }
@@ -1517,7 +1513,6 @@
         return age;
     }
 
-    // ✅ Replace OpenSaveConfirmationModal — no role check, just open the modal
     private async Task OpenSaveConfirmationModal()
     {
         ClearMessages();
@@ -1561,7 +1556,6 @@
         IsLoading = true;
         try
         {
-            // ✅ CO Status date guards
             if (model.CoStatus == 1 && !model.CoDateEndorsed.HasValue)
             {
                 toast.ShowError("CO Date Endorsed is required when CO Status is Endorsed.");
@@ -1573,14 +1567,12 @@
                 return;
             }
 
-            // ── Validate finding before sending anything ──────────────────────
             if (findingStatusInput == 2 && string.IsNullOrWhiteSpace(findingRemarksInput))
             {
                 toast.ShowError("Finding Remarks are required when finding is Unresolved.");
                 return;
             }
 
-            // ── 1. Update beneficiary record ──────────────────────────────────
             var response = await Http.PutAsJsonAsync($"api/Beneficiary/{model.Id}", model);
 
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -1598,7 +1590,6 @@
                 return;
             }
 
-            // ── Only save findings if admin ───────────────────────────────────
             if (_isAdmin)
             {
                 var findingDto = new UpsertBeneficiaryFindingDto
@@ -1663,7 +1654,6 @@
 
             _pendingDto = new CreateBeneficiaryInformationDto
             {
-                // ✅ Null if not provided
                 Quarter = model.Quarter,
                 Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
                 RefYear = model.RefYear,
@@ -1717,14 +1707,12 @@
         {
             IsLoading = true;
             var response = await Http.PostAsJsonAsync("api/Beneficiary/create", dto);
-            // ✅ In SendCreateRequestAsync — add 403 handling
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 toast.ShowError("Access denied. You do not have permission to create records.");
                 return;
             }
 
-            // ── Soft duplicates found ─────────────────────────────────────────
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 var conflictResult = await response.Content
@@ -1737,7 +1725,6 @@
                 return;
             }
 
-            // ── Success ───────────────────────────────────────────────────────
             if (response.IsSuccessStatusCode)
             {
                 toast.ShowSuccess("Grantee has been registered successfully — payment status set to Pending.");
@@ -1748,7 +1735,6 @@
                 return;
             }
 
-            // ── Other errors ──────────────────────────────────────────────────
             var error = await response.Content.ReadAsStringAsync();
             errorMessage = string.IsNullOrWhiteSpace(error) ? "Something went wrong." : error;
             toast.ShowError(errorMessage);

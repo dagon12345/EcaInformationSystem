@@ -5,7 +5,7 @@
 
 <div class="uniform-date-wrap" id="@_wrapperId">
     <input type="text" class="@InputClass" value="@_displayValue" placeholder="e.g. January 01, 1946" @oninput="OnInput"
-           @onblur="OnBlur" @onfocus="OnFocus" maxlength="30" autocomplete="off" readonly="@Readonly"
+           @onfocus="OnFocus" @onkeydown="OnKeyDown" maxlength="30" autocomplete="off" readonly="@Readonly"
            disabled="@Disabled" />
 
     @if (_showError)
@@ -14,66 +14,86 @@
     }
 </div>
 
-@* Picker rendered OUTSIDE the card — appended to body via JS *@
 @if (_showPicker)
 {
     <div class="udp-picker-portal @(_isFlippedUp ? "udp-picker--up" : "udp-picker--down")" id="@_pickerId"
          style="position:fixed; top:@(_pickerTop)px; left:@(_pickerLeft)px; z-index:9999;" @onmousedown:preventDefault>
 
-        @* Month/Year navigation *@
+        @* Month/Year navigation — label is clickable to jump into the year grid *@
         <div class="udp-nav">
-            <button type="button" class="udp-nav-btn" @onclick="PrevMonth">&#8249;</button>
-            <span class="udp-nav-label">@_pickerDate.ToString("MMMM yyyy")</span>
-            <button type="button" class="udp-nav-btn" @onclick="NextMonth">&#8250;</button>
+            <button type="button" class="udp-nav-btn" @onclick="NavPrev" title="@(_view == PickerView.Days ? "Previous month" : "Previous 12 years")">&#8249;</button>
+            <span class="udp-nav-label udp-nav-label--clickable" @onclick="ToggleYearView"
+                  title="@(_view == PickerView.Days ? "Click to pick a year" : "Click to go back to the calendar")">
+                @(_view == PickerView.Days ? _pickerDate.ToString("MMMM yyyy") : $"{_yearRangeStart} \u2013 {_yearRangeStart + 11}")
+            </span>
+            <button type="button" class="udp-nav-btn" @onclick="NavNext" title="@(_view == PickerView.Days ? "Next month" : "Next 12 years")">&#8250;</button>
         </div>
 
-        @* Day-of-week headers *@
-        <div class="udp-dow-row">
-            @foreach (var d in new[] { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" })
-            {
-                <span class="udp-dow">@d</span>
-            }
-        </div>
+        @if (_view == PickerView.Days)
+        {
+            @* Day-of-week headers *@
+            <div class="udp-dow-row">
+                @foreach (var d in new[] { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" })
+                {
+                    <span class="udp-dow">@d</span>
+                }
+            </div>
 
-        @* Day grid *@
-        <div class="udp-days">
-            @{
-                var firstDay = new DateTime(_pickerDate.Year, _pickerDate.Month, 1);
-                var offset = (int)firstDay.DayOfWeek;
-                var daysInMonth = DateTime.DaysInMonth(_pickerDate.Year, _pickerDate.Month);
-            }
+            @* Day grid *@
+            <div class="udp-days">
+                @{
+                    var firstDay = new DateTime(_pickerDate.Year, _pickerDate.Month, 1);
+                    var offset = (int)firstDay.DayOfWeek;
+                    var daysInMonth = DateTime.DaysInMonth(_pickerDate.Year, _pickerDate.Month);
+                }
 
-            @for (int i = 0; i < offset; i++)
-            {
-                <span class="udp-day udp-day--empty"></span>
-            }
+                @for (int i = 0; i < offset; i++)
+                {
+                    <span class="udp-day udp-day--empty"></span>
+                }
 
-            @for (int day = 1; day <= daysInMonth; day++)
-            {
-                var d = day;
-                var isSelected = Value.HasValue
-                    && Value.Value.Year == _pickerDate.Year
-                    && Value.Value.Month == _pickerDate.Month
-                    && Value.Value.Day == d;
-                var isToday = DateTime.Today.Year == _pickerDate.Year
-                    && DateTime.Today.Month == _pickerDate.Month
-                    && DateTime.Today.Day == d;
+                @for (int day = 1; day <= daysInMonth; day++)
+                {
+                    var d = day;
+                    var isSelected = Value.HasValue
+                        && Value.Value.Year == _pickerDate.Year
+                        && Value.Value.Month == _pickerDate.Month
+                        && Value.Value.Day == d;
+                    var isToday = DateTime.Today.Year == _pickerDate.Year
+                        && DateTime.Today.Month == _pickerDate.Month
+                        && DateTime.Today.Day == d;
 
-                <button type="button"
-                        class="udp-day @(isSelected ? "udp-day--selected" : "") @(isToday ? "udp-day--today" : "")"
-                        @onclick="() => SelectDay(d)">
-                    @d
-                </button>
-            }
-        </div>
+                    <button type="button"
+                            class="udp-day @(isSelected ? "udp-day--selected" : "") @(isToday ? "udp-day--today" : "")"
+                            @onclick="() => SelectDay(d)">
+                        @d
+                    </button>
+                }
+            </div>
 
-        @* Year jump *@
-        <div class="udp-year-row">
-            <button type="button" class="udp-year-btn" @onclick="PrevYear">&#8249;</button>
-            <input type="number" class="udp-year-input" value="@_pickerDate.Year" min="1900" max="2100"
-                   @onchange="OnYearChanged" />
-            <button type="button" class="udp-year-btn" @onclick="NextYear">&#8250;</button>
-        </div>
+        }
+        else
+        {
+            @* Year grid — jump straight to any year within the current 12-year block *@
+            <div class="udp-years">
+                @for (int y = _yearRangeStart; y < _yearRangeStart + 12; y++)
+                {
+                    var yr = y;
+                    var isSelected = Value.HasValue && Value.Value.Year == yr;
+                    var isCurrentView = _pickerDate.Year == yr;
+                    var isOutOfRange = (MinDate.HasValue && yr < MinDate.Value.Year)
+                        || (MaxDate.HasValue && yr > MaxDate.Value.Year)
+                        || yr < 1900 || yr > 2100;
+
+                    <button type="button"
+                            class="udp-year-cell @(isSelected ? "udp-year-cell--selected" : "") @(isCurrentView ? "udp-year-cell--active" : "") @(isOutOfRange ? "udp-year-cell--disabled" : "")"
+                            disabled="@isOutOfRange"
+                            @onclick="() => SelectYear(yr)">
+                        @yr
+                    </button>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -96,13 +116,19 @@
     private bool _isFlippedUp = false;
     private DateTime _pickerDate = DateTime.Today;
 
+    private enum PickerView { Days, Years }
+    private PickerView _view = PickerView.Days;
+    private int _yearRangeStart = 0;
+
     // For fixed positioning
     private double _pickerTop = 0;
     private double _pickerLeft = 0;
 
-    // Unique IDs so JS can find the right element
+    // Unique IDs so JS can find the right elements
     private readonly string _wrapperId = $"udw-{Guid.NewGuid():N}";
     private readonly string _pickerId = $"udp-{Guid.NewGuid():N}";
+
+    private DotNetObjectReference<UniformDateInput>? _dotNetRef;
 
     private static readonly string[] _formats = new[]
     {
@@ -116,6 +142,11 @@
         "MM-dd-yyyy",
         "M-d-yyyy"
     };
+
+    protected override void OnInitialized()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
 
     protected override void OnParametersSet()
     {
@@ -140,10 +171,94 @@
         _showError = false;
     }
 
-    private async Task OnBlur()
+    private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        // Small delay so click on picker day fires before blur closes it
-        await Task.Delay(200);
+        if (e.Key == "Escape")
+        {
+            _showPicker = false;
+            await DetachOutsideClickListener();
+        }
+        else if (e.Key == "Enter")
+        {
+            await CommitAndClose();
+            await DetachOutsideClickListener();
+        }
+    }
+
+    private async Task OnFocus()
+    {
+        if (Disabled || Readonly) return;
+
+        var rect = await JS.InvokeAsync<BoundingRect>(
+            "eval",
+            $"(function(){{ " +
+            $"var el = document.getElementById('{_wrapperId}'); " +
+            $"if(!el) return {{top:0, bottom:0, left:0, width:0, viewportHeight:0}}; " +
+            $"var r = el.getBoundingClientRect(); " +
+            $"return {{top:r.top, bottom:r.bottom, left:r.left, width:r.width, viewportHeight:window.innerHeight}}; " +
+            $"}})()");
+
+        ApplyPosition(rect);
+
+        _view = PickerView.Days;
+        _showPicker = true;
+        StateHasChanged();
+
+        // Attach a real "click outside" listener instead of a blind blur timer,
+        // so clicking/typing into the year box no longer closes the picker mid-interaction.
+        await AttachOutsideClickListener();
+    }
+
+    private const double PickerHeight = 320;
+    private const double PickerGap = 4;
+    private const double FieldVisibilityMargin = 24; // px of the field that must stay on-screen before we give up tracking it
+
+    private void ApplyPosition(BoundingRect rect)
+    {
+        _isFlippedUp = (rect.Bottom + PickerHeight + PickerGap) > rect.ViewportHeight;
+        _pickerTop = _isFlippedUp ? rect.Top - PickerHeight - PickerGap : rect.Bottom + PickerGap;
+        _pickerLeft = rect.Left;
+    }
+
+    /// <summary>
+    /// Called from JS on every scroll (throttled to animation frames) so the picker
+    /// tracks the field instead of drifting away from it. If the field scrolls far
+    /// enough out of the viewport that anchoring no longer makes sense, we close
+    /// instead of leaving a picker floating with nothing to point at.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnScrollReposition(BoundingRect rect)
+    {
+        if (!_showPicker) return;
+
+        var outOfView = rect.Bottom < FieldVisibilityMargin
+            || rect.Top > (rect.ViewportHeight - FieldVisibilityMargin);
+
+        if (outOfView)
+        {
+            await CommitAndClose();
+            await DetachOutsideClickListener();
+            StateHasChanged();
+            return;
+        }
+
+        ApplyPosition(rect);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Called from JS the moment a genuine outside interaction happens
+    /// (mousedown anywhere that isn't the wrapper or the picker portal).
+    /// </summary>
+    [JSInvokable]
+    public async Task OnOutsideInteraction()
+    {
+        await CommitAndClose();
+        StateHasChanged();
+    }
+
+    private async Task CommitAndClose()
+    {
         _showPicker = false;
 
         if (string.IsNullOrWhiteSpace(_displayValue))
@@ -181,35 +296,6 @@
         }
     }
 
-    private async Task OnFocus()
-    {
-        if (Disabled || Readonly) return;
-
-        var rect = await JS.InvokeAsync<BoundingRect>(
-            "eval",
-            $"(function(){{ " +
-            $"var el = document.getElementById('{_wrapperId}'); " +
-            $"if(!el) return {{top:0, bottom:0, left:0, width:0, viewportHeight:0}}; " +
-            $"var r = el.getBoundingClientRect(); " +
-            $"return {{top:r.top, bottom:r.bottom, left:r.left, width:r.width, viewportHeight:window.innerHeight}}; " +
-            $"}})()");
-
-        const double pickerHeight = 320;
-        const double gap = 4;
-
-        _isFlippedUp = (rect.Bottom + pickerHeight + gap) > rect.ViewportHeight;
-
-        if (_isFlippedUp)
-            _pickerTop = rect.Top - pickerHeight - gap;
-        else
-            _pickerTop = rect.Bottom + gap;
-
-        _pickerLeft = rect.Left;
-
-        _showPicker = true;
-        StateHasChanged();
-    }
-
     private async Task SelectDay(int day)
     {
         var selected = new DateTime(_pickerDate.Year, _pickerDate.Month, day);
@@ -219,6 +305,7 @@
             _showError = true;
             _errorText = $"Date cannot be after {MaxDate.Value:MMMM dd, yyyy}.";
             _showPicker = false;
+            await DetachOutsideClickListener();
             return;
         }
 
@@ -227,24 +314,53 @@
             _showError = true;
             _errorText = $"Date cannot be before {MinDate.Value:MMMM dd, yyyy}.";
             _showPicker = false;
+            await DetachOutsideClickListener();
             return;
         }
 
         _showError = false;
         _displayValue = selected.ToString("MMMM dd, yyyy");
         _showPicker = false;
+        await DetachOutsideClickListener();
         await ValueChanged.InvokeAsync(selected);
     }
 
     private void PrevMonth() => _pickerDate = _pickerDate.AddMonths(-1);
     private void NextMonth() => _pickerDate = _pickerDate.AddMonths(1);
-    private void PrevYear() => _pickerDate = _pickerDate.AddYears(-1);
-    private void NextYear() => _pickerDate = _pickerDate.AddYears(1);
 
-    private void OnYearChanged(ChangeEventArgs e)
+    // The nav arrows do double duty: month-stepping in Days view, 12-year-block
+    // stepping in Years view — whichever is currently showing.
+    private void NavPrev()
     {
-        if (int.TryParse(e.Value?.ToString(), out var year) && year >= 1900 && year <= 2100)
-            _pickerDate = new DateTime(year, _pickerDate.Month, 1);
+        if (_view == PickerView.Days) PrevMonth();
+        else _yearRangeStart -= 12;
+    }
+
+    private void NavNext()
+    {
+        if (_view == PickerView.Days) NextMonth();
+        else _yearRangeStart += 12;
+    }
+
+    private void ToggleYearView()
+    {
+        if (_view == PickerView.Days)
+        {
+            // Group years into fixed 12-year blocks so the grid position is stable
+            // no matter which year within the block you started from.
+            _yearRangeStart = _pickerDate.Year - (((_pickerDate.Year % 12) + 12) % 12);
+            _view = PickerView.Years;
+        }
+        else
+        {
+            _view = PickerView.Days;
+        }
+    }
+
+    private void SelectYear(int year)
+    {
+        _pickerDate = new DateTime(year, _pickerDate.Month, 1);
+        _view = PickerView.Days;
     }
 
     private static bool TryParseDate(string input, out DateTime result)
@@ -260,14 +376,109 @@
             out result);
     }
 
-    // JS interop cleanup
-    public async ValueTask DisposeAsync()
+    private async Task AttachOutsideClickListener()
     {
-        // nothing to dispose — no JS module held
-        await ValueTask.CompletedTask;
+        // Define the reusable global helper once.
+        // - mousedown outside the wrapper/picker -> close (commit whatever was typed).
+        // - scroll anywhere (window or any scrollable ancestor, hence capture:true) ->
+        //   recompute the field's on-screen rect and hand it to .NET so the picker can
+        //   track the field instead of drifting away from it. Throttled to one update
+        //   per animation frame so fast/inertial scrolling doesn't flood Blazor.
+        //   .NET decides whether the field has scrolled too far out of view to keep
+        //   anchoring to it; JS itself never unilaterally closes on scroll.
+        await JS.InvokeVoidAsync("eval", @"
+            (function(){
+                if (!window.__udpOutsideClick) {
+                    window.__udpOutsideClick = function(wrapperId, pickerId, dotNetRef) {
+                        var clickKey = '__udpClickHandler_' + wrapperId;
+                        var scrollKey = '__udpScrollHandler_' + wrapperId;
+
+                        if (window[clickKey]) {
+                            document.removeEventListener('mousedown', window[clickKey], true);
+                        }
+                        if (window[scrollKey]) {
+                            window.removeEventListener('scroll', window[scrollKey], true);
+                        }
+
+                        var cleanup = function() {
+                            document.removeEventListener('mousedown', clickHandler, true);
+                            window.removeEventListener('scroll', scrollHandler, true);
+                            delete window[clickKey];
+                            delete window[scrollKey];
+                        };
+
+                        var clickHandler = function(ev) {
+                            var w = document.getElementById(wrapperId);
+                            var p = document.getElementById(pickerId);
+                            if (w && w.contains(ev.target)) return;
+                            if (p && p.contains(ev.target)) return;
+                            cleanup();
+                            dotNetRef.invokeMethodAsync('OnOutsideInteraction');
+                        };
+
+                        var ticking = false;
+                        var scrollHandler = function(ev) {
+                            if (ticking) return;
+                            ticking = true;
+                            requestAnimationFrame(function() {
+                                ticking = false;
+                                var w = document.getElementById(wrapperId);
+                                if (!w) { cleanup(); dotNetRef.invokeMethodAsync('OnOutsideInteraction'); return; }
+                                var r = w.getBoundingClientRect();
+                                dotNetRef.invokeMethodAsync('OnScrollReposition', {
+                                    top: r.top, bottom: r.bottom, left: r.left, width: r.width,
+                                    viewportHeight: window.innerHeight
+                                });
+                            });
+                        };
+
+                        window[clickKey] = clickHandler;
+                        window[scrollKey] = scrollHandler;
+                        document.addEventListener('mousedown', clickHandler, true);
+                        window.addEventListener('scroll', scrollHandler, true);
+                    };
+                }
+            })();
+        ");
+
+        await JS.InvokeVoidAsync("__udpOutsideClick", _wrapperId, _pickerId, _dotNetRef);
     }
 
-    private record BoundingRect(
+    private async Task DetachOutsideClickListener()
+    {
+        await JS.InvokeVoidAsync("eval", $@"
+            (function(){{
+                var clickKey = '__udpClickHandler_{_wrapperId}';
+                var scrollKey = '__udpScrollHandler_{_wrapperId}';
+                var c = window[clickKey];
+                var s = window[scrollKey];
+                if (c) {{
+                    document.removeEventListener('mousedown', c, true);
+                    delete window[clickKey];
+                }}
+                if (s) {{
+                    window.removeEventListener('scroll', s, true);
+                    delete window[scrollKey];
+                }}
+            }})();
+        ");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await DetachOutsideClickListener();
+        }
+        catch
+        {
+            // JS interop can throw if the circuit is already gone during disposal — safe to ignore.
+        }
+
+        _dotNetRef?.Dispose();
+    }
+
+    public record BoundingRect(
         double Top,
         double Bottom,
         double Left,
