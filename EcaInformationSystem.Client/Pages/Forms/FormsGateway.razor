@@ -1,6 +1,8 @@
 ﻿@page "/forms-gateway"
+@attribute [Authorize]
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
 @inject FormDocumentClientService FormService
 @inject FormFolderClientService FolderService
 @inject ToastService toast
