@@ -94,6 +94,17 @@
                             @if (!string.IsNullOrWhiteSpace(post.AuthorPosition))
                             {
                                 <span>@post.AuthorPosition</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(post.AuthorPosition) && !string.IsNullOrWhiteSpace(post.AuthorRegion))
+                            {
+                                <span class="feed-dot">&middot;</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(post.AuthorRegion))
+                            {
+                                <span>@post.AuthorRegion</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(post.AuthorPosition) || !string.IsNullOrWhiteSpace(post.AuthorRegion))
+                            {
                                 <span class="feed-dot">&middot;</span>
                             }
                             <span>@post.CreatedAt.ToLocalTime().ToString("MMM dd 'at' h:mm tt")</span>
@@ -248,7 +259,12 @@
                                     <div class="feed-comment-body">
                                         <div class="feed-comment-meta">
                                             <span class="feed-comment-author">@c.AuthorName</span>
-                                            <span class="feed-comment-time">@c.CreatedAt.ToLocalTime().ToString("MMM dd, h:mm tt")</span>
+                                            @if (c.CanEdit && _editingCommentId != c.Id)
+                                            {
+                                                <button class="feed-comment-edit-btn" title="Edit comment" @onclick="() => StartEditComment(c)">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                            }
                                             @if (c.CanDelete)
                                             {
                                                 <button class="feed-comment-delete-btn" title="Delete comment"
@@ -257,7 +273,46 @@
                                                 </button>
                                             }
                                         </div>
-                                        <p class="feed-comment-text">@c.Content</p>
+                                        @if (!string.IsNullOrWhiteSpace(c.AuthorPosition) || !string.IsNullOrWhiteSpace(c.AuthorRegion))
+                                        {
+                                            <div class="feed-comment-subtitle">
+                                                @if (!string.IsNullOrWhiteSpace(c.AuthorPosition))
+                                                {
+                                                    <span>@c.AuthorPosition</span>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(c.AuthorPosition) && !string.IsNullOrWhiteSpace(c.AuthorRegion))
+                                                {
+                                                    <span class="feed-dot">&middot;</span>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(c.AuthorRegion))
+                                                {
+                                                    <span>@c.AuthorRegion</span>
+                                                }
+                                            </div>
+                                        }
+                                        @if (_editingCommentId == c.Id)
+                                        {
+                                            <div class="feed-comment-edit-box">
+                                                <textarea class="feed-comment-edit-textarea" @bind="_editCommentContent" maxlength="1000"></textarea>
+                                                <div class="feed-comment-edit-actions">
+                                                    <button class="btn btn-sm btn-outline-secondary" @onclick="CancelEditComment">Cancel</button>
+                                                    <button class="btn btn-sm btn-primary" @onclick="() => SaveEditCommentAsync(post.Id, c.Id)" disabled="@_isSavingCommentEdit">
+                                                        @(_isSavingCommentEdit ? "Saving..." : "Save")
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <p class="feed-comment-text">
+                                                @c.Content
+                                                @if (c.EditedAt.HasValue)
+                                                {
+                                                    <span class="feed-comment-edited-tag">(edited)</span>
+                                                }
+                                            </p>
+                                        }
+                                        <span class="feed-comment-time">@c.CreatedAt.ToLocalTime().ToString("MMM dd, h:mm tt")</span>
                                     </div>
                                 </div>
                             }
@@ -390,6 +445,10 @@
     private ElementReference _editTextareaRef;
     private ElementReference _lightboxBackdropRef;
 
+    private Guid? _editingCommentId;
+    private string _editCommentContent = string.Empty;
+    private bool _isSavingCommentEdit;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -410,6 +469,66 @@
         await LoadFeedAsync(reset: true);
         await ConnectRealtimeAsync();
     }
+    #region Comment Editing - Start
+    private void StartEditComment(PostCommentDto comment)
+    {
+        _editingCommentId = comment.Id;
+        _editCommentContent = comment.Content;
+    }
+
+    private void CancelEditComment()
+    {
+        _editingCommentId = null;
+        _editCommentContent = string.Empty;
+    }
+
+    private async Task SaveEditCommentAsync(Guid postId, Guid commentId)
+    {
+        if (string.IsNullOrWhiteSpace(_editCommentContent)) return;
+        _isSavingCommentEdit = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/posts/comments/{commentId}")
+            {
+                Content = JsonContent.Create(new EditCommentDto { Content = _editCommentContent })
+            };
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PostCommentDto>();
+                if (result != null && _comments.TryGetValue(postId, out var list))
+                {
+                    var existing = list.FirstOrDefault(c => c.Id == commentId);
+                    if (existing != null)
+                    {
+                        existing.Content = result.Content;
+                        existing.EditedAt = result.EditedAt;
+                    }
+                }
+                CancelEditComment();
+            }
+        }
+        finally
+        {
+            _isSavingCommentEdit = false;
+        }
+    }
+
+    private void OnCommentEdited(Guid postId, Guid commentId, string content, DateTime? editedAt)
+    {
+        if (_comments.TryGetValue(postId, out var list))
+        {
+            var existing = list.FirstOrDefault(c => c.Id == commentId);
+            if (existing != null && _editingCommentId != commentId)
+            {
+                existing.Content = content;
+                existing.EditedAt = editedAt;
+                InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+    #endregion Comment Editing - End
     private void HandleLightboxKeydown(KeyboardEventArgs e)
     {
         switch (e.Key)
@@ -449,6 +568,7 @@
         PostsClient.CommentAdded += OnCommentAdded;
         PostsClient.CommentDeleted += OnCommentDeleted;
         PostsClient.PostEdited += OnPostEdited;
+        PostsClient.CommentEdited += OnCommentEdited;
 
         try
         {
@@ -457,6 +577,19 @@
             await PostsClient.ConnectAsync(hubUrl);
         }
         catch { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        PostsClient.PostCreated -= OnPostCreated;
+        PostsClient.PostDeleted -= OnPostDeleted;
+        PostsClient.LikeUpdated -= OnLikeUpdated;
+        PostsClient.ViewUpdated -= OnViewUpdated;
+        PostsClient.CommentAdded -= OnCommentAdded;
+        PostsClient.CommentDeleted -= OnCommentDeleted;
+        PostsClient.PostEdited -= OnPostEdited;
+        PostsClient.CommentEdited -= OnCommentEdited;
+        await Task.CompletedTask;
     }
 
     private void OnPostCreated(PostDto post)
@@ -816,12 +949,20 @@
             {
                 if (!_comments.ContainsKey(postId)) _comments[postId] = new();
 
-                if (!_comments[postId].Any(c => c.Id == created.Id))
+                // ✅ FIX — replace the broadcast-inserted copy (CanDelete=false) with
+                // the authoritative HTTP response (CanDelete=true), instead of skipping
+                // when it's already present.
+                var existingIndex = _comments[postId].FindIndex(c => c.Id == created.Id);
+                if (existingIndex >= 0)
+                {
+                    _comments[postId][existingIndex] = created;
+                }
+                else
                 {
                     _comments[postId].Add(created);
-                    var post = _posts.FirstOrDefault(p => p.Id == postId);
-                    if (post != null) post.CommentCount = _comments[postId].Count;
                 }
+                var post = _posts.FirstOrDefault(p => p.Id == postId);
+                if (post != null) post.CommentCount = _comments[postId].Count;
             }
             _newCommentContent[postId] = string.Empty;
         }
@@ -920,15 +1061,4 @@
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        PostsClient.PostCreated -= OnPostCreated;
-        PostsClient.PostDeleted -= OnPostDeleted;
-        PostsClient.LikeUpdated -= OnLikeUpdated;
-        PostsClient.ViewUpdated -= OnViewUpdated;
-        PostsClient.CommentAdded -= OnCommentAdded;
-        PostsClient.CommentDeleted -= OnCommentDeleted;
-        PostsClient.PostEdited -= OnPostEdited;
-        await Task.CompletedTask;
-    }
 }

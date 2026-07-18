@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Api.Hubs;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -15,12 +16,14 @@ namespace EcaInformationSystem.Api.Controllers
     {
         private readonly IPostService _postService;
         private readonly IHubContext<PostsHub> _hub;
+        private readonly IPsgcNameCache _psgcNameCache;
         private const string ViewerKeyHeader = "X-Viewer-Key";
 
-        public PostsController(IPostService postService, IHubContext<PostsHub> hub)
+        public PostsController(IPostService postService, IHubContext<PostsHub> hub, IPsgcNameCache psgcNameCache)
         {
             _postService = postService;
             _hub = hub;
+            _psgcNameCache = psgcNameCache;
         }
 
         private Guid? GetUserId()
@@ -32,6 +35,14 @@ namespace EcaInformationSystem.Api.Controllers
         private string GetUserName() => User.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown";
         private string GetFullName() => User.FindFirst("FullName")?.Value ?? GetUserName();
         private string? GetPosition() => User.FindFirst("Position")?.Value;
+        private string? GetAuthorRegionName()
+        {
+            var raw = User.FindFirst("Region")?.Value;
+            if (string.IsNullOrWhiteSpace(raw) || !int.TryParse(raw, out var code))
+                return null;
+
+            return _psgcNameCache.GetRegionName(code);
+        }
         private string GetRole() => User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
 
         private string? ResolveViewerKey()
@@ -121,7 +132,8 @@ namespace EcaInformationSystem.Api.Controllers
             }
 
             var dto = new CreatePostDto { Content = content ?? string.Empty };
-            var result = await _postService.CreatePostAsync(dto, uploads, userId.Value, GetFullName(), GetPosition());
+            var result = await _postService.CreatePostAsync(dto, uploads, userId.Value, 
+                GetFullName(), GetPosition(), GetAuthorRegionName()); // We added the position and region here.
 
             var broadcastCopy = CloneWithCanDelete(result, false);
             await _hub.Clients.All.SendAsync("PostCreated", broadcastCopy);
@@ -218,7 +230,8 @@ namespace EcaInformationSystem.Api.Controllers
             var userId = GetUserId();
             if (userId == null) return Unauthorized();
 
-            var result = await _postService.AddCommentAsync(id, dto, userId.Value, GetFullName());
+            var result = await _postService.AddCommentAsync(id, dto, userId.Value, 
+                GetFullName(), GetPosition(), GetAuthorRegionName());
 
             var broadcastCopy = new PostCommentDto
             {
@@ -226,6 +239,8 @@ namespace EcaInformationSystem.Api.Controllers
                 PostId = result.PostId,
                 UserId = result.UserId,
                 AuthorName = result.AuthorName,
+                AuthorPosition = result.AuthorPosition, //New
+                AuthorRegion = result.AuthorRegion, //New
                 Content = result.Content,
                 CreatedAt = result.CreatedAt,
                 CanDelete = false // viewer-relative, same reasoning as posts
@@ -233,6 +248,24 @@ namespace EcaInformationSystem.Api.Controllers
             await _hub.Clients.All.SendAsync("CommentAdded", id, broadcastCopy);
 
             return Ok(result);
+        }
+        [HttpPut("comments/{commentId:guid}")]
+        [Authorize]
+        public async Task<IActionResult> EditComment(Guid commentId, [FromBody] EditCommentDto dto)
+        {
+            var userId = GetUserId();
+            if (userId == null) return Unauthorized();
+
+            try
+            {
+                var result = await _postService.EditCommentAsync(commentId, dto.Content, userId.Value, GetRole());
+                await _hub.Clients.All.SendAsync("CommentEdited", result.PostId, result.Id, result.Content, result.EditedAt);
+                return Ok(result);
+            }
+            catch(UnauthorizedAccessException ex)
+            {
+                return Forbid(ex.Message);
+            }  
         }
 
         [HttpDelete("comments/{commentId:guid}")]
@@ -260,6 +293,7 @@ namespace EcaInformationSystem.Api.Controllers
             AuthorUserId = source.AuthorUserId,
             AuthorName = source.AuthorName,
             AuthorPosition = source.AuthorPosition,
+            AuthorRegion = source.AuthorRegion,
             Content = source.Content,
             CreatedAt = source.CreatedAt,
             LikeCount = source.LikeCount,           // ✅ add

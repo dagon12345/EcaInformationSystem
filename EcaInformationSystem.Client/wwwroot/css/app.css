@@ -585,10 +585,66 @@
     font-size: 12px;
     color: #1a1a1a;
 }
-
+.feed-comment-subtitle {
+    font-size: 10.5px;
+    color: #9199a3;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-top: -1px;
+    margin-bottom: 2px;
+}
 .feed-comment-time {
     font-size: 10.5px;
-    color: #9ca3af;
+    color: #b0b3b8;
+    margin-top: 3px;
+    display: inline-block;
+}
+.feed-comment-edit-btn {
+    border: none;
+    background: transparent;
+    color: #c7cbd1;
+    font-size: 11px;
+    padding: 0 2px;
+    margin-left: auto;
+}
+
+ .feed-comment-edit-btn:hover {
+     color: #0866ff;
+ }
+.feed-comment-edit-box {
+    margin-top: 4px;
+}
+
+.feed-comment-edit-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 50px;
+    resize: vertical;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+}
+
+    .feed-comment-edit-textarea:focus {
+        border-color: #0C447C;
+        box-shadow: 0 0 0 2px #0C447C22;
+    }
+
+.feed-comment-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.feed-comment-edited-tag {
+    font-size: 10.5px;
+    color: #9199a3;
+    margin-left: 4px;
 }
 
 .feed-comment-delete-btn {
@@ -597,7 +653,7 @@
     color: #c7cbd1;
     font-size: 11px;
     padding: 0 2px;
-    margin-left: auto;
+    margin-left: 4px;
 }
 
     .feed-comment-delete-btn:hover {

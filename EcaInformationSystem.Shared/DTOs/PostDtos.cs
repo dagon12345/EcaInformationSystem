@@ -8,6 +8,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public Guid AuthorUserId { get; set; }
         public string AuthorName { get; set; } = string.Empty;
         public string? AuthorPosition { get; set; }
+        public string? AuthorRegion { get; set; }
         public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public int LikeCount { get; set; }
@@ -36,6 +37,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public bool CanDelete { get; set; }
+        public string? AuthorPosition { get; set; }
+        public string? AuthorRegion { get; set; }
+        public DateTime? EditedAt { get; set; }
+        public bool CanEdit { get; set; }
     }
 
     public class CreateCommentDto

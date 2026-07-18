@@ -96,6 +96,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 AuthorUserId = p.AuthorUserId,
                 AuthorName = p.AuthorName,
                 AuthorPosition = p.AuthorPosition,
+                AuthorRegion = p.AuthorRegion,
                 Content = p.Content,
                 CreatedAt = p.CreatedAt,
                 LikeCount = likeCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
@@ -211,10 +212,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PostId = c.PostId,
                     UserId = c.UserId,
                     AuthorName = c.AuthorName,
+                    AuthorPosition = c.AuthorPosition,
+                    AuthorRegion = c.AuthorRegion,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
-                    CanDelete = viewerUserId.HasValue &&
-                        (viewerUserId.Value == c.UserId || isSuperAdmin)
+                    EditedAt = c.EditedAt, //New
+                    CanDelete = viewerUserId.HasValue && (viewerUserId.Value == c.UserId || isSuperAdmin),
+                    CanEdit = viewerUserId.HasValue && (viewerUserId.Value == c.UserId || isSuperAdmin) //New
                 })
                 .ToListAsync();
 

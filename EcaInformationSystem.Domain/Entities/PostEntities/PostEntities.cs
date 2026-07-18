@@ -6,6 +6,7 @@
         public Guid AuthorUserId { get; set; }
         public string AuthorName { get; set; } = string.Empty;
         public string? AuthorPosition { get; set; }
+        public string? AuthorRegion { get; set; }
         public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public bool IsDeleted { get; set; }
@@ -25,6 +26,9 @@
         public bool IsDeleted { get; set; }
         public string? DeletedBy { get; set; }
         public DateTime? DeletedAt { get; set; }
+        public string? AuthorPosition { get; set; }
+        public string? AuthorRegion { get; set; }
+        public DateTime? EditedAt { get; set; }
     }
 
     // ✅ LikerKey = UserId.ToString() for logged-in users,

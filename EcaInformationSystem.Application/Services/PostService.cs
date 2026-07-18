@@ -15,6 +15,73 @@ namespace EcaInformationSystem.Application.Services
             _repo = repo;
             _imageProcessor = imageProcessor;
         }
+        public async Task<PostCommentDto> AddCommentAsync(Guid postId, CreateCommentDto dto, Guid userId, string authorName, string? authorPosition, string? authorRegion)
+        {
+            var post = await _repo.GetEntityByIdAsync(postId)
+                ?? throw new Exception("Post not found.");
+
+            var comment = new PostComment
+            {
+                Id = Guid.NewGuid(),
+                PostId = postId,
+                UserId = userId,
+                AuthorName = authorName,
+                AuthorPosition = authorPosition,   // ✅ NEW
+                AuthorRegion = authorRegion,       // ✅ NEW
+                Content = dto.Content.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false,
+                EditedAt = null
+            };
+
+            await _repo.AddCommentAsync(comment);
+            await _repo.SaveChangesAsync();
+
+            return new PostCommentDto
+            {
+                Id = comment.Id,
+                PostId = comment.PostId,
+                UserId = comment.UserId,
+                AuthorName = comment.AuthorName,
+                AuthorPosition = comment.AuthorPosition,   // ✅ NEW
+                AuthorRegion = comment.AuthorRegion,       // ✅ NEW
+                Content = comment.Content,
+                CreatedAt = comment.CreatedAt,
+                CanDelete = true,
+                EditedAt = null,
+                CanEdit = true
+            };
+        }
+        public async Task<PostCommentDto> EditCommentAsync(Guid commentId, string content, Guid requestingUserId, string requestingRole)
+        {
+            var comment = await _repo.GetCommentEntityByIdAsync(commentId)
+             ?? throw new Exception("Comment not found.");
+
+            bool isOwner = comment.UserId == requestingUserId;
+            bool isSuperAdmin = requestingRole == SuperAdminRole;
+
+            if (!isOwner && !isSuperAdmin)
+                throw new UnauthorizedAccessException("You can only edit your own comments.");
+
+            comment.Content = content.Trim();
+            comment.EditedAt = DateTime.UtcNow;
+            await _repo.SaveChangesAsync();
+
+            return new PostCommentDto
+            {
+                Id = comment.Id,
+                PostId = comment.PostId,
+                UserId = comment.UserId,
+                AuthorName = comment.AuthorName,
+                AuthorPosition = comment.AuthorPosition,
+                AuthorRegion = comment.AuthorRegion,
+                Content = comment.Content,
+                CreatedAt = comment.CreatedAt,
+                EditedAt = comment.EditedAt,
+                CanDelete = true,
+                CanEdit = true
+            };
+        }
         public async Task<PostDto> EditPostAsync(Guid postId, string content, List<Guid> removeImageIds, List<PostImageUploadDto> newImages, Guid requestingUserId, string requestingRole)
         {
             var post = await _repo.GetEntityByIdAsync(postId)
@@ -109,7 +176,8 @@ namespace EcaInformationSystem.Application.Services
         public Task<PagedResultDto<PostDto>> GetFeedAsync(int pageNumber, int pageSize, string? viewerKey, Guid? viewerUserId, string? viewerRole)
             => _repo.GetFeedAsync(pageNumber, pageSize, viewerKey, viewerUserId, viewerRole);
 
-        public async Task<PostDto> CreatePostAsync(CreatePostDto dto, List<PostImageUploadDto> images, Guid authorUserId, string authorName, string? authorPosition)
+        public async Task<PostDto> CreatePostAsync(CreatePostDto dto, List<PostImageUploadDto> images, Guid authorUserId, 
+            string authorName, string? authorPosition, string? authorRegion)
         {
             if (images.Count > 10)
                 throw new InvalidOperationException("A post can have at most 10 images.");
@@ -120,6 +188,7 @@ namespace EcaInformationSystem.Application.Services
                 AuthorUserId = authorUserId,
                 AuthorName = authorName,
                 AuthorPosition = authorPosition,
+                AuthorRegion = authorRegion,
                 Content = dto.Content?.Trim() ?? string.Empty,
                 CreatedAt = DateTime.UtcNow,
                 IsDeleted = false
@@ -168,10 +237,9 @@ namespace EcaInformationSystem.Application.Services
                 AuthorUserId = post.AuthorUserId,
                 AuthorName = post.AuthorName,
                 AuthorPosition = post.AuthorPosition,
+                AuthorRegion = post.AuthorRegion,
                 Content = post.Content,
                 CreatedAt = post.CreatedAt,
-                //Reactions = new ReactionSummaryDto(),
-                //ViewerReactionType = null,
                 CommentCount = 0,
                 ViewCount = 0,
                 CanDelete = true,
