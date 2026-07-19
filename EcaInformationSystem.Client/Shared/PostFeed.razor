@@ -229,7 +229,9 @@
                             <span class="feed-stats-right">
                                 @if (post.CommentCount > 0)
                                 {
-                                    <span>@post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")</span>
+                                    <span class="feed-stats-comment-link" @onclick="() => ToggleComments(post.Id)">
+                                        @post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")
+                                    </span>
                                 }
                                 <span>@post.ViewCount view@(post.ViewCount == 1 ? "" : "s")</span>
                             </span>
@@ -355,14 +357,42 @@
 {
     <div class="feed-lightbox-backdrop" tabindex="0" @ref="_lightboxBackdropRef"
          @onclick="CloseLightbox" @onkeydown="HandleLightboxKeydown">
-        <button class="feed-lightbox-close" @onclick="CloseLightbox"><i class="bi bi-x-lg"></i></button>
+
+        <div class="feed-lightbox-top-controls">
+            <button class="feed-lightbox-icon-btn" title="Zoom out" @onclick:stopPropagation="true" @onclick="() => AdjustLightboxZoom(-0.5)" disabled="@(_lightboxZoom <= 1)">
+                <i class="bi bi-zoom-out"></i>
+            </button>
+            <button class="feed-lightbox-icon-btn" title="Zoom in" @onclick:stopPropagation="true" @onclick="() => AdjustLightboxZoom(0.5)" disabled="@(_lightboxZoom >= MaxZoom)">
+                <i class="bi bi-zoom-in"></i>
+            </button>
+            <button class="feed-lightbox-icon-btn" title="Close" @onclick:stopPropagation="true" @onclick="CloseLightbox">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        @if (_lightboxZoom > 1)
+        {
+            <button class="feed-lightbox-zoom-reset" @onclick:stopPropagation="true" @onclick="ResetLightboxZoom">
+                <i class="bi bi-zoom-out"></i> Reset
+            </button>
+        }
+
         @if (_lightboxHasPrev)
         {
             <button class="feed-lightbox-nav feed-lightbox-nav--prev" @onclick:stopPropagation="true" @onclick="() => NavigateLightbox(-1)">
                 <i class="bi bi-chevron-left"></i>
             </button>
         }
-        <img class="feed-lightbox-image" src="@GetImageUrl(_lightboxImageId.Value, thumbnail: false)" alt="post image" @onclick:stopPropagation="true" />
+
+        <div class="feed-lightbox-image-wrap" @onwheel="HandleLightboxWheel" @onwheel:preventDefault="true">
+            <img class="feed-lightbox-image @(_lightboxZoom > 1 ? "feed-lightbox-image--zoomed" : "")"
+                 style="transform: scale(@_lightboxZoom.ToString(System.Globalization.CultureInfo.InvariantCulture)) translate(@(_lightboxPanX)px, @(_lightboxPanY)px);"
+                 src="@GetImageUrl(_lightboxImageId.Value, thumbnail: false)" alt="post image"
+                 @onclick:stopPropagation="true" @onclick="ToggleLightboxZoom"
+                 @onmousedown="StartLightboxPan" @onmouseup="EndLightboxPan" @onmousemove="OnLightboxPanMove"
+                 @onmouseleave="EndLightboxPan" />
+        </div>
+
         @if (_lightboxHasNext)
         {
             <button class="feed-lightbox-nav feed-lightbox-nav--next" @onclick:stopPropagation="true" @onclick="() => NavigateLightbox(1)">
@@ -388,6 +418,19 @@
 }
 
 @code {
+    //Lightbox state for zooming image feature.
+    private double _lightboxZoom = 1;
+    private double _lightboxPanX = 0;
+    private double _lightboxPanY = 0;
+    private bool _isPanning;
+    private double _panStartX;
+    private double _panStartY;
+    private double _panOriginX;
+    private double _panOriginY;
+
+    private const double ZoomStep = 1;
+    private const double MaxZoom = 3;
+
     private const int MaxImages = 10;
     private const long MaxImageBytes = 8 * 1024 * 1024; // 8MB per image, client-side guard
     private const int PageSize = 10;
@@ -469,6 +512,99 @@
         await LoadFeedAsync(reset: true);
         await ConnectRealtimeAsync();
     }
+    #region Lightbox Image Zooming - Start
+    private void ToggleLightboxZoom()
+    {
+        // Click cycles: 1x -> 2x -> 1x. Simple, predictable, no accidental double-zoom.
+        _lightboxZoom = _lightboxZoom > 1 ? 1 : 2;
+        if (_lightboxZoom == 1)
+        {
+            _lightboxPanX = 0;
+            _lightboxPanY = 0;
+        }
+    }
+    private void AdjustLightboxZoom(double delta)
+    {
+        _lightboxZoom = Math.Clamp(_lightboxZoom + delta, 1, MaxZoom);
+        if (_lightboxZoom <= 1)
+        {
+            _lightboxZoom = 1;
+            _lightboxPanX = 0;
+            _lightboxPanY = 0;
+        }
+    }
+    private void ResetLightboxZoom()
+    {
+        _lightboxZoom = 1;
+        _lightboxPanX = 0;
+        _lightboxPanY = 0;
+    }
+
+    private void HandleLightboxWheel(WheelEventArgs e)
+    {
+        var delta = e.DeltaY < 0 ? 0.25 : -0.25;
+        _lightboxZoom = Math.Clamp(_lightboxZoom + delta, 1, MaxZoom);
+        if (_lightboxZoom <= 1)
+        {
+            _lightboxZoom = 1;
+            _lightboxPanX = 0;
+            _lightboxPanY = 0;
+        }
+    }
+
+    private void StartLightboxPan(MouseEventArgs e)
+    {
+        if (_lightboxZoom <= 1) return;
+        _isPanning = true;
+        _panStartX = e.ClientX;
+        _panStartY = e.ClientY;
+        _panOriginX = _lightboxPanX;
+        _panOriginY = _lightboxPanY;
+    }
+
+    private void OnLightboxPanMove(MouseEventArgs e)
+    {
+        if (!_isPanning) return;
+        // Divide by zoom so panning feels consistent regardless of zoom level
+        _lightboxPanX = _panOriginX + (e.ClientX - _panStartX) / _lightboxZoom;
+        _lightboxPanY = _panOriginY + (e.ClientY - _panStartY) / _lightboxZoom;
+    }
+
+    private void EndLightboxPan(MouseEventArgs e)
+    {
+        _isPanning = false;
+    }
+
+    private async void OpenLightbox(PostDto post, int index)
+    {
+        _lightboxImageIds = post.Images.OrderBy(i => i.DisplayOrder).Select(i => i.Id).ToList();
+        _lightboxIndex = index;
+        _lightboxImageId = _lightboxImageIds[index];
+        ResetLightboxZoom();
+
+        StateHasChanged();
+        await Task.Delay(1); // let the backdrop render before focusing it
+        try { await _lightboxBackdropRef.FocusAsync(); }
+        catch { }
+    }
+
+    private void CloseLightbox()
+    {
+        _lightboxImageId = null;
+        _lightboxImageIds.Clear();
+    }
+
+    private void NavigateLightbox(int delta)
+    {
+        var newIndex = _lightboxIndex + delta;
+        if (newIndex < 0 || newIndex >= _lightboxImageIds.Count) return;
+        _lightboxIndex = newIndex;
+        _lightboxImageId = _lightboxImageIds[newIndex];
+        ResetLightboxZoom();
+    }
+
+
+    #endregion Lightbox Image Zooming - End
     #region Comment Editing - Start
     private void StartEditComment(PostCommentDto comment)
     {
@@ -972,32 +1108,6 @@
     {
         var apiBase = Http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
         return thumbnail ? $"{apiBase}/api/posts/images/{imageId}/thumb" : $"{apiBase}/api/posts/images/{imageId}";
-    }
-
-    private async void OpenLightbox(PostDto post, int index)
-    {
-        _lightboxImageIds = post.Images.OrderBy(i => i.DisplayOrder).Select(i => i.Id).ToList();
-        _lightboxIndex = index;
-        _lightboxImageId = _lightboxImageIds[index];
-
-        StateHasChanged();
-        await Task.Delay(1); // let the backdrop render before focusing it
-        try { await _lightboxBackdropRef.FocusAsync(); }
-        catch { }
-    }
-
-    private void CloseLightbox()
-    {
-        _lightboxImageId = null;
-        _lightboxImageIds.Clear();
-    }
-
-    private void NavigateLightbox(int delta)
-    {
-        var newIndex = _lightboxIndex + delta;
-        if (newIndex < 0 || newIndex >= _lightboxImageIds.Count) return;
-        _lightboxIndex = newIndex;
-        _lightboxImageId = _lightboxImageIds[newIndex];
     }
 
     private void RequestDeletePost(Guid postId)

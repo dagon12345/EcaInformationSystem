@@ -477,6 +477,13 @@
 }
 
 /* ── Stats line ────────────────────────────────────────────────────── */
+.feed-stats-comment-link {
+    cursor: pointer;
+}
+
+    .feed-stats-comment-link:hover {
+        text-decoration: underline;
+    }
 .feed-post-stats {
     display: flex;
     justify-content: space-between;
@@ -694,26 +701,81 @@
     justify-content: center;
     outline: none;
 }
-
+.feed-lightbox-image-wrap {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 90vw;
+    max-height: 88vh;
+}
 .feed-lightbox-image {
     max-width: 90vw;
     max-height: 88vh;
     object-fit: contain;
     border-radius: 4px;
+    cursor: zoom-in;
+    transition: transform 0.15s ease;
+    user-select: none;
+}
+.feed-lightbox-image--zoomed {
+    cursor: grab;
+    transition: none; /* no lag while actively panning/scrolling */
 }
 
-.feed-lightbox-close {
+    .feed-lightbox-image--zoomed:active {
+        cursor: grabbing;
+    }
+
+.feed-lightbox-zoom-reset {
+    position: absolute;
+    top: 20px;
+    left: 24px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+    .feed-lightbox-zoom-reset:hover {
+        background: rgba(255,255,255,0.25);
+    }
+
+.feed-lightbox-top-controls {
     position: absolute;
     top: 20px;
     right: 24px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.feed-lightbox-icon-btn {
     background: rgba(255,255,255,0.15);
     border: none;
     color: #fff;
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    font-size: 18px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+
+    .feed-lightbox-icon-btn:hover:not(:disabled) {
+        background: rgba(255,255,255,0.28);
+    }
+
+    .feed-lightbox-icon-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
 
 .feed-lightbox-nav {
     position: absolute;
