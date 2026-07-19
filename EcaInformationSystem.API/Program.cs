@@ -15,6 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,6 +27,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ECAReS Caraga API", Version = "v1" });
+    c.MapType<IFormFile>(() => new OpenApiSchema { Type = "string", Format = "binary" }); // ✅ NEW
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -146,6 +148,59 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ─── Rate Limiting (brute-force protection on auth endpoints) ───────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            JsonSerializer.Serialize(new
+            {
+                status = 429,
+                message = "Too many login attempts. Please wait a minute and try again."
+            }),
+            token);
+    };
+
+    options.AddPolicy("login", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ip,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,                       // 5 attempts...
+                Window = TimeSpan.FromMinutes(1),       // ...per minute...
+                QueueLimit = 0,                         // ...no queueing extra requests, reject immediately
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            });
+    });
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+
+        int retryAfterSeconds = 60; // fallback
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            retryAfterSeconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+        }
+
+        await context.HttpContext.Response.WriteAsync(
+            JsonSerializer.Serialize(new
+            {
+                status = 429,
+                message = "Too many login attempts.",
+                retryAfterSeconds  // ✅ NEW — actual seconds left in this window
+            }),
+            token);
+    };
+});
+
 // ─── Caching & Compression ───────────────────────────────────────────────────
 builder.Services.AddMemoryCache();
 builder.Services.AddResponseCompression(options =>
@@ -180,6 +235,8 @@ var app = builder.Build();
 // CORS must come before any redirect middleware so that preflight OPTIONS responses
 // always carry Access-Control-Allow-Origin headers.
 app.UseCors("WasmPolicy");
+
+app.UseRateLimiter(); //Must come after CORS, before MapControllers
 
 app.MapHub<PostsHub>("/postsHub");
 app.UseWhen(

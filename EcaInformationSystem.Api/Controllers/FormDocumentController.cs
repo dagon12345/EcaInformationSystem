@@ -42,15 +42,13 @@ namespace EcaInformationSystem.Api.Controllers
         [Authorize(Policy = "AdminOnly")]
         [RequestSizeLimit(10 * 1024 * 1024)]
         public async Task<ActionResult<FormDocumentDto>> Upload(
-            [FromForm] IFormFile file,
-            [FromForm] string title,
-            [FromForm] string? description,
-            [FromForm] string? category,
-            [FromForm] Guid? folderId)
+            [FromForm] UploadFormDocumentRequest request)
         {
             try
             {
-                var dto = await _service.UploadAsync(file, title, description, category, folderId, CurrentUser);
+                var dto = await _service.UploadAsync(
+                    request.File, request.Title, request.Description,
+                    request.Category, request.FolderId, CurrentUser);
                 return Ok(dto);
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
@@ -60,9 +58,9 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpPut("{id:guid}/file")]
         [Authorize(Policy = "AdminOnly")]
         [RequestSizeLimit(10 * 1024 * 1024)]
-        public async Task<ActionResult<FormDocumentDto>> ReplaceFile(Guid id, [FromForm] IFormFile file)
+        public async Task<ActionResult<FormDocumentDto>> ReplaceFile(Guid id, [FromForm] ReplaceFileRequest request)
         {
-            try { return Ok(await _service.ReplaceFileAsync(id, file, CurrentUser)); }
+            try { return Ok(await _service.ReplaceFileAsync(id, request.File, CurrentUser)); }
             catch (KeyNotFoundException) { return NotFound(); }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         }

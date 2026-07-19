@@ -1,4 +1,6 @@
-﻿namespace EcaInformationSystem.Shared.DTOs
+﻿using Microsoft.AspNetCore.Http;
+
+namespace EcaInformationSystem.Shared.DTOs
 {
     // Metadata only — used for the listing grid. Never carries FileData.
     public class FormDocumentDto
@@ -31,5 +33,17 @@
         public string? SearchTerm { get; set; }   // matches Title, Description, OriginalFileName, Category
         public Guid? FolderId { get; set; }       // null = all folders; use Guid.Empty sentinel for "Uncategorized" if you want that too
         public bool UncategorizedOnly { get; set; } = false;
+    }
+    public class UploadFormDocumentRequest
+    {
+        public IFormFile File { get; set; } = default!;
+        public string Title { get; set; } = default!;
+        public string? Description { get; set; }
+        public string? Category { get; set; }
+        public Guid? FolderId { get; set; }
+    }
+    public class ReplaceFileRequest
+    {
+        public IFormFile File { get; set; } = default!;
     }
 }

@@ -25,8 +25,8 @@ namespace EcaInformationSystem.Client.Services
         }
 
 
-        public async Task<(bool success, string message)> LoginAsync(
-            string userName, string password, CancellationToken cancellationToken = default)
+        public async Task<(bool success, string message, int? attemptsRemaining, bool isLockedOut, int? retryAfterSeconds)> LoginAsync(
+    string userName, string password, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -37,17 +37,22 @@ namespace EcaInformationSystem.Client.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return (false, string.IsNullOrWhiteSpace(error)
-                        ? "Login failed. Please try again."
-                        : error);
+                    // ✅ 429 body has the same shape as our 401 lockout body now
+                    var failure = await response.Content.ReadFromJsonAsync<LoginFailureResponse>(cancellationToken: cancellationToken);
+                    var isRateLimited = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+
+                    return (false,
+                        failure?.Message ?? "Login failed. Please try again.",
+                        failure?.AttemptsRemaining,
+                        failure?.IsLockedOut ?? isRateLimited, // treat 429 like a lock for UI purposes
+                        failure?.RetryAfterSeconds);
                 }
 
                 var result = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
 
                 if (result is null || string.IsNullOrWhiteSpace(result.Token))
                 {
-                    return (false, "Login failed: unexpected response from server.");
+                    return (false, "Login failed: unexpected response from server.", null, false, null);
                 }
 
                 await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
@@ -57,32 +62,27 @@ namespace EcaInformationSystem.Client.Services
                 _cachedRole = ParseRoleFromToken(result.Token);
                 await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
 
-                // ✅ NEW — connect chat right after successful login
                 try
                 {
                     var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
                     var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
                     await _chatClientService.ConnectAsync(hubUrl);
                 }
-                catch
-                {
-                    // Swallow — the main layout's OnInitializedAsync will retry
-                    // the connection on next load/navigation anyway.
-                }
+                catch { }
 
-                return (true, "Login successful.");
+                return (true, "Login successful.", null, false, null);
             }
             catch (OperationCanceledException)
             {
-                return (false, "The request took too long. Please check your connection and try again.");
+                return (false, "The request took too long. Please check your connection and try again.", null, false, null);
             }
             catch (HttpRequestException)
             {
-                return (false, "Unable to reach the server. Please check your internet connection and try again.");
+                return (false, "Unable to reach the server. Please check your internet connection and try again.", null, false, null);
             }
             catch (Exception)
             {
-                return (false, "An unexpected error occurred. Please try again.");
+                return (false, "An unexpected error occurred. Please try again.", null, false, null);
             }
         }
 
@@ -240,5 +240,12 @@ namespace EcaInformationSystem.Client.Services
         public string Token { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
+    }
+    public class LoginFailureResponse
+    {
+        public string Message { get; set; } = string.Empty;
+        public int? AttemptsRemaining { get; set; }
+        public bool IsLockedOut { get; set; }
+        public int? RetryAfterSeconds { get; set; } // ✅ NEW
     }
 }

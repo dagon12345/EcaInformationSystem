@@ -2,6 +2,7 @@
 using EcaInformationSystem.Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EcaInformationSystem.Api.Controllers
 {
@@ -16,12 +17,28 @@ namespace EcaInformationSystem.Api.Controllers
             _authService = authService;
         }
         [HttpPost("login")]
+        [EnableRateLimiting("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var result = await _authService.LoginAsync(request);
 
             if (!result.Success)
-                return Unauthorized(result.Message);
+            {
+                int? retryAfterSeconds = null;
+                if (result.LockoutEndsAt.HasValue)
+                {
+                    var remaining = result.LockoutEndsAt.Value - DateTime.UtcNow;
+                    retryAfterSeconds = (int)Math.Ceiling(Math.Max(remaining.TotalSeconds, 0));
+                }
+
+                return Unauthorized(new
+                {
+                    message = result.Message,
+                    attemptsRemaining = result.AttemptsRemaining,
+                    isLockedOut = result.IsLockedOut,
+                    retryAfterSeconds // ✅ NEW — same field name as the 429 response
+                });
+            }
 
             return Ok(new
             {

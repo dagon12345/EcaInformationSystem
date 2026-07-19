@@ -13,6 +13,7 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPendingUserRegistrationRepository _pendingUserRegistrationRepository;
         private readonly TokenService _tokenService;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
+        private const int MaxFailedAttempts = 5;
         public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository,
             TokenService tokenService)
         {
@@ -27,18 +28,50 @@ namespace EcaInformationSystem.Application.Services
             {
                 return AuthResult.Failed("Invalid username or password.");
             }
+
+            if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTime.UtcNow)
+            {
+                return AuthResult.Failed(
+                    "Account temporarily locked due to too many failed attempts.",
+                    attemptsRemaining: 0,
+                    isLockedOut: true,
+                    lockoutEndsAt: user.LockoutEnd);
+            }
+
             if (!user.IsActivated || user.ApprovalStatus != 1)
             {
-                return AuthResult.Failed("User account is not active.");
+                return AuthResult.Failed("Invalid username or password.");
             }
             var verifyResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
             if (verifyResult == PasswordVerificationResult.Failed)
             {
-                return AuthResult.Failed("Invalid username or password.");
+                user.FailedLoginCount++;
+                var remaining = MaxFailedAttempts - user.FailedLoginCount;
+                if (user.FailedLoginCount >= MaxFailedAttempts)
+                {
+                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
+                    await _pendingUserRegistrationRepository.SaveChangesAsync(cancellationToken);
+
+                    return AuthResult.Failed(
+                        "Too many failed attempts. Your account is now locked for 15 minutes.",
+                        attemptsRemaining: 0,
+                        isLockedOut: true,
+                        lockoutEndsAt: user.LockoutEnd);
+                }
+                await _pendingUserRegistrationRepository.SaveChangesAsync(cancellationToken);
+
+                return AuthResult.Failed(
+                         $"Invalid username or password. {remaining} attempt(s) remaining before lockout.",
+                         attemptsRemaining: remaining);
             }
 
+            // ✅ NEW — successful login resets the counter
+            user.FailedLoginCount = 0;
+            user.LockoutEnd = null;
+            await _pendingUserRegistrationRepository.SaveChangesAsync(cancellationToken);
+
             var token = _tokenService.GenerateToken(
-                user.Id,                                    // ✅ NEW
+                user.Id,
                 user.UserName,
                 user.FullName,
                 user.Position,
@@ -46,9 +79,7 @@ namespace EcaInformationSystem.Application.Services
                 user.Role == "PDO"
                     ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
                     : null,
-                user.Region);                                // ✅ NEW
-
-
+                user.Region);  
 
             var result = AuthResult.Passed(
                 "Login successful.",
@@ -62,10 +93,16 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
         {
+            // ✅ NEW — reject any role not explicitly allowed for self-registration
+            if (!AllowedSelfRegisterRoles.Contains(request.Role))
+            {
+                return AuthResult.Failed("Invalid role specified.");
+            }
+
             var existingUser = await _pendingUserRegistrationRepository.GetByUserNameAsync(request.UserName, cancellationToken);
             if (existingUser != null)
             {
-                return AuthResult.Failed("Username already exists.");
+                return AuthResult.Failed("Registration could not be completed. Please contact your administrator.");
             }
             var user = new PendingUserRegistration
             {
@@ -93,5 +130,12 @@ namespace EcaInformationSystem.Application.Services
                 user.FullName,
                 user.Position);
         }
+        private static readonly HashSet<string> AllowedSelfRegisterRoles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "PDO", "Viewer"
+            // Admin and SuperAdmin deliberately excluded — those must be created
+            // through the SuperAdmin user management page, not open registration.
+        };
+
     }
 }

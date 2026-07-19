@@ -170,8 +170,36 @@ else
 
                             @if (!string.IsNullOrWhiteSpace(ErrorMessage))
                             {
-                                <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
-                                    @ErrorMessage
+                                var bgColor = IsLockedOut ? "#fef2f2" : (AttemptsRemaining <= 2 ? "#fff7ed" : "#fef2f2");
+                                var borderColor = IsLockedOut ? "#fca5a5" : (AttemptsRemaining <= 2 ? "#fdba74" : "#fca5a5");
+                                var textColor = IsLockedOut ? "#991b1b" : (AttemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
+
+                                <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
+                                    <div style="font-weight:600;">
+                                        @ErrorMessage
+                                    </div>
+
+                                    @if (SecondsLeft.HasValue)
+                                    {
+                                        var mins = SecondsLeft.Value / 60;
+                                        var secs = SecondsLeft.Value % 60;
+                                        <div style="font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums;">
+                                            ⏱ Try again in @mins:@secs.ToString("00")
+                                        </div>
+                                    }
+                                    else if (AttemptsRemaining.HasValue && !IsLockedOut && AttemptsRemaining <= 3)
+                                    {
+                                        <div style="display:flex;gap:4px;margin-top:6px;">
+                                            @for (int i = 0; i < 5; i++)
+                                            {
+                                                var filled = i < (5 - AttemptsRemaining.Value);
+                                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");"></div>
+                                            }
+                                        </div>
+                                        <div style="font-size:11px;margin-top:4px;opacity:0.8;">
+                                            @AttemptsRemaining.Value of 5 attempts remaining
+                                        </div>
+                                    }
                                 </div>
                             }
 
@@ -205,11 +233,11 @@ else
                                     margin-top:4px;display:block;" />
                                 </div>
 
-                                <button type="submit" disabled="@IsLoading"
+                                <button type="submit" disabled="@(IsLoading || SecondsLeft.HasValue)"
                                         style="width:100%;padding:11px;background:#0C447C;color:#fff;
                                     border:none;border-radius:8px;font-size:14px;font-weight:600;
-                                    cursor:pointer;opacity:@(IsLoading ? "0.7" : "1");">
-                                    @(IsLoading ? "Signing in..." : "Sign in")
+                                    cursor:pointer;opacity:@((IsLoading || SecondsLeft.HasValue) ? "0.7" : "1");">
+                                    @(SecondsLeft.HasValue ? $"Locked ({SecondsLeft}s)" : (IsLoading ? "Signing in..." : "Sign in"))
                                 </button>
                             </EditForm>
                             <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
@@ -230,6 +258,10 @@ else
 @code {
     private LoginModel model = new();
     private string? ErrorMessage;
+    private int? AttemptsRemaining;
+    private bool IsLockedOut;
+    private int? SecondsLeft;            // ✅ NEW — live countdown value
+    private System.Threading.Timer? _countdownTimer; // ✅ NEW
     private bool isCheckingAuth = true;
     private bool IsLoading = false;
 
@@ -252,12 +284,16 @@ else
     {
         IsLoading = true;
         ErrorMessage = null;
+        AttemptsRemaining = null;
+        IsLockedOut = false;
+        StopCountdown();
         StateHasChanged();
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var (success, message) = await AuthService.LoginAsync(model.UserName, model.Password, cts.Token);
+            var (success, message, attemptsRemaining, isLockedOut, retryAfterSeconds) =
+                await AuthService.LoginAsync(model.UserName, model.Password, cts.Token);
 
             if (success)
             {
@@ -267,6 +303,13 @@ else
             else
             {
                 ErrorMessage = message;
+                AttemptsRemaining = attemptsRemaining;
+                IsLockedOut = isLockedOut;
+
+                if (retryAfterSeconds.HasValue && retryAfterSeconds > 0)
+                {
+                    StartCountdown(retryAfterSeconds.Value); // ✅ NEW
+                }
             }
         }
         finally
@@ -275,6 +318,41 @@ else
             StateHasChanged();
         }
     }
+    // ✅ NEW — ticks every second, re-renders, clears itself and the error at zero
+    private void StartCountdown(int seconds)
+    {
+        SecondsLeft = seconds;
+        _countdownTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (SecondsLeft is > 0)
+                {
+                    SecondsLeft--;
+                }
+
+                if (SecondsLeft <= 0)
+                {
+                    StopCountdown();
+                    ErrorMessage = null;
+                    IsLockedOut = false;
+                    AttemptsRemaining = null;
+                }
+
+                StateHasChanged();
+            });
+        }, null, 1000, 1000);
+    }
+
+    private void StopCountdown()
+    {
+        _countdownTimer?.Dispose();
+        _countdownTimer = null;
+        SecondsLeft = null;
+    }
+
+    public void Dispose() => StopCountdown(); // ✅ NEW — cleanup on navigation away
+
 
     public class LoginModel
     {

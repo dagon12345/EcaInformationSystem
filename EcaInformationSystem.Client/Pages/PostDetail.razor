@@ -186,8 +186,28 @@ else
 
                             @if (!string.IsNullOrWhiteSpace(_errorMessage))
                             {
-                                <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
-                                    @_errorMessage
+                                var bgColor = _isLockedOut ? "#fef2f2" : (_attemptsRemaining <= 2 ? "#fff7ed" : "#fef2f2");
+                                var borderColor = _isLockedOut ? "#fca5a5" : (_attemptsRemaining <= 2 ? "#fdba74" : "#fca5a5");
+                                var textColor = _isLockedOut ? "#991b1b" : (_attemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
+
+                                <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
+                                    <div style="font-weight:600;margin-bottom:@(_attemptsRemaining.HasValue && !_isLockedOut ? "4px" : "0")">
+                                        @_errorMessage
+                                    </div>
+
+                                    @if (_attemptsRemaining.HasValue && !_isLockedOut && _attemptsRemaining <= 3)
+                                    {
+                                        <div style="display:flex;gap:4px;margin-top:6px;">
+                                            @for (int i = 0; i < 5; i++)
+                                            {
+                                                var filled = i < (5 - _attemptsRemaining.Value);
+                                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");"></div>
+                                            }
+                                        </div>
+                                        <div style="font-size:11px;margin-top:4px;opacity:0.8;">
+                                            @_attemptsRemaining.Value of 5 attempts remaining
+                                        </div>
+                                    }
                                 </div>
                             }
 
@@ -251,6 +271,10 @@ else
 
     private LoginModel _model = new();
     private string? _errorMessage;
+    private int? _attemptsRemaining;
+    private bool _isLockedOut;
+    private int? _secondsLeft;
+    private System.Threading.Timer? _countdownTimer;
     private bool _isLoggingIn;
 
     protected override async Task OnInitializedAsync()
@@ -264,23 +288,32 @@ else
     {
         _isLoggingIn = true;
         _errorMessage = null;
+        _attemptsRemaining = null;
+        _isLockedOut = false;
+        StopCountdown();
         StateHasChanged();
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var (success, message) = await AuthService.LoginAsync(_model.UserName, _model.Password, cts.Token);
+            var (success, message, attemptsRemaining, isLockedOut, retryAfterSeconds) =
+                await AuthService.LoginAsync(_model.UserName, _model.Password, cts.Token);
 
             if (success)
             {
                 ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
-                // ✅ After logging in, send them BACK to this same post, not the generic feed —
-                // that's the whole point of preserving the shared link's destination.
                 Navigation.NavigateTo($"/post/{PostId}", true);
             }
             else
             {
                 _errorMessage = message;
+                _attemptsRemaining = attemptsRemaining;
+                _isLockedOut = isLockedOut;
+
+                if (retryAfterSeconds.HasValue && retryAfterSeconds > 0)
+                {
+                    StartCountdown(retryAfterSeconds.Value);
+                }
             }
         }
         finally
@@ -289,6 +322,37 @@ else
             StateHasChanged();
         }
     }
+
+    private void StartCountdown(int seconds)
+    {
+        _secondsLeft = seconds;
+        _countdownTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (_secondsLeft is > 0) _secondsLeft--;
+
+                if (_secondsLeft <= 0)
+                {
+                    StopCountdown();
+                    _errorMessage = null;
+                    _isLockedOut = false;
+                    _attemptsRemaining = null;
+                }
+
+                StateHasChanged();
+            });
+        }, null, 1000, 1000);
+    }
+
+    private void StopCountdown()
+    {
+        _countdownTimer?.Dispose();
+        _countdownTimer = null;
+        _secondsLeft = null;
+    }
+
+    public void Dispose() => StopCountdown();
 
     public class LoginModel
     {
