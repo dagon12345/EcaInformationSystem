@@ -25,6 +25,19 @@
     --bs-modal-zindex: 1200;
     --bs-backdrop-zindex: 1190;
 }
+.auth-feed-column {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: visible; /* ✅ explicitly allow horizontal overflow so the highlight shadow isn't clipped */
+    min-width: 0;
+    padding: 0 8px 0 4px; /* ✅ was padding-right: 4px only — now has room on both sides */
+}
+.feed-link-copied-toast {
+    font-size: 11.5px;
+    color: #16a34a;
+    font-weight: 600;
+    margin: -4px 0 6px;
+}
 /* ── Add these to app.css, right after your existing .udp-year-input rule ── */
 
 .udp-nav-label--clickable {
@@ -258,6 +271,47 @@
     align-items: flex-start;
     gap: 10px;
     margin-bottom: 6px;
+}
+.feed-post--highlighted {
+    animation: feedPostHighlight 2.5s ease-out;
+}
+
+@keyframes feedPostHighlight {
+    0% {
+        box-shadow: inset 0 0 30px 8px rgba(77, 163, 255, 0.6);
+        background: #cfe4ff;
+    }
+
+    50% {
+        box-shadow: inset 0 0 20px 4px rgba(77, 163, 255, 0.4);
+        background: #e3f0ff;
+    }
+
+    100% {
+        box-shadow: inset 0 0 0 0 rgba(77, 163, 255, 0);
+        background: #fff;
+    }
+}
+/* Anonymous shared-link view — brighter ring so it's visible against the dark navy background */
+.auth-feed-column .feed-post--highlighted {
+    animation: feedPostHighlightBright 2.5s ease-out;
+}
+
+@keyframes feedPostHighlightBright {
+    0% {
+        box-shadow: inset 0 0 30px 8px rgba(77, 163, 255, 0.6);
+        background: #cfe4ff;
+    }
+
+    50% {
+        box-shadow: inset 0 0 20px 4px rgba(77, 163, 255, 0.4);
+        background: #e3f0ff;
+    }
+
+    100% {
+        box-shadow: inset 0 0 0 0 rgba(77, 163, 255, 0);
+        background: #fff;
+    }
 }
 
 .feed-avatar {
@@ -2712,6 +2766,10 @@
 @media (max-width: 768px) {
     .auth-page-wrapper {
         padding: 16px 12px 40px; /* was 32px 24px 60px — too much wasted edge space on phones */
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        box-sizing: border-box;
     }
 
     .login-brand-panel,
@@ -5511,9 +5569,26 @@
         }
 
 
-    html, body {
-        height: 100%;
-    }
+html, body, #app {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+}
+body {
+    padding-right: 0 !important;
+}
+.auth-page-wrapper {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    box-sizing: border-box;
+}
+.content-area {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
 
     .brand-icon {
         width: 32px;

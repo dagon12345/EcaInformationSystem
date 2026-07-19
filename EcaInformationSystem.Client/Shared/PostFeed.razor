@@ -10,6 +10,7 @@
 @inject IJSRuntime JS
 @inject PostsClientService PostsClient
 @inject IConfiguration Configuration
+@inject NavigationManager Navigation
 
 <div class="feed-container">
 
@@ -85,7 +86,9 @@
     {
         @foreach (var post in _posts)
         {
-            <div class="feed-post" @onmouseenter="() => TrackViewOnce(post.Id)">
+            <div class="feed-post @(_highlightedPostId == post.Id ? "feed-post--highlighted" : "")"
+                 id="@($"post-{post.Id}")"
+                 @onmouseenter="() => TrackViewOnce(post.Id)">
                 <div class="feed-post-header">
                     <div class="feed-avatar">@GetInitials(post.AuthorName)</div>
                     <div class="feed-post-header-text">
@@ -111,9 +114,13 @@
                         </div>
                     </div>
 
-                    @if (post.CanDelete)
-                    {
-                        <div class="feed-post-header-actions">
+                    <div class="feed-post-header-actions">
+                        <button class="feed-post-menu-btn" title="Copy link to this post" @onclick="() => CopyPostLinkAsync(post.Id)">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+
+                        @if (post.CanDelete)
+                        {
                             @if (_editingPostId != post.Id)
                             {
                                 <button class="feed-post-menu-btn" title="Edit post" @onclick="() => StartEdit(post)">
@@ -123,7 +130,12 @@
                             <button class="feed-post-menu-btn" title="Delete post" @onclick="() => RequestDeletePost(post.Id)">
                                 <i class="bi bi-trash3"></i>
                             </button>
-                        </div>
+                        }
+                    </div>
+
+                    @if (_linkCopiedPostId == post.Id)
+                    {
+                        <div class="feed-link-copied-toast">Link copied!</div>
                     }
                 </div>
 
@@ -536,16 +548,14 @@
     private string _editCommentContent = string.Empty;
     private bool _isSavingCommentEdit;
 
+    [Parameter] public Guid? FocusPostId { get; set; }
+    private Guid? _linkCopiedPostId;
+    private Guid? _highlightedPostId;
+
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            _viewerKey = await JS.InvokeAsync<string>("viewerKey.get");
-        }
-        catch
-        {
-            _viewerKey = Guid.NewGuid().ToString();
-        }
+        try { _viewerKey = await JS.InvokeAsync<string>("viewerKey.get"); }
+        catch { _viewerKey = Guid.NewGuid().ToString(); }
 
         Http.DefaultRequestHeaders.Remove("X-Viewer-Key");
         Http.DefaultRequestHeaders.Add("X-Viewer-Key", _viewerKey);
@@ -554,7 +564,91 @@
         _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
         await LoadFeedAsync(reset: true);
+
+        // ✅ If we were opened via a shared link, ensure that post is present
+        // (even if it's older than the first page) and scroll/highlight it.
+        if (FocusPostId.HasValue)
+        {
+            await EnsureFocusedPostLoadedAsync(FocusPostId.Value);
+        }
+
         await ConnectRealtimeAsync();
+    }
+
+    private async Task EnsureFocusedPostLoadedAsync(Guid postId)
+    {
+        // If it's already in the first page, no extra fetch needed.
+        if (!_posts.Any(p => p.Id == postId))
+        {
+            try
+            {
+                var post = await Http.GetFromJsonAsync<PostDto>($"api/posts/{postId}");
+                if (post != null)
+                {
+                    // Insert it at the top so it's visible without requiring "Load more" —
+                    // it's out of chronological order here, but it's clearly highlighted
+                    // so that's not confusing in context.
+                    _posts.Insert(0, post);
+                    _newCommentContent.TryAdd(post.Id, string.Empty);
+                }
+            }
+            catch { }
+        }
+
+        _highlightedPostId = postId;
+        StateHasChanged();
+
+        await Task.Delay(50); // let the DOM render before scrolling
+        try { await JS.InvokeVoidAsync("feedInterop.scrollToPost", postId.ToString()); }
+        catch { }
+
+        // Fade the highlight after a few seconds so it doesn't stay permanently marked.
+        await Task.Delay(3000);
+        _highlightedPostId = null;
+        StateHasChanged();
+    }
+    private async Task CopyPostLinkAsync(Guid postId)
+    {
+        var url = $"{Navigation.BaseUri}post/{postId}";
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            _linkCopiedPostId = postId;
+            StateHasChanged();
+            await Task.Delay(1800);
+            _linkCopiedPostId = null;
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private async Task LoadSinglePostAsync(Guid postId)
+    {
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            var post = await Http.GetFromJsonAsync<PostDto>($"api/posts/{postId}");
+            if (post != null)
+            {
+                _posts = new List<PostDto> { post };
+                _newCommentContent.TryAdd(post.Id, string.Empty);
+                _expandedPostId = post.Id; // auto-expand comments for a shared-link view
+                await ToggleCommentsForce(post.Id);
+            }
+            _hasMore = false;
+        }
+        catch { }
+        finally { _isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task ToggleCommentsForce(Guid postId)
+    {
+        if (!_comments.ContainsKey(postId))
+        {
+            var result = await Http.GetFromJsonAsync<PagedResultDto<PostCommentDto>>($"api/posts/{postId}/comments?pageNumber=1&pageSize=50");
+            _comments[postId] = result?.Items?.ToList() ?? new();
+        }
     }
     #region Emoji Reaction - Start
     private void OnReactionButtonClick(PostDto post)

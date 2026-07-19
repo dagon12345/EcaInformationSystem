@@ -1,0 +1,301 @@
+﻿@page "/post/{PostId:guid}"
+@attribute [AllowAnonymous]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Client.Shared
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>ECA-InFORMS Feed</PageTitle>
+
+@if (_checkingAuth)
+{
+    <div class="container py-5 text-center"><p>Loading...</p></div>
+}
+else if (_isAuthenticated)
+{
+    @* Authenticated visitor — MainLayout already renders the full shell around this page,
+       so just show the single post like a normal feed page. *@
+    <PostFeed FocusPostId="@PostId" />
+}
+else
+{
+    @* Anonymous visitor — same login-card + content layout as Login.razor, so a
+       shared link doesn't dump them onto a bare, orphaned page. *@
+    <style>
+        .auth-page-wrapper {
+            height: 100vh;
+            background: #042C53;
+            padding: 24px;
+            overflow: hidden;
+        }
+
+        .auth-page-grid {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+        }
+
+        .auth-feed-column {
+            height: 100%;
+            overflow-y: auto;
+            min-width: 0;
+            padding-right: 4px;
+        }
+
+            .auth-feed-column::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            .auth-feed-column::-webkit-scrollbar-thumb {
+                background: rgba(255,255,255,0.25);
+                border-radius: 4px;
+            }
+
+            .auth-feed-column::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+        .auth-card-column {
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .auth-card-scroll-inner {
+            min-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-card {
+            display: flex;
+            flex-direction: column;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+            width: 100%;
+        }
+
+        .login-brand-panel {
+            background: #0C447C;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 28px 24px;
+            position: relative;
+            text-align: center;
+        }
+
+        .login-form-panel {
+            background: #fff;
+            padding: 28px 32px;
+        }
+
+        .auth-shared-post-banner {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 12.5px;
+            margin-bottom: 12px;
+        }
+
+        @@media (max-width: 900px) {
+            .auth-page-wrapper {
+                height: auto;
+                min-height: 100vh;
+                overflow: visible;
+            }
+
+            .auth-page-grid {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .auth-card-column {
+                height: auto;
+                overflow: visible;
+                order: 1;
+            }
+
+            .auth-feed-column {
+                height: auto;
+                overflow: visible;
+                order: 2;
+            }
+
+            .auth-card-scroll-inner {
+                min-height: auto;
+            }
+        }
+
+        @@media (max-width: 640px) {
+            .auth-page-wrapper {
+                padding: 16px 12px 40px;
+            }
+
+            .login-brand-panel {
+                padding: 24px 20px;
+            }
+
+            .login-form-panel {
+                padding: 20px 20px;
+            }
+        }
+    </style>
+
+    <div class="auth-page-wrapper">
+        <div class="auth-page-grid">
+
+            <div class="auth-feed-column">
+                <PostFeed FocusPostId="@PostId" />
+            </div>
+
+            <div class="auth-card-column">
+                <div class="auth-card-scroll-inner">
+                    <div class="login-card">
+                        <div class="login-brand-panel">
+                            <img src="images/ncsc-seal.png" alt="NCSC Seal"
+                                 style="width: 76px; height: 76px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 16px; background: white;"
+                                 onerror="this.style.display='none'" />
+                            <div style="font-size: 26px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
+                            <div style="font-size: 11px; color: #85B7EB; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px;">Caraga Region</div>
+                            <div style="width: 36px; height: 2px; background: #378ADD; margin: 0 auto 12px; border-radius: 2px;"></div>
+                            <p style="font-size: 11px; color: #B5D4F4; line-height: 1.6; max-width: 220px;">
+                                Expanded Centenarian Act - Integrated Financial, Operations, Reporting and Monitoring System
+                            </p>
+                            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 16px;">
+                                <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">NCSC</span>
+                                <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">Region XIII</span>
+                            </div>
+                        </div>
+
+                        <div class="login-form-panel">
+                            <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Secure access</p>
+                            <h2 style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Welcome back</h2>
+                            <p style="font-size:13px;color:#6b7280;margin-bottom:24px;">Sign in to your ECA-InFORMS account</p>
+
+                            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                            {
+                                <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
+                                    @_errorMessage
+                                </div>
+                            }
+
+                            <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+                                <DataAnnotationsValidator />
+                                <ValidationSummary style="background:#fef2f2;border:0.5px solid #fca5a5;
+                                color:#991b1b;padding:10px 14px;border-radius:8px;
+                                font-size:12px;margin-bottom:16px;list-style:none;" />
+
+                                <div style="margin-bottom:16px;">
+                                    <label style="display:block;font-size:12px;font-weight:600;
+                                    color:#374151;margin-bottom:6px;">Username</label>
+                                    <InputText @bind-Value="_model.UserName"
+                                               placeholder="Enter your username"
+                                               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
+                                    border-radius:8px;font-size:14px;outline:none;" />
+                                    <ValidationMessage For="@(() => _model.UserName)"
+                                                       style="font-size:11px;color:#991b1b;
+                                    margin-top:4px;display:block;" />
+                                </div>
+
+                                <div style="margin-bottom:24px;">
+                                    <label style="display:block;font-size:12px;font-weight:600;
+                                    color:#374151;margin-bottom:6px;">Password</label>
+                                    <InputText type="password" @bind-Value="_model.Password"
+                                               placeholder="Enter your password"
+                                               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
+                                    border-radius:8px;font-size:14px;outline:none;" />
+                                    <ValidationMessage For="@(() => _model.Password)"
+                                                       style="font-size:11px;color:#991b1b;
+                                    margin-top:4px;display:block;" />
+                                </div>
+
+                                <button type="submit" disabled="@_isLoggingIn"
+                                        style="width:100%;padding:11px;background:#0C447C;color:#fff;
+                                    border:none;border-radius:8px;font-size:14px;font-weight:600;
+                                    cursor:pointer;opacity:@(_isLoggingIn ? "0.7" : "1");">
+                                    @(_isLoggingIn ? "Signing in..." : "Sign in")
+                                </button>
+                            </EditForm>
+                            <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
+                                No account yet? <a href="register" style="color:#185FA5;font-weight:600;text-decoration:none;">Register here</a>
+                            </p>
+                            <div style="margin-top: 24px; padding-top: 14px; border-top: 0.5px solid #e5e7eb; text-align: center;">
+                                <span style="font-size: 10px; color: #9ca3af;">National Commission of Senior Citizens · Philippine Government</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid PostId { get; set; }
+
+    private bool _checkingAuth = true;
+    private bool _isAuthenticated;
+
+    private LoginModel _model = new();
+    private string? _errorMessage;
+    private bool _isLoggingIn;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        _checkingAuth = false;
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        _isLoggingIn = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var (success, message) = await AuthService.LoginAsync(_model.UserName, _model.Password, cts.Token);
+
+            if (success)
+            {
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+                // ✅ After logging in, send them BACK to this same post, not the generic feed —
+                // that's the whole point of preserving the shared link's destination.
+                Navigation.NavigateTo($"/post/{PostId}", true);
+            }
+            else
+            {
+                _errorMessage = message;
+            }
+        }
+        finally
+        {
+            _isLoggingIn = false;
+            StateHasChanged();
+        }
+    }
+
+    public class LoginModel
+    {
+        [Required(ErrorMessage = "Username is required.")]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}

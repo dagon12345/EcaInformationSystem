@@ -13,30 +13,30 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div class="app-shell">
-    <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
+<AuthorizeView>
+    <Authorized>
+        <div class="app-shell">
+            <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
 
-    <div class="sidebar @(collapsed ? "collapsed" : "") @(mobileOpen ? "mobile-open" : "")">
-        <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" UserName="@userName" />
-    </div>
-    <div class="main-area">
-        <div class="top-navbar">
-            <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
-                <i class="bi bi-list"></i>
-            </button>
-            <div class="breadcrumb-area">
-                <span>ECA</span>
-                <span class="separator">›</span>
-                <span class="current">@currentPage</span>
+            <div class="sidebar @(collapsed ? "collapsed" : "") @(mobileOpen ? "mobile-open" : "")">
+                <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" UserName="@userName" />
             </div>
-            <div class="navbar-actions">
+            <div class="main-area">
+                <div class="top-navbar">
+                    <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <div class="breadcrumb-area">
+                        <span>ECA</span>
+                        <span class="separator">›</span>
+                        <span class="current">@currentPage</span>
+                    </div>
+                    <div class="navbar-actions">
 
-                @* ── Duplicate notification bell ─────────────────────────── *@
-                <DuplicateNotificationBell @ref="_duplicateBell" />
-                <UploadQueueIndicator />
+                        @* ── Duplicate notification bell ─────────────────────────── *@
+                        <DuplicateNotificationBell @ref="_duplicateBell" />
+                        <UploadQueueIndicator />
 
-                <AuthorizeView>
-                    <Authorized>
                         @* ── User info + role badge ────────────────────────── *@
                         <div class="d-flex align-items-center gap-2 me-2">
                             <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
@@ -52,55 +52,56 @@
                                 }
                             </div>
                         </div>
-                    </Authorized>
-                </AuthorizeView>
-                <button class="icon-btn" @onclick="HandleLogout" title="Logout">
-                    <i class="bi bi-box-arrow-right"></i>
-                </button>
+                        <button class="icon-btn" @onclick="HandleLogout" title="Logout">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                @* ── Permission denied banner ──────────────────────────────────────── *@
+                @if (_showPermissionBanner)
+                {
+                    <div class="permission-banner permission-banner--@_bannerType" role="alert">
+                        <div class="permission-banner__icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <div class="permission-banner__body">
+                            <strong>Access Restricted</strong>
+                            <span>@_permissionMessage</span>
+                        </div>
+                        <button class="permission-banner__close" @onclick="DismissBanner" title="Dismiss">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                }
+
+                <article class="content-area">
+                    @Body
+                </article>
             </div>
         </div>
+        <ChatWidget />
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
 
-        @* ── Permission denied banner ──────────────────────────────────────── *@
-        @if (_showPermissionBanner)
-        {
-            <div class="permission-banner permission-banner--@_bannerType" role="alert">
-                <div class="permission-banner__icon">
-                    <i class="bi bi-shield-lock-fill"></i>
-                </div>
-                <div class="permission-banner__body">
-                    <strong>Access Restricted</strong>
-                    <span>@_permissionMessage</span>
-                </div>
-                <button class="permission-banner__close" @onclick="DismissBanner" title="Dismiss">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-        }
-
-        <article class="content-area">
-            @Body
-        </article>
-    </div>
-</div>
-<ChatWidget />
 @code {
     private bool collapsed = false;
-    private bool mobileOpen = false;   // ✅ new — controls mobile off-canvas drawer
+    private bool mobileOpen = false;
     private string userName = string.Empty;
     private string currentPage = "Dashboard";
     private string? _userRole;
-    // ── Permission banner state ───────────────────────────────────────────────`
     private bool _showPermissionBanner = false;
     private string _permissionMessage = string.Empty;
-    private string _bannerType = "error"; // "error" | "warning"
+    private string _bannerType = "error";
     private System.Threading.CancellationTokenSource? _bannerCts;
     private DuplicateNotificationBell? _duplicateBell;
 
-    // ── Expose so child components can trigger the banner ─────────────────────
     public static MainLayout? Current { get; private set; }
 
     private void ToggleMobileSidebar() => mobileOpen = !mobileOpen;
-
     private void CloseMobileSidebar() => mobileOpen = false;
 
     private static readonly Dictionary<string, string> PageNames = new()
@@ -151,25 +152,22 @@
                     // Non-fatal — widget can show disconnected state
                 }
             }
+
+            // ✅ Moved inside the authenticated check — anonymous visitors have
+            // no notification permissions to request and no chat audio to prime.
+            await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
+            await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission");
         }
-        // ✅ NEW — prime audio playback as soon as the app shell is up. Any
-        // click the user makes anywhere in the app (navigating, clicking a
-        // button, etc.) will now silently unlock notification sounds.
-        await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
-        await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission"); // ✅ NEW
 
         StateHasChanged();
     }
 
-    // ── Call this from any component when a restricted button is clicked ──────
     public async Task ShowPermissionDeniedAsync(string? customMessage = null)
     {
         var role = _userRole ?? AuthService.GetRole() ?? "your role";
         var label = GetRoleLabel(role);
 
-        _permissionMessage = customMessage
-            ?? GetDefaultDeniedMessage(role, label);
-
+        _permissionMessage = customMessage ?? GetDefaultDeniedMessage(role, label);
         _bannerType = role == "Viewer" ? "error" : "warning";
         _showPermissionBanner = true;
 
@@ -185,7 +183,7 @@
             if (!token.IsCancellationRequested)
                 DismissBanner();
         }
-        catch (TaskCanceledException) { /* dismissed early — ignore */ }
+        catch (TaskCanceledException) { }
     }
 
     private void DismissBanner()
@@ -199,13 +197,10 @@
         "Viewer" =>
             $"You have view-only access ({label}). " +
             "Contact an administrator to request additional permissions.",
-
         "PDO" =>
             $"This action is restricted to Administrators. " +
             $"Your account ({label}) does not have permission to perform this operation.",
-
-        _ =>
-            "You do not have permission to perform this action."
+        _ => "You do not have permission to perform this action."
     };
 
     private static string GetRoleBadgeClass(string role) => role switch
@@ -239,8 +234,8 @@
     {
         UpdateCurrentPage(e.Location);
         DismissBanner();
-        mobileOpen = false;   // ✅ new — close drawer after navigating
-        _duplicateBell?.CloseDropdown(); //Replaces the old _showDuplicateDropdown = false
+        mobileOpen = false;
+        _duplicateBell?.CloseDropdown();
         InvokeAsync(StateHasChanged);
     }
 
@@ -269,8 +264,9 @@
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
-        Navigation.NavigateTo("/login", true);   // was "/login" — now lands on the public feed
+        Navigation.NavigateTo("/login", true);
     }
+
     public void Dispose()
     {
         Current = null;

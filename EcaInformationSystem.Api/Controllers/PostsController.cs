@@ -53,6 +53,15 @@ namespace EcaInformationSystem.Api.Controllers
             var headerKey = Request.Headers[ViewerKeyHeader].ToString();
             return string.IsNullOrWhiteSpace(headerKey) ? null : headerKey;
         }
+        [HttpGet("{id:guid}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPost(Guid id)
+        {
+            var result = await _postService.GetPostByIdAsync(id, ResolveViewerKey(), GetUserId(), GetRole());
+            if (result == null) return NotFound();
+            return Ok(result);
+        }
+
         [HttpPut("{id:guid}")]
         [Authorize]
         [RequestSizeLimit(209_715_200)]
@@ -93,6 +102,7 @@ namespace EcaInformationSystem.Api.Controllers
                 return Forbid(ex.Message);
             }
         }
+
         [HttpGet("feed")]
         [AllowAnonymous]
         public async Task<IActionResult> GetFeed([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)

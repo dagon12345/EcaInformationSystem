@@ -15,6 +15,8 @@ namespace EcaInformationSystem.Application.Services
             _repo = repo;
             _imageProcessor = imageProcessor;
         }
+        public Task<PostDto?> GetPostByIdAsync(Guid postId, string? viewerKey, Guid? viewerUserId, string? viewerRole)
+            => _repo.GetPostByIdAsync(postId, viewerKey, viewerUserId, viewerRole);
         public async Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType)
             => await _repo.SetReactionAsync(postId, likerKey, isAnonymous, reactionType);
         public async Task<PostCommentDto> AddCommentAsync(Guid postId, CreateCommentDto dto, Guid userId, string authorName, string? authorPosition, string? authorRegion)

@@ -21,5 +21,6 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task RemoveImagesAsync(Guid postId, List<Guid> imageIds);
         Task<List<PostImageDto>> GetImageMetaAsync(Guid postId);
         Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType);
+        Task<PostDto?> GetPostByIdAsync(Guid postId, string? viewerKey, Guid? viewerUserId, string? viewerRole);
     }
 }

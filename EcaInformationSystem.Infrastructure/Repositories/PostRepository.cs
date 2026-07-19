@@ -15,6 +15,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             _context = context;
         }
+        public async Task<PostDto?> GetPostByIdAsync(Guid postId, string? viewerKey, Guid? viewerUserId, string? viewerRole)
+        {
+            var post = await _context.Posts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == postId && !p.IsDeleted);
+            if (post == null) return null;
+
+            // Reuse GetFeedAsync's per-post logic by filtering a 1-item "page" —
+            // simplest way to keep reaction/image/permission logic in one place.
+            var page = await GetFeedAsync(1, 1000, viewerKey, viewerUserId, viewerRole);
+            return page.Items.FirstOrDefault(p => p.Id == postId);
+        }
         public async Task RemoveImagesAsync(Guid postId, List<Guid> imageIds)
         {
             var images = await _context.PostImages
