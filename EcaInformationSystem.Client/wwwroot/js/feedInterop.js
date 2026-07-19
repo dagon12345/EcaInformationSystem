@@ -14,5 +14,13 @@ window.feedInterop = {
             // rather than assuming it's always the window.
             el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         }
+    },
+    getImageOffset: function (imgElement, clientX, clientY, currentZoom) {
+        const rect = imgElement.getBoundingClientRect();
+        const scale = currentZoom || 1;
+        return {
+            x: (clientX - rect.left) / scale,
+            y: (clientY - rect.top) / scale
+        };
     }
 };

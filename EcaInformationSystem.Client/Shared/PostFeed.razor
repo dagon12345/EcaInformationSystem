@@ -416,11 +416,14 @@
 
         <div class="feed-lightbox-image-wrap" @onwheel="HandleLightboxWheel" @onwheel:preventDefault="true">
             <img class="feed-lightbox-image @(_lightboxZoom > 1 ? "feed-lightbox-image--zoomed" : "")"
-                 style="transform: scale(@_lightboxZoom.ToString(System.Globalization.CultureInfo.InvariantCulture)) translate(@(_lightboxPanX)px, @(_lightboxPanY)px);"
+                 style="transform-origin: @_lightboxTransformOrigin; transform: scale(@_lightboxZoom.ToString(System.Globalization.CultureInfo.InvariantCulture)) translate(@(_lightboxPanX)px, @(_lightboxPanY)px);"
                  src="@GetImageUrl(_lightboxImageId.Value, thumbnail: false)" alt="post image"
-                 @onclick:stopPropagation="true" @onclick="ToggleLightboxZoom"
+                 @ref="_lightboxImageRef"
+                 @onclick:stopPropagation="true" @onclick="OnLightboxImageClick"
                  @onmousedown="StartLightboxPan" @onmouseup="EndLightboxPan" @onmousemove="OnLightboxPanMove"
-                 @onmouseleave="EndLightboxPan" />
+                 @onmouseleave="EndLightboxPan"
+                 @ontouchstart="StartLightboxPanTouch" @ontouchmove="OnLightboxPanMoveTouch" @ontouchmove:preventDefault="true"
+                 @ontouchend="EndLightboxPanTouchEnd" />
         </div>
 
         @if (_lightboxHasNext)
@@ -551,6 +554,15 @@
     [Parameter] public Guid? FocusPostId { get; set; }
     private Guid? _linkCopiedPostId;
     private Guid? _highlightedPostId;
+
+    //Image zoom properties
+    private ElementReference _lightboxImageRef;
+    private string _lightboxTransformOrigin = "center center";
+    private bool _isPinching;
+    private double _pinchStartDistance;
+    private double _pinchStartZoom;
+
+    private class ImageOffset { public double X { get; set; } public double Y { get; set; } }
 
     protected override async Task OnInitializedAsync()
     {
@@ -712,25 +724,102 @@
     }
     #endregion Emoji Reaction - End
     #region Lightbox Image Zooming - Start
+    private static double TouchDistance(TouchPoint a, TouchPoint b)
+    {
+        var dx = a.ClientX - b.ClientX;
+        var dy = a.ClientY - b.ClientY;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private async Task StartLightboxPanTouch(TouchEventArgs e)
+    {
+        if (e.Touches.Length == 2)
+        {
+            _isPinching = true;
+            _isPanning = false;
+            var t0 = e.Touches[0];
+            var t1 = e.Touches[1];
+            _pinchStartDistance = TouchDistance(t0, t1);
+            _pinchStartZoom = _lightboxZoom;
+
+            var midX = (t0.ClientX + t1.ClientX) / 2;
+            var midY = (t0.ClientY + t1.ClientY) / 2;
+            var offset = await GetImageOffsetAsync(midX, midY);
+            if (offset != null)
+                _lightboxTransformOrigin = $"{offset.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}px {offset.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)}px";
+        }
+        else if (_lightboxZoom > 1 && e.Touches.Length == 1)
+        {
+            _isPanning = true;
+            _panStartX = e.Touches[0].ClientX;
+            _panStartY = e.Touches[0].ClientY;
+            _panOriginX = _lightboxPanX;
+            _panOriginY = _lightboxPanY;
+        }
+    }
+
+    private void OnLightboxPanMoveTouch(TouchEventArgs e)
+    {
+        if (_isPinching && e.Touches.Length == 2)
+        {
+            var dist = TouchDistance(e.Touches[0], e.Touches[1]);
+            if (_pinchStartDistance > 0)
+            {
+                var ratio = dist / _pinchStartDistance;
+                _lightboxZoom = Math.Clamp(_pinchStartZoom * ratio, 1, MaxZoom);
+            }
+            return;
+        }
+
+        if (!_isPanning || e.Touches.Length == 0) return;
+        _lightboxPanX = _panOriginX + (e.Touches[0].ClientX - _panStartX) / _lightboxZoom;
+        _lightboxPanY = _panOriginY + (e.Touches[0].ClientY - _panStartY) / _lightboxZoom;
+    }
+
+    private void EndLightboxPanTouchEnd(TouchEventArgs e)
+    {
+        _isPanning = false;
+        if (e.Touches.Length < 2)
+        {
+            _isPinching = false;
+            if (_lightboxZoom <= 1)
+            {
+                _lightboxZoom = 1;
+                _lightboxPanX = 0;
+                _lightboxPanY = 0;
+                _lightboxTransformOrigin = "center center";
+            }
+        }
+    }
+    private async Task<ImageOffset?> GetImageOffsetAsync(double clientX, double clientY)
+    {
+        try { return await JS.InvokeAsync<ImageOffset>("feedInterop.getImageOffset", _lightboxImageRef, clientX, clientY, _lightboxZoom); }
+        catch { return null; }
+    }
+
+    private async Task OnLightboxImageClick(MouseEventArgs e)
+    {
+        if (_lightboxZoom <= 1)
+        {
+            var offset = await GetImageOffsetAsync(e.ClientX, e.ClientY);
+            if (offset != null)
+                _lightboxTransformOrigin = $"{offset.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}px {offset.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)}px";
+        }
+        ToggleLightboxZoom();
+    }
+
     private void ToggleLightboxZoom()
     {
-        // Click cycles: 1x -> 2x -> 1x. Simple, predictable, no accidental double-zoom.
         _lightboxZoom = _lightboxZoom > 1 ? 1 : 2;
-        if (_lightboxZoom == 1)
-        {
-            _lightboxPanX = 0;
-            _lightboxPanY = 0;
-        }
+        _lightboxPanX = 0;
+        _lightboxPanY = 0;
+        if (_lightboxZoom == 1) _lightboxTransformOrigin = "center center";
     }
     private void AdjustLightboxZoom(double delta)
     {
         _lightboxZoom = Math.Clamp(_lightboxZoom + delta, 1, MaxZoom);
-        if (_lightboxZoom <= 1)
-        {
-            _lightboxZoom = 1;
-            _lightboxPanX = 0;
-            _lightboxPanY = 0;
-        }
+        _lightboxPanX = 0;
+        _lightboxPanY = 0;
     }
     private void ResetLightboxZoom()
     {
