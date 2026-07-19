@@ -15,6 +15,8 @@ namespace EcaInformationSystem.Application.Services
             _repo = repo;
             _imageProcessor = imageProcessor;
         }
+        public async Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType)
+            => await _repo.SetReactionAsync(postId, likerKey, isAnonymous, reactionType);
         public async Task<PostCommentDto> AddCommentAsync(Guid postId, CreateCommentDto dto, Guid userId, string authorName, string? authorPosition, string? authorRegion)
         {
             var post = await _repo.GetEntityByIdAsync(postId)
@@ -254,12 +256,6 @@ namespace EcaInformationSystem.Application.Services
 
             var bytes = thumbnail ? image.ThumbnailData : image.ImageData;
             return (bytes, image.ContentType);
-        }
-
-        public async Task<LikeToggleResultDto> ToggleLikeAsync(Guid postId, string likerKey, bool isAnonymous)
-        {
-            var (isLiked, likeCount) = await _repo.ToggleLikeAsync(postId, likerKey, isAnonymous);
-            return new LikeToggleResultDto { IsLiked = isLiked, LikeCount = likeCount };
         }
         public Task<PagedResultDto<PostCommentDto>> GetCommentsAsync(Guid postId, int pageNumber, int pageSize, Guid? viewerUserId, string? viewerRole)
             => _repo.GetCommentsAsync(postId, pageNumber, pageSize, viewerUserId, viewerRole);

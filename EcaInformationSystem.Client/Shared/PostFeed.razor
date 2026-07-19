@@ -216,14 +216,17 @@
 
                 @if (_editingPostId != post.Id)
                 {
-                    @if (post.LikeCount > 0 || post.CommentCount > 0 || post.ViewCount > 0)
+                    @if (post.Reactions.Total > 0 || post.CommentCount > 0 || post.ViewCount > 0)
                     {
                         <div class="feed-post-stats">
                             <span class="feed-stats-left">
-                                @if (post.LikeCount > 0)
+                                @if (post.Reactions.Total > 0)
                                 {
-                                    <span class="feed-stats-like-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
-                                    @:@post.LikeCount
+                                    @foreach (var emoji in GetTopReactionEmojis(post.Reactions))
+                                    {
+                                        <span class="feed-stats-reaction-icon">@emoji</span>
+                                    }
+                                    @:@post.Reactions.Total
                                 }
                             </span>
                             <span class="feed-stats-right">
@@ -239,16 +242,31 @@
                     }
 
                     <div class="feed-post-actionbar">
-                        <button class="feed-actionbar-btn @(post.IsLikedByViewer ? "feed-actionbar-btn--active" : "")"
-                                @onclick="() => ToggleLikeAsync(post)">
-                            <i class="bi @(post.IsLikedByViewer ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i> Like
-                        </button>
+                        <div class="feed-reaction-wrapper">
+                            @if (_openReactionPickerPostId == post.Id)
+                            {
+                                <div class="feed-reaction-picker">
+                                    <button class="feed-reaction-option" title="Like" @onclick="() => SetReactionAsync(post, 1)">👍</button>
+                                    <button class="feed-reaction-option" title="Wow" @onclick="() => SetReactionAsync(post, 2)">😮</button>
+                                    <button class="feed-reaction-option" title="Love" @onclick="() => SetReactionAsync(post, 3)">❤️</button>
+                                    <button class="feed-reaction-option" title="Celebrate" @onclick="() => SetReactionAsync(post, 4)">🎉</button>
+                                </div>
+                            }
+                            <button class="feed-actionbar-btn @GetReactionButtonClass(post.ViewerReactionType)"
+                                    @onclick="() => OnReactionButtonClick(post)">
+                                <span class="feed-reaction-current-emoji">@GetReactionEmoji(post.ViewerReactionType)</span>
+                                @GetReactionLabel(post.ViewerReactionType)
+                            </button>
+                        </div>
                         <button class="feed-actionbar-btn" @onclick="() => ToggleComments(post.Id)">
                             <i class="bi bi-chat"></i> Comment
                         </button>
                     </div>
                 }
-
+                @if (_openReactionPickerPostId.HasValue)
+                {
+                    <div class="feed-reaction-backdrop" @onclick="() => _openReactionPickerPostId = null"></div>
+                }
                 @if (_expandedPostId == post.Id)
                 {
                     <div class="feed-comments">
@@ -418,6 +436,32 @@
 }
 
 @code {
+    //Reaction emoji feature properties
+    private static readonly Dictionary<int, string> ReactionEmojis = new()
+    {
+        { 1, "👍" }, { 2, "😮" }, { 3, "❤️" }, { 4, "🎉" }
+    };
+    private static readonly Dictionary<int, string> ReactionLabels = new()
+    {
+        { 1, "Like" }, { 2, "Wow" }, { 3, "Love" }, { 4, "Celebrate" }
+    };
+
+    private string GetReactionEmoji(int? t) => t.HasValue && ReactionEmojis.TryGetValue(t.Value, out var e) ? e : "👍";
+    private string GetReactionLabel(int? t) => t.HasValue && ReactionLabels.TryGetValue(t.Value, out var l) ? l : "Like";
+    private string GetReactionButtonClass(int? t) => t switch
+    {
+        1 => "feed-actionbar-btn--like",
+        2 => "feed-actionbar-btn--wow",
+        3 => "feed-actionbar-btn--love",
+        4 => "feed-actionbar-btn--confetti",
+        _ => ""
+    };
+
+    private static List<string> GetTopReactionEmojis(ReactionSummaryDto r) =>
+        new List<(int, int)> { (1, r.Like), (2, r.Wow), (3, r.Heart), (4, r.Confetti) }
+            .Where(x => x.Item2 > 0).OrderByDescending(x => x.Item2).Take(3)
+            .Select(x => ReactionEmojis[x.Item1]).ToList();
+    private Guid? _openReactionPickerPostId;
     //Lightbox state for zooming image feature.
     private double _lightboxZoom = 1;
     private double _lightboxPanX = 0;
@@ -512,6 +556,67 @@
         await LoadFeedAsync(reset: true);
         await ConnectRealtimeAsync();
     }
+    #region Emoji Reaction - Start
+    private void OnReactionButtonClick(PostDto post)
+    {
+        // If viewer already has a reaction, clicking the main button toggles it off
+        // (same as before). If not, clicking opens the picker instead of instantly
+        // applying "Like" — this is the actual behavior change: no reaction happens
+        // on a bare click anymore, the picker decides.
+        if (post.ViewerReactionType.HasValue)
+        {
+            _ = SetReactionAsync(post, post.ViewerReactionType.Value); // toggles off, same type clicked
+            _openReactionPickerPostId = null;
+        }
+        else
+        {
+            _openReactionPickerPostId = _openReactionPickerPostId == post.Id ? null : post.Id;
+        }
+    }
+
+    private async Task SetReactionAsync(PostDto post, int reactionType)
+    {
+        _openReactionPickerPostId = null;   // renamed
+
+        var previous = post.ViewerReactionType;
+        ApplyReactionDelta(post, previous, remove: true);
+        post.ViewerReactionType = previous == reactionType ? null : reactionType;
+        if (post.ViewerReactionType.HasValue)
+            ApplyReactionDelta(post, post.ViewerReactionType, remove: false);
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/posts/{post.Id}/react", new SetPostReactionDto { ReactionType = reactionType });
+            var result = await response.Content.ReadFromJsonAsync<ReactionResultDto>();
+            if (result != null)
+            {
+                post.ViewerReactionType = result.ViewerReactionType;
+                post.Reactions = result.Reactions;
+            }
+        }
+        catch { }
+    }
+
+    private static void ApplyReactionDelta(PostDto post, int? t, bool remove)
+    {
+        if (!t.HasValue) return;
+        int d = remove ? -1 : 1;
+        switch (t.Value)
+        {
+            case 1: post.Reactions.Like = Math.Max(0, post.Reactions.Like + d); break;
+            case 2: post.Reactions.Wow = Math.Max(0, post.Reactions.Wow + d); break;
+            case 3: post.Reactions.Heart = Math.Max(0, post.Reactions.Heart + d); break;
+            case 4: post.Reactions.Confetti = Math.Max(0, post.Reactions.Confetti + d); break;
+        }
+    }
+
+    private void OnReactionUpdated(Guid postId, ReactionSummaryDto summary)
+    {
+        var post = _posts.FirstOrDefault(p => p.Id == postId);
+        if (post != null) { post.Reactions = summary; InvokeAsync(StateHasChanged); }
+    }
+    #endregion Emoji Reaction - End
     #region Lightbox Image Zooming - Start
     private void ToggleLightboxZoom()
     {
@@ -699,12 +804,12 @@
     {
         PostsClient.PostCreated += OnPostCreated;
         PostsClient.PostDeleted += OnPostDeleted;
-        PostsClient.LikeUpdated += OnLikeUpdated;
         PostsClient.ViewUpdated += OnViewUpdated;
         PostsClient.CommentAdded += OnCommentAdded;
         PostsClient.CommentDeleted += OnCommentDeleted;
         PostsClient.PostEdited += OnPostEdited;
         PostsClient.CommentEdited += OnCommentEdited;
+        PostsClient.ReactionUpdated += OnReactionUpdated;
 
         try
         {
@@ -719,12 +824,12 @@
     {
         PostsClient.PostCreated -= OnPostCreated;
         PostsClient.PostDeleted -= OnPostDeleted;
-        PostsClient.LikeUpdated -= OnLikeUpdated;
         PostsClient.ViewUpdated -= OnViewUpdated;
         PostsClient.CommentAdded -= OnCommentAdded;
         PostsClient.CommentDeleted -= OnCommentDeleted;
         PostsClient.PostEdited -= OnPostEdited;
         PostsClient.CommentEdited -= OnCommentEdited;
+        PostsClient.ReactionUpdated -= OnReactionUpdated;
         await Task.CompletedTask;
     }
 
@@ -741,12 +846,6 @@
         _posts.RemoveAll(p => p.Id == postId);
         _comments.Remove(postId);
         InvokeAsync(StateHasChanged);
-    }
-
-    private void OnLikeUpdated(Guid postId, int likeCount)
-    {
-        var post = _posts.FirstOrDefault(p => p.Id == postId);
-        if (post != null) { post.LikeCount = likeCount; InvokeAsync(StateHasChanged); }
     }
 
     private void OnViewUpdated(Guid postId, int viewCount)
@@ -1027,26 +1126,6 @@
             _isSavingEdit = false;
         }
     }
-
-    private async Task ToggleLikeAsync(PostDto post)
-    {
-        post.IsLikedByViewer = !post.IsLikedByViewer;
-        post.LikeCount += post.IsLikedByViewer ? 1 : -1;
-        StateHasChanged();
-
-        try
-        {
-            var response = await Http.PostAsync($"api/posts/{post.Id}/like", null);
-            var result = await response.Content.ReadFromJsonAsync<LikeToggleResultDto>();
-            if (result != null)
-            {
-                post.IsLikedByViewer = result.IsLiked;
-                post.LikeCount = result.LikeCount;
-            }
-        }
-        catch { }
-    }
-
     private async Task TrackViewOnce(Guid postId)
     {
         if (_viewedThisSession.Contains(postId)) return;

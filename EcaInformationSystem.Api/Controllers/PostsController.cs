@@ -182,18 +182,17 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
 
-        [HttpPost("{id:guid}/like")]
+        [HttpPost("{id:guid}/react")]
         [AllowAnonymous]
-        public async Task<IActionResult> ToggleLike(Guid id)
+        public async Task<IActionResult> SetReaction(Guid id, [FromBody] SetPostReactionDto dto)
         {
             var userId = GetUserId();
             var likerKey = ResolveViewerKey();
+            if (string.IsNullOrWhiteSpace(likerKey)) return BadRequest("Missing viewer identity.");
+            if (dto.ReactionType < 1 || dto.ReactionType > 4) return BadRequest("Invalid reaction type.");
 
-            if (string.IsNullOrWhiteSpace(likerKey))
-                return BadRequest("Missing viewer identity.");
-
-            var result = await _postService.ToggleLikeAsync(id, likerKey, isAnonymous: !userId.HasValue);
-            await _hub.Clients.All.SendAsync("LikeUpdated", id, result.LikeCount);
+            var result = await _postService.SetReactionAsync(id, likerKey, isAnonymous: !userId.HasValue, dto.ReactionType);
+            await _hub.Clients.All.SendAsync("ReactionUpdated", id, result.Reactions);
             return Ok(result);
         }
 
@@ -296,8 +295,7 @@ namespace EcaInformationSystem.Api.Controllers
             AuthorRegion = source.AuthorRegion,
             Content = source.Content,
             CreatedAt = source.CreatedAt,
-            LikeCount = source.LikeCount,           // ✅ add
-            IsLikedByViewer = false,                // ✅ add — viewer-relative, other clients start unlliked
+            ViewerReactionType = source.ViewerReactionType,
             CommentCount = source.CommentCount,
             ViewCount = source.ViewCount,
             CanDelete = canDelete,

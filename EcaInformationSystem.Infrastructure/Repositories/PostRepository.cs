@@ -1,4 +1,5 @@
 ﻿using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities.PostEntities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
@@ -49,12 +50,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var postIds = page.Select(p => p.Id).ToList();
 
-            // ── Counts — grouped in one shot each, no per-post round trip ──────
-            var likeCounts = await _context.PostLikes.AsNoTracking()
+            // ── Reactions — grouped by (PostId, ReactionType) ──────────────────
+            var reactionRows = await _context.PostLikes.AsNoTracking()
                 .Where(l => postIds.Contains(l.PostId))
-                .GroupBy(l => l.PostId)
-                .Select(g => new { PostId = g.Key, Count = g.Count() })
+                .GroupBy(l => new { l.PostId, l.ReactionType })
+                .Select(g => new { g.Key.PostId, g.Key.ReactionType, Count = g.Count() })
                 .ToListAsync();
+
+            // ── Viewer's own reaction per post ───────────────────────────────
+            var viewerReactions = new Dictionary<Guid, int>();
+            if (!string.IsNullOrWhiteSpace(viewerKey))
+            {
+                viewerReactions = await _context.PostLikes.AsNoTracking()
+                    .Where(l => postIds.Contains(l.PostId) && l.LikerKey == viewerKey)
+                    .ToDictionaryAsync(l => l.PostId, l => (int)l.ReactionType);
+            }
 
             var commentCounts = await _context.PostComments.AsNoTracking()
                 .Where(c => postIds.Contains(c.PostId) && !c.IsDeleted)
@@ -68,53 +78,47 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Select(g => new { PostId = g.Key, Count = g.Count() })
                 .ToListAsync();
 
-            var likedByViewer = new HashSet<Guid>();
-            if (!string.IsNullOrWhiteSpace(viewerKey))
-            {
-                likedByViewer = (await _context.PostLikes.AsNoTracking()
-                    .Where(l => postIds.Contains(l.PostId) && l.LikerKey == viewerKey)
-                    .Select(l => l.PostId)
-                    .ToListAsync()).ToHashSet();
-            }
-
             bool isSuperAdmin = viewerRole == SuperAdminRole;
 
-
-            // ✅ NEW — image metadata only, no ImageData/ThumbnailData bytes here.
-            // The grid just needs dimensions to lay out correctly; actual bytes are
-            // fetched lazily per-image via the dedicated image endpoint below.
             var imageMeta = await _context.PostImages.AsNoTracking()
                 .Where(i => postIds.Contains(i.PostId))
                 .OrderBy(i => i.DisplayOrder)
                 .Select(i => new { i.Id, i.PostId, i.DisplayOrder, i.Width, i.Height })
                 .ToListAsync();
 
-
-            var items = page.Select(p => new PostDto
+            // ── Block-bodied lambda — lets us compute rowsForPost/summary first ──
+            var items = page.Select(p =>
             {
-                Id = p.Id,
-                AuthorUserId = p.AuthorUserId,
-                AuthorName = p.AuthorName,
-                AuthorPosition = p.AuthorPosition,
-                AuthorRegion = p.AuthorRegion,
-                Content = p.Content,
-                CreatedAt = p.CreatedAt,
-                LikeCount = likeCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
-                CommentCount = commentCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
-                ViewCount = viewCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
-                IsLikedByViewer = likedByViewer.Contains(p.Id),
-                CanDelete = viewerUserId.HasValue &&
-                    (viewerUserId.Value == p.AuthorUserId || isSuperAdmin),
-                Images = imageMeta
-                      .Where(i => i.PostId == p.Id)
-                      .Select(i => new PostImageDto
-                      {
-                          Id = i.Id,
-                          DisplayOrder = i.DisplayOrder,
-                          Width = i.Width,
-                          Height = i.Height
-                      })
-                      .ToList()
+                var rowsForPost = reactionRows.Where(r => r.PostId == p.Id).ToList();
+                var summary = new ReactionSummaryDto
+                {
+                    Like = rowsForPost.FirstOrDefault(r => r.ReactionType == ReactionType.Like)?.Count ?? 0,
+                    Wow = rowsForPost.FirstOrDefault(r => r.ReactionType == ReactionType.Wow)?.Count ?? 0,
+                    Heart = rowsForPost.FirstOrDefault(r => r.ReactionType == ReactionType.Heart)?.Count ?? 0,
+                    Confetti = rowsForPost.FirstOrDefault(r => r.ReactionType == ReactionType.Confetti)?.Count ?? 0,
+                };
+
+                return new PostDto
+                {
+                    Id = p.Id,
+                    AuthorUserId = p.AuthorUserId,
+                    AuthorName = p.AuthorName,
+                    AuthorPosition = p.AuthorPosition,
+                    AuthorRegion = p.AuthorRegion,
+                    Content = p.Content,
+                    CreatedAt = p.CreatedAt,
+                    EditedAt = p.EditedAt,
+                    Reactions = summary,
+                    ViewerReactionType = viewerReactions.TryGetValue(p.Id, out var rt) ? rt : (int?)null,
+                    CommentCount = commentCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
+                    ViewCount = viewCounts.FirstOrDefault(x => x.PostId == p.Id)?.Count ?? 0,
+                    CanDelete = viewerUserId.HasValue && (viewerUserId.Value == p.AuthorUserId || isSuperAdmin),
+                    CanEdit = viewerUserId.HasValue && (viewerUserId.Value == p.AuthorUserId || isSuperAdmin),
+                    Images = imageMeta
+                        .Where(i => i.PostId == p.Id)
+                        .Select(i => new PostImageDto { Id = i.Id, DisplayOrder = i.DisplayOrder, Width = i.Width, Height = i.Height })
+                        .ToList()
+                };
             }).ToList();
 
             return new PagedResultDto<PostDto>
@@ -132,17 +136,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task AddPostAsync(Post post)
             => await _context.Posts.AddAsync(post);
 
-        public async Task<(bool isLiked, int likeCount)> ToggleLikeAsync(Guid postId, string likerKey, bool isAnonymous)
+        public async Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType)
         {
-            var existing = await _context.PostLikes
-                .FirstOrDefaultAsync(l => l.PostId == postId && l.LikerKey == likerKey);
+            var existing = await _context.PostLikes.FirstOrDefaultAsync(l => l.PostId == postId && l.LikerKey == likerKey);
+            int? viewerReaction;
 
-            bool nowLiked;
-
-            if (existing != null)
+            if (existing != null && (int)existing.ReactionType == reactionType)
             {
                 _context.PostLikes.Remove(existing);
-                nowLiked = false;
+                viewerReaction = null;
+            }
+            else if (existing != null)
+            {
+                existing.ReactionType = (ReactionType)reactionType;
+                viewerReaction = reactionType;
             }
             else
             {
@@ -152,14 +159,29 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PostId = postId,
                     LikerKey = likerKey,
                     IsAnonymous = isAnonymous,
+                    ReactionType = (ReactionType)reactionType,
                     CreatedAt = DateTime.UtcNow
                 });
-                nowLiked = true;
+                viewerReaction = reactionType;
             }
 
             await _context.SaveChangesAsync();
-            var count = await _context.PostLikes.CountAsync(l => l.PostId == postId);
-            return (nowLiked, count);
+
+            var rows = await _context.PostLikes.AsNoTracking()
+                .Where(l => l.PostId == postId)
+                .GroupBy(l => l.ReactionType)
+                .Select(g => new { ReactionType = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            var summary = new ReactionSummaryDto
+            {
+                Like = rows.FirstOrDefault(r => r.ReactionType == ReactionType.Like)?.Count ?? 0,
+                Wow = rows.FirstOrDefault(r => r.ReactionType == ReactionType.Wow)?.Count ?? 0,
+                Heart = rows.FirstOrDefault(r => r.ReactionType == ReactionType.Heart)?.Count ?? 0,
+                Confetti = rows.FirstOrDefault(r => r.ReactionType == ReactionType.Confetti)?.Count ?? 0,
+            };
+
+            return new ReactionResultDto { ViewerReactionType = viewerReaction, Reactions = summary };
         }
 
         public async Task RecordViewAsync(Guid postId, string viewerKey)

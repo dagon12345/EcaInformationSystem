@@ -1,4 +1,6 @@
-﻿namespace EcaInformationSystem.Domain.Entities.PostEntities
+﻿using EcaInformationSystem.Domain.Common.Enum;
+
+namespace EcaInformationSystem.Domain.Entities.PostEntities
 {
     public class Post
     {
@@ -40,6 +42,7 @@
         public string LikerKey { get; set; } = string.Empty;
         public bool IsAnonymous { get; set; }
         public DateTime CreatedAt { get; set; }
+        public ReactionType ReactionType { get; set;} = ReactionType.Like;
     }
 
     // ✅ Same key pattern as PostLike — one row per (Post, Viewer),

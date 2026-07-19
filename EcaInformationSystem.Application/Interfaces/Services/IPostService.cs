@@ -8,7 +8,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<PagedResultDto<PostCommentDto>> GetCommentsAsync(Guid postId, int pageNumber, int pageSize, Guid? viewerUserId, string? viewerRole);
         Task<PostDto> CreatePostAsync(CreatePostDto dto, List<PostImageUploadDto> images, Guid authorUserId, 
             string authorName, string? authorPosition, string? authorRegion);
-        Task<LikeToggleResultDto> ToggleLikeAsync(Guid postId, string likerKey, bool isAnonymous);
+        Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType);
         Task<PostCommentDto> AddCommentAsync(Guid postId, CreateCommentDto dto, Guid userId, string authorName);
         Task DeletePostAsync(Guid postId, Guid requestingUserId, string requestingRole, string requestingUserName);
         Task<bool> RecordViewIfNewAsync(Guid postId, string viewerKey);

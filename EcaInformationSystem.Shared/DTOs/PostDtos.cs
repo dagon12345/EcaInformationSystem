@@ -11,10 +11,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? AuthorRegion { get; set; }
         public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
-        public int LikeCount { get; set; }
+        public ReactionSummaryDto Reactions { get; set; } = new();
         public int CommentCount { get; set; }
         public int ViewCount { get; set; }
-        public bool IsLikedByViewer { get; set; }
+        public int? ViewerReactionType { get; set; }
         public bool CanDelete { get; set; }
         public DateTime? EditedAt { get; set; }   // add to PostDto
         public bool CanEdit { get; set; }         // add to PostDto — same rule as CanDelete
@@ -47,12 +47,6 @@ namespace EcaInformationSystem.Shared.DTOs
     {
         [Required, MaxLength(1000)]
         public string Content { get; set; } = string.Empty;
-    }
-
-    public class LikeToggleResultDto
-    {
-        public bool IsLiked { get; set; }
-        public int LikeCount { get; set; }
     }
     public class PostImageDto
     {

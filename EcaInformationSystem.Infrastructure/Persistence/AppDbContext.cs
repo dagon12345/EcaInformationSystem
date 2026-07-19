@@ -543,6 +543,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 entity.HasIndex(x => new { x.PostId, x.LikerKey })
                       .IsUnique()
                       .HasDatabaseName("UQ_PostLike_Post_Liker");
+
+                entity.Property(x => x.ReactionType).HasConversion<int>();
             });
 
             modelBuilder.Entity<PostView>(entity =>

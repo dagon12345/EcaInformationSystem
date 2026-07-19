@@ -9,7 +9,6 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<PagedResultDto<PostCommentDto>> GetCommentsAsync(Guid postId, int pageNumber, int pageSize, Guid? viewerUserId, string? viewerRole);
         Task<Post?> GetEntityByIdAsync(Guid id);
         Task AddPostAsync(Post post);
-        Task<(bool isLiked, int likeCount)> ToggleLikeAsync(Guid postId, string likerKey, bool isAnonymous);
         Task RecordViewAsync(Guid postId, string viewerKey);
         Task<int> GetViewCountAsync(Guid postId);
         Task AddCommentAsync(PostComment comment);
@@ -21,5 +20,6 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<PostImage?> GetImageEntityAsync(Guid imageId);
         Task RemoveImagesAsync(Guid postId, List<Guid> imageIds);
         Task<List<PostImageDto>> GetImageMetaAsync(Guid postId);
+        Task<ReactionResultDto> SetReactionAsync(Guid postId, string likerKey, bool isAnonymous, int reactionType);
     }
 }
