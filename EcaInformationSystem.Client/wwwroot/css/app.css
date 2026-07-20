@@ -5597,11 +5597,8 @@ body, #app {
     max-width: 100vw;
     min-height: 100%;
 }
-* {
-    max-width: 100%;
-}
-
-img, video {
+.feed-post-content img,
+.feed-composer img {
     max-width: 100%;
     height: auto;
 }
