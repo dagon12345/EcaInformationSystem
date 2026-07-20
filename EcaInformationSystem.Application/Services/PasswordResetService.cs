@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Interfaces.Repositories;
+﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs.Auth;
@@ -12,6 +13,7 @@ namespace EcaInformationSystem.Application.Services
     {
         private readonly IPasswordResetRequestRepository _resetRepo;
         private readonly IPendingUserRegistrationRepository _userRepo;
+        private readonly IRegionService _regionService;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
         private readonly IDataProtector _codeProtector; // ✅ NEW
 
@@ -22,14 +24,43 @@ namespace EcaInformationSystem.Application.Services
         public PasswordResetService(
             IPasswordResetRequestRepository resetRepo,
             IPendingUserRegistrationRepository userRepo,
+            IRegionService regionService,
             IDataProtectionProvider dataProtectionProvider)
         {
             _resetRepo = resetRepo;
             _userRepo = userRepo;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
             _codeProtector = dataProtectionProvider.CreateProtector("PasswordResetCode");
+            _regionService = regionService;
         }
+        public async Task<ApprovePasswordResetResultDto> RegenerateCodeAsync(Guid requestId, string regeneratedBy, CancellationToken cancellationToken = default)
+        {
+            var request = await _resetRepo.GetByIdAsync(requestId, cancellationToken)
+                ?? throw new KeyNotFoundException("Reset request not found.");
 
+            // ✅ Only makes sense for an already-approved request whose code has expired.
+            // A still-valid code should be viewed instead (ViewCodeAsync), and a pending/
+            // rejected/used request should go through the normal approve flow, not this one.
+            if (request.Status != 1)
+                throw new InvalidOperationException("Only approved requests can have their code regenerated.");
+
+            var plainCode = GenerateCode();
+            var encryptedCode = _codeProtector.Protect(plainCode);
+            var expiresAt = DateTime.UtcNow.AddMinutes(CodeValidityMinutes);
+
+            request.CodeHash = encryptedCode;
+            request.CodeExpiresAt = expiresAt;
+            request.ResolvedAt = DateTime.UtcNow; // ✅ updates the audit trail to reflect the regeneration time
+            request.ResolvedBy = regeneratedBy;   // ✅ overwrites with whoever regenerated it — full history isn't kept per-action, just latest state
+
+            await _resetRepo.SaveChangesAsync(cancellationToken);
+
+            return new ApprovePasswordResetResultDto
+            {
+                Code = plainCode,
+                ExpiresAt = expiresAt
+            };
+        }
         public async Task RequestResetAsync(string userName, CancellationToken cancellationToken = default)
         {
             // ✅ Same principle as login/registration — don't reveal whether the
@@ -58,16 +89,28 @@ namespace EcaInformationSystem.Application.Services
         public async Task<List<PasswordResetRequestListDto>> GetAllRequestsAsync(CancellationToken cancellationToken = default)
         {
             var requests = await _resetRepo.GetAllAsync(cancellationToken);
+
+            // ✅ NEW — resolve region names once, same pattern as UserManagementService
+            var regions = await _regionService.GetAllAsync();
+            var regionNameLookup = regions.ToDictionary(r => r.PsgcCodeRegion, r => r.Name);
+
+
             var result = new List<PasswordResetRequestListDto>();
 
             foreach (var r in requests)
             {
                 var user = await _userRepo.GetByIdAsync(r.UserId, cancellationToken);
+              
+                var regionName = user?.Region.HasValue == true && regionNameLookup.TryGetValue(user.Region.Value, out var name)
+                 ? name
+                 : (user?.Region.HasValue == true ? $"Region {user.Region.Value}" : "Not set");
+
                 result.Add(new PasswordResetRequestListDto
                 {
                     Id = r.Id,
                     UserName = r.UserName,
                     FullName = user?.FullName ?? "(deleted user)",
+                    RegionName = regionName ?? "Not set", // ✅ NEW
                     Status = r.Status,
                     RequestedAt = r.RequestedAt,
                     ResolvedAt = r.ResolvedAt,

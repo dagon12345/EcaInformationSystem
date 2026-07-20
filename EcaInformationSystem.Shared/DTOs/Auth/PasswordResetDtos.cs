@@ -27,6 +27,7 @@
         public Guid Id { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string RegionName { get; set; } = string.Empty; // ✅ NEW
         public int Status { get; set; }
         public DateTime RequestedAt { get; set; }
         public DateTime? ResolvedAt { get; set; }

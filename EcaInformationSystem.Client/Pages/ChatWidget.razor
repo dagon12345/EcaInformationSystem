@@ -9,8 +9,9 @@
 
 
 <div class="chat-widget-container" id="@_widgetContainerId">
-    <button class="chat-toggle-btn" @onclick="ChatState.ToggleWidget">
+    <button class="chat-toggle-btn @(ChatState.TotalUnreadCount > 0 && !ChatState.IsWidgetOpen ? "chat-toggle-btn--attention" : "")" @onclick="ChatState.ToggleWidget">
         <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
+        <span class="chat-toggle-btn-label">@(ChatState.IsWidgetOpen ? "Close" : "Messages")</span>
         @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
         {
             <span class="chat-unread-badge">@(ChatState.TotalUnreadCount > 99 ? "99+" : ChatState.TotalUnreadCount.ToString())</span>

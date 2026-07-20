@@ -122,5 +122,17 @@ namespace EcaInformationSystem.Api.Controllers
             if (result == null) return NotFound(new { message = "Code unavailable or expired." });
             return Ok(result);
         }
+        [HttpPost("password-reset-requests/{id:guid}/regenerate")]
+        public async Task<IActionResult> RegeneratePasswordResetCode(Guid id)
+        {
+            try
+            {
+                var regeneratedBy = User.Identity?.Name ?? "SuperAdmin";
+                var result = await _passwordResetService.RegenerateCodeAsync(id, regeneratedBy);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        }
     }
 }

@@ -1955,27 +1955,64 @@
 }
 
 .chat-toggle-btn {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 20px 0 16px;
+    border-radius: 24px; /* pill shape instead of circle */
     background: var(--bs-primary, #0d6efd);
     color: white;
     border: none;
-    font-size: 22px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     position: relative;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+    .chat-toggle-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        background: #0b5ed7;
+    }
+
+    .chat-toggle-btn i {
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+.chat-toggle-btn-label {
+    white-space: nowrap;
+}
+/* ── Draws attention when there are unread messages and the widget is closed ── */
+.chat-toggle-btn--attention {
+    animation: chatToggleAttentionPulse 2s ease-in-out infinite;
+}
+
+@keyframes chatToggleAttentionPulse {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(13,110,253,0.35), 0 0 0 0 rgba(13,110,253,0.5);
+    }
+
+    50% {
+        box-shadow: 0 4px 16px rgba(13,110,253,0.35), 0 0 0 10px rgba(13,110,253,0);
+    }
 }
 
 .chat-unread-badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
+    top: -6px;
+    right: -6px;
     background: #dc3545;
     color: white;
     border-radius: 10px;
     font-size: 11px;
-    padding: 1px 6px;
+    padding: 2px 6px;
     font-weight: 700;
+    border: 2px solid white;
+    min-width: 18px;
+    text-align: center;
 }
 
 .chat-widget-panel {
@@ -3400,6 +3437,15 @@
 }
 
 @media (max-width: 480px) {
+    .chat-toggle-btn {
+        height: 44px;
+        padding: 0 14px 0 12px;
+        gap: 6px;
+    }
+
+    .chat-toggle-btn-label {
+        font-size: 13px;
+    }
     .dash-stat-grid {
         grid-template-columns: 1fr 1fr;
         gap: 8px;

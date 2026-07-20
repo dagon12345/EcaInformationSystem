@@ -10,5 +10,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task RejectAsync(Guid requestId, string? remarks, string rejectedBy, CancellationToken cancellationToken = default);
         Task<bool> ResetPasswordAsync(string userName, string code, string newPassword, CancellationToken cancellationToken = default);
         Task<ApprovePasswordResetResultDto?> ViewCodeAsync(Guid requestId, CancellationToken cancellationToken = default);
+        Task<ApprovePasswordResetResultDto> RegenerateCodeAsync(Guid requestId, string regeneratedBy, CancellationToken cancellationToken = default);
     }
 }
