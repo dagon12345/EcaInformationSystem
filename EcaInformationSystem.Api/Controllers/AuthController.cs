@@ -12,9 +12,11 @@ namespace EcaInformationSystem.Api.Controllers
     public class AuthController: ControllerBase
     {
         private readonly IAuthService _authService;
-        public AuthController(IAuthService authService)
+        private readonly IPasswordResetService _passwordResetService; // ✅ NEW — add to constructor
+        public AuthController(IAuthService authService, IPasswordResetService passwordResetService)
         {
             _authService = authService;
+            _passwordResetService = passwordResetService;
         }
 
         [HttpPost("login")]
@@ -137,6 +139,26 @@ namespace EcaInformationSystem.Api.Controllers
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
             var enabled = await _authService.IsMfaEnabledAsync(userId);
             return Ok(new { isMfaEnabled = enabled });
+        }
+
+        [HttpPost("password-reset/request")]
+        [AllowAnonymous]
+        [EnableRateLimiting("login")] // ✅ same throttle — prevents spamming reset requests
+        public async Task<IActionResult> RequestPasswordReset([FromBody] Shared.DTOs.Auth.RequestPasswordResetDto dto)
+        {
+            await _passwordResetService.RequestResetAsync(dto.UserName);
+            // ✅ Always the same response, whether the username exists or not
+            return Ok(new { message = "If this account exists, your request has been sent to an administrator. Please wait for confirmation." });
+        }
+
+        [HttpPost("password-reset/complete")]
+        [AllowAnonymous]
+        [EnableRateLimiting("login")] // ✅ code-guessing surface, same protection as MFA verify
+        public async Task<IActionResult> CompletePasswordReset([FromBody] Shared.DTOs.Auth.ResetPasswordDto dto)
+        {
+            var success = await _passwordResetService.ResetPasswordAsync(dto.UserName, dto.Code, dto.NewPassword);
+            if (!success) return BadRequest(new { message = "Invalid or expired code." });
+            return Ok(new { message = "Password reset successfully. You can now log in." });
         }
     }
 }

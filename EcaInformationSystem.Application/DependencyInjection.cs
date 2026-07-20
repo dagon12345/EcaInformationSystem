@@ -32,6 +32,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IFormFolderService, FormFolderService>();
             services.AddScoped<IPostService, PostService>();
             services.AddScoped<IPostImageProcessingService, PostImageProcessingService>();
+            services.AddScoped<IPasswordResetService, PasswordResetService>();
             return services;
         }
     }

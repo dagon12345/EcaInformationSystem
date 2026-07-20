@@ -1,5 +1,6 @@
 // Api/Controllers/UserManagementController.cs
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Shared.DTOs.Auth;
 using EcaInformationSystem.Shared.DTOs.UserManagement;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,11 @@ namespace EcaInformationSystem.Api.Controllers
     public class UserManagementController : ControllerBase
     {
         private readonly IUserManagementService _service;
-
-        public UserManagementController(IUserManagementService service)
+        private readonly IPasswordResetService _passwordResetService; // ✅ NEW — add to constructor 
+        public UserManagementController(IUserManagementService service, IPasswordResetService passwordResetService)
         {
             _service = service;
+            _passwordResetService = passwordResetService;
         }
 
         // ── List all users ────────────────────────────────────────────────────
@@ -83,5 +85,42 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpGet("{id:guid}/jurisdictions")]
         public async Task<IActionResult> GetJurisdictions(Guid id)
             => Ok(await _service.GetJurisdictionCodesAsync(id));
+
+        [HttpGet("password-reset-requests")]
+        public async Task<IActionResult> GetPasswordResetRequests()
+            => Ok(await _passwordResetService.GetAllRequestsAsync());
+
+        [HttpPost("password-reset-requests/{id:guid}/approve")]
+        public async Task<IActionResult> ApprovePasswordReset(Guid id, [FromBody] ApprovePasswordResetDto dto)
+        {
+            try
+            {
+                var approvedBy = User.Identity?.Name ?? "SuperAdmin";
+                var result = await _passwordResetService.ApproveAsync(id, dto.Remarks, approvedBy);
+                return Ok(result); // { code, expiresAt } — shown once to the admin
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        }
+
+        [HttpPost("password-reset-requests/{id:guid}/reject")]
+        public async Task<IActionResult> RejectPasswordReset(Guid id, [FromBody] RejectPasswordResetDto dto)
+        {
+            try
+            {
+                var rejectedBy = User.Identity?.Name ?? "SuperAdmin";
+                await _passwordResetService.RejectAsync(id, dto.Remarks, rejectedBy);
+                return Ok(new { message = "Request rejected." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        }
+        [HttpGet("password-reset-requests/{id:guid}/view-code")]
+        public async Task<IActionResult> ViewPasswordResetCode(Guid id)
+        {
+            var result = await _passwordResetService.ViewCodeAsync(id);
+            if (result == null) return NotFound(new { message = "Code unavailable or expired." });
+            return Ok(result);
+        }
     }
 }

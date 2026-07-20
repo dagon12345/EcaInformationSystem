@@ -24,7 +24,38 @@ namespace EcaInformationSystem.Client.Services
             _config = config; // ✅ NEW
         }
 
+        public async Task<(bool success, string message)> RequestPasswordResetAsync(string userName, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync("api/auth/password-reset/request", new { userName }, cancellationToken);
+                var body = await response.Content.ReadFromJsonAsync<MessageResponse>(cancellationToken: cancellationToken);
+                return (response.IsSuccessStatusCode, body?.Message ?? "Something went wrong. Please try again.");
+            }
+            catch (Exception)
+            {
+                return (false, "Unable to reach the server. Please try again.");
+            }
+        }
 
+        public async Task<(bool success, string message)> CompletePasswordResetAsync(string userName, string code, string newPassword, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync("api/auth/password-reset/complete", new { userName, code, newPassword }, cancellationToken);
+                var body = await response.Content.ReadFromJsonAsync<MessageResponse>(cancellationToken: cancellationToken);
+                return (response.IsSuccessStatusCode, body?.Message ?? "Invalid or expired code.");
+            }
+            catch (Exception)
+            {
+                return (false, "Unable to reach the server. Please try again.");
+            }
+        }
+
+        public class MessageResponse
+        {
+            public string Message { get; set; } = string.Empty;
+        }
         public async Task<LoginOutcome> LoginAsync(
     string userName, string password, CancellationToken cancellationToken = default)
         {

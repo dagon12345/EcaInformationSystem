@@ -38,7 +38,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<PostLike> PostLikes => Set<PostLike>();
         public DbSet<PostView> PostViews => Set<PostView>();
         public DbSet<PostImage> PostImages => Set<PostImage>();
-        public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = default!; // ✅ NEW
+        public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = default!;
+        public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -577,6 +578,13 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                 entity.HasIndex(x => new { x.PostId, x.DisplayOrder })
                       .HasDatabaseName("IX_PostImage_Post_DisplayOrder");
+            });
+            modelBuilder.Entity<PasswordResetRequest>(entity =>
+            {
+                entity.HasKey(x => x.Id);
+                entity.HasIndex(x => x.UserId);
+                entity.HasIndex(x => x.Status);
+                entity.HasIndex(x => x.UserName);
             });
         }
     }
