@@ -1,0 +1,197 @@
+﻿@page "/mfa-setup"
+@attribute [Authorize]
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Set Up Two-Factor Authentication</PageTitle>
+
+<style>
+    .mfa-sticky-banner {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #FEF3C7;
+        border-bottom: 1px solid #FBBF24;
+        color: #92400E;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .mfa-setup-container {
+        max-width: 480px;
+        margin: 24px auto 40px;
+        padding: 24px;
+    }
+</style>
+
+@if (!_isLoading && _setupResult != null)
+{
+    <div class="mfa-sticky-banner">
+        ⚠ Two-factor authentication setup is required to keep your account secure. Please complete it below.
+    </div>
+}
+
+<div class="mfa-setup-container">
+    <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">Set Up Two-Factor Authentication</h2>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:24px;">
+        Scan this QR code with Microsoft Authenticator (or any authenticator app) to add an extra layer of security to your account.
+    </p>
+
+    @if (_isLoading)
+    {
+        <p>Generating your setup code...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(_alreadyEnabledMessage))
+    {
+        <div style="background:#f0fdf4;border:1px solid #86efac;color:#166534;padding:12px 16px;border-radius:8px;font-size:13px;">
+            @_alreadyEnabledMessage
+        </div>
+        <button @onclick="GoHome" style="margin-top:16px;width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+            Back to feed
+        </button>
+    }
+    else if (_setupResult != null)
+    {
+        <div style="text-align:center;margin-bottom:20px;">
+            <img src="data:image/png;base64,@_setupResult.QrCodeImageBase64"
+                 alt="MFA QR Code"
+                 style="width:220px;height:220px;border:1px solid #e5e7eb;border-radius:8px;padding:12px;" />
+        </div>
+
+        <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">
+            Can't scan? Enter this code manually in your authenticator app:
+        </p>
+        <div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:24px;">
+            <code style="font-size:14px;letter-spacing:1px;flex:1;">@FormatSecret(_setupResult.Secret)</code>
+            <button @onclick="CopySecretToClipboard" style="border:none;background:#0C447C;color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;">
+                @(_copied ? "Copied!" : "Copy")
+            </button>
+        </div>
+
+        <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">
+            Enter the 6-digit code from your app to confirm
+        </label>
+        <input @bind="_confirmCode" @bind:event="oninput" maxlength="6" placeholder="000000"
+               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;letter-spacing:4px;text-align:center;margin-bottom:12px;" />
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:12px;">
+                @_errorMessage
+            </div>
+        }
+
+        <button @onclick="ConfirmSetup" disabled="@(_confirmCode.Length != 6 || _isConfirming)"
+                style="width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:@(_confirmCode.Length != 6 || _isConfirming ? "0.6" : "1");margin-bottom:12px;">
+            @(_isConfirming ? "Verifying..." : "Enable Two-Factor Authentication")
+        </button>
+
+        @* ✅ NEW — explicit "do this later" escape hatch *@
+        <button @onclick="SetupLater"
+                style="width:100%;padding:10px;background:transparent;color:#6b7280;border:none;font-size:13px;cursor:pointer;">
+            Set up later
+        </button>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private bool _isConfirming = false;
+    private bool _copied = false;
+    private string _confirmCode = string.Empty;
+    private string? _errorMessage;
+    private string? _alreadyEnabledMessage;
+    private MfaSetupResponse? _setupResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await Http.PostAsync("api/auth/mfa/setup", null);
+            if (response.IsSuccessStatusCode)
+            {
+                _setupResult = await response.Content.ReadFromJsonAsync<MfaSetupResponse>();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                _alreadyEnabledMessage = "Two-factor authentication is already enabled on this account.";
+            }
+            else
+            {
+                _errorMessage = "Failed to generate setup code. Please try again.";
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConfirmSetup()
+    {
+        _isConfirming = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/mfa/confirm", new { code = _confirmCode });
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/", true);
+            }
+            else
+            {
+                _errorMessage = "Invalid code. Please check your authenticator app and try again.";
+                _confirmCode = string.Empty;
+            }
+        }
+        finally
+        {
+            _isConfirming = false;
+            StateHasChanged();
+        }
+    }
+
+    // ✅ NEW — bail out without completing; prompt will reappear next login
+    private void SetupLater()
+    {
+        Navigation.NavigateTo("/", true);
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/", true);
+    }
+
+    private string FormatSecret(string secret)
+    {
+        var chunks = new List<string>();
+        for (int i = 0; i < secret.Length; i += 4)
+        {
+            chunks.Add(secret.Substring(i, Math.Min(4, secret.Length - i)));
+        }
+        return string.Join(" ", chunks);
+    }
+
+    private async Task CopySecretToClipboard()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", _setupResult!.Secret);
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        _copied = false;
+        StateHasChanged();
+    }
+
+    private class MfaSetupResponse
+    {
+        public string Secret { get; set; } = string.Empty;
+        public string QrCodeImageBase64 { get; set; } = string.Empty;
+    }
+}

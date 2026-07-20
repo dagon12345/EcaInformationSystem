@@ -15,6 +15,7 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
         public string? Remarks { get; set; }
         public int? Region { get; set; }
         public string? RegionName { get; set; } // resolved name, e.g. "Caraga"
+        public bool IsMfaEnabled { get; set; } = false;
         public List<JurisdictionDto> Jurisdictions { get; set; } = new();
     }
 

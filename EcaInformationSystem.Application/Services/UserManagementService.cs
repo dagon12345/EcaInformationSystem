@@ -149,7 +149,8 @@ namespace EcaInformationSystem.Application.Services
                  Region = u.Region, // ✅ NEW
                  RegionName = u.Region.HasValue && regionNameLookup.TryGetValue(u.Region.Value, out var name)
                  ? name
-                 : (u.Region.HasValue ? $"Region {u.Region.Value}" : "Not set"), // ✅ NEW
+                 : (u.Region.HasValue ? $"Region {u.Region.Value}" : "Not set"),
+                 IsMfaEnabled = u.IsMfaEnabled,
                  Jurisdictions = u.Jurisdictions.Select(j => new JurisdictionDto
                  {
                      Id = j.Id,

@@ -2,9 +2,13 @@
 using EcaInformationSystem.Application.DTOs.Auth;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
-using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Common.Enum;
+using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Shared.DTOs;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using OtpNet;
+using QRCoder;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -13,13 +17,56 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPendingUserRegistrationRepository _pendingUserRegistrationRepository;
         private readonly TokenService _tokenService;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
+        private readonly IDataProtector _mfaProtector; // ✅ NEW
+
         private const int MaxFailedAttempts = 5;
         public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository,
-            TokenService tokenService)
+            TokenService tokenService, IDataProtectionProvider dataProtectionProvider)
         {
             _pendingUserRegistrationRepository = pendingUserRegistrationRepository;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
             _tokenService = tokenService;
+            _mfaProtector = dataProtectionProvider.CreateProtector("MfaSecrets");
+        }
+        public async Task<bool> IsMfaEnabledAsync(Guid userId)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+            return user.IsMfaEnabled;
+        }
+        // ✅ NEW — admin-initiated reset, for when a user is locked out with no working authenticator
+        public async Task ResetMfaByAdminAsync(Guid targetUserId)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(targetUserId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            user.IsMfaEnabled = false;
+            user.MfaSetupComplete = false;
+            user.MfaSecret = null;
+            user.MfaPromptShown = false; // ✅ so they get prompted to set it up again on next login
+
+            await _pendingUserRegistrationRepository.SaveChangesAsync();
+        }
+        public async Task<bool> ResetMfaAsync(Guid userId, string currentPassword)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            var verify = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword);
+            if (verify == PasswordVerificationResult.Failed) return false;
+
+            user.IsMfaEnabled = false;
+            user.MfaSetupComplete = false;
+            user.MfaSecret = null;
+            await _pendingUserRegistrationRepository.SaveChangesAsync();
+            return true;
+        }
+        public async Task MarkMfaPromptShownAsync(Guid userId)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+            user.MfaPromptShown = true;
+            await _pendingUserRegistrationRepository.SaveChangesAsync();
         }
         public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
         {
@@ -65,30 +112,18 @@ namespace EcaInformationSystem.Application.Services
                          attemptsRemaining: remaining);
             }
 
-            // ✅ NEW — successful login resets the counter
+            // ✅ Password correct — reset failure tracking regardless of MFA branch below
             user.FailedLoginCount = 0;
             user.LockoutEnd = null;
             await _pendingUserRegistrationRepository.SaveChangesAsync(cancellationToken);
 
-            var token = _tokenService.GenerateToken(
-                user.Id,
-                user.UserName,
-                user.FullName,
-                user.Position,
-                user.Role,
-                user.Role == "PDO"
-                    ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
-                    : null,
-                user.Region);  
+            // ✅ NEW — branch here instead of issuing a token immediately
+            if (user.IsMfaEnabled && user.MfaSetupComplete)
+            {
+                return AuthResult.NeedsMfa(user.Id.ToString());
+            }
 
-            var result = AuthResult.Passed(
-                "Login successful.",
-                user.Id.ToString(),
-                user.UserName,
-                user.FullName,
-                user.Position!);
-            result.Token = token; // Passed the generated token
-            return result;
+            return IssueToken(user);
         }
 
         public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -130,12 +165,115 @@ namespace EcaInformationSystem.Application.Services
                 user.FullName,
                 user.Position);
         }
+        #region Start Private Methods
+        // ✅ NEW — MFA enrollment: generate secret, encrypt before storing, return plain version once for setup
+        public async Task<MfaSetupResult> GenerateMfaSecretAsync(Guid userId)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            // ✅ NEW — don't silently regenerate/invalidate an already-active MFA setup
+            if (user.IsMfaEnabled && user.MfaSetupComplete)
+            {
+                throw new InvalidOperationException("MFA is already enabled for this account.");
+            }
+
+            var secretKey = KeyGeneration.GenerateRandomKey(20); // 160-bit, standard for TOTP
+            var base32Secret = Base32Encoding.ToString(secretKey);
+
+            // ✅ Encrypt before persisting — plain secret only ever leaves this method in the response
+            user.MfaSecret = _mfaProtector.Protect(base32Secret);
+            user.MfaSetupComplete = false;
+            await _pendingUserRegistrationRepository.SaveChangesAsync();
+
+            var issuer = "ECA-InFORMS";
+            var otpauthUri = $"otpauth://totp/{issuer}:{user.UserName}?secret={base32Secret}&issuer={issuer}&digits=6&period=30";
+
+            using var qrGenerator = new QRCodeGenerator();
+            var qrData = qrGenerator.CreateQrCode(otpauthUri, QRCodeGenerator.ECCLevel.Q);
+            var qrCode = new PngByteQRCode(qrData);
+            var qrBytes = qrCode.GetGraphic(10);
+
+            return new MfaSetupResult
+            {
+                Secret = base32Secret, // plain — shown once, for manual entry / QR fallback
+                QrCodeImageBase64 = Convert.ToBase64String(qrBytes)
+            };
+        }
+
+        // ✅ NEW — confirm enrollment: user proves they scanned/entered it correctly
+        public async Task<bool> ConfirmMfaSetupAsync(Guid userId, string code)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            if (string.IsNullOrEmpty(user.MfaSecret)) return false;
+
+            var plainSecret = _mfaProtector.Unprotect(user.MfaSecret); // ✅ decrypt to validate
+            var totp = new Totp(Base32Encoding.ToBytes(plainSecret));
+            var isValid = totp.VerifyTotp(code, out _, new VerificationWindow(previous: 1, future: 1));
+
+            if (!isValid) return false;
+
+            user.IsMfaEnabled = true;
+            user.MfaSetupComplete = true;
+            await _pendingUserRegistrationRepository.SaveChangesAsync();
+            return true;
+        }
+
+        // ✅ NEW — second step of login: verify TOTP code, then issue the JWT
+        public async Task<AuthResult> VerifyMfaAndIssueTokenAsync(string userId, string code)
+        {
+            if (!Guid.TryParse(userId, out var parsedId))
+                return AuthResult.Failed("Invalid request.");
+
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(parsedId);
+            if (user == null || !user.IsMfaEnabled || string.IsNullOrEmpty(user.MfaSecret))
+                return AuthResult.Failed("Invalid request.");
+
+            var plainSecret = _mfaProtector.Unprotect(user.MfaSecret);
+            var totp = new Totp(Base32Encoding.ToBytes(plainSecret));
+            var isValid = totp.VerifyTotp(code, out _, new VerificationWindow(previous: 1, future: 1));
+
+            if (!isValid)
+                return AuthResult.Failed("Invalid or expired code.");
+
+            return IssueToken(user);
+        }
         private static readonly HashSet<string> AllowedSelfRegisterRoles = new(StringComparer.OrdinalIgnoreCase)
         {
             "PDO", "Viewer"
             // Admin and SuperAdmin deliberately excluded — those must be created
             // through the SuperAdmin user management page, not open registration.
         };
+        // ✅ NEW — extracted so both LoginAsync (non-MFA path) and VerifyMfaAndIssueTokenAsync can use it
+        private AuthResult IssueToken(PendingUserRegistration user)
+        {
+            var token = _tokenService.GenerateToken(
+                user.Id,
+                user.UserName,
+                user.FullName,
+                user.Position,
+                user.Role,
+                user.Role == "PDO"
+                    ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
+                    : null,
+                user.Region);
 
+            var result = AuthResult.Passed(
+                "Login successful.",
+                user.Id.ToString(),
+                user.UserName,
+                user.FullName,
+                user.Position!);
+            result.Token = token;
+
+            // ✅ CHANGED — show every login until MFA is actually enabled, not just once
+            result.ShowMfaPrompt = !user.IsMfaEnabled;
+
+            return result;
+        }
+
+        #endregion End Private Methods
     }
 }

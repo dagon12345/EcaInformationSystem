@@ -17,44 +17,11 @@
     .auth-page-wrapper {
         min-height: 100vh;
         background: #042C53;
-        padding: 32px 24px 60px;
+        padding: 40px 24px 60px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
         overflow-y: auto;
-    }
-
-    .auth-page-grid {
-        display: grid;
-        grid-template-columns: 1fr 460px;
-        gap: 32px;
-        align-items: start;
-        max-width: 1240px;
-        margin: 0 auto;
-    }
-
-    .auth-feed-column {
-        min-width: 0;
-    }
-
-    .auth-feed-panel-heading {
-        color: #fff;
-        font-size: 12px;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        opacity: 0.6;
-        font-weight: 600;
-        margin-bottom: 12px;
-        padding-left: 2px;
-    }
-
-    .auth-feed-panel {
-        background: #f4f6f8;
-        border-radius: 16px;
-        padding: 18px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-    }
-
-    .auth-card-column {
-        position: sticky;
-        top: 32px;
     }
 
     .register-card {
@@ -64,6 +31,7 @@
         overflow: hidden;
         box-shadow: 0 24px 64px rgba(0,0,0,0.35);
         width: 100%;
+        max-width: 520px;
     }
 
     .register-brand-panel {
@@ -89,22 +57,19 @@
         margin-bottom: 4px;
     }
 
-    @@media (max-width: 900px) {
-        .auth-page-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .auth-card-column {
-            position: static;
-            order: 1;
-        }
-
-        .auth-feed-column {
-            order: 2;
-        }
-    }
-
     @@media (max-width: 640px) {
+        .auth-page-wrapper {
+            padding: 16px 12px 40px;
+        }
+
+        .register-brand-panel {
+            padding: 24px 20px;
+        }
+
+        .register-form-panel {
+            padding: 20px 20px;
+        }
+
         .register-grid {
             display: block;
         }
@@ -116,124 +81,109 @@
 </style>
 
 <div class="auth-page-wrapper">
-    <div class="auth-page-grid">
+    <div class="register-card">
 
-        @* ── Feed, left ─────────────────────────────────────────────── *@
-        <div class="auth-feed-column">
-            <div class="auth-feed-panel-heading">Recent Updates</div>
-            <div class="auth-feed-panel">
-                <PostFeed />
-            </div>
+        <div class="register-brand-panel">
+            <img src="images/ncsc-seal.png" alt="NCSC"
+                 style="width: 64px; height: 64px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 12px; background: white;"
+                 onerror="this.style.display='none'" />
+            <div style="font-size: 22px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
+            <div style="font-size: 10px; color: #85B7EB; letter-spacing: 2px; text-transform: uppercase;">Caraga Region</div>
         </div>
 
-        @* ── Register card, right, sticky ──────────────────────────── *@
-        <div class="auth-card-column">
-            <div class="register-card">
+        <div class="register-form-panel">
+            <p style="font-size: 11px; letter-spacing: 2px; color: #378ADD; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">Internal account</p>
+            <h2 style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">Create your account</h2>
+            <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">Register to access the ECA-InFORMS Caraga Information System</p>
 
-                <div class="register-brand-panel">
-                    <img src="images/ncsc-seal.png" alt="NCSC"
-                         style="width: 64px; height: 64px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 12px; background: white;"
-                         onerror="this.style.display='none'" />
-                    <div style="font-size: 22px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
-                    <div style="font-size: 10px; color: #85B7EB; letter-spacing: 2px; text-transform: uppercase;">Caraga Region</div>
+            <div style="background: #E6F1FB; border: 0.5px solid #85B7EB; color: #0C447C; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 20px; line-height: 1.5;">
+                Your account will require <strong>administrator approval</strong> before you can log in.
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Message))
+            {
+                <div style="padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 18px;
+                    background: @(IsSuccess ? "#f0fdf4" : "#fef2f2");
+                    border: 0.5px solid @(IsSuccess ? "#86efac" : "#fca5a5");
+                    color: @(IsSuccess ? "#166534" : "#991b1b");">
+                    @Message
                 </div>
+            }
 
-                <div class="register-form-panel">
-                    <p style="font-size: 11px; letter-spacing: 2px; color: #378ADD; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">Internal account</p>
-                    <h2 style="font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;">Create your account</h2>
-                    <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">Register to access the ECA-InFORMS Caraga Information System</p>
+            <EditForm Model="model" OnValidSubmit="HandleRegisterAsync">
+                <DataAnnotationsValidator />
 
-                    <div style="background: #E6F1FB; border: 0.5px solid #85B7EB; color: #0C447C; padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 20px; line-height: 1.5;">
-                        Your account will require <strong>administrator approval</strong> before you can log in.
+                <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Personal information</p>
+
+                <div class="register-grid">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Full name</label>
+                        <InputText @bind-Value="model.FullName" placeholder="Juan dela Cruz"
+                                   style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
+                        <ValidationMessage For="@(() => model.FullName)" style="font-size: 11px; color: #991b1b;" />
                     </div>
-
-                    @if (!string.IsNullOrWhiteSpace(Message))
-                    {
-                        <div style="padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 18px;
-                            background: @(IsSuccess ? "#f0fdf4" : "#fef2f2");
-                            border: 0.5px solid @(IsSuccess ? "#86efac" : "#fca5a5");
-                            color: @(IsSuccess ? "#166534" : "#991b1b");">
-                            @Message
-                        </div>
-                    }
-
-                    <EditForm Model="model" OnValidSubmit="HandleRegisterAsync">
-                        <DataAnnotationsValidator />
-
-                        <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Personal information</p>
-
-                        <div class="register-grid">
-                            <div>
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Full name</label>
-                                <InputText @bind-Value="model.FullName" placeholder="Juan dela Cruz"
-                                           style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
-                                <ValidationMessage For="@(() => model.FullName)" style="font-size: 11px; color: #991b1b;" />
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Position</label>
+                        <InputText @bind-Value="model.Position" placeholder="e.g. Social Welfare Officer"
+                                   style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
+                        <ValidationMessage For="@(() => model.Position)" style="font-size: 11px; color: #991b1b;" />
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Birth date</label>
+                        <InputDate @bind-Value="model.BirthDate"
+                                   style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
+                        <ValidationMessage For="@(() => model.BirthDate)" style="font-size: 11px; color: #991b1b;" />
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Region</label>
+                        @if (_isLoadingRegions)
+                        {
+                            <div style="font-size: 12px; color: #6b7280; padding: 9px 0;">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Loading regions...
                             </div>
-                            <div>
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Position</label>
-                                <InputText @bind-Value="model.Position" placeholder="e.g. Social Welfare Officer"
-                                           style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
-                                <ValidationMessage For="@(() => model.Position)" style="font-size: 11px; color: #991b1b;" />
-                            </div>
-                            <div style="grid-column: 1 / -1;">
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Birth date</label>
-                                <InputDate @bind-Value="model.BirthDate"
-                                           style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
-                                <ValidationMessage For="@(() => model.BirthDate)" style="font-size: 11px; color: #991b1b;" />
-                            </div>
-                            <div style="grid-column: 1 / -1;">
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Region</label>
-                                @if (_isLoadingRegions)
+                        }
+                        else
+                        {
+                            <InputSelect @bind-Value="model.Region"
+                                         style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none; background: white;">
+                                <option value="">-- Select your region --</option>
+                                @foreach (var region in _regions)
                                 {
-                                    <div style="font-size: 12px; color: #6b7280; padding: 9px 0;">
-                                        <span class="spinner-border spinner-border-sm me-1"></span> Loading regions...
-                                    </div>
+                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
                                 }
-                                else
-                                {
-                                    <InputSelect @bind-Value="model.Region"
-                                                 style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none; background: white;">
-                                        <option value="">-- Select your region --</option>
-                                        @foreach (var region in _regions)
-                                        {
-                                            <option value="@region.PsgcCodeRegion">@region.Name</option>
-                                        }
-                                    </InputSelect>
-                                    <ValidationMessage For="@(() => model.Region)" style="font-size: 11px; color: #991b1b;" />
-                                }
-                            </div>
-                        </div>
-
-                        <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Account credentials</p>
-
-                        <div class="register-grid" style="margin-bottom: 20px;">
-                            <div>
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Username</label>
-                                <InputText @bind-Value="model.UserName" placeholder="your.username" autocomplete="username"
-                                           style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
-                                <ValidationMessage For="@(() => model.UserName)" style="font-size: 11px; color: #991b1b;" />
-                            </div>
-                            <div>
-                                <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Password</label>
-                                <InputText type="password" @bind-Value="model.Password" placeholder="Create a strong password" autocomplete="new-password"
-                                           style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
-                                <ValidationMessage For="@(() => model.Password)" style="font-size: 11px; color: #991b1b;" />
-                            </div>
-                        </div>
-
-                        <button type="submit" disabled="@IsLoading"
-                                style="width: 100%; padding: 11px; background: #0C447C; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; opacity: @(IsLoading ? "0.7" : "1");">
-                            @(IsLoading ? "Creating account..." : "Create account")
-                        </button>
-                    </EditForm>
-
-                    <p style="text-align: center; margin-top: 16px; font-size: 13px; color: #6b7280;">
-                        Already have an account? <a href="login" style="color: #185FA5; font-weight: 600; text-decoration: none;">Sign in here</a>
-                    </p>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => model.Region)" style="font-size: 11px; color: #991b1b;" />
+                        }
+                    </div>
                 </div>
-            </div>
-        </div>
 
+                <p style="font-size: 11px; font-weight: 600; color: #378ADD; text-transform: uppercase; letter-spacing: 1.5px; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb;">Account credentials</p>
+
+                <div class="register-grid" style="margin-bottom: 20px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Username</label>
+                        <InputText @bind-Value="model.UserName" placeholder="your.username" autocomplete="username"
+                                   style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
+                        <ValidationMessage For="@(() => model.UserName)" style="font-size: 11px; color: #991b1b;" />
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px;">Password</label>
+                        <InputText type="password" @bind-Value="model.Password" placeholder="Create a strong password" autocomplete="new-password"
+                                   style="width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; outline: none;" />
+                        <ValidationMessage For="@(() => model.Password)" style="font-size: 11px; color: #991b1b;" />
+                    </div>
+                </div>
+
+                <button type="submit" disabled="@IsLoading"
+                        style="width: 100%; padding: 11px; background: #0C447C; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; opacity: @(IsLoading ? "0.7" : "1");">
+                    @(IsLoading ? "Creating account..." : "Create account")
+                </button>
+            </EditForm>
+
+            <p style="text-align: center; margin-top: 16px; font-size: 13px; color: #6b7280;">
+                Already have an account? <a href="login" style="color: #185FA5; font-weight: 600; text-decoration: none;">Sign in here</a>
+            </p>
+        </div>
     </div>
 </div>
 

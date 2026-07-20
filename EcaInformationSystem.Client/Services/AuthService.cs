@@ -25,7 +25,7 @@ namespace EcaInformationSystem.Client.Services
         }
 
 
-        public async Task<(bool success, string message, int? attemptsRemaining, bool isLockedOut, int? retryAfterSeconds)> LoginAsync(
+        public async Task<LoginOutcome> LoginAsync(
     string userName, string password, CancellationToken cancellationToken = default)
         {
             try
@@ -35,55 +35,114 @@ namespace EcaInformationSystem.Client.Services
                     new { userName, password },
                     cancellationToken);
 
-                if (!response.IsSuccessStatusCode)
+                if (response.IsSuccessStatusCode)
                 {
-                    // ✅ 429 body has the same shape as our 401 lockout body now
-                    var failure = await response.Content.ReadFromJsonAsync<LoginFailureResponse>(cancellationToken: cancellationToken);
-                    var isRateLimited = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken); // ✅ read ONCE
 
-                    return (false,
-                        failure?.Message ?? "Login failed. Please try again.",
-                        failure?.AttemptsRemaining,
-                        failure?.IsLockedOut ?? isRateLimited, // treat 429 like a lock for UI purposes
-                        failure?.RetryAfterSeconds);
+                    // Try MFA-required shape first — it's the simpler/smaller shape and won't
+                    // accidentally match a full login response.
+                    var mfaCheck = System.Text.Json.JsonSerializer.Deserialize<MfaRequiredResponse>(
+                        json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (mfaCheck?.MfaRequired == true)
+                    {
+                        return LoginOutcome.NeedsMfa(mfaCheck.UserId);
+                    }
+
+                    var raw = System.Text.Json.JsonSerializer.Deserialize<LoginResponse>(
+                        json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (raw != null && !string.IsNullOrWhiteSpace(raw.Token))
+                    {
+                        await PersistSessionAsync(raw);
+                        return LoginOutcome.Success(raw.ShowMfaPrompt); // ✅ pass along
+                    }
+
+                    return LoginOutcome.Failure("Login failed: unexpected response from server.");
                 }
 
-                var result = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
+                var failure = await response.Content.ReadFromJsonAsync<LoginFailureResponse>(cancellationToken: cancellationToken);
+                var isRateLimited = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
 
-                if (result is null || string.IsNullOrWhiteSpace(result.Token))
-                {
-                    return (false, "Login failed: unexpected response from server.", null, false, null);
-                }
-
-                await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
-                await _js.InvokeVoidAsync("localStorage.setItem", "fullName", result.FullName);
-                await _js.InvokeVoidAsync("localStorage.setItem", "userName", result.UserName);
-
-                _cachedRole = ParseRoleFromToken(result.Token);
-                await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
-
-                try
-                {
-                    var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
-                    var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
-                    await _chatClientService.ConnectAsync(hubUrl);
-                }
-                catch { }
-
-                return (true, "Login successful.", null, false, null);
+                return LoginOutcome.Failure(
+                    failure?.Message ?? "Login failed. Please try again.",
+                    failure?.AttemptsRemaining,
+                    failure?.IsLockedOut ?? isRateLimited,
+                    failure?.RetryAfterSeconds);
             }
             catch (OperationCanceledException)
             {
-                return (false, "The request took too long. Please check your connection and try again.", null, false, null);
+                return LoginOutcome.Failure("The request took too long. Please check your connection and try again.");
             }
             catch (HttpRequestException)
             {
-                return (false, "Unable to reach the server. Please check your internet connection and try again.", null, false, null);
+                return LoginOutcome.Failure("Unable to reach the server. Please check your internet connection and try again.");
             }
             catch (Exception)
             {
-                return (false, "An unexpected error occurred. Please try again.", null, false, null);
+                return LoginOutcome.Failure("An unexpected error occurred. Please try again.");
             }
+        }
+        public async Task<LoginOutcome> VerifyMfaAsync(string userId, string code, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await _http.PostAsJsonAsync(
+                    "api/auth/verify-mfa",
+                    new { userId, code },
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    string message = "Invalid code. Please try again.";
+
+                    try
+                    {
+                        var parsed = System.Text.Json.JsonSerializer.Deserialize<LoginFailureResponse>(
+                            json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (!string.IsNullOrWhiteSpace(parsed?.Message))
+                        {
+                            message = parsed.Message;
+                        }
+                    }
+                    catch { /* fall back to default message above */ }
+
+                    return LoginOutcome.Failure(message);
+                }
+
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
+                if (result is null || string.IsNullOrWhiteSpace(result.Token))
+                {
+                    return LoginOutcome.Failure("Verification failed: unexpected response from server.");
+                }
+
+                await PersistSessionAsync(result);
+                return LoginOutcome.Success(result.ShowMfaPrompt);
+            }
+            catch (Exception)
+            {
+                return LoginOutcome.Failure("An unexpected error occurred. Please try again.");
+            }
+        }
+
+        // ✅ NEW — extracted so both LoginAsync and VerifyMfaAsync share the same session-writing logic
+        private async Task PersistSessionAsync(LoginResponse result)
+        {
+            await _js.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
+            await _js.InvokeVoidAsync("localStorage.setItem", "fullName", result.FullName);
+            await _js.InvokeVoidAsync("localStorage.setItem", "userName", result.UserName);
+
+            _cachedRole = ParseRoleFromToken(result.Token);
+            await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
+
+            try
+            {
+                var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
+                await _chatClientService.ConnectAsync(hubUrl);
+            }
+            catch { }
         }
 
         public async Task<(bool success, string message)> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -240,12 +299,19 @@ namespace EcaInformationSystem.Client.Services
         public string Token { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
+        public bool ShowMfaPrompt { get; set; } // ✅ NEW
     }
     public class LoginFailureResponse
     {
         public string Message { get; set; } = string.Empty;
         public int? AttemptsRemaining { get; set; }
         public bool IsLockedOut { get; set; }
-        public int? RetryAfterSeconds { get; set; } // ✅ NEW
+        public int? RetryAfterSeconds { get; set; }
     }
+    public class MfaRequiredResponse
+    {
+        public bool MfaRequired { get; set; }
+        public string UserId { get; set; } = string.Empty;
+    }
+
 }

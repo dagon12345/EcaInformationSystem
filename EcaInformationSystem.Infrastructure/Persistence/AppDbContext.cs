@@ -1,11 +1,12 @@
 ﻿using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Domain.Entities.ChatEntities;
 using EcaInformationSystem.Domain.Entities.PostEntities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace EcaInformationSystem.Infrastructure.Persistence
 {
-    public class AppDbContext : DbContext
+    public class AppDbContext : DbContext, IDataProtectionKeyContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
         public DbSet<Product> Products => Set<Product>();
@@ -32,12 +33,12 @@ namespace EcaInformationSystem.Infrastructure.Persistence
         public DbSet<FormFolder> FormFolders => Set<FormFolder>();
         public DbSet<FormActivityLog> FormActivityLogs => Set<FormActivityLog>();
         public DbSet<BeneficiaryPaymentHistory> BeneficiaryPaymentHistories => Set<BeneficiaryPaymentHistory>();
-        //PostEntities
         public DbSet<Post> Posts => Set<Post>();
         public DbSet<PostComment> PostComments => Set<PostComment>();
         public DbSet<PostLike> PostLikes => Set<PostLike>();
         public DbSet<PostView> PostViews => Set<PostView>();
         public DbSet<PostImage> PostImages => Set<PostImage>();
+        public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = default!; // ✅ NEW
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

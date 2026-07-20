@@ -1,5 +1,6 @@
 ﻿@page "/post/{PostId:guid}"
 @attribute [AllowAnonymous]
+@implements IDisposable
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Client.Shared
 @using Microsoft.AspNetCore.Authorization
@@ -17,249 +18,117 @@
 }
 else if (_isAuthenticated)
 {
-    @* Authenticated visitor — MainLayout already renders the full shell around this page,
-       so just show the single post like a normal feed page. *@
     <PostFeed FocusPostId="@PostId" />
 }
 else
 {
-    @* Anonymous visitor — same login-card + content layout as Login.razor, so a
-       shared link doesn't dump them onto a bare, orphaned page. *@
-    <style>
-        .auth-page-wrapper {
-            height: 100vh;
-            background: #042C53;
-            padding: 24px;
-            overflow: hidden;
-        }
-
-        .auth-page-grid {
-            display: grid;
-            grid-template-columns: 1fr 420px;
-            gap: 24px;
-            max-width: 1200px;
-            margin: 0 auto;
-            height: 100%;
-        }
-
-        .auth-feed-column {
-            height: 100%;
-            overflow-y: auto;
-            min-width: 0;
-            padding-right: 4px;
-        }
-
-            .auth-feed-column::-webkit-scrollbar {
-                width: 8px;
-            }
-
-            .auth-feed-column::-webkit-scrollbar-thumb {
-                background: rgba(255,255,255,0.25);
-                border-radius: 4px;
-            }
-
-            .auth-feed-column::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-        .auth-card-column {
-            height: 100%;
-            overflow-y: auto;
-        }
-
-        .auth-card-scroll-inner {
-            min-height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .login-card {
-            display: flex;
-            flex-direction: column;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 24px 64px rgba(0,0,0,0.35);
-            width: 100%;
-        }
-
-        .login-brand-panel {
-            background: #0C447C;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 30px 28px 24px;
-            position: relative;
-            text-align: center;
-        }
-
-        .login-form-panel {
-            background: #fff;
-            padding: 28px 32px;
-        }
-
-        .auth-shared-post-banner {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: #fff;
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-size: 12.5px;
-            margin-bottom: 12px;
-        }
-
-        @@media (max-width: 900px) {
-            .auth-page-wrapper {
-                height: auto;
-                min-height: 100vh;
-                overflow: visible;
-            }
-
-            .auth-page-grid {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
-
-            .auth-card-column {
-                height: auto;
-                overflow: visible;
-                order: 1;
-            }
-
-            .auth-feed-column {
-                height: auto;
-                overflow: visible;
-                order: 2;
-            }
-
-            .auth-card-scroll-inner {
-                min-height: auto;
-            }
-        }
-
-        @@media (max-width: 640px) {
-            .auth-page-wrapper {
-                padding: 16px 12px 40px;
-            }
-
-            .login-brand-panel {
-                padding: 24px 20px;
-            }
-
-            .login-form-panel {
-                padding: 20px 20px;
-            }
-        }
-    </style>
-
     <div class="auth-page-wrapper">
-        <div class="auth-page-grid">
 
-            <div class="auth-feed-column">
-                <PostFeed FocusPostId="@PostId" />
-            </div>
-
-            <div class="auth-card-column">
-                <div class="auth-card-scroll-inner">
-                    <div class="login-card">
-                        <div class="login-brand-panel">
-                            <img src="images/ncsc-seal.png" alt="NCSC Seal"
-                                 style="width: 76px; height: 76px; border-radius: 50%; border: 3px solid #85B7EB; object-fit: cover; margin-bottom: 16px; background: white;"
-                                 onerror="this.style.display='none'" />
-                            <div style="font-size: 26px; font-weight: 700; color: #fff; letter-spacing: 1px;">ECA-InFORMS</div>
-                            <div style="font-size: 11px; color: #85B7EB; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px;">Caraga Region</div>
-                            <div style="width: 36px; height: 2px; background: #378ADD; margin: 0 auto 12px; border-radius: 2px;"></div>
-                            <p style="font-size: 11px; color: #B5D4F4; line-height: 1.6; max-width: 220px;">
-                                Expanded Centenarian Act - Integrated Financial, Operations, Reporting and Monitoring System
-                            </p>
-                            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 16px;">
-                                <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">NCSC</span>
-                                <span style="font-size: 10px; padding: 3px 10px; border-radius: 20px; border: 0.5px solid #378ADD; color: #B5D4F4;">Region XIII</span>
-                            </div>
-                        </div>
-
-                        <div class="login-form-panel">
-                            <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Secure access</p>
-                            <h2 style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Welcome back</h2>
-                            <p style="font-size:13px;color:#6b7280;margin-bottom:24px;">Sign in to your ECA-InFORMS account</p>
-
-                            @if (!string.IsNullOrWhiteSpace(_errorMessage))
-                            {
-                                var bgColor = _isLockedOut ? "#fef2f2" : (_attemptsRemaining <= 2 ? "#fff7ed" : "#fef2f2");
-                                var borderColor = _isLockedOut ? "#fca5a5" : (_attemptsRemaining <= 2 ? "#fdba74" : "#fca5a5");
-                                var textColor = _isLockedOut ? "#991b1b" : (_attemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
-
-                                <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:18px;">
-                                    <div style="font-weight:600;margin-bottom:@(_attemptsRemaining.HasValue && !_isLockedOut ? "4px" : "0")">
-                                        @_errorMessage
-                                    </div>
-
-                                    @if (_attemptsRemaining.HasValue && !_isLockedOut && _attemptsRemaining <= 3)
-                                    {
-                                        <div style="display:flex;gap:4px;margin-top:6px;">
-                                            @for (int i = 0; i < 5; i++)
-                                            {
-                                                var filled = i < (5 - _attemptsRemaining.Value);
-                                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");"></div>
-                                            }
-                                        </div>
-                                        <div style="font-size:11px;margin-top:4px;opacity:0.8;">
-                                            @_attemptsRemaining.Value of 5 attempts remaining
-                                        </div>
-                                    }
-                                </div>
-                            }
-
-                            <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
-                                <DataAnnotationsValidator />
-                                <ValidationSummary style="background:#fef2f2;border:0.5px solid #fca5a5;
-                                color:#991b1b;padding:10px 14px;border-radius:8px;
-                                font-size:12px;margin-bottom:16px;list-style:none;" />
-
-                                <div style="margin-bottom:16px;">
-                                    <label style="display:block;font-size:12px;font-weight:600;
-                                    color:#374151;margin-bottom:6px;">Username</label>
-                                    <InputText @bind-Value="_model.UserName"
-                                               placeholder="Enter your username"
-                                               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
-                                    border-radius:8px;font-size:14px;outline:none;" />
-                                    <ValidationMessage For="@(() => _model.UserName)"
-                                                       style="font-size:11px;color:#991b1b;
-                                    margin-top:4px;display:block;" />
-                                </div>
-
-                                <div style="margin-bottom:24px;">
-                                    <label style="display:block;font-size:12px;font-weight:600;
-                                    color:#374151;margin-bottom:6px;">Password</label>
-                                    <InputText type="password" @bind-Value="_model.Password"
-                                               placeholder="Enter your password"
-                                               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;
-                                    border-radius:8px;font-size:14px;outline:none;" />
-                                    <ValidationMessage For="@(() => _model.Password)"
-                                                       style="font-size:11px;color:#991b1b;
-                                    margin-top:4px;display:block;" />
-                                </div>
-
-                                <button type="submit" disabled="@_isLoggingIn"
-                                        style="width:100%;padding:11px;background:#0C447C;color:#fff;
-                                    border:none;border-radius:8px;font-size:14px;font-weight:600;
-                                    cursor:pointer;opacity:@(_isLoggingIn ? "0.7" : "1");">
-                                    @(_isLoggingIn ? "Signing in..." : "Sign in")
-                                </button>
-                            </EditForm>
-                            <p style="text-align:center;margin-top:20px;font-size:13px;color:#6b7280;">
-                                No account yet? <a href="register" style="color:#185FA5;font-weight:600;text-decoration:none;">Register here</a>
-                            </p>
-                            <div style="margin-top: 24px; padding-top: 14px; border-top: 0.5px solid #e5e7eb; text-align: center;">
-                                <span style="font-size: 10px; color: #9ca3af;">National Commission of Senior Citizens · Philippine Government</span>
-                            </div>
-                        </div>
-                    </div>
+        <div class="login-navbar">
+            <div class="login-navbar-brand">
+                <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+                <div class="login-navbar-brand-text-wrap">
+                    <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                    <div class="login-navbar-brand-sub">Caraga Region</div>
                 </div>
             </div>
 
+            @if (!_mfaStep)
+            {
+                <button class="login-navbar-hamburger" @onclick="ToggleMobileMenu" title="Menu">
+                    <i class="bi bi-list"></i>
+                </button>
+
+                <EditForm Model="_model" OnValidSubmit="HandleLoginAsync" OnInvalidSubmit="HandleInvalidSubmit"
+                          class="@($"login-navbar-form {(_mobileMenuOpen ? "login-navbar-form--open" : "")}")">
+                    <DataAnnotationsValidator />
+                    <InputText @bind-Value="_model.UserName" placeholder="Username" class="login-navbar-input" />
+                    <InputText type="password" @bind-Value="_model.Password" placeholder="Password" class="login-navbar-input" />
+                    <button type="submit" class="login-navbar-btn" disabled="@(_isLoggingIn || _secondsLeft.HasValue)">
+                        @(_secondsLeft.HasValue ? $"Locked ({_secondsLeft}s)" : (_isLoggingIn ? "Signing in..." : "Sign in"))
+                    </button>
+                    <a href="register" class="login-navbar-register-btn">Register</a>
+                </EditForm>
+            }
+            else
+            {
+                <a href="register" class="login-navbar-register-btn">Register</a>
+            }
         </div>
+
+        @if (!_mfaStep && !string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            var bgColor = _isLockedOut ? "#fef2f2" : (_attemptsRemaining <= 2 ? "#fff7ed" : "#fef2f2");
+            var borderColor = _isLockedOut ? "#fca5a5" : (_attemptsRemaining <= 2 ? "#fdba74" : "#fca5a5");
+            var textColor = _isLockedOut ? "#991b1b" : (_attemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
+
+            <div class="login-status-banner">
+                <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;">
+                    <div style="font-weight:600;">@_errorMessage</div>
+
+                    @if (_secondsLeft.HasValue)
+                    {
+                        var mins = _secondsLeft.Value / 60;
+                        var secs = _secondsLeft.Value % 60;
+                        <div style="font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums;">
+                            ⏱ Try again in @mins:@secs.ToString("00")
+                        </div>
+                    }
+                    else if (_attemptsRemaining.HasValue && !_isLockedOut && _attemptsRemaining <= 3)
+                    {
+                        <div style="display:flex;gap:4px;margin-top:6px;">
+                            @for (int i = 0; i < 5; i++)
+                            {
+                                var filled = i < (5 - _attemptsRemaining.Value);
+                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");"></div>
+                            }
+                        </div>
+                        <div style="font-size:11px;margin-top:4px;opacity:0.8;">
+                            @_attemptsRemaining.Value of 5 attempts remaining
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (_mfaStep)
+        {
+            <div class="mfa-modal-backdrop">
+                <div class="mfa-modal-card">
+                    <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Verification required</p>
+                    <h2 style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Enter your code</h2>
+                    <p style="font-size:13px;color:#6b7280;margin-bottom:20px;">
+                        Open your authenticator app and enter the 6-digit code for ECA-InFORMS.
+                    </p>
+
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;">
+                            @_errorMessage
+                        </div>
+                    }
+
+                    <input @bind="_mfaCode" @bind:event="oninput" maxlength="6" placeholder="000000"
+                           style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:18px;letter-spacing:6px;text-align:center;margin-bottom:14px;" />
+
+                    <button @onclick="HandleVerifyMfaAsync" disabled="@(_mfaCode.Length != 6 || _isLoggingIn)"
+                            style="width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:@(_mfaCode.Length != 6 || _isLoggingIn ? "0.6" : "1");">
+                        @(_isLoggingIn ? "Verifying..." : "Verify")
+                    </button>
+
+                    <p style="text-align:center;margin-top:14px;">
+                        <a href="#" @onclick="BackToLogin" @onclick:preventDefault="true" style="color:#185FA5;font-size:13px;">← Back to login</a>
+                    </p>
+                </div>
+            </div>
+        }
+
+        <div class="login-feed-body">
+            <PostFeed FocusPostId="@PostId" />
+        </div>
+
+        <ScrollToTopButton />
+
     </div>
 }
 
@@ -277,11 +146,30 @@ else
     private System.Threading.Timer? _countdownTimer;
     private bool _isLoggingIn;
 
+    private bool _mfaStep = false;
+    private string _mfaUserId = string.Empty;
+    private string _mfaCode = string.Empty;
+
+    private bool _mobileMenuOpen = false;
+
+    private void ToggleMobileMenu()
+    {
+        _mobileMenuOpen = !_mobileMenuOpen;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
         _checkingAuth = false;
+    }
+
+    private void HandleInvalidSubmit()
+    {
+        _errorMessage = "Please enter both username and password.";
+        _attemptsRemaining = null;
+        _isLockedOut = false;
+        StateHasChanged();
     }
 
     private async Task HandleLoginAsync()
@@ -296,23 +184,27 @@ else
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var (success, message, attemptsRemaining, isLockedOut, retryAfterSeconds) =
-                await AuthService.LoginAsync(_model.UserName, _model.Password, cts.Token);
+            var outcome = await AuthService.LoginAsync(_model.UserName, _model.Password, cts.Token);
 
-            if (success)
+            if (outcome.IsSuccess)
             {
                 ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
                 Navigation.NavigateTo($"/post/{PostId}", true);
             }
+            else if (outcome.MfaRequired)
+            {
+                _mfaStep = true;
+                _mfaUserId = outcome.MfaUserId!;
+            }
             else
             {
-                _errorMessage = message;
-                _attemptsRemaining = attemptsRemaining;
-                _isLockedOut = isLockedOut;
+                _errorMessage = outcome.Message;
+                _attemptsRemaining = outcome.AttemptsRemaining;
+                _isLockedOut = outcome.IsLockedOut;
 
-                if (retryAfterSeconds.HasValue && retryAfterSeconds > 0)
+                if (outcome.RetryAfterSeconds is > 0)
                 {
-                    StartCountdown(retryAfterSeconds.Value);
+                    StartCountdown(outcome.RetryAfterSeconds.Value);
                 }
             }
         }
@@ -321,6 +213,42 @@ else
             _isLoggingIn = false;
             StateHasChanged();
         }
+    }
+
+    private async Task HandleVerifyMfaAsync()
+    {
+        _isLoggingIn = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var outcome = await AuthService.VerifyMfaAsync(_mfaUserId, _mfaCode, cts.Token);
+
+            if (outcome.IsSuccess)
+            {
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+                Navigation.NavigateTo($"/post/{PostId}", true);
+            }
+            else
+            {
+                _errorMessage = outcome.Message;
+                _mfaCode = string.Empty;
+            }
+        }
+        finally
+        {
+            _isLoggingIn = false;
+            StateHasChanged();
+        }
+    }
+
+    private void BackToLogin()
+    {
+        _mfaStep = false;
+        _mfaCode = string.Empty;
+        _errorMessage = null;
     }
 
     private void StartCountdown(int seconds)

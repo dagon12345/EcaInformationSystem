@@ -6,6 +6,7 @@ using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
@@ -151,19 +152,6 @@ builder.Services.AddCors(options =>
 // ─── Rate Limiting (brute-force protection on auth endpoints) ───────────────
 builder.Services.AddRateLimiter(options =>
 {
-    options.OnRejected = async (context, token) =>
-    {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        context.HttpContext.Response.ContentType = "application/json";
-        await context.HttpContext.Response.WriteAsync(
-            JsonSerializer.Serialize(new
-            {
-                status = 429,
-                message = "Too many login attempts. Please wait a minute and try again."
-            }),
-            token);
-    };
-
     options.AddPolicy("login", httpContext =>
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -172,9 +160,9 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: ip,
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,                       // 5 attempts...
-                Window = TimeSpan.FromMinutes(1),       // ...per minute...
-                QueueLimit = 0,                         // ...no queueing extra requests, reject immediately
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
             });
     });
@@ -184,7 +172,7 @@ builder.Services.AddRateLimiter(options =>
         context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         context.HttpContext.Response.ContentType = "application/json";
 
-        int retryAfterSeconds = 60; // fallback
+        int retryAfterSeconds = 60;
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
         {
             retryAfterSeconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
@@ -195,7 +183,7 @@ builder.Services.AddRateLimiter(options =>
             {
                 status = 429,
                 message = "Too many login attempts.",
-                retryAfterSeconds  // ✅ NEW — actual seconds left in this window
+                retryAfterSeconds
             }),
             token);
     };
@@ -207,6 +195,13 @@ builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
 });
+
+// ─── Data Protection (used to encrypt MFA secrets at rest) ──────────────────
+// Keys stored in the database instead of the filesystem — survives MSDeploy
+// republishes the same way our EF migrations already do.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()
+    .SetApplicationName("EcaInformationSystem");
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);

@@ -1,10 +1,116 @@
 ﻿@page "/"
 @using EcaInformationSystem.Client.Shared
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
 
 <PageTitle>ECA-InFORMS Feed</PageTitle>
+
+<style>
+    .mfa-notice-banner {
+        background: linear-gradient(90deg, #FEF3C7, #FDE68A);
+        border: 1px solid #F59E0B;
+        border-radius: 10px;
+        color: #78350F;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 13.5px;
+        margin-bottom: 16px; /* sits above the News Feed card, not over the navbar */
+    }
+
+    .mfa-notice-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .mfa-notice-icon {
+        font-size: 16px;
+    }
+
+    .mfa-notice-text {
+        font-weight: 600;
+    }
+
+    .mfa-notice-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .mfa-notice-btn {
+        background: #78350F;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .mfa-notice-shrink {
+        background: transparent;
+        border: none;
+        color: #78350F;
+        font-size: 15px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 2px 6px;
+        opacity: 0.6;
+    }
+
+        .mfa-notice-shrink:hover {
+            opacity: 1;
+        }
+
+    /* ── Collapsed state — a thin bar instead of a full banner, still inline
+           with the content, not floating over anything ── */
+    .mfa-notice-collapsed {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #FEF3C7;
+        border: 1px solid #F59E0B;
+        border-radius: 8px;
+        padding: 6px 14px;
+        margin-bottom: 16px;
+        font-size: 12.5px;
+        color: #78350F;
+        cursor: pointer;
+    }
+</style>
+
+@if (_showMfaBanner)
+{
+    @if (!_collapsed)
+    {
+        <div class="mfa-notice-banner">
+            <div class="mfa-notice-left">
+                <span class="mfa-notice-icon">🔒</span>
+                <span class="mfa-notice-text">Add two-factor authentication to secure your account.</span>
+            </div>
+            <div class="mfa-notice-right">
+                <button class="mfa-notice-btn" @onclick="GoToSetup">Set up now</button>
+                <button class="mfa-notice-shrink" @onclick="Collapse" title="Shrink">▲</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="mfa-notice-collapsed" @onclick="Expand">
+            <span>🔒 Two-factor authentication not set up</span>
+            <span style="text-decoration:underline;">Show</span>
+        </div>
+    }
+}
 
 @if (_checked)
 {
@@ -13,6 +119,8 @@
 
 @code {
     private bool _checked;
+    private bool _showMfaBanner;
+    private bool _collapsed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -23,6 +131,36 @@
             return;
         }
 
+        try
+        {
+            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
+            _showMfaBanner = status?.IsMfaEnabled == false;
+        }
+        catch
+        {
+            _showMfaBanner = false;
+        }
+
         _checked = true;
+    }
+
+    private void GoToSetup()
+    {
+        Navigation.NavigateTo("/mfa-setup");
+    }
+
+    private void Collapse()
+    {
+        _collapsed = true;
+    }
+
+    private void Expand()
+    {
+        _collapsed = false;
+    }
+
+    private class MfaStatusResponse
+    {
+        public bool IsMfaEnabled { get; set; }
     }
 }

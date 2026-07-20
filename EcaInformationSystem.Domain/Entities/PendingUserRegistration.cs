@@ -33,10 +33,13 @@ namespace EcaInformationSystem.Domain.Entities
         [Required]
         [MaxLength(50)]
         public string Role { get; set; } = "Viewer";
-        // PendingUserRegistration.cs
         public DateTime? LastSeenAt { get; set; }
         public int FailedLoginCount { get; set; } = 0;
         public DateTime? LockoutEnd { get; set; }
+        public bool IsMfaEnabled { get; set; } = false;
+        public string? MfaSecret { get; set; }
+        public bool MfaSetupComplete { get; set; } = false;
+        public bool MfaPromptShown { get; set; } = false;
         public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
             = new List<PdoJurisdiction>();
     }
