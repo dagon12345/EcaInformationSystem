@@ -7,9 +7,12 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 {
     public static class SuperAdminSeeder
     {
+        // Caraga Region (Region XIII) PSGC code — matches the "160000000"
+        // value already seen in JWTs throughout this system's earlier testing.
+        private const int DefaultRegionCode = 1600000000;
+
         public static async Task SeedAsync(AppDbContext context)
         {
-            // ✅ Only seed if no SuperAdmin exists
             if (await context.PendingUserRegistrations
                 .AnyAsync(u => u.Role == "SuperAdmin"))
                 return;
@@ -25,14 +28,13 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 IsActivated    = true,
                 ApprovalStatus = 1,
                 Role           = "SuperAdmin",
+                Region         = DefaultRegionCode,   // ✅ matches int? Region on the entity
                 RequestedAt    = DateTime.UtcNow,
                 ReviewedAt     = DateTime.UtcNow,
                 ReviewedBy     = "System",
                 Remarks        = "Default super admin — change password immediately."
             };
 
-            // ✅ Default password: REDACTED_DEFAULT_PASSWORD
-            // MUST be changed immediately after first login
             admin.PasswordHash = hasher.HashPassword(admin, "REDACTED_DEFAULT_PASSWORD");
 
             await context.PendingUserRegistrations.AddAsync(admin);
