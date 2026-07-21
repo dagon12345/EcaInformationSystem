@@ -1,0 +1,174 @@
+@using EcaInformationSystem.Shared.DTOs.Activity
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IHttpClientFactory HttpClientFactory
+@inject IConfiguration Configuration
+@implements IAsyncDisposable
+
+<div class="public-cal-widget-container">
+
+    <button class="public-cal-toggle-btn @(_hasEvents ? "public-cal-toggle-btn--attention" : "")" @onclick="ToggleOpen" title="NCSC Schedule">
+        <i class="bi bi-calendar3-week"></i>
+        <span class="public-cal-toggle-label">Schedule</span>
+        @if (_upcoming.Count > 0)
+        {
+            <span class="public-cal-unread-badge">@_upcoming.Count</span>
+        }
+    </button>
+
+    @if (_isOpen)
+    {
+        <div class="public-cal-panel">
+            <div class="public-cal-panel-header">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar3-week"></i>
+                    <div>
+                        <div class="public-cal-panel-title">NCSC Caraga Schedule</div>
+                        <div class="public-cal-panel-sub">Upcoming public events</div>
+                    </div>
+                </div>
+                <button class="public-cal-close-btn" @onclick="ToggleOpen" title="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <div class="public-cal-panel-body">
+                @if (_loading)
+                {
+                    <div class="text-center p-3"><span class="spinner-border spinner-border-sm"></span></div>
+                }
+                else if (!_upcoming.Any())
+                {
+                    <div class="public-cal-empty">No public events scheduled.</div>
+                }
+                else
+                {
+                    <div class="public-cal-list">
+                        @foreach (var item in _upcoming)
+                        {
+                            <div class="public-cal-item">
+                                <div class="public-cal-date-badge">
+                                    <div class="public-cal-date-day">@item.StartDate.Day</div>
+                                    <div class="public-cal-date-month">@item.StartDate.ToString("MMM")</div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="public-cal-item-title">@item.Title</div>
+                                    <div class="public-cal-item-meta">
+                                        @FormatWhen(item)
+                                        @(!string.IsNullOrWhiteSpace(item.Location) ? $" • {item.Location}" : "")
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private HttpClient Http => HttpClientFactory.CreateClient("PublicClient");
+    private Microsoft.AspNetCore.SignalR.Client.HubConnection? _hubConnection;
+
+    private List<ActivityDto> _upcoming = new();
+    private bool _loading = true;
+    private bool _isOpen = false;
+    private bool _hasEvents => _upcoming.Any();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await ConnectRealtimeAsync();
+    }
+
+    private void ToggleOpen() => _isOpen = !_isOpen;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _upcoming = await Http.GetFromJsonAsync<List<ActivityDto>>("api/activity/public/upcoming?take=8") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PUBLIC CAL] {ex.GetType().Name}: {ex.Message}");
+            _upcoming = new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "publicActivityHub").ToString();
+
+            _hubConnection = new Microsoft.AspNetCore.SignalR.Client.HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<ActivityDto>("PublicActivityChanged", dto =>
+            {
+                InvokeAsync(() =>
+                {
+                    _upcoming.RemoveAll(a => a.Id == dto.Id);
+                    _upcoming.Add(dto);
+                    _upcoming = _upcoming
+                        .Where(a => (a.EndDate ?? a.StartDate).Date >= DateTime.Today)
+                        .OrderBy(a => a.StartDate)
+                        .Take(8)
+                        .ToList();
+                    StateHasChanged();
+                });
+            });
+
+            _hubConnection.On<int>("PublicActivityDeleted", id =>
+            {
+                InvokeAsync(() =>
+                {
+                    _upcoming.RemoveAll(a => a.Id == id);
+                    StateHasChanged();
+                });
+            });
+
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PUBLIC CAL] realtime connect failed: {ex.Message}");
+        }
+    }
+
+    private static string FormatWhen(ActivityDto item)
+    {
+        var isMultiDay = item.EndDate.HasValue && item.EndDate.Value.Date != item.StartDate.Date;
+
+        if (isMultiDay)
+        {
+            var start = item.StartDate;
+            var end = item.EndDate!.Value;
+
+            if (start.Month == end.Month && start.Year == end.Year)
+                return $"{start:MMM} {start.Day} - {end.Day}, {start:yyyy}";
+
+            if (start.Year == end.Year)
+                return $"{start:MMM} {start.Day} - {end:MMM} {end.Day}, {start:yyyy}";
+
+            return $"{start:MMM d, yyyy} - {end:MMM d, yyyy}";
+        }
+
+        return item.IsAllDay ? "All day" : item.StartDate.ToString("h:mm tt");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection != null)
+            await _hubConnection.DisposeAsync();
+    }
+}

@@ -13,4 +13,8 @@
     <Folder Include="ValueObjects\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\EcaInformationSystem.Common\EcaInformationSystem.Common.csproj" />
+  </ItemGroup>
+
 </Project>

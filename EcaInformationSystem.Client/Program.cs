@@ -22,6 +22,10 @@ builder.Services.AddHttpClient("AuthorizedClient",
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IHttpClientFactory>()
       .CreateClient("AuthorizedClient"));
+      
+// ✅ NEW — plain client, no auth handler, for anonymous/public endpoints
+builder.Services.AddHttpClient("PublicClient",
+    client => client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/"));
 
 builder.Services.AddScoped<BeneficiaryStateService>();
 builder.Services.AddScoped<LiquidationStateService>();
@@ -40,4 +44,5 @@ builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddScoped<FormDocumentClientService>();
 builder.Services.AddScoped<FormFolderClientService>();
 builder.Services.AddScoped<PostsClientService>();
+builder.Services.AddScoped<ActivityClientService>();
 await builder.Build().RunAsync();

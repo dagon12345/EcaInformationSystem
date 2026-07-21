@@ -24,6 +24,11 @@
         <span class="nav-icon"><i class="bi bi-grid"></i></span>
         <span class="nav-label">Feed</span>
     </NavLink>
+    @* ── Calendar — visible to all roles ── *@
+    <NavLink class="nav-item" href="calendar">
+        <span class="nav-icon"><i class="bi bi-calendar3"></i></span>
+        <span class="nav-label">Calendar</span>
+    </NavLink>
 
     @* ── Statistics — Admin + PDO + Viewer ── *@
     <NavLink class="nav-item" href="statistics">
@@ -95,11 +100,9 @@
     <div class="sidebar-legend">
 
         @* ── Header with toggle ── *@
-        <div class="legend-header" @onclick="() => _legendCollapsed = !_legendCollapsed"
-             style="cursor:pointer; display:flex; align-items:center;
+        <div class="legend-header" @onclick="() => _legendCollapsed = !_legendCollapsed" style="cursor:pointer; display:flex; align-items:center;
             justify-content:space-between; margin-bottom:@(_legendCollapsed ? "0" : "8px");">
-            <div class="legend-role-badge @GetRoleBadgeClass(_role)"
-                 style="margin-bottom:0; flex:1;">
+            <div class="legend-role-badge @GetRoleBadgeClass(_role)" style="margin-bottom:0; flex:1;">
                 <i class="bi @GetRoleIcon(_role) me-1"></i>
                 @GetRoleLabel(_role)
             </div>
@@ -121,13 +124,11 @@
                     </span>
                     @if (item.Allowed)
                     {
-                        <i class="bi bi-check-circle-fill legend-icon legend-icon--yes"
-                           style="color:#4ade80;"></i>
+                        <i class="bi bi-check-circle-fill legend-icon legend-icon--yes" style="color:#4ade80;"></i>
                     }
                     else
                     {
-                        <i class="bi bi-x-circle-fill legend-icon legend-icon--no"
-                           style="color:#f87171;"></i>
+                        <i class="bi bi-x-circle-fill legend-icon legend-icon--no" style="color:#f87171;"></i>
                     }
                 </div>
             }
@@ -274,10 +275,10 @@
         new()
         {
             ("View / Filter", true),
-            ("View Statistics", true),  // ✅ NEW
+            ("View Statistics", true), // ✅ NEW
             ("Export Excel", true),
             ("Upload PDF", true),
-            ("View / Download Forms", true),          // ✅ NEW — everyone
+            ("View / Download Forms", true), // ✅ NEW — everyone
             ("Upload / Edit / Delete Forms", _isAdmin), // ✅ NEW — Admin/SuperAdmin only
             ("Create record", _isAdmin || _isPdo),
             ("Bulk Ref Number", _isAdmin || _isPdo),

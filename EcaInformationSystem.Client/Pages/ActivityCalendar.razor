@@ -1,0 +1,451 @@
+@page "/calendar"
+@using EcaInformationSystem.Shared.DTOs.Activity
+@using EcaInformationSystem.Common.Enums
+@using EcaInformationSystem.Client.Services
+@inject ActivityClientService ActivityClient
+@inject NavigationManager Nav
+@inject AuthService AuthService
+
+<ActivityCreateModal @ref="_createModal" OnSaved="RefreshAfterSave" />
+
+<div class="feed-header">
+    <div class="feed-header-icon"><i class="bi bi-calendar3-week"></i></div>
+    <div>
+        <div class="feed-header-title">Calendar of Activities</div>
+        <div class="feed-header-subtitle">Scheduled events and deadlines across NCSC Caraga Region</div>
+    </div>
+</div>
+<div class="calendar-container">
+    <div class="calendar-card">
+        <div class="calendar-header">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="GoToday">Today</button>
+            <button class="btn btn-sm btn-light" @onclick="PrevMonth">&lt;</button>
+
+            <div class="calendar-title-wrap">
+                <button class="calendar-title-btn" @onclick="ToggleYearMonthPicker">
+                    @_visibleMonth.ToString("MMMM yyyy")
+                    <i class="bi bi-chevron-down calendar-title-caret"></i>
+                </button>
+
+                @if (_showPicker)
+                {
+                    <div class="year-month-picker" @onclick:stopPropagation="true">
+                        <div class="ymp-year-row">
+                            <button class="btn-icon" @onclick="() => _pickerYear--"><i
+                                class="bi bi-chevron-left"></i></button>
+                                <strong>@_pickerYear</strong>
+                                <button class="btn-icon" @onclick="() => _pickerYear++"><i
+                                    class="bi bi-chevron-right"></i></button>
+                                </div>
+                                <div class="ymp-month-grid">
+                                    @for (int m = 1; m <= 12; m++)
+                                    {
+                                        var monthNum = m;
+                                        var isSelected = monthNum == _visibleMonth.Month && _pickerYear == _visibleMonth.Year;
+                                        <button class="ymp-month-btn @(isSelected ? "ymp-month-selected" : "")"
+                                                @onclick="() => SelectYearMonth(_pickerYear, monthNum)">
+                                            @(new DateTime(2000, monthNum, 1).ToString("MMM"))
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <button class="btn btn-sm btn-light" @onclick="NextMonth">&gt;</button>
+                    @if (_canManage)
+                    {
+                        <button class="btn btn-sm btn-primary ms-auto" @onclick="() => OpenCreateModal(DateTime.Today)">+ New
+                            Activity</button>
+                        }
+                    </div>
+
+                    @if (_loading)
+                    {
+                        <div class="text-center p-4"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                    }
+                    else
+                    {
+                        <div class="calendar-dow-row">
+                            @foreach (var dow in _dayNames)
+                            {
+                                <div class="calendar-dow">@dow</div>
+                            }
+                        </div>
+
+                        @foreach (var week in _weeks)
+                        {
+                            <div class="calendar-week" style="min-height:@(70 + week.MaxLane * 38)px;">
+                                <div class="calendar-week-cells">
+                                    @foreach (var cell in week.Days)
+                                    {
+                                        <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell-muted") @(cell.Date == DateTime.Today ? "calendar-cell-today" : "")"
+                                             @onclick="() => OnDayClick(cell.Date)">
+                                            <div class="calendar-date">@cell.Date.Day</div>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="calendar-week-bars">
+                                    @foreach (var bar in week.Bars)
+                                    {
+                                        <div class="calendar-bar-span @PriorityBarCss(bar.Priority) @(bar.IsRealStart ? "bar-cap-start" : "bar-flush-start") @(bar.IsRealEnd ? "bar-cap-end" : "bar-flush-end")"
+                                             style="left:@(bar.LeftPercent.ToString("0.###"))%; width:calc(@(bar.WidthPercent.ToString("0.###"))% - 4px); top:@(26 + bar.Lane * 38)px;"
+                                             title="@bar.Title" @onclick="() => OnDayClick(week.Days[bar.StartCol].Date)">
+                                            <span class="bar-span-sub">@bar.SubLabel</span>
+                                            <span class="bar-span-label">@bar.Title</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            @if (_selectedDate is not null)
+            {
+                <div class="calendar-popover-backdrop" @onclick="ClosePopover">
+                    <div class="calendar-popover" @onclick:stopPropagation="true">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>@_selectedDate.Value.ToString("MMMM dd, yyyy")</strong>
+                            <button class="btn-close" @onclick="ClosePopover"></button>
+                        </div>
+
+                        @if (_dayActivities.Count == 0)
+                        {
+                            <p class="text-muted mb-2">No activities scheduled.</p>
+                        }
+                        else
+                        {
+                            @foreach (var a in _dayActivities)
+                            {
+                                <div class="calendar-activity-row">
+                                    <span class="calendar-dot @PriorityCss(a.Priority)"></span>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-semibold">@a.Title</div>
+                                        <small class="text-muted">
+                                            @a.Type @(a.Location is not null ? $"• {a.Location}" : "")
+                                            @if (a.EndDate is not null && a.EndDate.Value.Date != a.StartDate.Date)
+                                            {
+                                                <span> • @a.StartDate.ToString("MMM dd") - @a.EndDate.Value.ToString("MMM dd")</span>
+                                            }
+                                        </small>
+                                    </div>
+                                    @if (_canManage)
+                                    {
+                                        <div class="calendar-activity-actions">
+                                            <button class="btn-icon" title="Edit" @onclick="() => OpenEditModal(a)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @if (_confirmingDeleteId == a.Id)
+                                            {
+                                                <button class="btn-icon btn-icon-danger" title="Confirm delete" @onclick="() => ConfirmDelete(a.Id)">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                                <button class="btn-icon" title="Cancel" @onclick="CancelDelete">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn-icon btn-icon-danger" title="Delete" @onclick="() => AskDelete(a.Id)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+
+                        @if (_canManage)
+                        {
+                            <button class="btn btn-sm btn-primary ms-auto" @onclick="() => OpenCreateModal(DateTime.Today)">+ Add
+                                Activity for this day</button>
+                            }
+                        </div>
+                    </div>
+                }
+
+@code {
+    private bool _canManage;
+    private bool _showPicker;
+    private int _pickerYear;
+    private ActivityCreateModal? _createModal;
+    private DateTime _visibleMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private List<CalendarCell> _cells = new();
+    private List<WeekRow> _weeks = new();
+    private List<ActivityMonthMarkerDto> _markers = new();
+    private bool _loading = true;
+
+    private DateTime? _selectedDate;
+    private List<ActivityDto> _dayActivities = new();
+    private int? _confirmingDeleteId;
+
+    private readonly string[] _dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _canManage = AuthService.IsAdmin() || AuthService.IsSuperAdmin();
+        await LoadMonthAsync();
+
+        ActivityClient.ActivityChanged += OnActivityChanged;
+        ActivityClient.ActivityDeleted += OnActivityDeleted;
+    }
+    private void OnActivityStarting(ActivityDto activity)
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadMonthAsync();
+            if (_selectedDate is not null)
+                _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
+            StateHasChanged();
+        });
+    }
+
+    private void OnActivityChanged(ActivityDto activity) => InvokeAsync(RefreshLive);
+    private void OnActivityDeleted(int id) => InvokeAsync(RefreshLive);
+    private async Task RefreshLive()
+    {
+        await LoadMonthAsync();
+        if (_selectedDate is not null)
+            _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ActivityClient.ActivityChanged -= OnActivityChanged;
+        ActivityClient.ActivityDeleted -= OnActivityDeleted;
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadMonthAsync()
+    {
+        _loading = true;
+        _markers = await ActivityClient.GetMonthMarkersAsync(_visibleMonth.Year, _visibleMonth.Month);
+        BuildCells();
+        BuildWeeks();
+        _loading = false;
+    }
+    private void ToggleYearMonthPicker()
+    {
+        _showPicker = !_showPicker;
+        _pickerYear = _visibleMonth.Year;
+    }
+
+    private async Task SelectYearMonth(int year, int month)
+    {
+        _visibleMonth = new DateTime(year, month, 1);
+        _showPicker = false;
+        await LoadMonthAsync();
+    }
+
+    private void BuildCells()
+    {
+        _cells.Clear();
+        var firstOfMonth = _visibleMonth;
+        var startOffset = (int)firstOfMonth.DayOfWeek;
+        var gridStart = firstOfMonth.AddDays(-startOffset);
+
+        for (int i = 0; i < 42; i++)
+        {
+            var date = gridStart.AddDays(i);
+            var marker = _markers.FirstOrDefault(m => m.Date.Date == date.Date);
+
+            _cells.Add(new CalendarCell
+            {
+                Date = date,
+                IsCurrentMonth = date.Month == _visibleMonth.Month,
+                Segments = marker?.Segments ?? new List<ActivitySpanSegmentDto>()
+            });
+        }
+    }
+
+    private void BuildWeeks()
+    {
+        _weeks.Clear();
+
+        for (int w = 0; w < 6; w++)
+        {
+            var days = _cells.Skip(w * 7).Take(7).ToList();
+            var week = new WeekRow { Days = days };
+
+            var groups = new Dictionary<int, (string Title, ActivityPriority Priority, int MinCol, int MaxCol,
+                bool RealStart, bool RealEnd, string? Location, bool IsAllDay, DateTime StartDate, DateTime? EndDate)>();
+
+            for (int col = 0; col < 7; col++)
+            {
+                foreach (var seg in days[col].Segments)
+                {
+                    if (!groups.TryGetValue(seg.ActivityId, out var g))
+                    {
+                        groups[seg.ActivityId] = (seg.Title, seg.Priority, col, col, seg.IsRangeStart, seg.IsRangeEnd,
+                            seg.Location, seg.IsAllDay, seg.StartDate, seg.EndDate);
+                    }
+                    else
+                    {
+                        groups[seg.ActivityId] = (
+                            g.Title, g.Priority,
+                            Math.Min(g.MinCol, col), Math.Max(g.MaxCol, col),
+                            g.RealStart || seg.IsRangeStart,
+                            g.RealEnd || seg.IsRangeEnd,
+                            g.Location, g.IsAllDay, g.StartDate, g.EndDate);
+                    }
+                }
+            }
+
+            var ordered = groups.Select(kv => new BarPlacement
+            {
+                ActivityId = kv.Key,
+                Title = kv.Value.Title,
+                Priority = kv.Value.Priority,
+                StartCol = kv.Value.MinCol,
+                SpanCols = kv.Value.MaxCol - kv.Value.MinCol + 1,
+                IsRealStart = kv.Value.RealStart,
+                IsRealEnd = kv.Value.RealEnd,
+                Location = kv.Value.Location,
+                IsAllDay = kv.Value.IsAllDay,
+                StartDate = kv.Value.StartDate,
+                EndDate = kv.Value.EndDate
+            })
+            .OrderBy(b => b.StartCol)
+            .ThenByDescending(b => b.SpanCols)
+            .ToList();
+
+            var laneEndCols = new List<int>();
+            foreach (var bar in ordered)
+            {
+                int lane = laneEndCols.FindIndex(endCol => endCol < bar.StartCol);
+                if (lane == -1)
+                {
+                    laneEndCols.Add(bar.StartCol + bar.SpanCols - 1);
+                    lane = laneEndCols.Count - 1;
+                }
+                else
+                {
+                    laneEndCols[lane] = bar.StartCol + bar.SpanCols - 1;
+                }
+                bar.Lane = lane;
+                week.Bars.Add(bar);
+            }
+
+            _weeks.Add(week);
+        }
+    }
+
+    private async Task PrevMonth() { _visibleMonth = _visibleMonth.AddMonths(-1); await LoadMonthAsync(); }
+    private async Task NextMonth() { _visibleMonth = _visibleMonth.AddMonths(1); await LoadMonthAsync(); }
+    private async Task GoToday()
+    {
+        _visibleMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); await
+LoadMonthAsync();
+    }
+
+    private async Task OnDayClick(DateTime date)
+    {
+        _selectedDate = date;
+        _confirmingDeleteId = null;
+        _dayActivities = await ActivityClient.GetDayAsync(date);
+    }
+
+    private void ClosePopover()
+    {
+        _selectedDate = null;
+        _dayActivities.Clear();
+        _confirmingDeleteId = null;
+    }
+
+    private void OpenCreateModal(DateTime date) => _createModal?.OpenForCreate(date);
+    private void OpenEditModal(ActivityDto a) => _createModal?.OpenForEdit(a);
+
+    private void AskDelete(int id) => _confirmingDeleteId = id;
+    private void CancelDelete() => _confirmingDeleteId = null;
+
+    private async Task ConfirmDelete(int id)
+    {
+        await ActivityClient.DeleteAsync(id);
+        _confirmingDeleteId = null;
+        if (_selectedDate is not null)
+            _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
+        await LoadMonthAsync();
+    }
+
+    private async Task RefreshAfterSave()
+    {
+        await LoadMonthAsync();
+        if (_selectedDate is not null)
+            _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
+    }
+
+    private static string PriorityCss(ActivityPriority p) => p switch
+    {
+        ActivityPriority.Urgent => "dot-red",
+        ActivityPriority.HeadsUp => "dot-amber",
+        _ => "dot-green"
+    };
+
+    private static string PriorityBarCss(ActivityPriority p) => p switch
+    {
+        ActivityPriority.Urgent => "bar-red",
+        ActivityPriority.HeadsUp => "bar-amber",
+        _ => "bar-green"
+    };
+
+    private class CalendarCell
+    {
+        public DateTime Date { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public List<ActivitySpanSegmentDto> Segments { get; set; } = new();
+    }
+
+    private class WeekRow
+    {
+        public List<CalendarCell> Days { get; set; } = new();
+        public List<BarPlacement> Bars { get; set; } = new();
+        public int MaxLane => Bars.Any() ? Bars.Max(b => b.Lane) + 1 : 0;
+    }
+
+    private class BarPlacement
+    {
+        public int ActivityId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public ActivityPriority Priority { get; set; }
+        public int StartCol { get; set; }
+        public int SpanCols { get; set; }
+        public int Lane { get; set; }
+        public bool IsRealStart { get; set; }
+        public bool IsRealEnd { get; set; }
+        public string? Location { get; set; }
+        public bool IsAllDay { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public double LeftPercent => StartCol * 100.0 / 7;
+        public double WidthPercent => SpanCols * 100.0 / 7;
+
+        public string TimeLabel
+        {
+            get
+            {
+                if (IsAllDay) return "All day";
+
+                var start = StartDate.ToString("h:mm tt");
+                if (EndDate.HasValue && EndDate.Value != StartDate)
+                    return $"{start} - {EndDate.Value.ToString("h:mm tt")}";
+
+                return start;
+            }
+        }
+        public string SubLabel
+        {
+            get
+            {
+                var parts = new List<string> { TimeLabel };
+                if (!string.IsNullOrWhiteSpace(Location)) parts.Add(Location);
+                return string.Join(" • ", parts);
+            }
+        }
+    }
+}

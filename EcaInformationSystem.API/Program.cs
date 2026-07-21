@@ -211,7 +211,10 @@ builder.Services.AddHostedService<PsgcCacheRefreshBackgroundService>();
 // This prevents IIS from killing the process for exceeding startupTimeLimit
 // when the database is empty on first deployment.
 builder.Services.AddHostedService<PsgcSeederBackgroundService>();
-builder.Services.AddHostedService<PayrollQueueProcessor>(); // ✅ new
+builder.Services.AddHostedService<PayrollQueueProcessor>();
+
+builder.Services.AddSingleton<ActivityReminderScheduler>();
+builder.Services.AddHostedService<ActivityReminderResyncService>();
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -234,6 +237,9 @@ app.UseCors("WasmPolicy");
 app.UseRateLimiter(); //Must come after CORS, before MapControllers
 
 app.MapHub<PostsHub>("/postsHub");
+app.MapHub<ActivityHub>("/activityHub");
+app.MapHub<PublicActivityHub>("/publicActivityHub"); 
+
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),
     branch => branch.UseResponseCompression()

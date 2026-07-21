@@ -15,7 +15,9 @@
 
 @if (isCheckingAuth)
 {
-    <div class="container py-5 text-center"><p>Loading...</p></div>
+    <div class="container py-5 text-center">
+        <p>Loading...</p>
+    </div>
 }
 else
 {
@@ -54,7 +56,8 @@ else
             var textColor = IsLockedOut ? "#991b1b" : (AttemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
 
             <div class="login-status-banner">
-                <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;">
+                <div
+                    style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;">
                     <div style="font-weight:600;">@ErrorMessage</div>
 
                     @if (SecondsLeft.HasValue)
@@ -71,7 +74,8 @@ else
                             @for (int i = 0; i < 5; i++)
                             {
                                 var filled = i < (5 - AttemptsRemaining.Value);
-                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");"></div>
+                                <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");">
+                                </div>
                             }
                         </div>
                         <div style="font-size:11px;margin-top:4px;opacity:0.8;">
@@ -86,42 +90,47 @@ else
         {
             <div class="mfa-modal-backdrop">
                 <div class="mfa-modal-card">
-                    <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Verification required</p>
-                    <h2 style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Enter your code</h2>
-                    <p style="font-size:13px;color:#6b7280;margin-bottom:20px;">
-                        Open your authenticator app and enter the 6-digit code for ECA-InFORMS.
-                    </p>
+                    <p
+                        style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">
+                        Verification required</p>
+                        <h2 style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Enter your code</h2>
+                        <p style="font-size:13px;color:#6b7280;margin-bottom:20px;">
+                            Open your authenticator app and enter the 6-digit code for ECA-InFORMS.
+                        </p>
 
-                    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
-                    {
-                        <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;">
-                            @ErrorMessage
-                        </div>
-                    }
+                        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                        {
+                            <div
+                                style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;">
+                                @ErrorMessage
+                            </div>
+                        }
 
-                    <input @bind="_mfaCode" @bind:event="oninput" maxlength="6" placeholder="000000"
-                           style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:18px;letter-spacing:6px;text-align:center;margin-bottom:14px;" />
+                        <input @bind="_mfaCode" @bind:event="oninput" maxlength="6" placeholder="000000"
+                               style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:18px;letter-spacing:6px;text-align:center;margin-bottom:14px;" />
 
-                    <button @onclick="HandleVerifyMfaAsync" disabled="@(_mfaCode.Length != 6 || IsLoading)"
-                            style="width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:@(_mfaCode.Length != 6 || IsLoading ? "0.6" : "1");">
-                        @(IsLoading ? "Verifying..." : "Verify")
-                    </button>
+                        <button @onclick="HandleVerifyMfaAsync" disabled="@(_mfaCode.Length != 6 || IsLoading)"
+                                style="width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:@(_mfaCode.Length != 6 || IsLoading ? "0.6" : "1");">
+                            @(IsLoading ? "Verifying..." : "Verify")
+                        </button>
 
-                    <p style="text-align:center;margin-top:14px;">
-                        <a href="#" @onclick="BackToLogin" @onclick:preventDefault="true" style="color:#185FA5;font-size:13px;">← Back to login</a>
-                    </p>
+                        <p style="text-align:center;margin-top:14px;">
+                            <a href="#" @onclick="BackToLogin" @onclick:preventDefault="true"
+                               style="color:#185FA5;font-size:13px;">← Back to login</a>
+                        </p>
+                    </div>
                 </div>
+            }
+
+            <div class="login-feed-body">
+                <PostFeed />
             </div>
-        }
+            <PublicCalendarWidget />
 
-        <div class="login-feed-body">
-            <PostFeed />
+            <ScrollToTopButton />
+
         </div>
-
-        <ScrollToTopButton />
-
-    </div>
-}
+    }
 
 @code {
     private LoginModel model = new();

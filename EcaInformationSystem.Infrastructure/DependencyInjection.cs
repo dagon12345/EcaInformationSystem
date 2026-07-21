@@ -72,6 +72,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IFormActivityLogRepository, FormActivityLogRepository>();
             services.AddScoped<IPostRepository, PostRepository>();
             services.AddScoped<IPasswordResetRequestRepository, PasswordResetRequestRepository>();
+            services.AddScoped<IActivityRepository, ActivityRepository>();
             return services;
         }
     }

@@ -1,6 +1,5 @@
 ﻿@using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Client.Services
-@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
 @inject AuthService AuthService
@@ -35,6 +34,7 @@
 
                         @* ── Duplicate notification bell ─────────────────────────── *@
                         <DuplicateNotificationBell @ref="_duplicateBell" />
+                        <ActivityReminderBell @ref="_activityBell" />
                         <UploadQueueIndicator />
 
                         @* ── User info + role badge ────────────────────────── *@
@@ -88,6 +88,7 @@
 </AuthorizeView>
 
 @code {
+    private ActivityReminderBell? _activityBell;
     private bool collapsed = false;
     private bool mobileOpen = false;
     private string userName = string.Empty;
@@ -108,6 +109,7 @@
     {
         { "", "Feed"    },
         { "dashboard", "Feed"    },
+        { "calendar", "Calendar" }, // ← new
         { "statistics", "Statistics"  },
         { "beneficiary-create", "Create Record"},
         { "beneficiary-records", "Records"      },
@@ -236,6 +238,7 @@
         DismissBanner();
         mobileOpen = false;
         _duplicateBell?.CloseDropdown();
+        _activityBell?.CloseDropdown();
         InvokeAsync(StateHasChanged);
     }
 

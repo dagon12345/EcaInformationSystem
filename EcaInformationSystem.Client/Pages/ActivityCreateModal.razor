@@ -1,0 +1,280 @@
+@using EcaInformationSystem.Shared.DTOs.Activity
+@using EcaInformationSystem.Common.Enums
+@using EcaInformationSystem.Client.Services
+@inject ActivityClientService ActivityClient
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop-custom" @onclick="RequestClose">
+        <div class="modal-panel" @onclick:stopPropagation="true">
+            <div class="modal-panel-header">
+                <strong>@(_isEdit ? "Edit Activity" : "New Activity")</strong>
+                <button class="btn-close" @onclick="RequestClose"></button>
+            </div>
+
+            <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+
+                <div class="mb-2">
+                    <label class="form-label">Title</label>
+                    <InputText class="form-control" @bind-Value="_form.Title" />
+                    <ValidationMessage For="() => _form.Title" />
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Description</label>
+                    <InputTextArea class="form-control" rows="2" @bind-Value="_form.Description" />
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col">
+                        <label class="form-label">Start Date</label>
+                        <InputDate class="form-control" @bind-Value="_form.StartDate" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label">End Date (optional)</label>
+                        <InputDate class="form-control" @bind-Value="_form.EndDate" />
+                    </div>
+                </div>
+
+                <div class="form-check mb-2">
+                    <InputCheckbox class="form-check-input" @bind-Value="_form.IsAllDay" id="allDayCheck" />
+                    <label class="form-check-label" for="allDayCheck">All day</label>
+                </div>
+
+                @if (!_form.IsAllDay)
+                {
+                    <div class="row mb-2">
+                        <div class="col">
+                            <label class="form-label">From</label>
+                            <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_startTime" />
+                        </div>
+                        <div class="col">
+                            <label class="form-label">To</label>
+                            <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_endTime" />
+                        </div>
+                    </div>
+                    @if (_timeError is not null)
+                    {
+                        <div class="text-danger small mb-2">@_timeError</div>
+                    }
+                }
+
+                <div class="row mb-2">
+                    <div class="col">
+                        <label class="form-label">Type</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Type">
+                            @foreach (var t in Enum.GetValues<ActivityType>())
+                            {
+                                <option value="@t">@t</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col">
+                        <label class="form-label">Priority</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Priority">
+                            @foreach (var p in Enum.GetValues<ActivityPriority>())
+                            {
+                                <option value="@p">@p</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Location (optional)</label>
+                    <InputText class="form-control" @bind-Value="_form.Location" />
+                </div>
+
+                @* ── Public visibility toggle ── *@
+                <div class="form-check mb-2">
+                    <InputCheckbox class="form-check-input" @bind-Value="_form.IsPublic" id="isPublicCheck" />
+                    <label class="form-check-label" for="isPublicCheck">Show on public feed</label>
+                </div>
+
+                @if (_form.IsPublic)
+                {
+                    <div class="alert alert-warning py-2 px-3 mb-3" style="font-size:12.5px;">
+                        <i class="bi bi-megaphone-fill me-1"></i>
+                        This activity will appear on the <strong>public login page</strong> for anyone to see,
+                        including visitors who are not logged in. Only include information appropriate for public visibility.
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger py-1 px-2 small">@_errorMessage</div>
+                }
+
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="RequestClose">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary" disabled="@_saving">
+                        @(_saving ? "Saving..." : (_isEdit ? "Update" : "Create"))
+                    </button>
+                </div>
+            </EditForm>
+
+            @if (_showDiscardConfirm)
+            {
+                <div class="discard-confirm-overlay" @onclick:stopPropagation="true">
+                    <div class="discard-confirm-box">
+                        <div class="fw-semibold mb-1">Discard unsaved changes?</div>
+                        <p class="text-muted small mb-2">Your edits to this activity haven't been saved.</p>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="CancelDiscard">Keep editing</button>
+                            <button class="btn btn-sm btn-danger" @onclick="ConfirmDiscard">Discard</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback IsVisibleChanged { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private ActivityUpsertDto _form = new() { StartDate = DateTime.Today };
+    private EditContext _editContext = default!;
+    private TimeOnly _startTime = new(9, 0);
+    private TimeOnly _endTime = new(10, 0);
+    private bool _isEdit;
+    private bool _saving;
+    private bool _isDirty;
+    private bool _showDiscardConfirm;
+    private string? _errorMessage;
+    private string? _timeError;
+
+    public void OpenForCreate(DateTime date)
+    {
+        _isEdit = false;
+        _errorMessage = null;
+        _timeError = null;
+        _startTime = new TimeOnly(9, 0);
+        _endTime = new TimeOnly(10, 0);
+        _form = new ActivityUpsertDto
+        {
+            StartDate = date,
+            IsAllDay = true,
+            Type = ActivityType.Routine,
+            Priority = ActivityPriority.Normal,
+            IsPublic = false   // ✅ explicit default
+        };
+        InitEditContext();
+        IsVisible = true;
+        IsVisibleChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    public void OpenForEdit(ActivityDto existing)
+    {
+        _isEdit = true;
+        _errorMessage = null;
+        _timeError = null;
+        _startTime = TimeOnly.FromDateTime(existing.StartDate);
+        _endTime = existing.EndDate.HasValue ? TimeOnly.FromDateTime(existing.EndDate.Value) : _startTime.AddHours(1);
+
+        _form = new ActivityUpsertDto
+        {
+            Id = existing.Id,
+            Title = existing.Title,
+            Description = existing.Description,
+            StartDate = existing.StartDate,
+            EndDate = existing.EndDate,
+            IsAllDay = existing.IsAllDay,
+            Type = existing.Type,
+            Priority = existing.Priority,
+            Location = existing.Location,
+            PsgcCodeProvince = existing.PsgcCodeProvince,
+            PsgcCodeMunicipality = existing.PsgcCodeMunicipality,
+            IsPublic = existing.IsPublic   // ✅ THE FIX — this line was missing before; without it,
+                                            // every edit re-opened the form with IsPublic defaulting
+                                            // to false regardless of the saved value.
+        };
+        InitEditContext();
+        IsVisible = true;
+        IsVisibleChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private void InitEditContext()
+    {
+        _isDirty = false;
+        _showDiscardConfirm = false;
+        _editContext = new EditContext(_form);
+        _editContext.OnFieldChanged += (_, _) => _isDirty = true;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _errorMessage = null;
+        _timeError = null;
+
+        if (!_form.IsAllDay)
+        {
+            var isSameDay = _form.EndDate is null || _form.EndDate.Value.Date == _form.StartDate.Date;
+
+            if (isSameDay && _endTime <= _startTime)
+            {
+                _timeError = "End time must be after start time.";
+                return;
+            }
+
+            var endDatePart = _form.EndDate?.Date ?? _form.StartDate.Date;
+            _form.StartDate = _form.StartDate.Date + _startTime.ToTimeSpan();
+            _form.EndDate = endDatePart + _endTime.ToTimeSpan();
+        }
+
+        _saving = true;
+
+        var result = _isEdit
+            ? await ActivityClient.UpdateAsync(_form)
+            : await ActivityClient.CreateAsync(_form);
+
+        _saving = false;
+
+        if (result is null)
+        {
+            _errorMessage = "Failed to save activity. Please try again.";
+            return;
+        }
+
+        _isDirty = false;
+        await OnSaved.InvokeAsync();
+        ForceClose();
+    }
+
+    private void RequestClose()
+    {
+        if (_isDirty)
+        {
+            _showDiscardConfirm = true;
+            StateHasChanged();
+        }
+        else
+        {
+            ForceClose();
+        }
+    }
+
+    private void CancelDiscard()
+    {
+        _showDiscardConfirm = false;
+        StateHasChanged();
+    }
+
+    private void ConfirmDiscard()
+    {
+        _showDiscardConfirm = false;
+        ForceClose();
+    }
+
+    private void ForceClose()
+    {
+        IsVisible = false;
+        _showDiscardConfirm = false;
+        IsVisibleChanged.InvokeAsync(false);
+    }
+}

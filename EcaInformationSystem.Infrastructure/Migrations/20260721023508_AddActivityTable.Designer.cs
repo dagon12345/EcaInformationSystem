@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260721023508_AddActivityTable")]
+    partial class AddActivityTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,11 +54,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Property<bool>("IsCancelled")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsPublic")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
                     b.Property<string>("Location")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -68,11 +66,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
 
                     b.Property<string>("PsgcCodeProvince")
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<bool>("ReminderSent")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
@@ -99,12 +92,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
 
                     b.HasIndex("IsCancelled", "PsgcCodeProvince", "StartDate")
                         .HasDatabaseName("IX_Activity_Province_StartDate");
-
-                    b.HasIndex("IsPublic", "IsCancelled", "StartDate")
-                        .HasDatabaseName("IX_Activity_Public_StartDate");
-
-                    b.HasIndex("IsCancelled", "IsAllDay", "ReminderSent", "StartDate")
-                        .HasDatabaseName("IX_Activity_ReminderCheck");
 
                     b.ToTable("Activities");
                 });
