@@ -12,6 +12,15 @@
                 <button class="btn-close" @onclick="RequestClose"></button>
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(_currentUserRegionName))
+            {
+                <div class="mb-2">
+                    <span class="badge" style="background:#0C447C;">
+                        <i class="bi bi-geo-alt-fill me-1"></i>Creating for: @_currentUserRegionName
+                    </span>
+                </div>
+            }
+
             <EditForm EditContext="_editContext" OnValidSubmit="HandleSubmit">
                 <DataAnnotationsValidator />
 
@@ -132,6 +141,9 @@
 }
 
 @code {
+    [Inject] private AuthService AuthService { get; set; } = default!;
+    [Inject] private HttpClient Http { get; set; } = default!;
+    private string? _currentUserRegionName;
     [Parameter] public bool IsVisible { get; set; }
     [Parameter] public EventCallback IsVisibleChanged { get; set; }
     [Parameter] public EventCallback OnSaved { get; set; }
@@ -160,12 +172,17 @@
             IsAllDay = true,
             Type = ActivityType.Routine,
             Priority = ActivityPriority.Normal,
-            IsPublic = false   // ✅ explicit default
+            IsPublic = false // ✅ explicit default
         };
         InitEditContext();
         IsVisible = true;
         IsVisibleChanged.InvokeAsync(true);
         StateHasChanged();
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+    _currentUserRegionName = await AuthService.GetRegionNameAsync(Http);
     }
 
     public void OpenForEdit(ActivityDto existing)
@@ -189,9 +206,9 @@
             Location = existing.Location,
             PsgcCodeProvince = existing.PsgcCodeProvince,
             PsgcCodeMunicipality = existing.PsgcCodeMunicipality,
-            IsPublic = existing.IsPublic   // ✅ THE FIX — this line was missing before; without it,
-                                            // every edit re-opened the form with IsPublic defaulting
-                                            // to false regardless of the saved value.
+            IsPublic = existing.IsPublic // ✅ THE FIX — this line was missing before; without it,
+                                         // every edit re-opened the form with IsPublic defaulting
+                                         // to false regardless of the saved value.
         };
         InitEditContext();
         IsVisible = true;

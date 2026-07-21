@@ -18,6 +18,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string? Location { get; set; }
         public string? PsgcCodeProvince { get; set; }
         public string? PsgcCodeMunicipality { get; set; }
+        public int? PsgcCodeRegion { get; set; }
 
         public bool IsCancelled { get; set; }
         public bool ReminderSent { get; set; }

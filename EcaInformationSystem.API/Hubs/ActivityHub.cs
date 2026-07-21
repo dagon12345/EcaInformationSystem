@@ -7,6 +7,14 @@ namespace EcaInformationSystem.Api.Hubs
     [Authorize]
     public class ActivityHub : Hub
     {
-        // No client-invoked methods needed — this hub only pushes server → client.
+         public override async Task OnConnectedAsync()
+        {
+            var regionCode = Context.User?.FindFirst("Region")?.Value;
+            if (!string.IsNullOrEmpty(regionCode))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"region-{regionCode}");
+            }
+            await base.OnConnectedAsync();
+        }
     }
 }

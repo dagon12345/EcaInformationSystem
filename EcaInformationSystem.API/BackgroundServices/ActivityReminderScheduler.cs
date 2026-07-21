@@ -42,10 +42,7 @@ namespace EcaInformationSystem.Api.BackgroundServices
                     if (!token.IsCancellationRequested)
                         await FireAsync(activity.Id);
                 }
-                catch (TaskCanceledException)
-                {
-                    // expected when Cancel() is called (edit/delete) — no action needed
-                }
+                catch (TaskCanceledException) { }
                 finally
                 {
                     _scheduled.TryRemove(activity.Id, out _);
@@ -84,11 +81,17 @@ namespace EcaInformationSystem.Api.BackgroundServices
                 Location = activity.Location,
                 PsgcCodeProvince = activity.PsgcCodeProvince,
                 PsgcCodeMunicipality = activity.PsgcCodeMunicipality,
-                IsCancelled = activity.IsCancelled
+                IsCancelled = activity.IsCancelled,
+                PsgcCodeRegion = activity.PsgcCodeRegion
             };
 
             await repo.MarkReminderSentAsync(activityId);
-            await _hub.Clients.All.SendAsync("ActivityStarting", dto);
+
+            // ✅ Only the owning region's connected users get the real-time reminder
+            if (activity.PsgcCodeRegion.HasValue)
+                await _hub.Clients.Group($"region-{activity.PsgcCodeRegion.Value}").SendAsync("ActivityStarting", dto);
+            else
+                await _hub.Clients.All.SendAsync("ActivityStarting", dto); // legacy fallback for pre-region activities
         }
     }
 }

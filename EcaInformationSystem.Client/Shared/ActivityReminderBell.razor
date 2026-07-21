@@ -44,8 +44,8 @@
                 {
                     @foreach (var a in _todayActivities)
                     {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-has-matches"
-                             style="cursor:pointer;" @onclick="GoToCalendar">
+                        <div class="duplicate-dropdown-item duplicate-dropdown-has-matches" style="cursor:pointer;"
+                             @onclick="GoToCalendar">
                             <div class="d-flex align-items-start gap-2">
                                 <span class="calendar-dot @PriorityCss(a.Priority)" style="margin-top:4px;"></span>
                                 <div class="flex-grow-1">
@@ -118,6 +118,8 @@
 }
 
 @code {
+    [Inject] private AuthService AuthService { get; set; } = default!;
+    private int? _myRegionCode;
     private bool _showDropdown;
     private bool _loading = true;
     private List<ActivityDto> _todayActivities = new();
@@ -129,6 +131,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.InitAsync();
+        _myRegionCode = AuthService.GetRegionCode();
+
         await LoadTodayActivitiesAsync();
         await ConnectRealtimeAsync();
 
@@ -136,7 +141,6 @@
         ActivityClient.ActivityChanged += OnActivityChanged;
         ActivityClient.ActivityDeleted += OnActivityDeleted;
     }
-
     private async Task ConnectRealtimeAsync()
     {
         if (!ActivityClient.IsConnected)
@@ -155,19 +159,20 @@
     {
         if (activity.StartDate.Date != DateTime.Today) return;
 
+        // Defensive — server already scopes this via SignalR group, but double-check
+        // client-side too in case of any edge case during reconnect windows.
+        if (_myRegionCode.HasValue && activity.PsgcCodeRegion.HasValue && activity.PsgcCodeRegion != _myRegionCode)
+            return;
+
         InvokeAsync(() =>
         {
             if (!_todayActivities.Any(a => a.Id == activity.Id))
                 _todayActivities.Add(activity);
 
             if (_modalActivity is null)
-            {
                 _modalActivity = activity;
-            }
             else
-            {
                 _modalQueue.Enqueue(activity);
-            }
 
             StateHasChanged();
         });
@@ -194,11 +199,10 @@
     private async Task LoadTodayActivitiesAsync()
     {
         _loading = true;
-        try { _todayActivities = await ActivityClient.GetDayAsync(DateTime.Today); }
+        try { _todayActivities = await ActivityClient.GetDayMyRegionAsync(DateTime.Today); }
         catch { _todayActivities = new(); }
         finally { _loading = false; }
     }
-
     private void ToggleDropdown() => _showDropdown = !_showDropdown;
     public void CloseDropdown() => _showDropdown = false;
 
@@ -222,4 +226,5 @@
         ActivityClient.ActivityDeleted -= OnActivityDeleted;
         await Task.CompletedTask;
     }
+
 }

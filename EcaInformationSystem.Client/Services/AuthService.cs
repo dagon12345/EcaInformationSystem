@@ -1,4 +1,6 @@
-﻿using EcaInformationSystem.Shared.DTOs.Auth;
+﻿using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.DTOs.Auth;
+using EcaInformationSystem.Shared.Helpers;
 using Microsoft.JSInterop;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
@@ -15,6 +17,7 @@ namespace EcaInformationSystem.Client.Services
         private readonly IConfiguration _config; // ✅ NEW
         // ── In-memory cache so sync helpers work after InitAsync ─────────────
         private string? _cachedRole;
+        private int? _cachedRegionCode;
 
         public AuthService(HttpClient http, IJSRuntime js, ChatClientService chatClientService, IConfiguration config)
         {
@@ -166,6 +169,7 @@ namespace EcaInformationSystem.Client.Services
 
             _cachedRole = ParseRoleFromToken(result.Token);
             await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
+            _cachedRegionCode = ParseRegionFromToken(result.Token);
 
             try
             {
@@ -206,6 +210,7 @@ namespace EcaInformationSystem.Client.Services
             await _js.InvokeVoidAsync("localStorage.removeItem", "userRole");
 
             _cachedRole = null;
+            _cachedRegionCode = null;
 
             // ✅ NEW — tear down the chat connection on logout
             await _chatClientService.DisconnectAsync();
@@ -226,31 +231,26 @@ namespace EcaInformationSystem.Client.Services
 
             return _http;
         }
-
-        // ── Call this once in App.razor or MainLayout OnInitializedAsync ──────
-        // Restores the cached role from localStorage after a page refresh
         public async Task InitAsync()
         {
-            if (_cachedRole != null) return; // already loaded this session
+            if (_cachedRole != null) return;
 
-            // Try localStorage first (survives page refresh)
             var storedRole = await _js.InvokeAsync<string?>("localStorage.getItem", "userRole");
 
             if (!string.IsNullOrWhiteSpace(storedRole))
             {
                 _cachedRole = storedRole;
-
-                // ✅ Also restore jurisdictions from token on page refresh
                 _cachedJurisdictions = await GetJurisdictionCodesAsync();
+                _cachedRegionCode = await GetRegionCodeAsync();   // ✅ NEW
                 return;
             }
 
-            // Fallback: re-parse from the token itself
             var token = await GetTokenAsync();
             if (!string.IsNullOrWhiteSpace(token))
             {
                 _cachedRole = ParseRoleFromToken(token);
                 _cachedJurisdictions = await GetJurisdictionCodesAsync();
+                _cachedRegionCode = await GetRegionCodeAsync();   // ✅ NEW
             }
         }
         public List<int> GetJurisdictionCodes() => _cachedJurisdictions;
@@ -295,6 +295,49 @@ namespace EcaInformationSystem.Client.Services
 
         // ── Sync helpers — safe to call after InitAsync has run ──────────────
         public string? GetRole() => _cachedRole;
+
+        // Resolves the "Region" claim to a display name, mirroring GetRole()/
+        // GetJurisdictionCodes() — safe to call after InitAsync has run.
+        public string? GetRegionName() => _cachedRegionCode.HasValue
+            ? $"Region {RegionRomanNumeralHelper.GetRoman(_cachedRegionCode)}"
+            : null;
+        public int? GetRegionCode() => _cachedRegionCode;
+        public async Task<int?> GetRegionCodeAsync()
+        {
+            var token = await GetTokenAsync();
+            if (string.IsNullOrWhiteSpace(token)) return null;
+
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (!handler.CanReadToken(token)) return null;
+
+                var jwt = handler.ReadJwtToken(token);
+                var regionClaim = jwt.Claims.FirstOrDefault(c => c.Type == "Region")?.Value;
+
+                if (string.IsNullOrWhiteSpace(regionClaim)) return null;
+
+                return int.TryParse(regionClaim, out var region) ? region : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        public async Task<string?> GetRegionNameAsync(HttpClient http)
+        {
+            if (!_cachedRegionCode.HasValue) return null;
+
+            try
+            {
+                var regions = await http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region");
+                return regions?.FirstOrDefault(r => r.PsgcCodeRegion == _cachedRegionCode.Value)?.Name;
+            }
+            catch
+            {
+                return null;
+            }
+        }
         // Fixed — SuperAdmin also gets admin access
         public bool IsAdmin() => _cachedRole == "Admin" || _cachedRole == "SuperAdmin";
         public bool IsPDO() => _cachedRole == "PDO";
@@ -323,7 +366,29 @@ namespace EcaInformationSystem.Client.Services
                 return null;
             }
         }
+
+        // ── Private: parse the "Region" claim out of a JWT string ────────────
+        private static int? ParseRegionFromToken(string? token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return null;
+
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (!handler.CanReadToken(token)) return null;
+
+                var jwt = handler.ReadJwtToken(token);
+                var regionClaim = jwt.Claims.FirstOrDefault(c => c.Type == "Region")?.Value;
+
+                return int.TryParse(regionClaim, out var region) ? region : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
+
 
     public class LoginResponse
     {

@@ -10,17 +10,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         private readonly AppDbContext _context;
 
         public ActivityRepository(AppDbContext context) => _context = context;
-        public async Task<List<Activity>> GetUpcomingPublicAsync(DateTime from, int take)
-        {
-            return await _context.Activities
-                .Where(a => a.IsPublic
-                    && !a.IsCancelled
-                    && (a.EndDate ?? a.StartDate).Date >= from.Date)
-                .OrderBy(a => a.StartDate)
-                .Take(take)
-                .AsNoTracking()
-                .ToListAsync();
-        }
+
         public async Task<List<Activity>> GetMonthRangeAsync(DateTime rangeStart, DateTime rangeEnd, string? provinceCode = null)
         {
             var query = _context.Activities
@@ -52,6 +42,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return await _context.Activities
                 .Where(a => !a.IsCancelled && !a.IsAllDay && !a.ReminderSent
                     && a.StartDate >= from && a.StartDate <= to)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<List<Activity>> GetUpcomingPublicAsync(DateTime from, int take)
+        {
+            return await _context.Activities
+                .Where(a => a.IsPublic && !a.IsCancelled
+                    && (a.EndDate ?? a.StartDate).Date >= from.Date)
+                .OrderBy(a => a.StartDate)
+                .Take(take)
                 .AsNoTracking()
                 .ToListAsync();
         }

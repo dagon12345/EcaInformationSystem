@@ -1,3 +1,4 @@
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
@@ -8,13 +9,14 @@ namespace EcaInformationSystem.Application.Services
     public class ActivityService : IActivityService
     {
         private readonly IActivityRepository _repo;
+        private readonly IPsgcNameCache _psgcNameCache;
 
-        public ActivityService(IActivityRepository repo) => _repo = repo;
-        public async Task<List<ActivityDto>> GetPublicUpcomingAsync(int take = 8)
+        public ActivityService(IActivityRepository repo, IPsgcNameCache psgcNameCache)
         {
-            var activities = await _repo.GetUpcomingPublicAsync(DateTime.Today, take);
-            return activities.Select(MapToDto).ToList();
+            _repo = repo;
+            _psgcNameCache = psgcNameCache;
         }
+
         public async Task<List<ActivityMonthMarkerDto>> GetMonthMarkersAsync(int year, int month, string? provinceCode, bool publicOnly = false)
         {
             var rangeStart = new DateTime(year, month, 1);
@@ -53,7 +55,9 @@ namespace EcaInformationSystem.Application.Services
                         IsAllDay = a.IsAllDay,
                         StartDate = a.StartDate,
                         EndDate = a.EndDate,
-                        IsPublic = a.IsPublic
+                        IsPublic = a.IsPublic,
+                        PsgcCodeRegion = a.PsgcCodeRegion,
+                        RegionName = ResolveRegionName(a.PsgcCodeRegion)
                     });
                 }
             }
@@ -69,13 +73,19 @@ namespace EcaInformationSystem.Application.Services
             return activities.Select(MapToDto).ToList();
         }
 
+        public async Task<List<ActivityDto>> GetPublicUpcomingAsync(int take = 8)
+        {
+            var activities = await _repo.GetUpcomingPublicAsync(DateTime.Today, take);
+            return activities.Select(MapToDto).ToList();
+        }
+
         public async Task<ActivityDto?> GetByIdAsync(int id)
         {
             var a = await _repo.GetByIdAsync(id);
             return a is null ? null : MapToDto(a);
         }
 
-        public async Task<ActivityDto> CreateAsync(ActivityUpsertDto dto, string userId)
+        public async Task<ActivityDto> CreateAsync(ActivityUpsertDto dto, string userId, int regionCode)
         {
             var entity = new Activity
             {
@@ -89,7 +99,8 @@ namespace EcaInformationSystem.Application.Services
                 Location = dto.Location,
                 PsgcCodeProvince = dto.PsgcCodeProvince,
                 PsgcCodeMunicipality = dto.PsgcCodeMunicipality,
-                IsPublic = dto.IsPublic,          // ✅ THE FIX — this line was missing
+                PsgcCodeRegion = regionCode,       // ✅ server-assigned
+                IsPublic = dto.IsPublic,
                 CreatedByUserId = userId,
                 CreatedAt = DateTime.Now,
                 ReminderSent = false
@@ -115,7 +126,8 @@ namespace EcaInformationSystem.Application.Services
             existing.Location = dto.Location;
             existing.PsgcCodeProvince = dto.PsgcCodeProvince;
             existing.PsgcCodeMunicipality = dto.PsgcCodeMunicipality;
-            existing.IsPublic = dto.IsPublic;     // ✅ THE FIX — this line was missing
+            // PsgcCodeRegion never reassigned — an activity's owning region is permanent
+            existing.IsPublic = dto.IsPublic;
             existing.UpdatedByUserId = userId;
             existing.UpdatedAt = DateTime.Now;
             existing.ReminderSent = false;
@@ -126,7 +138,13 @@ namespace EcaInformationSystem.Application.Services
 
         public Task<bool> DeleteAsync(int id) => _repo.DeleteAsync(id);
 
-        private static ActivityDto MapToDto(Activity a) => new()
+        private string? ResolveRegionName(int? regionCode)
+        {
+            if (!regionCode.HasValue) return null;
+            return _psgcNameCache.GetRegionName(regionCode.Value);
+        }
+
+        private ActivityDto MapToDto(Activity a) => new()
         {
             Id = a.Id,
             Title = a.Title,
@@ -140,7 +158,9 @@ namespace EcaInformationSystem.Application.Services
             PsgcCodeProvince = a.PsgcCodeProvince,
             PsgcCodeMunicipality = a.PsgcCodeMunicipality,
             IsCancelled = a.IsCancelled,
-            IsPublic = a.IsPublic             // ✅ THE FIX — this line was also missing
+            IsPublic = a.IsPublic,
+            PsgcCodeRegion = a.PsgcCodeRegion,
+            RegionName = ResolveRegionName(a.PsgcCodeRegion)
         };
     }
 }

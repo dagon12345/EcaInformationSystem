@@ -31,10 +31,23 @@ namespace EcaInformationSystem.Api.Controllers
             _scheduler = scheduler;
         }
 
+        private int? UserRegion
+        {
+            get
+            {
+                var raw = User.FindFirstValue("Region");
+                return int.TryParse(raw, out var region) ? region : null;
+            }
+        }
+
+        // Strict — no bypass for any role, including SuperAdmin.
+        private bool CanManageRegion(int? activityRegion) =>
+            UserRegion.HasValue && activityRegion == UserRegion;
+
         [HttpGet("month-markers")]
         public async Task<ActionResult<List<ActivityMonthMarkerDto>>> GetMonthMarkers(
             [FromQuery] int year, [FromQuery] int month, [FromQuery] string? province)
-            => Ok(await _service.GetMonthMarkersAsync(year, month, province));
+            => Ok(await _service.GetMonthMarkersAsync(year, month, province)); // all regions — transparency
 
         [HttpGet("day")]
         public async Task<ActionResult<List<ActivityDto>>> GetDay(
@@ -48,7 +61,6 @@ namespace EcaInformationSystem.Api.Controllers
             return result is null ? NotFound() : Ok(result);
         }
 
-        // ── Public-facing, anonymous ────────────────────────────────────────
         [HttpGet("public/upcoming")]
         [AllowAnonymous]
         public async Task<ActionResult<List<ActivityDto>>> GetPublicUpcoming([FromQuery] int take = 8)
@@ -59,9 +71,16 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<ActionResult<ActivityDto>> Create(ActivityUpsertDto dto)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
-            var created = await _service.CreateAsync(dto, userId);
+            var regionCode = UserRegion;
+
+            if (!regionCode.HasValue)
+                return BadRequest("Your account has no assigned region — contact an administrator.");
+
+            var created = await _service.CreateAsync(dto, userId, regionCode.Value);
 
             _scheduler.Schedule(created);
+
+            // Everyone sees it appear on their calendar — transparency across regions
             await _hub.Clients.All.SendAsync("ActivityChanged", created);
 
             if (created.IsPublic)
@@ -74,11 +93,13 @@ namespace EcaInformationSystem.Api.Controllers
         [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ActivityDto>> Update(ActivityUpsertDto dto)
         {
-            // Capture prior public state BEFORE mutating, so we can detect a
-            // public → private transition and tell public viewers to remove it.
             var before = dto.Id.HasValue ? await _service.GetByIdAsync(dto.Id.Value) : null;
-            var wasPublic = before?.IsPublic ?? false;
+            if (before is null) return NotFound();
 
+            if (!CanManageRegion(before.PsgcCodeRegion))
+                return Forbid();
+
+            var wasPublic = before.IsPublic;
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var updated = await _service.UpdateAsync(dto, userId);
             if (updated is null) return NotFound();
@@ -87,15 +108,9 @@ namespace EcaInformationSystem.Api.Controllers
             await _hub.Clients.All.SendAsync("ActivityChanged", updated);
 
             if (updated.IsPublic)
-            {
-                // Still (or newly) public — push the update/creation to public viewers
                 await _publicHub.Clients.All.SendAsync("PublicActivityChanged", updated);
-            }
             else if (wasPublic && !updated.IsPublic)
-            {
-                // Was public, just got unchecked — tell public viewers to remove it
                 await _publicHub.Clients.All.SendAsync("PublicActivityDeleted", updated.Id);
-            }
 
             return Ok(updated);
         }
@@ -105,8 +120,12 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             var existing = await _service.GetByIdAsync(id);
-            var wasPublic = existing?.IsPublic ?? false;
+            if (existing is null) return NotFound();
 
+            if (!CanManageRegion(existing.PsgcCodeRegion))
+                return Forbid();
+
+            var wasPublic = existing.IsPublic;
             var success = await _service.DeleteAsync(id);
             if (!success) return NotFound();
 
@@ -117,6 +136,16 @@ namespace EcaInformationSystem.Api.Controllers
                 await _publicHub.Clients.All.SendAsync("PublicActivityDeleted", id);
 
             return NoContent();
+        }
+        [HttpGet("day/my-region")]
+        public async Task<ActionResult<List<ActivityDto>>> GetDayMyRegion([FromQuery] DateTime date)
+        {
+            if (!UserRegion.HasValue)
+                return Ok(new List<ActivityDto>()); // no region assigned — nothing to show
+
+            var all = await _service.GetActivitiesForDateAsync(date, provinceCode: null);
+            var mine = all.Where(a => a.PsgcCodeRegion == UserRegion.Value).ToList();
+            return Ok(mine);
         }
     }
 }

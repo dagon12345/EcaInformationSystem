@@ -85,5 +85,10 @@ namespace EcaInformationSystem.Client.Services
             if (_hubConnection != null)
                 await _hubConnection.DisposeAsync();
         }
+        public async Task<List<ActivityDto>> GetDayMyRegionAsync(DateTime date)
+        {
+            var url = $"api/activity/day/my-region?date={date:yyyy-MM-dd}";
+            return await _http.GetFromJsonAsync<List<ActivityDto>>(url) ?? new();
+        }
     }
 }

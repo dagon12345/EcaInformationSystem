@@ -618,6 +618,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.IsPublic).HasDefaultValue(false);
                         entity.HasIndex(x => new { x.IsPublic, x.IsCancelled, x.StartDate })
                         .HasDatabaseName("IX_Activity_Public_StartDate");
+                        entity.HasIndex(x => new { x.PsgcCodeRegion, x.StartDate })
+                        .HasDatabaseName("IX_Activity_Region_StartDate");
                   });
             }
       }

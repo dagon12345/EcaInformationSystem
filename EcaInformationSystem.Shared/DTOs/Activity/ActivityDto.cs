@@ -15,6 +15,8 @@ namespace EcaInformationSystem.Shared.DTOs.Activity
         public string? Location { get; set; }
         public string? PsgcCodeProvince { get; set; }
         public string? PsgcCodeMunicipality { get; set; }
+        public int? PsgcCodeRegion { get; set; }
+        public string? RegionName { get; set; }
         public bool IsCancelled { get; set; }
         public bool IsPublic { get; set; }
     }
@@ -33,6 +35,8 @@ namespace EcaInformationSystem.Shared.DTOs.Activity
         public string? PsgcCodeProvince { get; set; }
         public string? PsgcCodeMunicipality { get; set; }
         public bool IsPublic { get; set; }
+        // Note: no PsgcCodeRegion here — region is never client-submitted,
+        // it's always assigned server-side from the acting user's JWT claim.
     }
 
     public class ActivityMonthMarkerDto
@@ -56,5 +60,7 @@ namespace EcaInformationSystem.Shared.DTOs.Activity
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public bool IsPublic { get; set; }
+        public int? PsgcCodeRegion { get; set; }
+        public string? RegionName { get; set; }
     }
 }

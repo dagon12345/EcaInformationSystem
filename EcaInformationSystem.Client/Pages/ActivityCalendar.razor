@@ -92,7 +92,13 @@
                                         <div class="calendar-bar-span @PriorityBarCss(bar.Priority) @(bar.IsRealStart ? "bar-cap-start" : "bar-flush-start") @(bar.IsRealEnd ? "bar-cap-end" : "bar-flush-end")"
                                              style="left:@(bar.LeftPercent.ToString("0.###"))%; width:calc(@(bar.WidthPercent.ToString("0.###"))% - 4px); top:@(26 + bar.Lane * 38)px;"
                                              title="@bar.Title" @onclick="() => OnDayClick(week.Days[bar.StartCol].Date)">
-                                            <span class="bar-span-sub">@bar.SubLabel</span>
+                                            <span class="bar-span-sub">
+                                                @bar.SubLabel
+                                                @if (!string.IsNullOrEmpty(bar.RegionName))
+                                                {
+                                                    <span class="region-tag">@bar.RegionName</span>
+                                                }
+                                            </span>
                                             <span class="bar-span-label">@bar.Title</span>
                                         </div>
                                     }
@@ -132,7 +138,7 @@
                                             }
                                         </small>
                                     </div>
-                                    @if (_canManage)
+                                    @if (CanManage(a))
                                     {
                                         <div class="calendar-activity-actions">
                                             <button class="btn-icon" title="Edit" @onclick="() => OpenEditModal(a)">
@@ -154,6 +160,10 @@
                                                 </button>
                                             }
                                         </div>
+                                    }
+                                    else if (_canManage)
+                                    {
+                                        <span class="text-muted" style="font-size:10px;">@a.RegionName — view only</span>
                                     }
                                 </div>
                             }
@@ -182,6 +192,7 @@
     private DateTime? _selectedDate;
     private List<ActivityDto> _dayActivities = new();
     private int? _confirmingDeleteId;
+    private int? _myRegionCode;
 
     private readonly string[] _dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
@@ -189,11 +200,14 @@
     {
         await AuthService.InitAsync();
         _canManage = AuthService.IsAdmin() || AuthService.IsSuperAdmin();
-        await LoadMonthAsync();
+        _myRegionCode = AuthService.GetRegionCode();
 
+        await LoadMonthAsync();
         ActivityClient.ActivityChanged += OnActivityChanged;
         ActivityClient.ActivityDeleted += OnActivityDeleted;
     }
+    private bool CanManage(ActivityDto a) =>
+    _canManage && _myRegionCode.HasValue && a.PsgcCodeRegion == _myRegionCode;
     private void OnActivityStarting(ActivityDto activity)
     {
         InvokeAsync(async () =>
@@ -274,7 +288,8 @@
             var week = new WeekRow { Days = days };
 
             var groups = new Dictionary<int, (string Title, ActivityPriority Priority, int MinCol, int MaxCol,
-                bool RealStart, bool RealEnd, string? Location, bool IsAllDay, DateTime StartDate, DateTime? EndDate)>();
+                bool RealStart, bool RealEnd, string? Location, bool IsAllDay, DateTime StartDate, DateTime? EndDate,
+                int? PsgcCodeRegion, string? RegionName)>();
 
             for (int col = 0; col < 7; col++)
             {
@@ -283,7 +298,7 @@
                     if (!groups.TryGetValue(seg.ActivityId, out var g))
                     {
                         groups[seg.ActivityId] = (seg.Title, seg.Priority, col, col, seg.IsRangeStart, seg.IsRangeEnd,
-                            seg.Location, seg.IsAllDay, seg.StartDate, seg.EndDate);
+                            seg.Location, seg.IsAllDay, seg.StartDate, seg.EndDate, seg.PsgcCodeRegion, seg.RegionName);
                     }
                     else
                     {
@@ -292,7 +307,8 @@
                             Math.Min(g.MinCol, col), Math.Max(g.MaxCol, col),
                             g.RealStart || seg.IsRangeStart,
                             g.RealEnd || seg.IsRangeEnd,
-                            g.Location, g.IsAllDay, g.StartDate, g.EndDate);
+                            g.Location, g.IsAllDay, g.StartDate, g.EndDate,
+                            g.PsgcCodeRegion, g.RegionName);
                     }
                 }
             }
@@ -309,7 +325,9 @@
                 Location = kv.Value.Location,
                 IsAllDay = kv.Value.IsAllDay,
                 StartDate = kv.Value.StartDate,
-                EndDate = kv.Value.EndDate
+                EndDate = kv.Value.EndDate,
+                PsgcCodeRegion = kv.Value.PsgcCodeRegion,
+                RegionName = kv.Value.RegionName
             })
             .OrderBy(b => b.StartCol)
             .ThenByDescending(b => b.SpanCols)
@@ -424,6 +442,8 @@ LoadMonthAsync();
         public DateTime? EndDate { get; set; }
         public double LeftPercent => StartCol * 100.0 / 7;
         public double WidthPercent => SpanCols * 100.0 / 7;
+        public int? PsgcCodeRegion { get; set; }
+        public string? RegionName { get; set; }
 
         public string TimeLabel
         {
