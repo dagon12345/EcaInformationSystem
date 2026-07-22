@@ -1,0 +1,165 @@
+@* BeneficiaryVerificationChecklistSection.razor — Annex A Sections H (Checklist) + I (Verification Result).
+   No longer makes its own HTTP calls — data flows through the same parent
+   model/Save button as every other section, consistent with Family/BankAccount/Claimant. *@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
+
+<div class="annexa-section">
+    <div class="annexa-header d-flex align-items-center justify-content-between">
+        <span><span class="annexa-letter">H./I.</span> VERIFICATION CHECKLIST &amp; RESULT</span>
+        @if (!IsAdmin)
+        {
+            <span class="annexa-tag" style="background:#fff; color:#1F3864;">Checklist: Admin only</span>
+        }
+    </div>
+    <div class="annexa-body">
+
+        @* ── H. CHECKLIST — first, per paper form order. Admin-only editing;
+             non-admins simply don't see the inputs (read-only summary could
+             be added later if needed). ── *@
+        @if (IsAdmin)
+        {
+            <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
+                <div class="annexa-subsection-title">H. Checklist <span class="annexa-item-note">(to be filled up by the Verifier/Concerned Staff)</span></div>
+                <p class="annexa-note mb-2">
+                    Do not write anything here except for LGU, CFO, and NCSC use. Mark items verified against
+                    the original document.
+                </p>
+
+                <ChecklistRow Label="Accomplished Annex A Grantee/Claimant Form"
+                              Checked="@Checklist.HasAnnexAForm" CheckedChanged="@(v => { Checklist.HasAnnexAForm = v; Notify(); })"
+                              Remarks="@Checklist.AnnexARemarks" RemarksChanged="@(v => { Checklist.AnnexARemarks = v; Notify(); })" />
+                <ChecklistRow Label="Primary ID for Local Applicants"
+                              Checked="@Checklist.HasPrimaryIdLocal" CheckedChanged="@(v => { Checklist.HasPrimaryIdLocal = v; Notify(); })"
+                              Remarks="@Checklist.PrimaryIdLocalRemarks" RemarksChanged="@(v => { Checklist.PrimaryIdLocalRemarks = v; Notify(); })" />
+                <ChecklistRow Label="Primary ID for Applicants Abroad"
+                              Checked="@Checklist.HasPrimaryIdAbroad" CheckedChanged="@(v => { Checklist.HasPrimaryIdAbroad = v; Notify(); })"
+                              Remarks="@Checklist.PrimaryIdAbroadRemarks" RemarksChanged="@(v => { Checklist.PrimaryIdAbroadRemarks = v; Notify(); })" />
+                <ChecklistRow Label="Secondary IDs (any two)"
+                              Checked="@Checklist.HasSecondaryIds" CheckedChanged="@(v => { Checklist.HasSecondaryIds = v; Notify(); })"
+                              Remarks="@Checklist.SecondaryIdsRemarks" RemarksChanged="@(v => { Checklist.SecondaryIdsRemarks = v; Notify(); })" />
+                <ChecklistRow Label="Whole-body / half-upper body Photo"
+                              Checked="@Checklist.HasPhoto" CheckedChanged="@(v => { Checklist.HasPhoto = v; Notify(); })"
+                              Remarks="@Checklist.PhotoRemarks" RemarksChanged="@(v => { Checklist.PhotoRemarks = v; Notify(); })" />
+                <ChecklistRow Label="Bank-verified Deposit Slip / Transaction Slip"
+                              Checked="@Checklist.HasBankDepositSlip" CheckedChanged="@(v => { Checklist.HasBankDepositSlip = v; Notify(); })"
+                              Remarks="@Checklist.BankDepositSlipRemarks" RemarksChanged="@(v => { Checklist.BankDepositSlipRemarks = v; Notify(); })" />
+
+                @if (IsDeceased)
+                {
+                    <div class="annexa-subsection-title mt-2">Other Documents for Deceased Grantees</div>
+                    <ChecklistRow Label="PSA/LCR Death Certificate"
+                                  Checked="@Checklist.HasDeathCertificate" CheckedChanged="@(v => { Checklist.HasDeathCertificate = v; Notify(); })"
+                                  Remarks="@Checklist.DeathCertificateRemarks" RemarksChanged="@(v => { Checklist.DeathCertificateRemarks = v; Notify(); })" />
+                    <ChecklistRow Label="Proof of Relationship"
+                                  Checked="@Checklist.HasProofOfRelationship" CheckedChanged="@(v => { Checklist.HasProofOfRelationship = v; Notify(); })"
+                                  Remarks="@Checklist.ProofOfRelationshipRemarks" RemarksChanged="@(v => { Checklist.ProofOfRelationshipRemarks = v; Notify(); })" />
+                    <ChecklistRow Label="Claimant's Bank-verified Deposit/Transaction Slip"
+                                  Checked="@Checklist.HasClaimantBankSlip" CheckedChanged="@(v => { Checklist.HasClaimantBankSlip = v; Notify(); })"
+                                  Remarks="@Checklist.ClaimantBankSlipRemarks" RemarksChanged="@(v => { Checklist.ClaimantBankSlipRemarks = v; Notify(); })" />
+                    <ChecklistRow Label="Sworn/Notarized Warranty and Release From Liability Form"
+                                  Checked="@Checklist.HasWarrantyReleaseForm" CheckedChanged="@(v => { Checklist.HasWarrantyReleaseForm = v; Notify(); })"
+                                  Remarks="@Checklist.WarrantyReleaseFormRemarks" RemarksChanged="@(v => { Checklist.WarrantyReleaseFormRemarks = v; Notify(); })" />
+                    <ChecklistRow Label="LGU/RCF Certification of No Relative"
+                                  Checked="@Checklist.HasLguRcfCertification" CheckedChanged="@(v => { Checklist.HasLguRcfCertification = v; Notify(); })"
+                                  Remarks="@Checklist.LguRcfCertificationRemarks" RemarksChanged="@(v => { Checklist.LguRcfCertificationRemarks = v; Notify(); })" />
+                }
+
+                <div class="annexa-field mt-2">
+                    <span class="annexa-item-label">Verifier Office <span class="annexa-item-note">(name, location, contact)</span></span>
+                    <input class="annexa-input" value="@Checklist.VerifierOffice"
+                           @onchange="@(e => { Checklist.VerifierOffice = e.Value?.ToString(); Notify(); })" />
+                </div>
+            </div>
+        }
+
+        @* ── I. VERIFICATION RESULT — always visible, bound to the main record's own fields ── *@
+        <div class="annexa-subsection">
+            <div class="annexa-subsection-title">I. Verification Result</div>
+            <p class="annexa-note mb-2">
+                To be filled up by the LGU/CFO/NCSC staff. Serves as the Acknowledgement Receipt once signed.
+            </p>
+
+            <div class="annexa-grid cols-2 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Result</span>
+                    <div class="annexa-checkbox-row">
+                        <label class="annexa-checkbox-item">
+                            <input type="radio" name="verificationResult" checked="@IsEligible"
+                                   @onchange="@(() => IsEligibleChanged.InvokeAsync(true))" />
+                            Eligible
+                        </label>
+                        <label class="annexa-checkbox-item">
+                            <input type="radio" name="verificationResult" checked="@(!IsEligible)"
+                                   @onchange="@(() => IsEligibleChanged.InvokeAsync(false))" />
+                            Not Eligible
+                        </label>
+                    </div>
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Compliant to Documentary Requirements</span>
+                    <label class="annexa-checkbox-item">
+                        <input type="checkbox" checked="@IsCompliant"
+                               @onchange="@(e => IsCompliantChanged.InvokeAsync((bool)(e.Value ?? false)))" />
+                        Compliant
+                    </label>
+                </div>
+            </div>
+
+            <div class="annexa-grid cols-2 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Verified By <span class="annexa-item-note">(Signature over printed name)</span> <span class="annexa-required">*</span></span>
+                    <input class="annexa-input" value="@Validator"
+                           @onchange="@(e => ValidatorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Date of Verification <span class="annexa-required">*</span></span>
+                    <UniformDateInput Value="@ValidationDate" ValueChanged="@(v => ValidationDateChanged.InvokeAsync(v ?? DateTime.Today))" />
+                </div>
+            </div>
+
+            <div class="annexa-grid cols-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Eligibility Remarks</span>
+                    <textarea class="annexa-input" rows="2" value="@EligibilityRemarks"
+                              @onchange="@(e => EligibilityRemarksChanged.InvokeAsync(e.Value?.ToString()))"></textarea>
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Compliance Remarks</span>
+                    <textarea class="annexa-input" rows="2" value="@AssessmentRemarks"
+                              @onchange="@(e => AssessmentRemarksChanged.InvokeAsync(e.Value?.ToString()))"></textarea>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    // ── H. Checklist — two-way bound, no independent save ──
+    [Parameter] public BeneficiaryVerificationChecklistDto Checklist { get; set; } = new();
+    [Parameter] public EventCallback<BeneficiaryVerificationChecklistDto> ChecklistChanged { get; set; }
+    [Parameter] public bool IsDeceased { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+
+    // ── I. Verification Result — bound directly to BeneficiaryInformationDto fields ──
+    [Parameter] public bool IsEligible { get; set; }
+    [Parameter] public EventCallback<bool> IsEligibleChanged { get; set; }
+
+    [Parameter] public bool IsCompliant { get; set; }
+    [Parameter] public EventCallback<bool> IsCompliantChanged { get; set; }
+
+    [Parameter] public string Validator { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValidatorChanged { get; set; }
+
+    [Parameter] public DateTime ValidationDate { get; set; }
+    [Parameter] public EventCallback<DateTime> ValidationDateChanged { get; set; }
+
+    [Parameter] public string? EligibilityRemarks { get; set; }
+    [Parameter] public EventCallback<string?> EligibilityRemarksChanged { get; set; }
+
+    [Parameter] public string? AssessmentRemarks { get; set; }
+    [Parameter] public EventCallback<string?> AssessmentRemarksChanged { get; set; }
+
+    private void Notify() => ChecklistChanged.InvokeAsync(Checklist);
+}

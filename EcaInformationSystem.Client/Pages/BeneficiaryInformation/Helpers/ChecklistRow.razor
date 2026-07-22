@@ -1,0 +1,19 @@
+@* ChecklistRow.razor — one checkbox + remarks row, paper-form styled *@
+
+<div class="d-flex align-items-start gap-2 mb-2 pb-2" style="border-bottom: 1px solid #e2e6ec;">
+    <input type="checkbox" class="mt-1" style="width:16px; height:16px; accent-color:#1F3864;"
+           checked="@Checked" @onchange="@(e => CheckedChanged.InvokeAsync((bool)(e.Value ?? false)))" />
+    <div class="flex-grow-1">
+        <span class="annexa-item-label mb-1" style="text-transform:none; font-weight:600;">@Label</span>
+        <input class="annexa-input" style="font-size:12px;" placeholder="Remarks (note lacking docs)"
+               value="@Remarks" @onchange="@(e => RemarksChanged.InvokeAsync(e.Value?.ToString()))" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public bool Checked { get; set; }
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+    [Parameter] public string? Remarks { get; set; }
+    [Parameter] public EventCallback<string?> RemarksChanged { get; set; }
+}

@@ -1,17 +1,23 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace EcaInformationSystem.Domain.Entities
+﻿namespace EcaInformationSystem.Domain.Entities
 {
     public class Log
     {
-        [Key]
         public Guid Id { get; set; }
-        [Required]
+
+        // ✅ CHANGED — nullable. System-level events (exports, downloads,
+        // uploads, logins) aren't tied to one beneficiary, so this FK is no
+        // longer mandatory. Existing per-beneficiary log calls are unaffected —
+        // passing a Guid still implicitly satisfies Guid?.
+        public Guid? BeneficiaryInformationId { get; set; }
+
         public string Activity { get; set; } = string.Empty;
-        [Required]
         public string UserName { get; set; } = string.Empty;
-        [Required]
         public DateTime CreatedAt { get; set; }
-        public Guid? BeneficiaryInformationId { get; set; } // was: Guid (non-nullable)
+
+        // ✅ NEW — lets the Logs UI filter by event type. Defaults to
+        // "Beneficiary" so every existing call site (AddLogAsync inside
+        // BeneficiaryInformationService) keeps classifying correctly without
+        // any code change on its end.
+        public string Category { get; set; } = "Beneficiary";
     }
 }

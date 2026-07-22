@@ -1,0 +1,59 @@
+@* BeneficiaryAddressSection.razor — Annex A Section C.9.2: Address Abroad ONLY.
+   Local address (House#/Street/PSGC/Zip) now lives inline in BeneficiaryForm's
+   Section C, positioned exactly where C.9.1 sits on the paper form. This
+   component is intentionally headless (no annexa-section wrapper) so it drops
+   straight into the parent's Section C body immediately after C.9.1. *@
+@using EcaInformationSystem.Shared.DTOs
+
+@if (PlaceOfSubmission == 2)
+{
+    <div class="annexa-subsection" style="border-top:none; margin-top:8px; padding-top:8px;">
+        <div class="annexa-subsection-title">
+            C.9.2 Address Abroad <span class="annexa-item-note">(for living abroad only)</span>
+        </div>
+        <div class="annexa-grid cols-4">
+            <div class="annexa-field">
+                <span class="annexa-item-label">House #</span>
+                <input class="annexa-input" value="@Abroad.HouseNumber"
+                       @onchange="@(e => { Abroad.HouseNumber = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">Street Name</span>
+                <input class="annexa-input" value="@Abroad.StreetName"
+                       @onchange="@(e => { Abroad.StreetName = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">City</span>
+                <input class="annexa-input" value="@Abroad.City"
+                       @onchange="@(e => { Abroad.City = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">State</span>
+                <input class="annexa-input" value="@Abroad.State"
+                       @onchange="@(e => { Abroad.State = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">Country <span class="annexa-required">*</span></span>
+                <input class="annexa-input" value="@Abroad.Country"
+                       @onchange="@(e => { Abroad.Country = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">Zip Code</span>
+                <input class="annexa-input" value="@Abroad.ZipCode"
+                       @onchange="@(e => { Abroad.ZipCode = e.Value?.ToString(); NotifyChanged(); })" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? PlaceOfSubmission { get; set; }
+    [Parameter] public BeneficiaryAbroadAddressDto Abroad { get; set; } = new();
+    [Parameter] public EventCallback<BeneficiaryAbroadAddressDto> AbroadChanged { get; set; }
+
+    private void NotifyChanged()
+    {
+        AbroadChanged.InvokeAsync(Abroad);
+        StateHasChanged();
+    }
+}

@@ -41,6 +41,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = default!;
             public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
             public DbSet<Activity> Activities => Set<Activity>();
+            public DbSet<BeneficiaryFamilyMember> BeneficiaryFamilyMembers => Set<BeneficiaryFamilyMember>();
+            public DbSet<BeneficiaryBankAccount> BeneficiaryBankAccounts => Set<BeneficiaryBankAccount>();
+            public DbSet<BeneficiaryAbroadAddress> BeneficiaryAbroadAddresses => Set<BeneficiaryAbroadAddress>();
+            public DbSet<BeneficiaryClaimant> BeneficiaryClaimants => Set<BeneficiaryClaimant>();
+            public DbSet<BeneficiaryVerificationChecklist> BeneficiaryVerificationChecklists => Set<BeneficiaryVerificationChecklist>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -66,6 +71,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                   modelBuilder.Entity<BeneficiaryInformation>(entity =>
                   {
+                        entity.HasIndex(b => b.CurrentPaymentHistoryId).HasDatabaseName("IX_BeneficiaryInformation_CurrentPaymentHistoryId");
+
+                        // ✅ NEW — Annex A (2026) fields
+                        entity.Property(x => x.TrackingNumber).HasMaxLength(100);
+                        entity.Property(x => x.HouseNumber).HasMaxLength(50);
+                        entity.Property(x => x.StreetName).HasMaxLength(150);
+                        entity.Property(x => x.ZipCode).HasMaxLength(20);
+                        entity.Property(x => x.DisabilityType).HasMaxLength(200);
+                        entity.Property(x => x.EthnicityName).HasMaxLength(150);
+                        entity.Property(x => x.DualCitizenshipDetails).HasMaxLength(150);
+                        entity.Property(x => x.CivilStatusOtherDetail).HasMaxLength(150);
+
+                        // Optional but cheap — TrackingNumber is manually entered by encoders,
+                        // so a lookup index helps if you ever add a "find by tracking number" search.
+                        entity.HasIndex(x => x.TrackingNumber)
+                            .HasDatabaseName("IX_Beneficiary_TrackingNumber");
+
                         entity.HasKey(x => x.Id);
 
                         // ═══════════════════════════════════════════════════════════════════
@@ -185,8 +207,30 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   {
                         entity.HasKey(x => x.Id);
 
+                        // ✅ FK relationship now nullable — a Log row can exist with no
+                        // beneficiary at all (login, export, gateway upload/download events).
+                        // Explicit HasOne/WithMany with no nav property on BeneficiaryInformation
+                        // (shadow-style relationship, same pattern you already use for
+                        // PostComment/PostLike/PostView/PostImage above) so we don't need to
+                        // add a Logs collection onto BeneficiaryInformation just for this.
+                        entity.HasOne<BeneficiaryInformation>()
+                              .WithMany()
+                              .HasForeignKey(x => x.BeneficiaryInformationId)
+                              .OnDelete(DeleteBehavior.SetNull);
+
+                        entity.Property(x => x.Activity).HasMaxLength(1000);
+                        entity.Property(x => x.UserName).HasMaxLength(256);
+
+                        // ✅ NEW
+                        entity.Property(x => x.Category).IsRequired().HasMaxLength(50).HasDefaultValue("Beneficiary");
+
                         entity.HasIndex(x => x.BeneficiaryInformationId);
                         entity.HasIndex(x => new { x.BeneficiaryInformationId, x.CreatedAt });
+
+                        // ✅ NEW — supports the Logs modal filtering by category (Export/Upload/
+                        // Download/Login/Beneficiary), sorted newest-first
+                        entity.HasIndex(x => new { x.Category, x.CreatedAt })
+                              .HasDatabaseName("IX_Log_Category_CreatedAt");
                   });
 
                   modelBuilder.Entity<Product>(entity =>
@@ -620,6 +664,127 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         .HasDatabaseName("IX_Activity_Public_StartDate");
                         entity.HasIndex(x => new { x.PsgcCodeRegion, x.StartDate })
                         .HasDatabaseName("IX_Activity_Region_StartDate");
+                  });
+                  // ═══════════════════════════════════════════════════════════════════
+                  // ANNEX A (2026) — NEW SUB-ENTITIES
+                  // ═══════════════════════════════════════════════════════════════════
+
+                  modelBuilder.Entity<BeneficiaryFamilyMember>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasOne(x => x.Beneficiary)
+          .WithMany(b => b.FamilyMembers)
+          .HasForeignKey(x => x.BeneficiaryInformationId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+          .HasDatabaseName("IX_FamilyMember_BeneficiaryInformationId");
+
+                        entity.Property(x => x.LastName).HasMaxLength(100);
+                        entity.Property(x => x.FirstName).HasMaxLength(100);
+                        entity.Property(x => x.MiddleName).HasMaxLength(100);
+                        entity.Property(x => x.Extension).HasMaxLength(20);
+                        entity.Property(x => x.ContactNumber).HasMaxLength(50);
+                  });
+
+                  modelBuilder.Entity<BeneficiaryBankAccount>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        // ✅ Unique index enforces true 1:1 at the DB level — same pattern as
+                        // your existing BeneficiaryFinding config above.
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+          .IsUnique()
+          .HasDatabaseName("UQ_BankAccount_BeneficiaryInformationId");
+
+                        entity.HasOne(x => x.Beneficiary)
+          .WithOne(b => b.BankAccount)
+          .HasForeignKey<BeneficiaryBankAccount>(x => x.BeneficiaryInformationId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.Property(x => x.AccountNumber).HasMaxLength(100);
+                        entity.Property(x => x.BankOrWalletName).HasMaxLength(150);
+                        entity.Property(x => x.BranchName).HasMaxLength(150);
+                        entity.Property(x => x.BankAddress).HasMaxLength(300);
+                        entity.Property(x => x.SwiftCode).HasMaxLength(20);
+                        entity.Property(x => x.Iban).HasMaxLength(50);
+                        entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+                  });
+
+                  modelBuilder.Entity<BeneficiaryAbroadAddress>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+          .IsUnique()
+          .HasDatabaseName("UQ_AbroadAddress_BeneficiaryInformationId");
+
+                        entity.HasOne(x => x.Beneficiary)
+          .WithOne(b => b.AbroadAddress)
+          .HasForeignKey<BeneficiaryAbroadAddress>(x => x.BeneficiaryInformationId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.Property(x => x.HouseNumber).HasMaxLength(50);
+                        entity.Property(x => x.StreetName).HasMaxLength(150);
+                        entity.Property(x => x.City).HasMaxLength(100);
+                        entity.Property(x => x.State).HasMaxLength(100);
+                        entity.Property(x => x.Country).HasMaxLength(100);
+                        entity.Property(x => x.ZipCode).HasMaxLength(20);
+                  });
+
+                  modelBuilder.Entity<BeneficiaryClaimant>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+          .IsUnique()
+          .HasDatabaseName("UQ_Claimant_BeneficiaryInformationId");
+
+                        entity.HasOne(x => x.Beneficiary)
+          .WithOne(b => b.Claimant)
+          .HasForeignKey<BeneficiaryClaimant>(x => x.BeneficiaryInformationId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.Property(x => x.LastName).HasMaxLength(100);
+                        entity.Property(x => x.FirstName).HasMaxLength(100);
+                        entity.Property(x => x.MiddleName).HasMaxLength(100);
+                        entity.Property(x => x.Extension).HasMaxLength(20);
+                        entity.Property(x => x.ContactNumber).HasMaxLength(50);
+                        entity.Property(x => x.RelationshipToDeceased).HasMaxLength(100);
+                        entity.Property(x => x.HouseNumber).HasMaxLength(50);
+                        entity.Property(x => x.StreetName).HasMaxLength(150);
+                        entity.Property(x => x.Barangay).HasMaxLength(150);
+                        entity.Property(x => x.CityMunicipality).HasMaxLength(150);
+                        entity.Property(x => x.Province).HasMaxLength(150);
+                        entity.Property(x => x.ZipCode).HasMaxLength(20);
+                  });
+
+                  modelBuilder.Entity<BeneficiaryVerificationChecklist>(entity =>
+                  {                       
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+                              .IsUnique()
+                              .HasDatabaseName("UQ_VerificationChecklist_BeneficiaryInformationId");
+
+                                                entity.HasOne(x => x.Beneficiary)
+                              .WithOne(b => b.VerificationChecklist)
+                              .HasForeignKey<BeneficiaryVerificationChecklist>(x => x.BeneficiaryInformationId)
+                              .OnDelete(DeleteBehavior.Cascade);
+                        entity.Property(x => x.VerifierOffice).HasMaxLength(300);
+
+                        entity.Property(x => x.AnnexARemarks).HasMaxLength(500);
+                        entity.Property(x => x.PrimaryIdLocalRemarks).HasMaxLength(500);
+                        entity.Property(x => x.PrimaryIdAbroadRemarks).HasMaxLength(500);
+                        entity.Property(x => x.SecondaryIdsRemarks).HasMaxLength(500);
+                        entity.Property(x => x.PhotoRemarks).HasMaxLength(500);
+                        entity.Property(x => x.BankDepositSlipRemarks).HasMaxLength(500);
+                        entity.Property(x => x.DeathCertificateRemarks).HasMaxLength(500);
+                        entity.Property(x => x.ProofOfRelationshipRemarks).HasMaxLength(500);
+                        entity.Property(x => x.ClaimantBankSlipRemarks).HasMaxLength(500);
+                        entity.Property(x => x.WarrantyReleaseFormRemarks).HasMaxLength(500);
+                        entity.Property(x => x.LguRcfCertificationRemarks).HasMaxLength(500);
                   });
             }
       }

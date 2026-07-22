@@ -1,0 +1,139 @@
+@* BeneficiaryBankAccountSection.razor — Annex A Sections E/F: Transaction Account *@
+@using EcaInformationSystem.Shared.DTOs
+
+<div class="annexa-section">
+    <div class="annexa-header">
+        <span class="annexa-letter">@(IsClaimantContext ? "F.6/F.7" : "E.")</span>
+        @(IsClaimantContext ? "CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT" : "GRANTEE'S TRANSACTION ACCOUNT")
+    </div>
+    <div class="annexa-body">
+
+        @if (IsClaimantContext)
+        {
+            <div class="alert alert-secondary py-2 px-3 mb-0 small">
+                <i class="bi bi-info-circle me-1"></i>
+                The claimant uses the grantee's existing bank account on file for payout —
+                no separate account is collected here.
+            </div>
+        }
+        else
+        {
+            <p class="annexa-note mb-2">
+                Please check only one, and make sure this is under the Grantee's name.
+                Existing GSIS and SSS Pension Bank Accounts is recommended for this purpose.
+            </p>
+
+            <div class="annexa-field mb-3">
+                <span class="annexa-item-label">E.1 Preferred Mode to Receive the Cash Gift</span>
+                <select class="annexa-select" value="@Account.PreferredChannel"
+                        @onchange="@(e => { Account.PreferredChannel = ParseInt(e.Value); NotifyChanged(); })">
+                    <option value="0">Not yet set</option>
+                    <option value="1">Landbank of the Philippines (PISO or Savings Account)</option>
+                    <option value="2">Other Banks (rural / overseas)</option>
+                    <option value="3">Electronic Money Issuer (EMI) — e.g. GCash, Maya, GoTyme</option>
+                    <option value="4">Payment Service Provider (PSP) — Palawan Pawnshop</option>
+                </select>
+            </div>
+
+            @if (Account.PreferredChannel != 0)
+            {
+                <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
+                    <div class="annexa-subsection-title">E.2 Account Details</div>
+                    <div class="annexa-grid cols-3">
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Account No. <span class="annexa-required">*</span></span>
+                            <input class="annexa-input" value="@Account.AccountNumber"
+                                   @onchange="@(e => { Account.AccountNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Bank / E-Wallet Name <span class="annexa-item-note">(no acronyms)</span> <span class="annexa-required">*</span></span>
+                            <input class="annexa-input" value="@Account.BankOrWalletName"
+                                   @onchange="@(e => { Account.BankOrWalletName = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Branch Name <span class="annexa-item-note">(no acronyms)</span></span>
+                            <input class="annexa-input" value="@Account.BranchName"
+                                   @onchange="@(e => { Account.BranchName = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field" style="grid-column: span 2;">
+                            <span class="annexa-item-label">Bank Address</span>
+                            <input class="annexa-input" value="@Account.BankAddress"
+                                   @onchange="@(e => { Account.BankAddress = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Is this a Joint Account?</span>
+                            <select class="annexa-select" value="@JointAccountString"
+                                    @onchange="@(e => { Account.IsJointAccount = ParseNullableBool(e.Value); NotifyChanged(); })">
+                                <option value="">Not specified</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    @if (PlaceOfSubmission == 2)
+                    {
+                        <div class="annexa-note mt-2 mb-1">For Living Abroad Only:</div>
+                        <div class="annexa-grid cols-2">
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">BIC / SWIFT Code</span>
+                                <input class="annexa-input" value="@Account.SwiftCode"
+                                       @onchange="@(e => { Account.SwiftCode = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">IBAN <span class="annexa-item-note">(European Countries)</span></span>
+                                <input class="annexa-input" value="@Account.Iban"
+                                       @onchange="@(e => { Account.Iban = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="alert alert-light border py-2 px-3 mt-3 mb-0 small">
+                    <strong>Note:</strong> For bank accounts, attach bank-stamped deposit slip reflecting the
+                    name of claimant (especially for joint accounts). For EMIs or online bank transactions,
+                    attach screenshot of successful electronic transfer slip reflecting account number and
+                    name of claimant.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-secondary py-2 px-3 mb-0 small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    No payout channel selected yet. This can be added later via the Edit screen
+                    once the grantee has decided on a preferred account.
+                </div>
+            }
+        }
+
+    </div>
+</div>
+
+@code {
+    [Parameter] public BeneficiaryBankAccountDto Account { get; set; } = new();
+    [Parameter] public EventCallback<BeneficiaryBankAccountDto> AccountChanged { get; set; }
+    [Parameter] public int? PlaceOfSubmission { get; set; }
+    [Parameter] public bool IsClaimantContext { get; set; } = false;
+
+    private string JointAccountString => Account.IsJointAccount switch
+    {
+        true => "true",
+        false => "false",
+        null => ""
+    };
+
+    private int ParseInt(object? value) => int.TryParse(value?.ToString(), out var r) ? r : 0;
+
+    private bool? ParseNullableBool(object? value)
+    {
+        var str = value?.ToString();
+        if (string.IsNullOrEmpty(str)) return null;
+        return bool.TryParse(str, out var r) ? r : null;
+    }
+
+    private void NotifyChanged()
+    {
+        AccountChanged.InvokeAsync(Account);
+        StateHasChanged();
+    }
+}

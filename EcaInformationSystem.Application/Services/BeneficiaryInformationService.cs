@@ -27,11 +27,13 @@ namespace EcaInformationSystem.Application.Services
         private readonly IBackgroundTaskQueue _backgroundTaskQueue;
         private readonly IPsgcNameCache _psgcNameCache;
         private readonly IStatisticsService _statisticsService;
+        private readonly IBeneficiaryVerificationChecklistRepository _checklistRepo;
         private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
     , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
     ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker,
-    IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache, IStatisticsService statisticsService)
+    IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache, IStatisticsService statisticsService,
+    IBeneficiaryVerificationChecklistRepository checklistRepo)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -44,6 +46,7 @@ namespace EcaInformationSystem.Application.Services
             _backgroundTaskQueue = backgroundTaskQueue;
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
+            _checklistRepo = checklistRepo;
         }
         public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
         {
@@ -115,8 +118,8 @@ namespace EcaInformationSystem.Application.Services
             var periodLabel = payrollQuarter.HasValue || fiscalYear.HasValue
                 ? $" (Q{payrollQuarter} FY{fiscalYear})"
                 : string.Empty;
-            var paymentDateLabel = paymentDate.HasValue 
-                ? $"Payment Date {paymentDate.Value.ToString("MMMM dd, yyyy")}" 
+            var paymentDateLabel = paymentDate.HasValue
+                ? $"Payment Date {paymentDate.Value.ToString("MMMM dd, yyyy")}"
                 : string.Empty;
 
             foreach (var id in beneficiaryIds)
@@ -651,6 +654,11 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
+
+            if (!dto.DataPrivacyConsent)
+                throw new Exception("Data Privacy Consent must be given before this record can be saved.");
+            if (!dto.IsSignedDeclaration)
+                throw new Exception("The declaration must be confirmed as signed before this record can be saved.");
             //Check duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
                 dto.LastName,
@@ -753,9 +761,22 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.PaymentStatus = initialHistory.PaymentStatus;
             beneficiary.ModeOfPayment = initialHistory.ModeOfPayment;
             beneficiary.PaymentDate = initialHistory.PaymentDate;
+            beneficiary.TrackingNumber = dto.TrackingNumber;
+            beneficiary.DataPrivacyConsent = dto.DataPrivacyConsent;
+            beneficiary.PlaceOfSubmission = dto.PlaceOfSubmission;
+            beneficiary.HouseNumber = dto.HouseNumber;
+            beneficiary.StreetName = dto.StreetName;
+            beneficiary.ZipCode = dto.ZipCode;
+            beneficiary.DisabilityType = dto.DisabilityType;
+            beneficiary.EthnicityName = dto.EthnicityName;
+            beneficiary.DualCitizenshipDetails = dto.DualCitizenshipDetails;
+            beneficiary.CivilStatusOtherDetail = dto.CivilStatusOtherDetail;
+            beneficiary.IsSignedDeclaration = dto.IsSignedDeclaration;
+            beneficiary.DateSigned = dto.DateSigned;
 
             await _repo.AddAsync(beneficiary);
             await _repo.AddPaymentHistoryEntryAsync(initialHistory);
+
 
             //Logging
             await AddLogAsync(
@@ -771,7 +792,114 @@ namespace EcaInformationSystem.Application.Services
                 "Payment status automatically set to Pending upon registration",
                 userName);
 
-            await _repo.SaveChangesAsync();
+            // ✅ NEW — Annex A sub-entities, all committed in the same transaction as the
+            // core record and initial payment history below.
+            if (dto.FamilyMembers?.Any() == true)
+            {
+                var familyEntities = dto.FamilyMembers.Select(f => new BeneficiaryFamilyMember
+                {
+                    RelationType = f.RelationType,
+                    LastName = f.LastName,
+                    FirstName = f.FirstName,
+                    MiddleName = f.MiddleName,
+                    Extension = f.Extension,
+                    ContactNumber = f.ContactNumber,
+                    Sex = f.Sex,
+                    Age = f.Age,
+                    IsLivingWithGrantee = f.IsLivingWithGrantee,
+                    SortOrder = f.SortOrder
+                }).ToList();
+
+                await _repo.ReplaceFamilyMembersAsync(beneficiary.Id, familyEntities);
+            }
+
+            if (dto.BankAccount != null)
+            {
+                await _repo.UpsertBankAccountAsync(beneficiary.Id, new BeneficiaryBankAccount
+                {
+                    PreferredChannel = dto.BankAccount.PreferredChannel,
+                    AccountNumber = dto.BankAccount.AccountNumber,
+                    BankOrWalletName = dto.BankAccount.BankOrWalletName,
+                    BranchName = dto.BankAccount.BranchName,
+                    BankAddress = dto.BankAccount.BankAddress,
+                    IsJointAccount = dto.BankAccount.IsJointAccount,
+                    SwiftCode = dto.BankAccount.SwiftCode,
+                    Iban = dto.BankAccount.Iban,
+                    DateModified = DateTime.UtcNow,
+                    ModifiedBy = userName
+                });
+            }
+
+            // ✅ Abroad address only persisted when PlaceOfSubmission is actually Abroad —
+            // guards against a stray abroad block being saved if the frontend somehow
+            // submits one alongside PlaceOfSubmission = Local.
+            if (dto.PlaceOfSubmission == 2 && dto.AbroadAddress != null)
+            {
+                await _repo.UpsertAbroadAddressAsync(beneficiary.Id, new BeneficiaryAbroadAddress
+                {
+                    HouseNumber = dto.AbroadAddress.HouseNumber,
+                    StreetName = dto.AbroadAddress.StreetName,
+                    City = dto.AbroadAddress.City,
+                    State = dto.AbroadAddress.State,
+                    Country = dto.AbroadAddress.Country,
+                    ZipCode = dto.AbroadAddress.ZipCode
+                });
+            }
+
+            // ✅ Claimant only persisted when actually deceased — same guard reasoning.
+            if (dto.IsDeceased && dto.Claimant != null)
+            {
+                await _repo.UpsertClaimantAsync(beneficiary.Id, new BeneficiaryClaimant
+                {
+                    LastName = dto.Claimant.LastName,
+                    FirstName = dto.Claimant.FirstName,
+                    MiddleName = dto.Claimant.MiddleName,
+                    Extension = dto.Claimant.Extension,
+                    ContactNumber = dto.Claimant.ContactNumber,
+                    RelationshipToDeceased = dto.Claimant.RelationshipToDeceased,
+                    HouseNumber = dto.Claimant.HouseNumber,
+                    StreetName = dto.Claimant.StreetName,
+                    Barangay = dto.Claimant.Barangay,
+                    CityMunicipality = dto.Claimant.CityMunicipality,
+                    Province = dto.Claimant.Province,
+                    ZipCode = dto.Claimant.ZipCode
+                });
+            }
+            // ✅ NEW — checklist rides the same transaction as everything else. Admin
+            // gating for WHO can edit these fields is enforced client-side (only admins
+            // see the inputs); the server still accepts whatever arrives on the DTO,
+            // consistent with how CO Status/Findings are already gated only in the UI.
+            if (dto.VerificationChecklist != null)
+            {
+                await _checklistRepo.UpsertAsync(beneficiary.Id, new BeneficiaryVerificationChecklist
+                {
+                    HasAnnexAForm = dto.VerificationChecklist.HasAnnexAForm,
+                    AnnexARemarks = dto.VerificationChecklist.AnnexARemarks,
+                    HasPrimaryIdLocal = dto.VerificationChecklist.HasPrimaryIdLocal,
+                    PrimaryIdLocalRemarks = dto.VerificationChecklist.PrimaryIdLocalRemarks,
+                    HasPrimaryIdAbroad = dto.VerificationChecklist.HasPrimaryIdAbroad,
+                    PrimaryIdAbroadRemarks = dto.VerificationChecklist.PrimaryIdAbroadRemarks,
+                    HasSecondaryIds = dto.VerificationChecklist.HasSecondaryIds,
+                    SecondaryIdsRemarks = dto.VerificationChecklist.SecondaryIdsRemarks,
+                    HasPhoto = dto.VerificationChecklist.HasPhoto,
+                    PhotoRemarks = dto.VerificationChecklist.PhotoRemarks,
+                    HasBankDepositSlip = dto.VerificationChecklist.HasBankDepositSlip,
+                    BankDepositSlipRemarks = dto.VerificationChecklist.BankDepositSlipRemarks,
+                    HasDeathCertificate = dto.VerificationChecklist.HasDeathCertificate,
+                    DeathCertificateRemarks = dto.VerificationChecklist.DeathCertificateRemarks,
+                    HasProofOfRelationship = dto.VerificationChecklist.HasProofOfRelationship,
+                    ProofOfRelationshipRemarks = dto.VerificationChecklist.ProofOfRelationshipRemarks,
+                    HasClaimantBankSlip = dto.VerificationChecklist.HasClaimantBankSlip,
+                    ClaimantBankSlipRemarks = dto.VerificationChecklist.ClaimantBankSlipRemarks,
+                    HasWarrantyReleaseForm = dto.VerificationChecklist.HasWarrantyReleaseForm,
+                    WarrantyReleaseFormRemarks = dto.VerificationChecklist.WarrantyReleaseFormRemarks,
+                    HasLguRcfCertification = dto.VerificationChecklist.HasLguRcfCertification,
+                    LguRcfCertificationRemarks = dto.VerificationChecklist.LguRcfCertificationRemarks,
+                    VerifierOffice = dto.VerificationChecklist.VerifierOffice
+                });
+            }
+
+            await _repo.SaveChangesAsync(); // single commit — beneficiary + payment history + all sub-entities
 
             InvalidateSummaryCache();
 
@@ -822,7 +950,33 @@ namespace EcaInformationSystem.Application.Services
                     RemarkCategory = beneficiary.RemarkCategory,
                     Remarks = beneficiary.Remarks,
                     DateAdded = beneficiary.DateAdded,
-                    IsDeleted = beneficiary.IsDeleted
+                    IsDeleted = beneficiary.IsDeleted,
+
+                    // ✅ NEW — Annex A flat fields, previously missing from this return DTO
+                    TrackingNumber = beneficiary.TrackingNumber,
+                    DataPrivacyConsent = beneficiary.DataPrivacyConsent,
+                    PlaceOfSubmission = beneficiary.PlaceOfSubmission,
+                    HouseNumber = beneficiary.HouseNumber,
+                    StreetName = beneficiary.StreetName,
+                    ZipCode = beneficiary.ZipCode,
+                    DisabilityType = beneficiary.DisabilityType,
+                    EthnicityName = beneficiary.EthnicityName,
+                    DualCitizenshipDetails = beneficiary.DualCitizenshipDetails,
+                    CivilStatusOtherDetail = beneficiary.CivilStatusOtherDetail,
+                    IsSignedDeclaration = beneficiary.IsSignedDeclaration,
+                    DateSigned = beneficiary.DateSigned,
+
+                    // ✅ NEW — sub-entities, mapped from the same dto that was just persisted.
+                    // Reusing dto.* here instead of re-querying the repo — the values are
+                    // identical to what was just saved, and this avoids extra round-trips
+                    // right after SaveChangesAsync for a response object whose contents
+                    // aren't currently consumed by the Razor form's success path, but should
+                    // still be complete and correct for any future caller that does read it.
+                    FamilyMembers = dto.FamilyMembers ?? new List<BeneficiaryFamilyMemberDto>(),
+                    BankAccount = dto.BankAccount,
+                    AbroadAddress = dto.PlaceOfSubmission == 2 ? dto.AbroadAddress : null,
+                    Claimant = dto.IsDeceased ? dto.Claimant : null,
+                    VerificationChecklist = dto.VerificationChecklist
                 }
             };
         }
@@ -841,6 +995,103 @@ namespace EcaInformationSystem.Application.Services
         public async Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id)
         {
             var getById = await _repo.GetByIdAsync(id);
+            if (getById == null) return null;
+
+            var familyMembers = await _repo.GetFamilyMembersAsync(id);
+            getById.FamilyMembers = familyMembers.Select(f => new BeneficiaryFamilyMemberDto
+            {
+                Id = f.Id,
+                RelationType = f.RelationType,
+                LastName = f.LastName,
+                FirstName = f.FirstName,
+                MiddleName = f.MiddleName,
+                Extension = f.Extension,
+                ContactNumber = f.ContactNumber,
+                Sex = f.Sex,
+                Age = f.Age,
+                IsLivingWithGrantee = f.IsLivingWithGrantee,
+                SortOrder = f.SortOrder
+            }).ToList();
+
+            var bankAccount = await _repo.GetBankAccountAsync(id);
+            if (bankAccount != null)
+                getById.BankAccount = new BeneficiaryBankAccountDto
+                {
+                    Id = bankAccount.Id,
+                    PreferredChannel = bankAccount.PreferredChannel,
+                    AccountNumber = bankAccount.AccountNumber,
+                    BankOrWalletName = bankAccount.BankOrWalletName,
+                    BranchName = bankAccount.BranchName,
+                    BankAddress = bankAccount.BankAddress,
+                    IsJointAccount = bankAccount.IsJointAccount,
+                    SwiftCode = bankAccount.SwiftCode,
+                    Iban = bankAccount.Iban,
+                    DateModified = bankAccount.DateModified,
+                    ModifiedBy = bankAccount.ModifiedBy
+                };
+            var checklist = await _checklistRepo.GetByBeneficiaryIdAsync(id); // inject IBeneficiaryVerificationChecklistRepository
+            if (checklist != null)
+                getById.VerificationChecklist = new BeneficiaryVerificationChecklistDto
+                {
+                    HasAnnexAForm = checklist.HasAnnexAForm,
+                    AnnexARemarks = checklist.AnnexARemarks,
+                    HasPrimaryIdLocal = checklist.HasPrimaryIdLocal,
+                    PrimaryIdLocalRemarks = checklist.PrimaryIdLocalRemarks,
+                    HasPrimaryIdAbroad = checklist.HasPrimaryIdAbroad,
+                    PrimaryIdAbroadRemarks = checklist.PrimaryIdAbroadRemarks,
+                    HasSecondaryIds = checklist.HasSecondaryIds,
+                    SecondaryIdsRemarks = checklist.SecondaryIdsRemarks,
+                    HasPhoto = checklist.HasPhoto,
+                    PhotoRemarks = checklist.PhotoRemarks,
+                    HasBankDepositSlip = checklist.HasBankDepositSlip,
+                    BankDepositSlipRemarks = checklist.BankDepositSlipRemarks,
+                    HasDeathCertificate = checklist.HasDeathCertificate,
+                    DeathCertificateRemarks = checklist.DeathCertificateRemarks,
+                    HasProofOfRelationship = checklist.HasProofOfRelationship,
+                    ProofOfRelationshipRemarks = checklist.ProofOfRelationshipRemarks,
+                    HasClaimantBankSlip = checklist.HasClaimantBankSlip,
+                    ClaimantBankSlipRemarks = checklist.ClaimantBankSlipRemarks,
+                    HasWarrantyReleaseForm = checklist.HasWarrantyReleaseForm,
+                    WarrantyReleaseFormRemarks = checklist.WarrantyReleaseFormRemarks,
+                    HasLguRcfCertification = checklist.HasLguRcfCertification,
+                    LguRcfCertificationRemarks = checklist.LguRcfCertificationRemarks,
+                    VerifierOffice = checklist.VerifierOffice
+                };
+
+            var abroadAddress = await _repo.GetAbroadAddressAsync(id);
+            if (abroadAddress != null)
+                getById.AbroadAddress = new BeneficiaryAbroadAddressDto
+                {
+                    Id = abroadAddress.Id,
+                    HouseNumber = abroadAddress.HouseNumber,
+                    StreetName = abroadAddress.StreetName,
+                    City = abroadAddress.City,
+                    State = abroadAddress.State,
+                    Country = abroadAddress.Country,
+                    ZipCode = abroadAddress.ZipCode
+                };
+
+            if (getById.IsDeceased)
+            {
+                var claimant = await _repo.GetClaimantAsync(id);
+                if (claimant != null)
+                    getById.Claimant = new BeneficiaryClaimantDto
+                    {
+                        Id = claimant.Id,
+                        LastName = claimant.LastName,
+                        FirstName = claimant.FirstName,
+                        MiddleName = claimant.MiddleName,
+                        Extension = claimant.Extension,
+                        ContactNumber = claimant.ContactNumber,
+                        RelationshipToDeceased = claimant.RelationshipToDeceased,
+                        HouseNumber = claimant.HouseNumber,
+                        StreetName = claimant.StreetName,
+                        Barangay = claimant.Barangay,
+                        CityMunicipality = claimant.CityMunicipality,
+                        Province = claimant.Province,
+                        ZipCode = claimant.ZipCode
+                    };
+            }
 
             return getById;
         }
@@ -1001,6 +1252,12 @@ namespace EcaInformationSystem.Application.Services
             if (dto.RowVersion != null)
                 _repo.SetOriginalRowVersion(beneficiary, dto.RowVersion);
 
+            if (!dto.DataPrivacyConsent)
+                throw new Exception("Data Privacy Consent must be given before this record can be saved.");
+            if (!dto.IsSignedDeclaration)
+                throw new Exception("The declaration must be confirmed as signed before this record can be saved.");
+
+
             var isDuplicate = await _repo.ExistsDuplicateAsync(
                 dto.LastName, dto.FirstName, dto.MiddleName, dto.BirthDate, Id);
 
@@ -1033,6 +1290,125 @@ namespace EcaInformationSystem.Application.Services
                      dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
                      dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
 
+            beneficiary.UpdateAnnexADetails(
+                     dto.TrackingNumber, dto.DataPrivacyConsent, dto.PlaceOfSubmission,
+                     dto.HouseNumber, dto.StreetName, dto.ZipCode,
+                     dto.DisabilityType, dto.EthnicityName, dto.DualCitizenshipDetails,
+                     dto.CivilStatusOtherDetail, dto.IsSignedDeclaration, dto.DateSigned);
+
+            // ✅ Family members — always replace-all on edit, matches create behavior
+            if (dto.FamilyMembers != null)
+            {
+                var familyEntities = dto.FamilyMembers.Select(f => new BeneficiaryFamilyMember
+                {
+                    RelationType = f.RelationType,
+                    LastName = f.LastName,
+                    FirstName = f.FirstName,
+                    MiddleName = f.MiddleName,
+                    Extension = f.Extension,
+                    ContactNumber = f.ContactNumber,
+                    Sex = f.Sex,
+                    Age = f.Age,
+                    IsLivingWithGrantee = f.IsLivingWithGrantee,
+                    SortOrder = f.SortOrder
+                }).ToList();
+
+                await _repo.ReplaceFamilyMembersAsync(beneficiary.Id, familyEntities);
+            }
+
+            if (dto.BankAccount != null)
+            {
+                await _repo.UpsertBankAccountAsync(Id, new BeneficiaryBankAccount
+                {
+                    PreferredChannel = dto.BankAccount.PreferredChannel,
+                    AccountNumber = dto.BankAccount.AccountNumber,
+                    BankOrWalletName = dto.BankAccount.BankOrWalletName,
+                    BranchName = dto.BankAccount.BranchName,
+                    BankAddress = dto.BankAccount.BankAddress,
+                    IsJointAccount = dto.BankAccount.IsJointAccount,
+                    SwiftCode = dto.BankAccount.SwiftCode,
+                    Iban = dto.BankAccount.Iban,
+                    DateModified = DateTime.UtcNow,
+                    ModifiedBy = userName
+                });
+            }
+
+            // ✅ Handles the flip in both directions — Abroad→Local cleans up the stale
+            // address instead of leaving an orphaned record nobody sees again.
+            if (dto.PlaceOfSubmission == 2 && dto.AbroadAddress != null)
+            {
+                await _repo.UpsertAbroadAddressAsync(Id, new BeneficiaryAbroadAddress
+                {
+                    HouseNumber = dto.AbroadAddress.HouseNumber,
+                    StreetName = dto.AbroadAddress.StreetName,
+                    City = dto.AbroadAddress.City,
+                    State = dto.AbroadAddress.State,
+                    Country = dto.AbroadAddress.Country,
+                    ZipCode = dto.AbroadAddress.ZipCode
+                });
+            }
+            else if (dto.PlaceOfSubmission != 2)
+            {
+                await _repo.DeleteAbroadAddressAsync(Id);
+            }
+
+            // ✅ Same flip-cleanup logic for Deceased→Alive
+            if (dto.IsDeceased && dto.Claimant != null)
+            {
+                await _repo.UpsertClaimantAsync(Id, new BeneficiaryClaimant
+                {
+                    LastName = dto.Claimant.LastName,
+                    FirstName = dto.Claimant.FirstName,
+                    MiddleName = dto.Claimant.MiddleName,
+                    Extension = dto.Claimant.Extension,
+                    ContactNumber = dto.Claimant.ContactNumber,
+                    RelationshipToDeceased = dto.Claimant.RelationshipToDeceased,
+                    HouseNumber = dto.Claimant.HouseNumber,
+                    StreetName = dto.Claimant.StreetName,
+                    Barangay = dto.Claimant.Barangay,
+                    CityMunicipality = dto.Claimant.CityMunicipality,
+                    Province = dto.Claimant.Province,
+                    ZipCode = dto.Claimant.ZipCode
+                });
+            }
+            else if (!dto.IsDeceased)
+            {
+                await _repo.DeleteClaimantAsync(Id);
+            }
+            // ✅ NEW — checklist rides the same transaction as everything else. Admin
+            // gating for WHO can edit these fields is enforced client-side (only admins
+            // see the inputs); the server still accepts whatever arrives on the DTO,
+            // consistent with how CO Status/Findings are already gated only in the UI.
+            if (dto.VerificationChecklist != null)
+            {
+                await _checklistRepo.UpsertAsync(beneficiary.Id, new BeneficiaryVerificationChecklist
+                {
+                    HasAnnexAForm = dto.VerificationChecklist.HasAnnexAForm,
+                    AnnexARemarks = dto.VerificationChecklist.AnnexARemarks,
+                    HasPrimaryIdLocal = dto.VerificationChecklist.HasPrimaryIdLocal,
+                    PrimaryIdLocalRemarks = dto.VerificationChecklist.PrimaryIdLocalRemarks,
+                    HasPrimaryIdAbroad = dto.VerificationChecklist.HasPrimaryIdAbroad,
+                    PrimaryIdAbroadRemarks = dto.VerificationChecklist.PrimaryIdAbroadRemarks,
+                    HasSecondaryIds = dto.VerificationChecklist.HasSecondaryIds,
+                    SecondaryIdsRemarks = dto.VerificationChecklist.SecondaryIdsRemarks,
+                    HasPhoto = dto.VerificationChecklist.HasPhoto,
+                    PhotoRemarks = dto.VerificationChecklist.PhotoRemarks,
+                    HasBankDepositSlip = dto.VerificationChecklist.HasBankDepositSlip,
+                    BankDepositSlipRemarks = dto.VerificationChecklist.BankDepositSlipRemarks,
+                    HasDeathCertificate = dto.VerificationChecklist.HasDeathCertificate,
+                    DeathCertificateRemarks = dto.VerificationChecklist.DeathCertificateRemarks,
+                    HasProofOfRelationship = dto.VerificationChecklist.HasProofOfRelationship,
+                    ProofOfRelationshipRemarks = dto.VerificationChecklist.ProofOfRelationshipRemarks,
+                    HasClaimantBankSlip = dto.VerificationChecklist.HasClaimantBankSlip,
+                    ClaimantBankSlipRemarks = dto.VerificationChecklist.ClaimantBankSlipRemarks,
+                    HasWarrantyReleaseForm = dto.VerificationChecklist.HasWarrantyReleaseForm,
+                    WarrantyReleaseFormRemarks = dto.VerificationChecklist.WarrantyReleaseFormRemarks,
+                    HasLguRcfCertification = dto.VerificationChecklist.HasLguRcfCertification,
+                    LguRcfCertificationRemarks = dto.VerificationChecklist.LguRcfCertificationRemarks,
+                    VerifierOffice = dto.VerificationChecklist.VerifierOffice
+                });
+            }
+
             await _repo.UpdateAsync(beneficiary);
 
             if (changes.Any())
@@ -1042,7 +1418,6 @@ namespace EcaInformationSystem.Application.Services
                     $"{CommonConstants.UpdatedBeneficiaryChanges} {string.Join("; ", changes)}",
                     userName);
             }
-
             // ✅ ConcurrencyException thrown from repository's SaveChangesAsync
             // No try/catch needed here — let it bubble up to the controller
             await _repo.SaveChangesAsync();
@@ -3135,7 +3510,6 @@ namespace EcaInformationSystem.Application.Services
                     g => g.Key,
                     g => (Min: g.Min(x => x.CgpPageNumber!.Value), Max: g.Max(x => x.CgpPageNumber!.Value)));
 
-            int cgpCounter = 2; // kept only as a fallback label if something is ever unassigned
             var cdrRows = new List<LiquidationRowDto>();
 
             var groups = data
@@ -4003,6 +4377,21 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
+        private static string MapPlaceOfSubmissionLabel(int? value) => value switch
+        {
+            1 => "Local",
+            2 => "Abroad",
+            _ => CommonConstants.None
+        };
+        private static string MapCivilStatusLabel(int? status) => status switch
+        {
+            1 => CommonConstants.Single.ToTitleCase(),
+            2 => CommonConstants.Widowed.ToTitleCase(),
+            3 => CommonConstants.Married.ToTitleCase(),
+            4 => CommonConstants.LiveIn.ToTitleCase(), // relabeled "Common-Law" in the UI, same underlying int
+            5 => "Others",
+            _ => CommonConstants.None
+        };
         // ✅ Single source of truth for the "exact duplicate" key, used by both
         // PreviewImportAsync and ConfirmImportAsync against the in-memory pool.
         // Must match the normalization ExistsDuplicateAsync uses in the repository
@@ -4590,7 +4979,46 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.FiscalYear != dto.FiscalYear)
                 changes.Add($"Fiscal Year '{beneficiary.FiscalYear}' → '{dto.FiscalYear}'");
+            // ✅ NEW — Annex A fields. Without this, edits to these columns (which
+            // UpdateAnnexADetails() does persist correctly) never show up in the
+            // beneficiary's Logs modal — the diff list is what actually feeds the
+            // audit trail, so a field can be saved correctly and still be invisible
+            // to anyone reviewing history.
+            if (beneficiary.TrackingNumber != dto.TrackingNumber)
+                changes.Add($"Tracking Number '{beneficiary.TrackingNumber}' → '{dto.TrackingNumber}'");
 
+            if (beneficiary.DataPrivacyConsent != dto.DataPrivacyConsent)
+                changes.Add($"Data Privacy Consent '{(beneficiary.DataPrivacyConsent ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.DataPrivacyConsent ? CommonConstants.Yes : CommonConstants.No)}'");
+
+            if (beneficiary.PlaceOfSubmission != dto.PlaceOfSubmission)
+                changes.Add($"Place of Submission '{MapPlaceOfSubmissionLabel(beneficiary.PlaceOfSubmission)}' → '{MapPlaceOfSubmissionLabel(dto.PlaceOfSubmission)}'");
+
+            if (beneficiary.HouseNumber != dto.HouseNumber)
+                changes.Add($"House Number '{beneficiary.HouseNumber}' → '{dto.HouseNumber}'");
+
+            if (beneficiary.StreetName != dto.StreetName)
+                changes.Add($"Street Name '{beneficiary.StreetName}' → '{dto.StreetName}'");
+
+            if (beneficiary.ZipCode != dto.ZipCode)
+                changes.Add($"Zip Code '{beneficiary.ZipCode}' → '{dto.ZipCode}'");
+
+            if (beneficiary.DisabilityType != dto.DisabilityType)
+                changes.Add($"Disability Type '{beneficiary.DisabilityType}' → '{dto.DisabilityType}'");
+
+            if (beneficiary.EthnicityName != dto.EthnicityName)
+                changes.Add($"Ethnicity / IP Group '{beneficiary.EthnicityName}' → '{dto.EthnicityName}'");
+
+            if (beneficiary.DualCitizenshipDetails != dto.DualCitizenshipDetails)
+                changes.Add($"Dual Citizenship Details '{beneficiary.DualCitizenshipDetails}' → '{dto.DualCitizenshipDetails}'");
+
+            if (beneficiary.CivilStatusOtherDetail != dto.CivilStatusOtherDetail)
+                changes.Add($"Civil Status (Other) '{beneficiary.CivilStatusOtherDetail}' → '{dto.CivilStatusOtherDetail}'");
+
+            if (beneficiary.IsSignedDeclaration != dto.IsSignedDeclaration)
+                changes.Add($"Signed Declaration '{(beneficiary.IsSignedDeclaration ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsSignedDeclaration ? CommonConstants.Yes : CommonConstants.No)}'");
+
+            if (beneficiary.DateSigned != dto.DateSigned)
+                changes.Add($"Date Signed '{beneficiary.DateSigned.ToFullDate()}' → '{dto.DateSigned.ToFullDate()}'");
             return changes;
         }
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)
@@ -4829,16 +5257,6 @@ namespace EcaInformationSystem.Application.Services
             2 => CommonConstants.Female.ToTitleCase(),
             _ => CommonConstants.Unknown
         };
-
-        private static string MapCivilStatusLabel(int? status) => status switch
-        {
-            1 => CommonConstants.Single.ToTitleCase(),
-            2 => CommonConstants.Widowed.ToTitleCase(),
-            3 => CommonConstants.Married.ToTitleCase(),
-            4 => CommonConstants.LiveIn.ToTitleCase(),
-            _ => CommonConstants.None
-        };
-
         private static string MapCitizenshipLabel(int? citizenship) => citizenship switch
         {
             1 => CommonConstants.Filipino.ToTitleCase(),

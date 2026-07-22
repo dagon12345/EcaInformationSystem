@@ -1,0 +1,128 @@
+@* BeneficiaryClaimantSection.razor — Annex A Section F: For Deceased Grantees *@
+@using EcaInformationSystem.Shared.DTOs
+
+@if (IsDeceased)
+{
+    <div class="annexa-section">
+        <div class="annexa-header" style="background:#7a1f1f;">
+            <span class="annexa-letter">F.</span> FOR DECEASED GRANTEES
+            <span class="annexa-tag annexa-tag--warn ms-2">Attach sworn/notarized Warranty and Release From Liability Form</span>
+        </div>
+        <div class="annexa-body">
+
+            <div class="alert alert-secondary py-2 px-3 mb-3 small">
+                <i class="bi bi-info-circle me-1"></i>
+                In case the Grantee is without known immediate relatives or next of kin, the caregiver or
+                the facility's management that provided care, shelter, and/or other essential support may
+                claim on behalf of the deceased, provided there is a certification issued by the concerned
+                LGU or Residential Care Facility (RCF).
+            </div>
+
+            <div class="annexa-grid cols-2 mb-3">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">F.1 Date of Death</span>
+                    <input class="annexa-input annexa-readonly" value="@DateOfDeath?.ToString("MMMM dd, yyyy")" disabled />
+                    <span class="annexa-item-note">Set in Identity Information above</span>
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">F.2 Contact Number of Claimant</span>
+                    <input class="annexa-input" value="@Claimant.ContactNumber"
+                           @onchange="@(e => { Claimant.ContactNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                </div>
+            </div>
+
+            <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
+                <div class="annexa-subsection-title">F.3 Name of Claimant <span class="annexa-item-note">(Last Name, First Name, Middle Name, Ext.)</span></div>
+                <div class="annexa-grid cols-4">
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Last Name <span class="annexa-required">*</span></span>
+                        <input class="annexa-input" value="@Claimant.LastName"
+                               @onchange="@(e => { Claimant.LastName = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">First Name <span class="annexa-required">*</span></span>
+                        <input class="annexa-input" value="@Claimant.FirstName"
+                               @onchange="@(e => { Claimant.FirstName = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Middle Name</span>
+                        <input class="annexa-input" value="@Claimant.MiddleName"
+                               @onchange="@(e => { Claimant.MiddleName = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Ext.</span>
+                        <input class="annexa-input" placeholder="Jr./Sr./III" value="@Claimant.Extension"
+                               @onchange="@(e => { Claimant.Extension = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="annexa-subsection">
+                <div class="annexa-subsection-title">F.5 Relationship to the Deceased <span class="annexa-item-note">(attach proof of relationship)</span></div>
+                <div class="annexa-field">
+                    <input class="annexa-input" value="@Claimant.RelationshipToDeceased"
+                           @onchange="@(e => { Claimant.RelationshipToDeceased = e.Value?.ToString(); NotifyChanged(); })" />
+                </div>
+            </div>
+
+            <div class="annexa-subsection">
+                <div class="annexa-subsection-title">F.4 Permanent Address of the Claimant <span class="annexa-item-note">(in the Philippines or abroad — free text)</span></div>
+                <div class="annexa-grid cols-3">
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">House Number</span>
+                        <input class="annexa-input" value="@Claimant.HouseNumber"
+                               @onchange="@(e => { Claimant.HouseNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Street</span>
+                        <input class="annexa-input" value="@Claimant.StreetName"
+                               @onchange="@(e => { Claimant.StreetName = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Barangay</span>
+                        <input class="annexa-input" value="@Claimant.Barangay"
+                               @onchange="@(e => { Claimant.Barangay = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">City / Municipality</span>
+                        <input class="annexa-input" value="@Claimant.CityMunicipality"
+                               @onchange="@(e => { Claimant.CityMunicipality = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Province</span>
+                        <input class="annexa-input" value="@Claimant.Province"
+                               @onchange="@(e => { Claimant.Province = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Zip Code</span>
+                        <input class="annexa-input" value="@Claimant.ZipCode"
+                               @onchange="@(e => { Claimant.ZipCode = e.Value?.ToString(); NotifyChanged(); })" />
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <BeneficiaryBankAccountSection Account="@GranteeBankAccount"
+                                    AccountChanged="@(_ => {})"
+                                    PlaceOfSubmission="@PlaceOfSubmission"
+                                    IsClaimantContext="true" />
+}
+
+@code {
+    [Parameter] public bool IsDeceased { get; set; }
+    [Parameter] public DateTime? DateOfDeath { get; set; }
+    [Parameter] public int? PlaceOfSubmission { get; set; }
+
+    [Parameter] public BeneficiaryClaimantDto Claimant { get; set; } = new();
+    [Parameter] public EventCallback<BeneficiaryClaimantDto> ClaimantChanged { get; set; }
+
+    [Parameter] public BeneficiaryBankAccountDto GranteeBankAccount { get; set; } = new();
+
+    private void NotifyChanged()
+    {
+        ClaimantChanged.InvokeAsync(Claimant);
+        StateHasChanged();
+    }
+}

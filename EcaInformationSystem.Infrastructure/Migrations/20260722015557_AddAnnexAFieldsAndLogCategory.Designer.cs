@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722015557_AddAnnexAFieldsAndLogCategory")]
+    partial class AddAnnexAFieldsAndLogCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,105 +24,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("BeneficiaryVerificationChecklist", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AnnexARemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("BankDepositSlipRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("BeneficiaryInformationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ClaimantBankSlipRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("DeathCertificateRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<bool>("HasAnnexAForm")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasBankDepositSlip")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasClaimantBankSlip")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasDeathCertificate")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasLguRcfCertification")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasPhoto")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasPrimaryIdAbroad")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasPrimaryIdLocal")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasProofOfRelationship")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasSecondaryIds")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("HasWarrantyReleaseForm")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LguRcfCertificationRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PhotoRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PrimaryIdAbroadRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("PrimaryIdLocalRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ProofOfRelationshipRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("SecondaryIdsRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("VerifierOffice")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("WarrantyReleaseFormRemarks")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeneficiaryInformationId")
-                        .IsUnique()
-                        .HasDatabaseName("UQ_VerificationChecklist_BeneficiaryInformationId");
-
-                    b.ToTable("BeneficiaryVerificationChecklists");
-                });
 
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.Activity", b =>
                 {
@@ -855,6 +759,115 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasDatabaseName("IX_PaymentHistory_FiscalYear_Quarter_Status");
 
                     b.ToTable("BeneficiaryPaymentHistories");
+                });
+
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryVerificationChecklist", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AnnexARemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BankDepositSlipRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("BeneficiaryInformationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ClaimantBankSlipRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("DateOfVerification")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeathCertificateRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("HasAnnexAForm")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasBankDepositSlip")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasClaimantBankSlip")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasDeathCertificate")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasLguRcfCertification")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasPhoto")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasPrimaryIdAbroad")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasPrimaryIdLocal")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasProofOfRelationship")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasSecondaryIds")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("HasWarrantyReleaseForm")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LguRcfCertificationRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PhotoRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PrimaryIdAbroadRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PrimaryIdLocalRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ProofOfRelationshipRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SecondaryIdsRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("VerifiedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("VerifierOffice")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("WarrantyReleaseFormRemarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeneficiaryInformationId")
+                        .IsUnique()
+                        .HasDatabaseName("UQ_VerificationChecklist_BeneficiaryInformationId");
+
+                    b.HasIndex("DateOfVerification")
+                        .HasDatabaseName("IX_VerificationChecklist_DateOfVerification");
+
+                    b.ToTable("BeneficiaryVerificationChecklists");
                 });
 
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.ChatEntities.ChatAttachment", b =>
@@ -1782,17 +1795,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("DataProtectionKeys");
                 });
 
-            modelBuilder.Entity("BeneficiaryVerificationChecklist", b =>
-                {
-                    b.HasOne("EcaInformationSystem.Domain.Entities.BeneficiaryInformation", "Beneficiary")
-                        .WithOne("VerificationChecklist")
-                        .HasForeignKey("BeneficiaryVerificationChecklist", "BeneficiaryInformationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Beneficiary");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryAbroadAddress", b =>
                 {
                     b.HasOne("EcaInformationSystem.Domain.Entities.BeneficiaryInformation", "Beneficiary")
@@ -1864,6 +1866,17 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.HasOne("EcaInformationSystem.Domain.Entities.BeneficiaryInformation", "Beneficiary")
                         .WithMany()
                         .HasForeignKey("BeneficiaryInformationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Beneficiary");
+                });
+
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryVerificationChecklist", b =>
+                {
+                    b.HasOne("EcaInformationSystem.Domain.Entities.BeneficiaryInformation", "Beneficiary")
+                        .WithOne("VerificationChecklist")
+                        .HasForeignKey("EcaInformationSystem.Domain.Entities.BeneficiaryVerificationChecklist", "BeneficiaryInformationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

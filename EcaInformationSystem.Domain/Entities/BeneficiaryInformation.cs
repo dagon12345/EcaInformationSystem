@@ -31,7 +31,7 @@ namespace EcaInformationSystem.Domain.Entities
         public int Municipality { get; set; }
         public int Barangay { get; set; }
         public bool IsCompliant { get; set; }
-        public string Validator { get; set; } =string.Empty;
+        public string Validator { get; set; } = string.Empty;
         public DateTime ValidationDate { get; set; }
         public Guid? CurrentPaymentHistoryId { get; set; }
         public int? PayrollQuarter { get; set; }
@@ -52,14 +52,62 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime? CoDateApproved { get; set; }
         public bool IsDeleted { get; set; }
         public BeneficiaryFinding? Finding { get; set; }
-        public int? CgpPageNumber { get; set; }   // raw page number, e.g. 119 — enables min/max range math
-        public string? CgpPrefix { get; set; }    // e.g. "RegionXIII-2024-11-01-26" — everything before the number
-        public Guid? CgpGenerationId { get; set; }  // unique per payroll generation run
+        public int? CgpPageNumber { get; set; }
+        public string? CgpPrefix { get; set; }
+        public Guid? CgpGenerationId { get; set; }
+
+        // ══════════════════════════════════════════════════════════════════
+        // ✅ NEW — Annex A (2026) alignment fields
+        // ══════════════════════════════════════════════════════════════════
+
+        // Section C.1 — distinct from RefCode (which is PDO-internal numbering).
+        // Manually entered, format e.g. "Region-LGU-ECA-year-month-000".
+        public string? TrackingNumber { get; set; }
+
+        // Section A — Data Privacy Consent (true = Consent, false = Dissent)
+        public bool DataPrivacyConsent { get; set; }
+
+        // Section B — 1 = Local (within PH), 2 = Abroad
+        public int? PlaceOfSubmission { get; set; }
+
+        // Section C.9.1 — free-text address detail, alongside the existing
+        // PSGC code fields (Region/Province/Municipality/Barangay above)
+        public string? HouseNumber { get; set; }
+        public string? StreetName { get; set; }
+        public string? ZipCode { get; set; }
+
+        // Section C.13 / C.14 — detail text shown only when the corresponding
+        // boolean (IsPersonWithDisability / IsIndigenousPeople) is true
+        public string? DisabilityType { get; set; }
+        public string? EthnicityName { get; set; }
+
+        // Section C.12 — shown only when Citizenship == 2 (Dual)
+        public string? DualCitizenshipDetails { get; set; }
+
+        // CivilStatus == 5 (Others) — free-text detail
+        // NOTE: CivilStatus codes stay 1=Single, 2=Widowed, 3=Married,
+        // 4=CommonLaw (relabeled from "Live-in", same integer — no data fix
+        // needed), 5=Others (new).
+        public string? CivilStatusOtherDetail { get; set; }
+
+        // Section G — Attestation. No signature image is stored; this is
+        // purely an "I attest" flag + the date the encoder recorded it.
+        public bool IsSignedDeclaration { get; set; }
+        public DateTime? DateSigned { get; set; }
+
+        // ── Navigation properties for the new 1:1 / 1:many sub-entities ──
+        public BeneficiaryBankAccount? BankAccount { get; set; }
+        public BeneficiaryAbroadAddress? AbroadAddress { get; set; }
+        public BeneficiaryClaimant? Claimant { get; set; }
+        public BeneficiaryVerificationChecklist? VerificationChecklist { get; set; }
+        public ICollection<BeneficiaryFamilyMember> FamilyMembers { get; set; } = new List<BeneficiaryFamilyMember>();
+
         [Timestamp]
         public byte[] RowVersion { get; set; } = default!;
+
         public void Update(int? quarter, string? batch, int? refYear, string? refCode, DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
-            DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship, 
-            int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int? payrollQuarter,int? fiscalYear,
+            DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship,
+            int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int? payrollQuarter, int? fiscalYear,
             int paymentStatus, int modeOfPayment,
             DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, string? eligibilityRemarks, int? remarkCategory, string? remarks
             , int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved)
@@ -108,10 +156,33 @@ namespace EcaInformationSystem.Domain.Entities
             CoDateEndorsed = coDateEndorsed;
             CoDateApproved = coDateApproved;
         }
-        // Domain method — keeps FiscalYear out of the general Update() signature
+
         public void SetFiscalYear(int? fiscalYear)
         {
             FiscalYear = fiscalYear;
+        }
+
+        // ✅ NEW — mirrors the pattern of SetFiscalYear: keeps the new Annex A
+        // fields out of the already-long Update() signature. Called explicitly
+        // from the service layer alongside Update().
+        public void UpdateAnnexADetails(
+            string? trackingNumber, bool dataPrivacyConsent, int? placeOfSubmission,
+            string? houseNumber, string? streetName, string? zipCode,
+            string? disabilityType, string? ethnicityName, string? dualCitizenshipDetails,
+            string? civilStatusOtherDetail, bool isSignedDeclaration, DateTime? dateSigned)
+        {
+            TrackingNumber = trackingNumber;
+            DataPrivacyConsent = dataPrivacyConsent;
+            PlaceOfSubmission = placeOfSubmission;
+            HouseNumber = houseNumber;
+            StreetName = streetName;
+            ZipCode = zipCode;
+            DisabilityType = disabilityType;
+            EthnicityName = ethnicityName;
+            DualCitizenshipDetails = dualCitizenshipDetails;
+            CivilStatusOtherDetail = civilStatusOtherDetail;
+            IsSignedDeclaration = isSignedDeclaration;
+            DateSigned = dateSigned;
         }
     }
 }

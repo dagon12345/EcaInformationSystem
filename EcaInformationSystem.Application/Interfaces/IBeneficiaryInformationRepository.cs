@@ -50,5 +50,20 @@ namespace EcaInformationSystem.Application.Interfaces
         Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName);
         Task AddPaymentHistoryEntryAsync(BeneficiaryPaymentHistory entry);
         Task<List<DuplicateCheckCandidateDto>> GetDuplicateCheckPoolAsync();
+        
+        // ── Annex A sub-entities — loaded/saved alongside the main record ──────────
+        Task<List<BeneficiaryFamilyMember>> GetFamilyMembersAsync(Guid beneficiaryId);
+        Task ReplaceFamilyMembersAsync(Guid beneficiaryId, List<BeneficiaryFamilyMember> members);
+
+        Task<BeneficiaryBankAccount?> GetBankAccountAsync(Guid beneficiaryId);
+        Task UpsertBankAccountAsync(Guid beneficiaryId, BeneficiaryBankAccount account);
+
+        Task<BeneficiaryAbroadAddress?> GetAbroadAddressAsync(Guid beneficiaryId);
+        Task UpsertAbroadAddressAsync(Guid beneficiaryId, BeneficiaryAbroadAddress address);
+        Task DeleteAbroadAddressAsync(Guid beneficiaryId);
+
+        Task<BeneficiaryClaimant?> GetClaimantAsync(Guid beneficiaryId);
+        Task UpsertClaimantAsync(Guid beneficiaryId, BeneficiaryClaimant claimant);
+        Task DeleteClaimantAsync(Guid beneficiaryId);
     }
 }

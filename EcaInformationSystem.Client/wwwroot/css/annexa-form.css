@@ -1,0 +1,232 @@
+/* ══════════════════════════════════════════════════════════
+   ANNEX A FORM STYLE SYSTEM — mirrors the printed Grantee/Claimant Form
+   ══════════════════════════════════════════════════════════ */
+
+.annexa-section {
+    border: 1px solid #1F3864;
+    margin-bottom: 0; /* sections should look glued together like the paper form */
+}
+
+.annexa-section + .annexa-section {
+    border-top: none; /* shared border between stacked sections */
+}
+
+/* Navy header bar — "A. DATA PRIVACY CONSENT" style */
+.annexa-header {
+    background: #1F3864;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    padding: 6px 12px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.annexa-header .annexa-letter {
+    font-weight: 800;
+    margin-right: 2px;
+}
+
+.annexa-body {
+    background: #fff;
+    padding: 12px 14px;
+}
+
+/* Numbered sub-item label, e.g. "C.3 FIRST NAME" */
+.annexa-item-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1F3864;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+    display: block;
+}
+
+.annexa-item-note {
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: none;
+    color: #6c757d;
+    display: block;
+}
+
+/* Grid mimicking the paper form's boxed cell layout */
+.annexa-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px 16px;
+}
+
+.annexa-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.annexa-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.annexa-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.annexa-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.annexa-input,
+.annexa-select {
+    border: 1px solid #adb5bd;
+    border-radius: 2px;
+    padding: 5px 8px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.annexa-input:focus,
+.annexa-select:focus {
+    outline: none;
+    border-color: #1F3864;
+    box-shadow: 0 0 0 2px rgba(31, 56, 100, 0.15);
+}
+
+.annexa-input:disabled,
+.annexa-input.annexa-readonly {
+    background: #f1f3f5;
+    color: #6c757d;
+}
+
+/* Real checkbox-square styling, matching the printed ☐ boxes */
+.annexa-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.annexa-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.annexa-checkbox-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #1F3864;
+    border-radius: 2px;
+    accent-color: #1F3864;
+    cursor: pointer;
+}
+
+.annexa-required {
+    color: #c0392b;
+    font-weight: 700;
+}
+
+/* Subsection divider within a lettered section (e.g. within D. FAMILY INFORMATION) */
+.annexa-subsection {
+    border-top: 1px dashed #c8d1de;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.annexa-subsection-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1F3864;
+    margin-bottom: 8px;
+}
+
+/* Small note/instruction text, like the paper form's italic guidance lines */
+.annexa-note {
+    font-size: 11px;
+    font-style: italic;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+/* Badge for "Optional" / "For living abroad only" style tags in the paper form */
+.annexa-tag {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #e7ecf3;
+    color: #1F3864;
+}
+
+.annexa-tag--warn {
+    background: #fdecea;
+    color: #c0392b;
+}
+
+
+.annexa-paper-header {
+    background: #1F3864;
+    color: #fff;
+    text-align: center;
+    padding: 14px 16px 12px;
+    border: 1px solid #1F3864;
+    border-bottom: none;
+}
+
+.annexa-paper-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.annexa-paper-subtitle {
+    font-size: 13px;
+    font-style: italic;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+.annexa-paper-note {
+    font-size: 11px;
+    opacity: 0.75;
+    margin-top: 4px;
+}
+
+.annexa-paper-footer {
+    text-align: center;
+    font-size: 11px;
+    color: #6c757d;
+    font-style: italic;
+    padding: 8px 0;
+    border: 1px solid #1F3864;
+    border-top: none;
+    background: #f8f9fb;
+}
+
+
+/* Wraps all internal/system-only sections below the Annex A block */
+.system-fields-wrapper {
+    border: 1px solid #6c757d;
+    border-radius: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.system-fields-header {
+    background: #495057;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    padding: 8px 14px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.system-fields-body {
+    background: #fbfbfc;
+    padding: 14px;
+}
+
+/* Tighten spacing between the form-section cards now that they're nested
+   inside one wrapper — avoids double-margin bulkiness */
+.system-fields-body .form-section:last-child {
+    margin-bottom: 0 !important;
+}

@@ -1,0 +1,77 @@
+@* BeneficiaryAttestationSection.razor — Annex A Section G ONLY.
+   Section A (Data Privacy Consent) is rendered once, near the top of
+   BeneficiaryForm.razor, matching the paper form's actual position — it does
+   NOT belong here anymore, to avoid the duplicate that showed up before. *@
+
+<div class="annexa-section">
+    <div class="annexa-header">
+        <span class="annexa-letter">G.</span> ATTESTATION / CERTIFICATION OF PROVIDED INFORMATION
+    </div>
+    <div class="annexa-body">
+        <ol class="annexa-note mb-2 ps-3">
+            <li>I hereby attest that all the information in this grantee/claim form is true and correct.</li>
+            <li>I further warrant that I have complied with all the requirements, and I have presented all original documentary requirements.</li>
+            <li>I understand that my application shall not be processed if any statement herein made is found to be false, or if any document I submitted is found to have been falsified, or if I fail to comply with all the requirements.</li>
+            <li>I hereby certify that I have not filed claims for cash gifts nor submitted application documents in other barangays, municipalities, cities, provinces, or in other regions/countries.</li>
+            <li>Should there be any violations or false attestation on the above statements, I will be held liable and accountable under civil law for misrepresentation and concealment of information.</li>
+        </ol>
+
+        <div class="annexa-grid cols-2">
+            <div class="annexa-field">
+                <span class="annexa-item-label">
+                    Signature / Thumbmark of Grantee/Claimant Over Printed Name
+                    <span class="annexa-required">*</span>
+                </span>
+                <label class="annexa-checkbox-item">
+                    <input type="checkbox" checked="@IsSignedDeclaration"
+                           @onchange="@(e => OnDeclarationChanged((bool)(e.Value ?? false)))" />
+                    Signed / Thumbmarked
+                </label>
+            </div>
+            <div class="annexa-field">
+                <span class="annexa-item-label">Date Signed</span>
+                <input type="date" class="annexa-input" value="@DateSignedString"
+                       disabled="@(!IsSignedDeclaration)"
+                       @onchange="@(e => OnDateSignedChanged(e.Value?.ToString()))" />
+            </div>
+        </div>
+
+        @if (!IsSignedDeclaration && ShowValidationHints)
+        {
+            <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                The declaration must be confirmed as signed before this record can be saved.
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsSignedDeclaration { get; set; }
+    [Parameter] public EventCallback<bool> IsSignedDeclarationChanged { get; set; }
+
+    [Parameter] public DateTime? DateSigned { get; set; }
+    [Parameter] public EventCallback<DateTime?> DateSignedChanged { get; set; }
+
+    [Parameter] public bool ShowValidationHints { get; set; } = false;
+
+    private string? DateSignedString => DateSigned?.ToString("yyyy-MM-dd");
+
+    private async Task OnDeclarationChanged(bool value)
+    {
+        IsSignedDeclaration = value;
+        await IsSignedDeclarationChanged.InvokeAsync(value);
+        if (value && DateSigned == null)
+            await DateSignedChanged.InvokeAsync(DateTime.Today);
+        if (!value)
+            await DateSignedChanged.InvokeAsync(null);
+    }
+
+    private async Task OnDateSignedChanged(string? value)
+    {
+        if (DateTime.TryParse(value, out var parsed))
+            await DateSignedChanged.InvokeAsync(parsed);
+        else
+            await DateSignedChanged.InvokeAsync(null);
+    }
+}

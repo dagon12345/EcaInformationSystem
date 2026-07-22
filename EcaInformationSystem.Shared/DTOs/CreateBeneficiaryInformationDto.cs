@@ -57,5 +57,24 @@ namespace EcaInformationSystem.Shared.DTOs
         //  Set to true when the user has reviewed soft duplicated and confirmed they want to proceed
         // </summary>
         public bool BypassSoftDuplicateCheck { get; set; }
+        // ✅ NEW
+        public string? TrackingNumber { get; set; }
+        public bool DataPrivacyConsent { get; set; }
+        public int? PlaceOfSubmission { get; set; }
+        public string? HouseNumber { get; set; }
+        public string? StreetName { get; set; }
+        public string? ZipCode { get; set; }
+        public string? DisabilityType { get; set; }
+        public string? EthnicityName { get; set; }
+        public string? DualCitizenshipDetails { get; set; }
+        public string? CivilStatusOtherDetail { get; set; }
+        public bool IsSignedDeclaration { get; set; }
+        public DateTime? DateSigned { get; set; }
+
+        public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
+        public BeneficiaryBankAccountDto? BankAccount { get; set; }
+        public BeneficiaryAbroadAddressDto? AbroadAddress { get; set; }
+        public BeneficiaryClaimantDto? Claimant { get; set; }
+        public BeneficiaryVerificationChecklistDto? VerificationChecklist { get; set; }
     }
 }

@@ -34,6 +34,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IPostImageProcessingService, PostImageProcessingService>();
             services.AddScoped<IPasswordResetService, PasswordResetService>();
             services.AddScoped<IActivityService, ActivityService>();
+            services.AddScoped<IBeneficiaryVerificationChecklistService, BeneficiaryVerificationChecklistService>();
             return services;
         }
     }

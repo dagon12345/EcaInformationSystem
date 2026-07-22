@@ -1,4 +1,4 @@
-﻿@* BeneficiaryForm.razor — redesigned to match navy #1F3864 design system *@
+﻿@* BeneficiaryForm.razor — Annex A (2026) aligned, with system-only fields separated out *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
@@ -6,153 +6,157 @@
 @inject ToastService toast
 @inject NavigationManager Navigation
 @inject AuthService AuthService
-@inject BeneficiaryStateService State;
+@inject BeneficiaryStateService State
 @inject BeneficiaryFindingClientService FindingService
-@inject AuthService AuthService
-
-
 
 <EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
     <DataAnnotationsValidator />
     <ValidationSummary class="text-danger mb-3 small" />
 
-    @* ── Reference Number (Optional) ─────────────────────────────────────── *@
-    <div class="sf-section-header d-flex align-items-center justify-content-between mt-3" style="cursor:pointer;"
-         @onclick="() => _showRefNumber = !_showRefNumber">
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-hash text-muted"></i>
-            <span class="fw-semibold">Reference Number</span>
-            <span class="badge bg-secondary fw-normal" style="font-size:10px;">
-                Optional
-            </span>
-            @if (HasRefNumber)
-            {
-                <span class="badge bg-success fw-normal" style="font-size:10px;">
-                    <i class="bi bi-check me-1"></i>Set
-                </span>
-            }
+    @* ══════════════════════════════════════════════════════════════════
+       SYSTEM FIELD — Reference Number (PDO-internal, NOT part of Annex A)
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="sys-card mb-3">
+        <div class="sys-card-header d-flex align-items-center justify-content-between" style="cursor:pointer;"
+             @onclick="() => _showRefNumber = !_showRefNumber">
+            <span><i class="bi bi-hash me-2"></i>Reference Number <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">Internal / Optional</span></span>
+            <i class="bi @(_showRefNumber ? "bi-chevron-up" : "bi-chevron-down") text-muted"></i>
         </div>
-        <i class="bi @(_showRefNumber ? "bi-chevron-up" : "bi-chevron-down") text-muted"></i>
+        @if (_showRefNumber)
+        {
+            <div class="sys-card-body">
+                <p class="text-muted small mb-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    For PDO internal numbering only — this does not appear on the printed Annex A form.
+                    Leave blank to save without one; assign later via <strong>Bulk Assign Ref Number</strong>.
+                </p>
+                <div class="sf-grid">
+                    <div class="ff">
+                        <label class="ff-label">Quarter</label>
+                        <select class="ff-input" @bind="model.Quarter">
+                            <option value="">-- Skip for now --</option>
+                            <option value="1">Q1 (Jan–Mar)</option>
+                            <option value="2">Q2 (Apr–Jun)</option>
+                            <option value="3">Q3 (Jul–Sep)</option>
+                            <option value="4">Q4 (Oct–Dec)</option>
+                        </select>
+                    </div>
+                    <div class="ff">
+                        <label class="ff-label">Batch</label>
+                        <input type="text" class="ff-input" placeholder="e.g. 1" @bind="model.Batch" />
+                    </div>
+                    <div class="ff">
+                        <label class="ff-label">Year (short)</label>
+                        <input type="number" class="ff-input" placeholder="e.g. 26" @bind="model.RefYear" />
+                    </div>
+                    <div class="ff">
+                        <label class="ff-label">Tracking Number <span class="badge bg-info fw-normal" style="font-size:9px;">New</span></label>
+                        <input type="text" class="ff-input" placeholder="Region-LGU-ECA-year-month-000" @bind="model.TrackingNumber" />
+                    </div>
+                </div>
+                @if (HasRefNumber)
+                {
+                    <div class="alert alert-success py-1 px-2 mt-2 mb-0 small">
+                        <i class="bi bi-check-circle me-1"></i>
+                        Will be assigned: <strong>Q@(model.Quarter)B@(model.Batch)-@(model.RefYear?.ToString("D2"))-#####-XIII</strong>
+                    </div>
+                }
+            </div>
+        }
     </div>
 
-    @if (_showRefNumber)
-    {
-        <div class="sf-section p-3 border rounded mb-3" style="background: var(--bs-light);">
-
-            <p class="text-muted small mb-2">
-                <i class="bi bi-info-circle me-1"></i>
-                Leave blank to save without a reference number.
-                You can assign it later using
-                <strong>Bulk Assign Ref Number</strong> in the records grid.
+    @* ══════════════════════════════════════════════════════════════════
+       A. DATA PRIVACY CONSENT — rendered ONCE, here only
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="annexa-section">
+        <div class="annexa-header"><span class="annexa-letter">A.</span> DATA PRIVACY CONSENT</div>
+        <div class="annexa-body">
+            <p class="annexa-note mb-2">
+                In compliance with R.A. No. 10173 ("Data Privacy Act of 2012"), I hereby consent the NCSC
+                to collect, use, and process my personal information for the implementation of R.A. No. 11982.
             </p>
+            <div class="annexa-checkbox-row">
+                <label class="annexa-checkbox-item">
+                    <input type="checkbox" checked="@model.DataPrivacyConsent"
+                           @onchange="@(e => model.DataPrivacyConsent = (bool)(e.Value ?? false))" />
+                    Consent
+                </label>
+                <label class="annexa-checkbox-item text-muted">
+                    <input type="checkbox" checked="@(!model.DataPrivacyConsent)" disabled /> Dissent
+                </label>
+            </div>
+            @if (!model.DataPrivacyConsent && _showValidationHints)
+            {
+                <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Consent must be confirmed before saving.
+                </div>
+            }
+        </div>
+    </div>
 
-            <div class="sf-grid">
-                <div class="ff">
-                    <label class="ff-label">Quarter</label>
-                    <select class="ff-input" @bind="model.Quarter">
-                        <option value="">-- Skip for now --</option>
-                        <option value="1">Q1 (Jan–Mar)</option>
-                        <option value="2">Q2 (Apr–Jun)</option>
-                        <option value="3">Q3 (Jul–Sep)</option>
-                        <option value="4">Q4 (Oct–Dec)</option>
-                    </select>
+    @* ══════════════════════════════════════════════════════════════════
+       B. PLACE OF SUBMISSION
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="annexa-section">
+        <div class="annexa-header"><span class="annexa-letter">B.</span> PLACE OF SUBMISSION</div>
+        <div class="annexa-body">
+            <div class="annexa-checkbox-row">
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="placeOfSubmission" checked="@(model.PlaceOfSubmission == 1)"
+                           @onchange="@(() => model.PlaceOfSubmission = 1)" />
+                    Local (within the PH)
+                </label>
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="placeOfSubmission" checked="@(model.PlaceOfSubmission == 2)"
+                           @onchange="@(() => model.PlaceOfSubmission = 2)" />
+                    Abroad
+                </label>
+            </div>
+        </div>
+    </div>
+
+    @* ══════════════════════════════════════════════════════════════════
+       C. PERSONAL INFORMATION
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="annexa-section">
+        <div class="annexa-header"><span class="annexa-letter">C.</span> PERSONAL INFORMATION</div>
+        <div class="annexa-body">
+
+            @* C.1 / C.2 *@
+            <div class="annexa-grid cols-2 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.1 NCSC Registration Reference Number</span>
+                    <InputNumber class="annexa-input" @bind-Value="model.NcscRrn" />
                 </div>
-                <div class="ff">
-                    <label class="ff-label">Batch</label>
-                    <input type="text" class="ff-input" placeholder="e.g. 1 — leave blank to skip" @bind="model.Batch" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Year (short)</label>
-                    <input type="number" class="ff-input" placeholder="e.g. 26" @bind="model.RefYear" />
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.2 LGU OSCA ID Number</span>
+                    <input class="annexa-input" @bind="model.OscaIdNumber" />
                 </div>
             </div>
 
-            @* ── Live preview ── *@
-            @if (HasRefNumber)
-            {
-                <div class="alert alert-success py-1 px-2 mt-2 mb-0 small">
-                    <i class="bi bi-check-circle me-1"></i>
-                    Will be assigned:
-                    <strong>
-                        Q@(model.Quarter)B@(model.Batch)-@(model.RefYear?.ToString("D2"))-#####-XIII
-                    </strong>
-                    <span class="text-muted">(unique code generated on save)</span>
-                </div>
-            }
-            else if (model.Quarter != null || !string.IsNullOrWhiteSpace(model.Batch) || model.RefYear != null)
-            {
-                @* Partial entry warning *@
-                <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    Fill in all three fields (Quarter, Batch, Year) to assign a reference number,
-                    or clear them all to skip.
-                </div>
-            }
-
-        </div>
-    }
-    else if (!HasRefNumber)
-    {
-        <p class="text-muted small mb-3">
-            <i class="bi bi-info-circle me-1"></i>
-            No reference number — you can assign it later via
-            <strong>Bulk Assign</strong> in the grid.
-            <button class="btn btn-link btn-sm p-0 ms-1" @onclick="() => _showRefNumber = true">
-                Add now
-            </button>
-        </p>
-    }
-
-    
-    @* ── Identity Information ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-person-vcard me-2"></i>Identity Information
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-                <div class="ff">
-                    <label class="ff-label">Date Applied</label>
-                    <UniformDateInput Value="@model.DateApplied" ValueChanged="@(v => model.DateApplied = v)" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Date Endorsed</label>
-                    <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Batch Code</label>
-                    <input class="ff-input" @bind="model.BatchCode" @ref="batchCodeInput" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">OSCA ID Number</label>
-                    <InputText class="ff-input" @bind-Value="model.OscaIdNumber" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">OSCA ID Date Issued</label>
-                    <UniformDateInput Value="@model.OscaIdDateIssued"
-                                      ValueChanged="@(v => model.OscaIdDateIssued = v)" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">NCSC RRN</label>
-                    <InputNumber class="ff-input" @bind-Value="model.NcscRrn" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Last Name <span class="req">*</span></label>
-                    <InputText class="ff-input" @bind-Value="model.LastName" />
-                    <ValidationMessage For="@(() => model.LastName)" class="ff-err" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">First Name <span class="req">*</span></label>
-                    <InputText class="ff-input" @bind-Value="model.FirstName" />
+            @* C.3 / C.4 *@
+            <div class="annexa-grid cols-2 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.3 First Name <span class="annexa-required">*</span></span>
+                    <input class="annexa-input" @bind="model.FirstName" />
                     <ValidationMessage For="@(() => model.FirstName)" class="ff-err" />
                 </div>
-                <div class="ff">
-                    <label class="ff-label">Middle Name</label>
-                    <InputText class="ff-input" @bind-Value="model.MiddleName" />
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.4 Middle Name</span>
+                    <input class="annexa-input" @bind="model.MiddleName" />
                 </div>
-                <div class="ff">
-                    <label class="ff-label">Extension</label>
-                    <InputSelect class="ff-input" @bind-Value="model.Extension">
+            </div>
+
+            @* C.5 / C.6 *@
+            <div class="annexa-grid cols-2 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.5 Last Name <span class="annexa-required">*</span></span>
+                    <input class="annexa-input" @bind="model.LastName" />
+                    <ValidationMessage For="@(() => model.LastName)" class="ff-err" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.6 Suffix</span>
+                    <select class="annexa-select" @bind="model.Extension">
                         <option value="">N/A</option>
                         <option value="Sr.">Sr.</option>
                         <option value="Jr.">Jr.</option>
@@ -160,497 +164,501 @@
                         <option value="III">III</option>
                         <option value="IV">IV</option>
                         <option value="V">V</option>
-                    </InputSelect>
+                    </select>
                 </div>
-                @* Birth Date *@
-                <div class="ff">
-                    <label class="ff-label">Birth Date <span class="req">*</span></label>
+            </div>
+
+            @* C.7 / C.8 *@
+            <div class="annexa-grid cols-3 mb-2">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.7 Date of Birth <span class="annexa-required">*</span></span>
                     <UniformDateInput Value="@model.BirthDate" ValueChanged="@OnBirthDateChanged" />
                     <ValidationMessage For="@(() => model.BirthDate)" class="ff-err" />
                 </div>
-                <div class="ff">
-                    <label class="ff-label">Age (auto)</label>
-                    <input class="ff-input ff-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")"
-                           readonly />
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Age (auto)</span>
+                    <input class="annexa-input annexa-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" disabled />
                 </div>
-                <div class="ff">
-                    <label class="ff-label">Phone Number</label>
-                    <InputText class="ff-input" @bind-Value="model.PhoneNumber" placeholder="09171234567 or leave blank for N/A" />
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Sex <span class="req">*</span></label>
-                    <InputSelect class="ff-input" @bind-Value="model.Sex">
-                        <option value="0">Select Sex</option>
-                        <option value="1">Male</option>
-                        <option value="2">Female</option>
-                    </InputSelect>
-                    <ValidationMessage For="@(() => model.Sex)" class="ff-err" />
+                <div class="annexa-field">
+                    <span class="annexa-item-label">C.8 Contact Number/s</span>
+                    <input class="annexa-input" @bind="model.PhoneNumber" placeholder="09171234567" />
                 </div>
             </div>
 
-            @* Deceased sub-section *@
-            <div class="form-subsection mt-2">
-                <div class="form-subsection-label">
-                    <i class="bi bi-info-circle me-1"></i>Other
-                </div>
-                <div class="form-grid">
-                    <div class="ff d-flex align-items-center gap-2 pt-3">
-                        <input type="checkbox" class="sys-check" checked="@model.IsDeceased"
-                               @onchange="OnIsDeceasedChanged" />
-                        <label class="ff-label mb-0">Is Deceased</label>
+            @* C.9.1 — Address in the Philippines. PSGC cascading selects sit
+               INLINE in the same grid as House#/Street/Zip, exactly matching
+               the paper form's single-row layout. Region is a system-required
+               addition (needed to drive the Province cascade) — not on the
+               paper form itself, flagged with a small note so it doesn't
+               look out of place. *@
+            <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
+                <div class="annexa-subsection-title">C.9.1 Address in the Philippines</div>
+                <div class="annexa-grid cols-4">
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">House #</span>
+                        <input class="annexa-input" @bind="model.HouseNumber" />
                     </div>
-                    @* Date of Death *@
-                    <div class="ff">
-                        <label class="ff-label">Date of Death</label>
-                        <UniformDateInput Value="@model.DateOfDeath" ValueChanged="@OnDateOfDeathChanged"
-                                          MaxDate="@DateTime.Today" Disabled="@(!model.IsDeceased)" />
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Street Name</span>
+                        <input class="annexa-input" @bind="model.StreetName" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">
+                            Region <span class="annexa-required">*</span>
+                            <span class="annexa-item-note">(required to look up Province)</span>
+                        </span>
+                        <select class="annexa-select" value="@model.PsgcCodeRegion" @onchange="OnFormRegionChanged"
+                                disabled="@(_isFormRegionLoading || IsLoading)">
+                            <option value="0">@(_isFormRegionLoading ? "Loading..." : "Select Region")</option>
+                            @foreach (var r in _formRegions)
+                            {
+                                <option value="@r.PsgcCodeRegion">@r.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Province <span class="annexa-required">*</span></span>
+                        <select class="annexa-select" value="@model.PsgcCodeProvince" @onchange="OnFormProvinceChanged"
+                                disabled="@(model.PsgcCodeRegion == 0 || _isFormProvinceLoading || IsLoading)">
+                            <option value="0">@(_isFormProvinceLoading ? "Loading..." : "Select Province")</option>
+                            @foreach (var p in _formProvinces)
+                            {
+                                <option value="@p.PsgcCodeProvince">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">City/Municipality <span class="annexa-required">*</span></span>
+                        <select class="annexa-select" value="@model.PsgcCodeMunicipality" @onchange="OnFormMunicipalityChanged"
+                                disabled="@(model.PsgcCodeProvince == 0 || _isFormMunicipalityLoading || IsLoading)">
+                            <option value="0">@(_isFormMunicipalityLoading ? "Loading..." : "Select Municipality")</option>
+                            @foreach (var m in _formMunicipalities)
+                            {
+                                <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Barangay <span class="annexa-required">*</span></span>
+                        <select class="annexa-select" value="@model.PsgcCodeBarangay" @onchange="OnFormBarangayChanged"
+                                disabled="@(model.PsgcCodeMunicipality == 0 || _isFormBarangayLoading || IsLoading)">
+                            <option value="0">@(_isFormBarangayLoading ? "Loading..." : "Select Barangay")</option>
+                            @foreach (var b in _formBarangays)
+                            {
+                                <option value="@b.PsgcCodeBarangay">@b.Name</option>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => model.PsgcCodeBarangay)" class="ff-err" />
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Zip Code</span>
+                        <input class="annexa-input" @bind="model.ZipCode" />
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    @* ── Demographic ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-people me-2"></i>Demographic Information
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-                <div class="ff d-flex align-items-center gap-2 pt-3">
-                    <InputCheckbox class="sys-check" @bind-Value="model.IsIndigenousPeople" />
-                    <label class="ff-label mb-0">Indigenous People</label>
-                </div>
-                <div class="ff d-flex align-items-center gap-2 pt-3">
-                    <InputCheckbox class="sys-check" @bind-Value="model.IsPersonWithDisability" />
-                    <label class="ff-label mb-0">Person with Disability</label>
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Civil Status</label>
-                    <InputSelect class="ff-input" @bind-Value="model.CivilStatus">
-                        <option value="0">Select Civil Status</option>
-                        <option value="1">Single</option>
-                        <option value="2">Widowed</option>
-                        <option value="3">Married</option>
-                        <option value="4">Live in</option>
-                    </InputSelect>
-                </div>
-                <div class="ff">
-                    <label class="ff-label">Citizenship</label>
-                    <select class="ff-input" @bind="@model.Citizenship" @bind:after="ApplyEligibilityRules">
-                        <option value="0">Select Citizenship</option>
-                        <option value="1">Filipino</option>
-                        <option value="2">Dual Citizenship</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </div>
+            @* C.9.2 — Address Abroad, positioned immediately after C.9.1, exactly like the paper form *@
+            <BeneficiaryAddressSection PlaceOfSubmission="@model.PlaceOfSubmission"
+                                       Abroad="@(model.AbroadAddress ??= new())"
+                                       AbroadChanged="@(a => model.AbroadAddress = a)" />
 
-    @* ── Address ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-geo-alt me-2"></i>Address Information
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-
-                @* Region *@
-                <div class="ff">
-                    <label class="ff-label">Region <span class="req">*</span></label>
-                    <select class="ff-input" value="@model.PsgcCodeRegion" @onchange="OnFormRegionChanged"
-                            disabled="@(_isFormRegionLoading || IsLoading)">
-                        <option value="0">
-                            @(_isFormRegionLoading ? "Loading..." : "Select Region")
-                        </option>
-                        @foreach (var r in _formRegions)
-                        {
-                            <option value="@r.PsgcCodeRegion">@r.Name</option>
-                        }
-                    </select>
-                </div>
-
-                @* Province *@
-                <div class="ff">
-                    <label class="ff-label">Province <span class="req">*</span></label>
-                    <select class="ff-input" value="@model.PsgcCodeProvince" @onchange="OnFormProvinceChanged"
-                            disabled="@(model.PsgcCodeRegion == 0 || _isFormProvinceLoading || IsLoading)">
-                        <option value="0">
-                            @(_isFormProvinceLoading ? "Loading..." : "Select Province")
-                        </option>
-                        @foreach (var p in _formProvinces)
-                        {
-                            <option value="@p.PsgcCodeProvince">@p.Name</option>
-                        }
-                    </select>
-                </div>
-
-                @* Municipality *@
-                <div class="ff">
-                    <label class="ff-label">Municipality / City <span class="req">*</span></label>
-                    <select class="ff-input" value="@model.PsgcCodeMunicipality" @onchange="OnFormMunicipalityChanged"
-                            disabled="@(model.PsgcCodeProvince == 0 || _isFormMunicipalityLoading || IsLoading)">
-                        <option value="0">
-                            @(_isFormMunicipalityLoading ? "Loading..." : "Select Municipality")
-                        </option>
-                        @foreach (var m in _formMunicipalities)
-                        {
-                            <option value="@m.PsgcCodeMunicipality">@m.Name</option>
-                        }
-                    </select>
-                </div>
-
-                @* Barangay *@
-                <div class="ff">
-                    <label class="ff-label">Barangay <span class="req">*</span></label>
-                    <select class="ff-input" value="@model.PsgcCodeBarangay" @onchange="OnFormBarangayChanged"
-                            disabled="@(model.PsgcCodeMunicipality == 0 || _isFormBarangayLoading || IsLoading)">
-                        <option value="0">
-                            @(_isFormBarangayLoading ? "Loading..." : "Select Barangay")
-                        </option>
-                        @foreach (var b in _formBarangays)
-                        {
-                            <option value="@b.PsgcCodeBarangay">@b.Name</option>
-                        }
-                    </select>
-                    <ValidationMessage For="@(() => model.PsgcCodeBarangay)" class="ff-err" />
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    @* ── Validation ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-patch-check me-2"></i>Validation Information
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-                <div class="ff">
-                    <label class="ff-label">Validator <span class="req">*</span></label>
-                    <InputText class="ff-input" @bind-Value="model.Validator" />
-                    <ValidationMessage For="@(() => model.Validator)" class="ff-err" />
-                </div>
-                @* Validation Date *@
-                <div class="ff">
-                    <label class="ff-label">Validation Date <span class="req">*</span></label>
-                    <UniformDateInput Value="@model.ValidationDate" ValueChanged="@OnValidationDateChanged" />
-                    <ValidationMessage For="@(() => model.ValidationDate)" class="ff-err" />
-                </div>
-            </div>
-
-      
-
-            <div class="form-subsection mt-2">
-                <div class="form-subsection-label">
-                    <i class="bi bi-clipboard2-check me-1"></i>Assessment
-                </div>
-                <div class="form-grid">
-                    <div class="ff d-flex align-items-center gap-2 pt-3">
-                        <InputCheckbox class="sys-check" @bind-Value="model.IsEligible" />
-                        <label class="ff-label mb-0">Is Eligible</label>
+            @* C.10 / C.11 / C.12 / C.13 *@
+            <div class="annexa-subsection">
+                <div class="annexa-grid cols-4">
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">C.10 Sex <span class="annexa-required">*</span></span>
+                        <select class="annexa-select" @bind="model.Sex">
+                            <option value="0">Select Sex</option>
+                            <option value="1">Male</option>
+                            <option value="2">Female</option>
+                        </select>
+                        <ValidationMessage For="@(() => model.Sex)" class="ff-err" />
                     </div>
-                    <div class="ff d-flex align-items-center gap-2 pt-3">
-                        <InputCheckbox class="sys-check" @bind-Value="model.IsCompliant" />
-                        <label class="ff-label mb-0">Is Compliant</label>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">C.11 Civil Status</span>
+                        <select class="annexa-select" @bind="model.CivilStatus">
+                            <option value="0">Select Civil Status</option>
+                            <option value="1">Single</option>
+                            <option value="3">Married</option>
+                            <option value="2">Widow/Widower</option>
+                            <option value="4">Common-Law</option>
+                            <option value="5">Others</option>
+                        </select>
                     </div>
-
-                    @* ✅ EligibilityRemarks — always enabled *@
-                    <div class="ff" style="grid-column: 1 / -1;">
-                        <label class="ff-label">
-                            Eligibility Remarks
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">C.12 Citizenship</span>
+                        <select class="annexa-select" @bind="model.Citizenship" @bind:after="ApplyEligibilityRules">
+                            <option value="0">Select Citizenship</option>
+                            <option value="1">Filipino</option>
+                            <option value="2">Dual Citizen</option>
+                        </select>
+                    </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">C.13 Disability</span>
+                        <label class="annexa-checkbox-item">
+                            <input type="checkbox" checked="@model.IsPersonWithDisability"
+                                   @onchange="@(e => model.IsPersonWithDisability = (bool)(e.Value ?? false))" />
+                            Yes
                         </label>
-                        <InputTextArea class="ff-input" @bind-Value="model.EligibilityRemarks" rows="2"
-                                       placeholder="Enter eligibility finding notes..." />
                     </div>
 
-                    @* ✅ ComplianceRemarks — always enabled *@
-                    <div class="ff" style="grid-column: 1 / -1;">
-                        <label class="ff-label">
-                            Compliance Remarks
-                        </label>
-                        <InputTextArea class="ff-input" @bind-Value="model.AssessmentRemarks" rows="2"
-                                       placeholder="Enter compliance finding notes..." />
-                    </div>
+                    @if (model.CivilStatus == 5)
+                    {
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Specify Civil Status</span>
+                            <input class="annexa-input" @bind="model.CivilStatusOtherDetail" />
+                        </div>
+                    }
+                    @if (model.Citizenship == 2)
+                    {
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Dual Citizenship Details</span>
+                            <input class="annexa-input" @bind="model.DualCitizenshipDetails" />
+                        </div>
+                    }
+                    @if (model.IsPersonWithDisability)
+                    {
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Type of Disability</span>
+                            <input class="annexa-input" @bind="model.DisabilityType" />
+                        </div>
+                    }
                 </div>
             </div>
 
-
-        </div>
-    </div>
-
-    @* ── Remarks ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-chat-left-text me-2"></i>Remarks
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-                <div class="ff">
-                    <label class="ff-label">Remark Category</label>
-                    <InputSelect class="ff-input" @bind-Value="model.RemarkCategory">
-                        <option value="0">Select Remark</option>
-                        <option value="1">Deceased prior reaching milestone age</option>
-                        <option value="2">Out of town/Country</option>
-                        <option value="3">Incomplete required documents</option>
-                        <option value="4">Inconsistent documents</option>
-                        <option value="5">Cannot be reached/Located</option>
-                        <option value="6">Did not reach the milestone age</option>
-                        <option value="7">Lacking of documents/Requirements</option>
-                        <option value="8">For Correction</option>
-                        <option value="9">Waived</option>
-                        <option value="10">Lacking Proof of Relationship</option>
-                        <option value="11">No show</option>
-                        <option value="12">Double Application with Different Surname used</option>
-                        <option value="13">For CGD Island Municipality</option>
-                    </InputSelect>
-                </div>
-
-                <div class="ff" style="grid-column: 1 / -1;">
-                    <label class="ff-label">Remarks</label>
-                    <InputTextArea class="ff-input" @bind-Value="model.Remarks" rows="2" />
-                </div>
-            </div>
-        </div>
-    </div>
-    @if (IsEditMode)
-    {
-        <div class="form-section mb-3">
-            <div class="form-section-header d-flex align-items-center justify-content-between">
-                <span><i class="bi bi-clock-history me-2"></i>Payment History</span>
-                @if (_isAdmin)
+            @* C.14 *@
+            <div class="annexa-subsection">
+                <span class="annexa-item-label">C.14 Ethnicity</span>
+                <label class="annexa-checkbox-item mb-1">
+                    <input type="checkbox" checked="@model.IsIndigenousPeople"
+                           @onchange="@(e => model.IsIndigenousPeople = (bool)(e.Value ?? false))" />
+                    Member of Indigenous Peoples (IP)
+                </label>
+                @if (model.IsIndigenousPeople)
                 {
-                    <button type="button" class="btn btn-sm btn-light" @onclick="OpenAddPaymentHistoryModal">
-                        <i class="bi bi-plus-circle me-1"></i>Record Payment
-                    </button>
+                    <input class="annexa-input" placeholder="Name of IP group" @bind="model.EthnicityName" />
                 }
             </div>
-            <div class="form-section-body">
-                @if (isLoadingPaymentHistory)
-                {
-                    <div class="text-center py-3">
-                        <span class="spinner-border spinner-border-sm text-primary"></span>
-                        <span class="ms-2 text-muted small">Loading payment history...</span>
-                    </div>
-                }
-                else if (!paymentHistory.Any())
-                {
-                    <div class="alert alert-secondary py-2 px-3 small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>No payment records yet.
-                    </div>
-                }
-                else
-                {
-                    <div class="payment-timeline">
-                        @foreach (var entry in paymentHistory)
-                        {
-                            <div class="payment-timeline-item @(entry.IsCurrent ? "payment-timeline-item--current" : "")">
-                                <div class="payment-timeline-marker @GetPaymentBadgeClass(entry.PaymentStatus)"></div>
-                                <div class="payment-timeline-content">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <span class="tbl-badge @GetPaymentBadgeClass(entry.PaymentStatus)">
-                                                @GetPaymentStatusText(entry.PaymentStatus)
-                                            </span>
-                                            @if (entry.IsCurrent)
-                                            {
-                                                <span class="badge bg-primary ms-1" style="font-size:9px;">CURRENT</span>
-                                            }
-                                            @if (entry.DateModified.HasValue)
-                                            {
-                                                <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">CORRECTED</span>
-                                            }
-                                        </div>
-                                        <small class="text-muted">
-                                            @entry.DateCreated.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")
-                                        </small>
-                                    </div>
-                                    <div class="row g-1 mt-1" style="font-size:12px;">
-                                        @if (entry.PayrollQuarter.HasValue || entry.FiscalYear.HasValue)
-                                        {
-                                            <div class="col-6">
-                                                <span class="text-muted">Period:</span>
-                                                @(entry.PayrollQuarter.HasValue ? $"Q{entry.PayrollQuarter}" : "—")
-                                                @(entry.FiscalYear?.ToString() ?? "")
-                                            </div>
-                                        }
-                                        @if (entry.PaymentDate.HasValue)
-                                        {
-                                            <div class="col-6">
-                                                <span class="text-muted">Paid:</span>
-                                                @entry.PaymentDate.Value.ToString("MMM dd, yyyy")
-                                            </div>
-                                        }
-                                        @if (entry.PaymentStatus == 2)
-                                        {
-                                            <div class="col-6">
-                                                <span class="text-muted">Mode:</span>
-                                                @(entry.ModeOfPayment == 1 ? "Cash Advance by SDO" : entry.ModeOfPayment == 2 ? "Bank Transfer" : "—")
-                                            </div>
-                                        }
-                                        <div class="col-12 text-muted" style="font-size:10px;">
-                                            Recorded by @entry.CreatedBy
-                                            @if (entry.DateModified.HasValue)
-                                            {
-                                                <span>· Corrected by @entry.ModifiedBy on @entry.DateModified.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
-                                            }
-                                        </div>
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(entry.Remarks))
-                                    {
-                                        <div class="mt-1" style="font-size:11px;">
-                                            <span class="text-muted">Remarks:</span> @entry.Remarks
-                                        </div>
-                                    }
-                                    @if (_isAdmin)
-                                    {
-                                        <div class="d-flex gap-2 mt-1">
-                                            <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
-                                                    @onclick="() => OpenEditPaymentHistoryModal(entry)">
-                                                <i class="bi bi-pencil-square me-1"></i>Correct
-                                            </button>
-                                            <button type="button" class="btn btn-link btn-sm p-0 text-danger" style="font-size:11px;"
-                                                    @onclick="() => ConfirmDeletePaymentHistory(entry)">
-                                                <i class="bi bi-trash me-1"></i>Delete
-                                            </button>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        </div>
-    }
-    @* ── CO Status ── *@
-    <div class="form-section mb-3">
-        <div class="form-section-header">
-            <i class="bi bi-building-check me-2"></i>CO Status
-            @if (!_isAdmin && _roleLoaded)
-            {
-                <span class="badge bg-secondary ms-2 fw-normal" style="font-size:10px;">
-                    <i class="bi bi-lock me-1"></i>Admin only
-                </span>
-            }
-        </div>
-        <div class="form-section-body">
-            <div class="form-grid">
-                <div class="ff">
-                    <label class="ff-label">CO Status</label>
-                    <InputSelect class="ff-input" @bind-Value="model.CoStatus" @bind-Value:after="OnCoStatusChanged"
-                                 disabled="@(!_isAdmin)">
-                        <option value="">Not Set</option>
-                        <option value="1">Endorsed</option>
-                        <option value="2">Approved</option>
-                    </InputSelect>
-                </div>
 
-                <div class="ff">
-                    <label class="ff-label">
-                        CO Date Endorsed
-                        @if (model.CoStatus == 1)
-                        {
-                            <span class="req">*</span>
-                        }
+            @* Deceased toggle stays here — end of Section C, matches where the
+               original form had it grouped with Identity/Personal info *@
+            <div class="annexa-subsection">
+                <div class="annexa-checkbox-row">
+                    <label class="annexa-checkbox-item">
+                        <input type="checkbox" checked="@model.IsDeceased" @onchange="OnIsDeceasedChanged" />
+                        Grantee is Deceased
                     </label>
-                    <UniformDateInput Value="@model.CoDateEndorsed" ValueChanged="@OnCoDateEndorsedChanged"
-                                      Disabled="@(model.CoStatus != 1 || !_isAdmin)" />
-                </div>
-
-                <div class="ff">
-                    <label class="ff-label">
-                        CO Date Approved
-                        @if (model.CoStatus == 2)
-                        {
-                            <span class="req">*</span>
-                        }
-                    </label>
-                    <UniformDateInput Value="@model.CoDateApproved" ValueChanged="@OnCoDateApprovedChanged"
-                                      Disabled="@(model.CoStatus != 2 || !_isAdmin)" />
+                    @if (model.IsDeceased)
+                    {
+                        <div class="annexa-field" style="min-width:220px;">
+                            <span class="annexa-item-label">Date of Death</span>
+                            <UniformDateInput Value="@model.DateOfDeath" ValueChanged="@OnDateOfDeathChanged" MaxDate="@DateTime.Today" />
+                        </div>
+                    }
                 </div>
             </div>
 
-            @* ── Lock overlay message for non-admins ── *@
-            @if (!_isAdmin && _roleLoaded)
-            {
-                <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
-                    <i class="bi bi-lock-fill text-muted"></i>
-                    <span>CO Status can only be modified by Administrators.</span>
-                </div>
-            }
         </div>
     </div>
-    @* ── Findings (Edit Mode only) ── *@
-    @if (IsEditMode)
-    {
-        <div class="form-section mb-3">
-            <div class="form-section-header">
-                <i class="bi bi-exclamation-triangle me-2"></i>Findings
-                @if (!_isAdmin && _roleLoaded)
-                {
-                    <span class="badge bg-secondary ms-2 fw-normal" style="font-size:10px;">
-                        <i class="bi bi-lock me-1"></i>Admin only
-                    </span>
-                }
-            </div>
-            <div class="form-section-body">
-                @if (isLoadingFinding)
-                {
-                    <div class="text-center py-2">
-                        <span class="spinner-border spinner-border-sm text-primary"></span>
-                        <span class="ms-2 text-muted">Loading finding...</span>
-                    </div>
-                }
-                else
-                {
+
+    @* ── D. Family Information ── *@
+    <BeneficiaryFamilySection FamilyMembers="@model.FamilyMembers"
+                              FamilyMembersChanged="@(list => model.FamilyMembers = list)" />
+
+    @* ── E. Transaction Account ── *@
+    <BeneficiaryBankAccountSection Account="@(model.BankAccount ??= new())"
+                                   AccountChanged="@(acct => model.BankAccount = acct)"
+                                   PlaceOfSubmission="@model.PlaceOfSubmission"
+                                   IsClaimantContext="false" />
+
+    @* ── F. For Deceased Grantees (conditional) ── *@
+    <BeneficiaryClaimantSection IsDeceased="@model.IsDeceased"
+                               DateOfDeath="@model.DateOfDeath"
+                               PlaceOfSubmission="@model.PlaceOfSubmission"
+                               Claimant="@(model.Claimant ??= new())"
+                               ClaimantChanged="@(c => model.Claimant = c)"
+                               GranteeBankAccount="@(model.BankAccount ?? new())" />
+
+    @* ── G. Attestation / Certification ── *@
+    <BeneficiaryAttestationSection IsSignedDeclaration="@model.IsSignedDeclaration"
+                                IsSignedDeclarationChanged="@(v => model.IsSignedDeclaration = v)"
+                                DateSigned="@model.DateSigned"
+                                DateSignedChanged="@(v => model.DateSigned = v)"
+                                ShowValidationHints="@_showValidationHints" />
+                                   @* ── H./I. Verification Checklist & Result — now inline, end of Annex A ── *@
+   @* ── H./I. Verification Checklist & Result — part of the main Save/Update flow now ── *@
+    <BeneficiaryVerificationChecklistSection Checklist="@(model.VerificationChecklist ??= new())"
+                                              ChecklistChanged="@(c => model.VerificationChecklist = c)"
+                                              IsDeceased="@model.IsDeceased"
+                                              IsAdmin="@_isAdmin"
+                                              IsEligible="@model.IsEligible"
+                                              IsEligibleChanged="@(v => { model.IsEligible = v; StateHasChanged(); })"
+                                              IsCompliant="@model.IsCompliant"
+                                              IsCompliantChanged="@(v => { model.IsCompliant = v; StateHasChanged(); })"
+                                              Validator="@model.Validator"
+                                              ValidatorChanged="@(v => model.Validator = v)"
+                                              ValidationDate="@model.ValidationDate"
+                                              ValidationDateChanged="@OnValidationDateChanged"
+                                              EligibilityRemarks="@model.EligibilityRemarks"
+                                              EligibilityRemarksChanged="@(v => model.EligibilityRemarks = v)"
+                                              AssessmentRemarks="@model.AssessmentRemarks"
+                                              AssessmentRemarksChanged="@(v => model.AssessmentRemarks = v)" />
+
+    <div class="annexa-paper-footer mb-3">— end of Annex A form fields —</div>
+
+    @* ══════════════════════════════════════════════════════════════════
+       SYSTEM FIELDS — everything below is NOT part of the printed Annex A
+       form. Wrapped in one bounding box so it reads as a single distinct
+       group, separate from the paper-form replica above.
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="system-fields-wrapper mb-3">
+        <div class="system-fields-header">
+            <i class="bi bi-gear-fill"></i> Internal / System Fields
+            <span class="annexa-tag ms-2" style="background:#fff; color:#495057;">Not part of printed form</span>
+        </div>
+        <div class="system-fields-body">
+
+            @* ── Remarks (system tracking, not on paper form) ── *@
+            <div class="form-section mb-3">
+                <div class="form-section-header"><i class="bi bi-chat-left-text me-2"></i>Internal Remarks</div>
+                <div class="form-section-body">
                     <div class="form-grid">
                         <div class="ff">
-                            <label class="ff-label">With Findings</label>
-                            <select class="ff-input" @bind="findingStatusInput" disabled="@(IsLoading || !_isAdmin)">
-                                <option value="0">N/A</option>
-                                <option value="1">Solved</option>
-                                <option value="2">Unresolved</option>
-                            </select>
+                            <label class="ff-label">Remark Category</label>
+                            <InputSelect class="ff-input" @bind-Value="model.RemarkCategory">
+                                <option value="0">Select Remark</option>
+                                <option value="1">Deceased prior reaching milestone age</option>
+                                <option value="2">Out of town/Country</option>
+                                <option value="3">Incomplete required documents</option>
+                                <option value="4">Inconsistent documents</option>
+                                <option value="5">Cannot be reached/Located</option>
+                                <option value="6">Did not reach the milestone age</option>
+                                <option value="7">Lacking of documents/Requirements</option>
+                                <option value="8">For Correction</option>
+                                <option value="9">Waived</option>
+                                <option value="10">Lacking Proof of Relationship</option>
+                                <option value="11">No show</option>
+                                <option value="12">Double Application with Different Surname used</option>
+                                <option value="13">For CGD Island Municipality</option>
+                            </InputSelect>
                         </div>
-
-                        @if (findingStatusInput == 2)
-                        {
-                            <div class="ff" style="grid-column: 1 / -1;">
-                                <label class="ff-label">
-                                    Finding Remarks <span class="req">*</span>
-                                </label>
-                                <InputTextArea class="ff-input" @bind-Value="findingRemarksInput" rows="3"
-                                               placeholder="Describe the unresolved finding..." disabled="@(IsLoading || !_isAdmin)" />
-                            </div>
-                        }
-
-                        @if (currentFinding is not null)
-                        {
-                            <div class="ff">
-                                <small class="text-muted">
-                                    Last updated:
-                                    @((currentFinding.UpdatedAt ?? currentFinding.CreatedAt)
-                                        .ToLocalTime()
-                                        .ToString("MMM dd, yyyy hh:mm tt"))
-                                </small>
-                            </div>
-                        }
+                        <div class="ff" style="grid-column: 1 / -1;">
+                            <label class="ff-label">Remarks</label>
+                            <InputTextArea class="ff-input" @bind-Value="model.Remarks" rows="2" />
+                        </div>
                     </div>
-
-                    @* ── Lock message for non-admins ── *@
+                </div>
+            </div>
+            @* ── CO Status (internal workflow, admin-gated, not on paper form) ── *@
+            <div class="form-section mb-3">
+                <div class="form-section-header">
+                    <i class="bi bi-building-check me-2"></i>CO Status
+                    @if (!_isAdmin && _roleLoaded)
+                    {
+                        <span class="badge bg-secondary ms-2 fw-normal" style="font-size:10px;"><i class="bi bi-lock me-1"></i>Admin only</span>
+                    }
+                </div>
+                <div class="form-section-body">
+                    <div class="form-grid">
+                        <div class="ff">
+                            <label class="ff-label">CO Status</label>
+                            <InputSelect class="ff-input" @bind-Value="model.CoStatus" @bind-Value:after="OnCoStatusChanged" disabled="@(!_isAdmin)">
+                                <option value="">Not Set</option>
+                                <option value="1">Endorsed</option>
+                                <option value="2">Approved</option>
+                            </InputSelect>
+                        </div>
+                        <div class="ff">
+                            <label class="ff-label">CO Date Endorsed @(model.CoStatus == 1 ? "*" : "")</label>
+                            <UniformDateInput Value="@model.CoDateEndorsed" ValueChanged="@OnCoDateEndorsedChanged" Disabled="@(model.CoStatus != 1 || !_isAdmin)" />
+                        </div>
+                        <div class="ff">
+                            <label class="ff-label">CO Date Approved @(model.CoStatus == 2 ? "*" : "")</label>
+                            <UniformDateInput Value="@model.CoDateApproved" ValueChanged="@OnCoDateApprovedChanged" Disabled="@(model.CoStatus != 2 || !_isAdmin)" />
+                        </div>
+                    </div>
                     @if (!_isAdmin && _roleLoaded)
                     {
                         <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
                             <i class="bi bi-lock-fill text-muted"></i>
-                            <span>Findings can only be modified by Administrators.</span>
+                            <span>CO Status can only be modified by Administrators.</span>
                         </div>
                     }
-                }
+                </div>
             </div>
+
+            @* ── Findings (edit mode only, admin-gated) ── *@
+            @if (IsEditMode)
+            {
+                <div class="form-section mb-3">
+                    <div class="form-section-header">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Findings
+                        @if (!_isAdmin && _roleLoaded)
+                        {
+                            <span class="badge bg-secondary ms-2 fw-normal" style="font-size:10px;"><i class="bi bi-lock me-1"></i>Admin only</span>
+                        }
+                    </div>
+                    <div class="form-section-body">
+                        @if (isLoadingFinding)
+                        {
+                            <div class="text-center py-2"><span class="spinner-border spinner-border-sm text-primary"></span></div>
+                        }
+                        else
+                        {
+                            <div class="form-grid">
+                                <div class="ff">
+                                    <label class="ff-label">With Findings</label>
+                                    <select class="ff-input" @bind="findingStatusInput" disabled="@(IsLoading || !_isAdmin)">
+                                        <option value="0">N/A</option>
+                                        <option value="1">Solved</option>
+                                        <option value="2">Unresolved</option>
+                                    </select>
+                                </div>
+                                @if (findingStatusInput == 2)
+                                {
+                                    <div class="ff" style="grid-column: 1 / -1;">
+                                        <label class="ff-label">Finding Remarks <span class="req">*</span></label>
+                                        <InputTextArea class="ff-input" @bind-Value="findingRemarksInput" rows="3"
+                                                       placeholder="Describe the unresolved finding..." disabled="@(IsLoading || !_isAdmin)" />
+                                    </div>
+                                }
+                                @if (currentFinding is not null)
+                                {
+                                    <div class="ff">
+                                        <small class="text-muted">
+                                            Last updated:
+                                            @((currentFinding.UpdatedAt ?? currentFinding.CreatedAt).ToLocalTime().ToString("MMM dd, yyyy hh:mm tt"))
+                                        </small>
+                                    </div>
+                                }
+                            </div>
+                            @if (!_isAdmin && _roleLoaded)
+                            {
+                                <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
+                                    <i class="bi bi-lock-fill text-muted"></i>
+                                    <span>Findings can only be modified by Administrators.</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ── Payment History (edit mode only — system feature, not on paper form) ── *@
+            @if (IsEditMode)
+            {
+                <div class="form-section mb-3">
+                    <div class="form-section-header d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-clock-history me-2"></i>Payment History</span>
+                        @if (_isAdmin)
+                        {
+                            <button type="button" class="btn btn-sm btn-light" @onclick="OpenAddPaymentHistoryModal">
+                                <i class="bi bi-plus-circle me-1"></i>Record Payment
+                            </button>
+                        }
+                    </div>
+                    <div class="form-section-body">
+                        @if (isLoadingPaymentHistory)
+                        {
+                            <div class="text-center py-3">
+                                <span class="spinner-border spinner-border-sm text-primary"></span>
+                                <span class="ms-2 text-muted small">Loading payment history...</span>
+                            </div>
+                        }
+                        else if (!paymentHistory.Any())
+                        {
+                            <div class="alert alert-secondary py-2 px-3 small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>No payment records yet.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="payment-timeline">
+                                @foreach (var entry in paymentHistory)
+                                {
+                                    <div class="payment-timeline-item @(entry.IsCurrent ? "payment-timeline-item--current" : "")">
+                                        <div class="payment-timeline-marker @GetPaymentBadgeClass(entry.PaymentStatus)"></div>
+                                        <div class="payment-timeline-content">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <span class="tbl-badge @GetPaymentBadgeClass(entry.PaymentStatus)">
+                                                        @GetPaymentStatusText(entry.PaymentStatus)
+                                                    </span>
+                                                    @if (entry.IsCurrent)
+                                                    {
+                                                        <span class="badge bg-primary ms-1" style="font-size:9px;">CURRENT</span>
+                                                    }
+                                                    @if (entry.DateModified.HasValue)
+                                                    {
+                                                        <span class="badge bg-warning text-dark ms-1" style="font-size:9px;">CORRECTED</span>
+                                                    }
+                                                </div>
+                                                <small class="text-muted">
+                                                    @entry.DateCreated.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")
+                                                </small>
+                                            </div>
+                                            <div class="row g-1 mt-1" style="font-size:12px;">
+                                                @if (entry.PayrollQuarter.HasValue || entry.FiscalYear.HasValue)
+                                                {
+                                                    <div class="col-6">
+                                                        <span class="text-muted">Period:</span>
+                                                        @(entry.PayrollQuarter.HasValue ? $"Q{entry.PayrollQuarter}" : "—")
+                                                        @(entry.FiscalYear?.ToString() ?? "")
+                                                    </div>
+                                                }
+                                                @if (entry.PaymentDate.HasValue)
+                                                {
+                                                    <div class="col-6">
+                                                        <span class="text-muted">Paid:</span>
+                                                        @entry.PaymentDate.Value.ToString("MMM dd, yyyy")
+                                                    </div>
+                                                }
+                                                @if (entry.PaymentStatus == 2)
+                                                {
+                                                    <div class="col-6">
+                                                        <span class="text-muted">Mode:</span>
+                                                        @(entry.ModeOfPayment == 1 ? "Cash Advance by SDO" : entry.ModeOfPayment == 2 ? "Bank Transfer" : "—")
+                                                    </div>
+                                                }
+                                                <div class="col-12 text-muted" style="font-size:10px;">
+                                                    Recorded by @entry.CreatedBy
+                                                    @if (entry.DateModified.HasValue)
+                                                    {
+                                                        <span>· Corrected by @entry.ModifiedBy on @entry.DateModified.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                                            {
+                                                <div class="mt-1" style="font-size:11px;">
+                                                    <span class="text-muted">Remarks:</span> @entry.Remarks
+                                                </div>
+                                            }
+                                            @if (_isAdmin)
+                                            {
+                                                <div class="d-flex gap-2 mt-1">
+                                                    <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
+                                                            @onclick="() => OpenEditPaymentHistoryModal(entry)">
+                                                        <i class="bi bi-pencil-square me-1"></i>Correct
+                                                    </button>
+                                                    <button type="button" class="btn btn-link btn-sm p-0 text-danger" style="font-size:11px;"
+                                                            @onclick="() => ConfirmDeletePaymentHistory(entry)">
+                                                        <i class="bi bi-trash me-1"></i>Delete
+                                                    </button>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
         </div>
-    }
+    </div>
+
     @* ── Actions ── *@
     <div class="d-flex justify-content-end gap-2 mt-2">
         <button type="button" class="sys-btn sys-btn-cancel"
@@ -908,6 +916,7 @@
 
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
+    private bool _showValidationHints = false;
     private List<PaymentHistoryDto> paymentHistory = new();
     private bool isLoadingPaymentHistory;
     private HxModal addPaymentHistoryModal = default!;
@@ -919,6 +928,7 @@
     private readonly List<int> _availableMilestoneYears = new() { 2024, 2025, 2026, 2027, 2028, 2029, 2030 };
     [Parameter] public bool IsEditMode { get; set; } = false;
     [Parameter] public Guid? EditId { get; set; } = null;
+    [Parameter] public EventCallback<bool> IsDeceasedLoaded { get; set; }
 
     private BeneficiaryInformationDto model = new()
     {
@@ -1248,9 +1258,9 @@
         ApplyEligibilityRules();
     }
 
-    private void OnValidationDateChanged(DateTime? value)
+    private void OnValidationDateChanged(DateTime value)
     {
-        model.ValidationDate = value ?? DateTime.MinValue;
+        model.ValidationDate = value;
         ApplyEligibilityRules();
     }
 
@@ -1425,6 +1435,7 @@
             ApplyEligibilityRules();
             await LoadFindingAsync(id);
             await LoadPaymentHistoryAsync(id);
+            await IsDeceasedLoaded.InvokeAsync(model.IsDeceased);
         }
         finally { _isLoadingRecord = false; IsLoading = false; StateHasChanged(); }
     }
@@ -1512,10 +1523,17 @@
         if (birthDate.Value.Date > today.AddYears(-age)) age--;
         return age;
     }
-
     private async Task OpenSaveConfirmationModal()
     {
         ClearMessages();
+
+        if (!model.DataPrivacyConsent || !model.IsSignedDeclaration)
+        {
+            _showValidationHints = true;
+            toast.ShowError("Please confirm both Data Privacy Consent and the Attestation/Declaration before saving.");
+            return;
+        }
+
         pendingAction = IsEditMode ? "edit" : "add";
         confirmationTitle = IsEditMode ? "Confirm Update" : "Confirm Add";
         confirmationMessage = IsEditMode
@@ -1542,11 +1560,23 @@
         catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
     }
 
-    private void OnIsDeceasedChanged(ChangeEventArgs e)
+    private async Task OnIsDeceasedChanged(ChangeEventArgs e)
     {
         if (bool.TryParse(e.Value?.ToString(), out var v)) model.IsDeceased = v;
-        if (!model.IsDeceased) model.DateOfDeath = null;
+
+        if (!model.IsDeceased)
+        {
+            model.DateOfDeath = null;
+            // ✅ NEW — clear claimant data the moment Deceased is unchecked, so
+            // re-checking it later within the same session starts from a blank
+            // form rather than resurfacing stale entries. Server-side cleanup
+            // (DeleteClaimantAsync) still fires independently on save — this is
+            // purely a client-side UX improvement, not a substitute for it.
+            model.Claimant = null;
+        }
+
         ApplyEligibilityRules();
+        await IsDeceasedLoaded.InvokeAsync(model.IsDeceased);
     }
     #endregion
 
@@ -1653,45 +1683,69 @@
             }
 
             _pendingDto = new CreateBeneficiaryInformationDto
-            {
-                Quarter = model.Quarter,
-                Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
-                RefYear = model.RefYear,
-                RefCode = null,
-                DateApplied = model.DateApplied,
-                DateEndorsed = model.DateEndorsed,
-                BatchCode = model.BatchCode,
-                OscaIdNumber = model.OscaIdNumber,
-                OscaIdDateIssued = model.OscaIdDateIssued,
-                NcscRrn = model.NcscRrn,
-                LastName = model.LastName,
-                FirstName = model.FirstName,
-                MiddleName = model.MiddleName,
-                Extension = model.Extension,
-                BirthDate = model.BirthDate,
-                PhoneNumber = model.PhoneNumber,
-                Sex = model.Sex,
-                IsIndigenousPeople = model.IsIndigenousPeople,
-                IsPersonWithDisability = model.IsPersonWithDisability,
-                CivilStatus = model.CivilStatus,
-                Citizenship = model.Citizenship,
-                PsgcCodeRegion = model.PsgcCodeRegion,
-                PsgcCodeProvince = model.PsgcCodeProvince,
-                PsgcCodeMunicipality = model.PsgcCodeMunicipality,
-                PsgcCodeBarangay = model.PsgcCodeBarangay,
-                IsCompliant = model.IsCompliant,
-                Validator = model.Validator,
-                ValidationDate = model.ValidationDate,
-                IsDeceased = model.IsDeceased,
-                AssessmentRemarks = model.AssessmentRemarks,
-                EligibilityRemarks = model.EligibilityRemarks,
-                DateOfDeath = model.DateOfDeath,
-                IsEligible = model.IsEligible,
-                RemarkCategory = model.RemarkCategory,
-                Remarks = model.Remarks,
-                IsDeleted = false,
-                BypassSoftDuplicateCheck = false
-            };
+{
+    Quarter = model.Quarter,
+    Batch = string.IsNullOrWhiteSpace(model.Batch) ? null : model.Batch,
+    RefYear = model.RefYear,
+    RefCode = null,
+    DateApplied = model.DateApplied,
+    DateEndorsed = model.DateEndorsed,
+    BatchCode = model.BatchCode,
+    OscaIdNumber = model.OscaIdNumber,
+    OscaIdDateIssued = model.OscaIdDateIssued,
+    NcscRrn = model.NcscRrn,
+    LastName = model.LastName,
+    FirstName = model.FirstName,
+    MiddleName = model.MiddleName,
+    Extension = model.Extension,
+    BirthDate = model.BirthDate,
+    PhoneNumber = model.PhoneNumber,
+    Sex = model.Sex,
+    IsIndigenousPeople = model.IsIndigenousPeople,
+    IsPersonWithDisability = model.IsPersonWithDisability,
+    CivilStatus = model.CivilStatus,
+    Citizenship = model.Citizenship,
+    PsgcCodeRegion = model.PsgcCodeRegion,
+    PsgcCodeProvince = model.PsgcCodeProvince,
+    PsgcCodeMunicipality = model.PsgcCodeMunicipality,
+    PsgcCodeBarangay = model.PsgcCodeBarangay,
+    IsCompliant = model.IsCompliant,
+    Validator = model.Validator,
+    ValidationDate = model.ValidationDate,
+    IsDeceased = model.IsDeceased,
+    AssessmentRemarks = model.AssessmentRemarks,
+    EligibilityRemarks = model.EligibilityRemarks,
+    DateOfDeath = model.DateOfDeath,
+    IsEligible = model.IsEligible,
+    RemarkCategory = model.RemarkCategory,
+    Remarks = model.Remarks,
+    IsDeleted = false,
+    BypassSoftDuplicateCheck = false,
+
+    // ✅ NEW — these were missing entirely, so every create request silently
+    // sent DataPrivacyConsent/IsSignedDeclaration as false regardless of what
+    // was checked on screen, along with every other Annex A field and
+    // sub-entity. This is the actual cause of the "must be given" error even
+    // when the checkbox is visibly checked.
+    TrackingNumber = model.TrackingNumber,
+    DataPrivacyConsent = model.DataPrivacyConsent,
+    PlaceOfSubmission = model.PlaceOfSubmission,
+    HouseNumber = model.HouseNumber,
+    StreetName = model.StreetName,
+    ZipCode = model.ZipCode,
+    DisabilityType = model.DisabilityType,
+    EthnicityName = model.EthnicityName,
+    DualCitizenshipDetails = model.DualCitizenshipDetails,
+    CivilStatusOtherDetail = model.CivilStatusOtherDetail,
+    IsSignedDeclaration = model.IsSignedDeclaration,
+    DateSigned = model.DateSigned,
+
+    FamilyMembers = model.FamilyMembers,
+    BankAccount = model.BankAccount,
+    AbroadAddress = model.AbroadAddress,
+    Claimant = model.Claimant,
+    VerificationChecklist = model.VerificationChecklist
+};
 
             await SendCreateRequestAsync(_pendingDto);
         }

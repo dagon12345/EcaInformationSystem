@@ -20,6 +20,159 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task<List<BeneficiaryFamilyMember>> GetFamilyMembersAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryFamilyMembers
+                .AsNoTracking()
+                .Where(x => x.BeneficiaryInformationId == beneficiaryId)
+                .OrderBy(x => x.RelationType)
+                .ThenBy(x => x.SortOrder)
+                .ToListAsync();
+        }
+
+        // ✅ Replace-all strategy — simplest correct approach for a small (spouse + up
+        // to ~5 children) child collection edited as a whole unit from one form
+        // section. Avoids needing to diff added/removed/reordered rows against what's
+        // already in the DB; the form always submits the full current set.
+        public async Task ReplaceFamilyMembersAsync(Guid beneficiaryId, List<BeneficiaryFamilyMember> members)
+        {
+            var existing = await _context.BeneficiaryFamilyMembers
+                .Where(x => x.BeneficiaryInformationId == beneficiaryId)
+                .ToListAsync();
+
+            if (existing.Any())
+                _context.BeneficiaryFamilyMembers.RemoveRange(existing);
+
+            foreach (var m in members)
+            {
+                m.Id = Guid.NewGuid();
+                m.BeneficiaryInformationId = beneficiaryId;
+            }
+
+            if (members.Any())
+                await _context.BeneficiaryFamilyMembers.AddRangeAsync(members);
+
+            // No SaveChangesAsync here — caller (service) commits everything in one
+            // transaction alongside the main beneficiary write, same pattern as
+            // AddPaymentHistoryEntryAsync.
+        }
+
+        public async Task<BeneficiaryBankAccount?> GetBankAccountAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+        }
+
+        public async Task UpsertBankAccountAsync(Guid beneficiaryId, BeneficiaryBankAccount account)
+        {
+            var existing = await _context.BeneficiaryBankAccounts
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+
+            if (existing == null)
+            {
+                account.Id = Guid.NewGuid();
+                account.BeneficiaryInformationId = beneficiaryId;
+                await _context.BeneficiaryBankAccounts.AddAsync(account);
+            }
+            else
+            {
+                existing.PreferredChannel = account.PreferredChannel;
+                existing.AccountNumber = account.AccountNumber;
+                existing.BankOrWalletName = account.BankOrWalletName;
+                existing.BranchName = account.BranchName;
+                existing.BankAddress = account.BankAddress;
+                existing.IsJointAccount = account.IsJointAccount;
+                existing.SwiftCode = account.SwiftCode;
+                existing.Iban = account.Iban;
+                existing.DateModified = account.DateModified;
+                existing.ModifiedBy = account.ModifiedBy;
+            }
+        }
+
+        public async Task<BeneficiaryAbroadAddress?> GetAbroadAddressAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryAbroadAddresses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+        }
+
+        public async Task UpsertAbroadAddressAsync(Guid beneficiaryId, BeneficiaryAbroadAddress address)
+        {
+            var existing = await _context.BeneficiaryAbroadAddresses
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+
+            if (existing == null)
+            {
+                address.Id = Guid.NewGuid();
+                address.BeneficiaryInformationId = beneficiaryId;
+                await _context.BeneficiaryAbroadAddresses.AddAsync(address);
+            }
+            else
+            {
+                existing.HouseNumber = address.HouseNumber;
+                existing.StreetName = address.StreetName;
+                existing.City = address.City;
+                existing.State = address.State;
+                existing.Country = address.Country;
+                existing.ZipCode = address.ZipCode;
+            }
+        }
+
+        // ✅ Called when PlaceOfSubmission flips back to Local — the abroad block no
+        // longer applies, and we don't want a stale abroad address record haunting
+        // the beneficiary after the encoder corrects the submission type.
+        public async Task DeleteAbroadAddressAsync(Guid beneficiaryId)
+        {
+            var existing = await _context.BeneficiaryAbroadAddresses
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+            if (existing != null)
+                _context.BeneficiaryAbroadAddresses.Remove(existing);
+        }
+
+        public async Task<BeneficiaryClaimant?> GetClaimantAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryClaimants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+        }
+
+        public async Task UpsertClaimantAsync(Guid beneficiaryId, BeneficiaryClaimant claimant)
+        {
+            var existing = await _context.BeneficiaryClaimants
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+
+            if (existing == null)
+            {
+                claimant.Id = Guid.NewGuid();
+                claimant.BeneficiaryInformationId = beneficiaryId;
+                await _context.BeneficiaryClaimants.AddAsync(claimant);
+            }
+            else
+            {
+                existing.LastName = claimant.LastName;
+                existing.FirstName = claimant.FirstName;
+                existing.MiddleName = claimant.MiddleName;
+                existing.Extension = claimant.Extension;
+                existing.ContactNumber = claimant.ContactNumber;
+                existing.RelationshipToDeceased = claimant.RelationshipToDeceased;
+                existing.HouseNumber = claimant.HouseNumber;
+                existing.StreetName = claimant.StreetName;
+                existing.Barangay = claimant.Barangay;
+                existing.CityMunicipality = claimant.CityMunicipality;
+                existing.Province = claimant.Province;
+                existing.ZipCode = claimant.ZipCode;
+            }
+        }
+
+        // ✅ Called when IsDeceased flips back to false — mirrors DeleteAbroadAddressAsync.
+        public async Task DeleteClaimantAsync(Guid beneficiaryId)
+        {
+            var existing = await _context.BeneficiaryClaimants
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+            if (existing != null)
+                _context.BeneficiaryClaimants.Remove(existing);
+        }
         public async Task<List<DuplicateCheckCandidateDto>> GetDuplicateCheckPoolAsync()
         {
             return await _context.BeneficiaryInformations
@@ -1065,7 +1218,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
                     // ✅ NEW — now sourced from the finding join
                     FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
-                    FindingRemarks = finding != null ? finding.FindingRemarks : null
+                    FindingRemarks = finding != null ? finding.FindingRemarks : null,
+
+                    // ✅ NEW — Annex A flat fields were missing from this projection entirely,
+                    // so they always came back as default(bool)/null regardless of what was
+                    // actually stored, even though UpdateAnnexADetails() correctly persisted
+                    // them to the entity on save.
+                    TrackingNumber = b.TrackingNumber,
+                    DataPrivacyConsent = b.DataPrivacyConsent,
+                    PlaceOfSubmission = b.PlaceOfSubmission,
+                    HouseNumber = b.HouseNumber,
+                    StreetName = b.StreetName,
+                    ZipCode = b.ZipCode,
+                    DisabilityType = b.DisabilityType,
+                    EthnicityName = b.EthnicityName,
+                    DualCitizenshipDetails = b.DualCitizenshipDetails,
+                    CivilStatusOtherDetail = b.CivilStatusOtherDetail,
+                    IsSignedDeclaration = b.IsSignedDeclaration,
+                    DateSigned = b.DateSigned
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 
@@ -1223,7 +1393,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  CoDateEndorsed = b.CoDateEndorsed,
                  CoDateApproved = b.CoDateApproved,
                  Remarks = b.Remarks,
-                 IsDeleted = b.IsDeleted
+                 IsDeleted = b.IsDeleted,
+                 // ✅ NEW — Annex A flat fields
+                 TrackingNumber = b.TrackingNumber,
+                 DataPrivacyConsent = b.DataPrivacyConsent,
+                 PlaceOfSubmission = b.PlaceOfSubmission,
+                 HouseNumber = b.HouseNumber,
+                 StreetName = b.StreetName,
+                 ZipCode = b.ZipCode,
+                 DisabilityType = b.DisabilityType,
+                 EthnicityName = b.EthnicityName,
+                 DualCitizenshipDetails = b.DualCitizenshipDetails,
+                 CivilStatusOtherDetail = b.CivilStatusOtherDetail,
+                 IsSignedDeclaration = b.IsSignedDeclaration,
+                 DateSigned = b.DateSigned
              })
              .AsNoTracking()
              .ToListAsync();
@@ -2309,7 +2492,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .Any(d => d.BeneficiaryInformationId == x.Beneficiary.Id && !d.IsDeleted),
                     CgpPageNumber = x.Beneficiary.CgpPageNumber,
                     CgpGenerationId = x.Beneficiary.CgpGenerationId,
-                    CgpPrefix = x.Beneficiary.CgpPrefix
+                    CgpPrefix = x.Beneficiary.CgpPrefix,
+                    TrackingNumber = x.Beneficiary.TrackingNumber,
+                    DataPrivacyConsent = x.Beneficiary.DataPrivacyConsent,
+                    PlaceOfSubmission = x.Beneficiary.PlaceOfSubmission,
+                    HouseNumber = x.Beneficiary.HouseNumber,
+                    StreetName = x.Beneficiary.StreetName,
+                    ZipCode = x.Beneficiary.ZipCode,
+                    DisabilityType = x.Beneficiary.DisabilityType,
+                    EthnicityName = x.Beneficiary.EthnicityName,
+                    DualCitizenshipDetails = x.Beneficiary.DualCitizenshipDetails,
+                    CivilStatusOtherDetail = x.Beneficiary.CivilStatusOtherDetail,
+                    IsSignedDeclaration = x.Beneficiary.IsSignedDeclaration,
+                    DateSigned = x.Beneficiary.DateSigned
                 });
         }
 
@@ -2379,7 +2574,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             HasDocuments = x.HasDocuments,
             CgpPageNumber = x.CgpPageNumber,
             CgpGenerationId = x.CgpGenerationId,
-            CgpPrefix = x.CgpPrefix
+            CgpPrefix = x.CgpPrefix,
+            // ✅ NEW
+            TrackingNumber = x.TrackingNumber,
+            DataPrivacyConsent = x.DataPrivacyConsent,
+            PlaceOfSubmission = x.PlaceOfSubmission,
+            HouseNumber = x.HouseNumber,
+            StreetName = x.StreetName,
+            ZipCode = x.ZipCode,
+            DisabilityType = x.DisabilityType,
+            EthnicityName = x.EthnicityName,
+            DualCitizenshipDetails = x.DualCitizenshipDetails,
+            CivilStatusOtherDetail = x.CivilStatusOtherDetail,
+            IsSignedDeclaration = x.IsSignedDeclaration,
+            DateSigned = x.DateSigned
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -2523,7 +2731,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         ProvinceName = province != null ? province.Name : null,
                         MunicipalityName = municipality != null ? municipality.Name : null,
                         BarangayName = barangay != null ? barangay.Name : null,
-                        RowVersion = b.RowVersion
+                        RowVersion = b.RowVersion,
+                        // ✅ NEW
+                        TrackingNumber = b.TrackingNumber,
+                        DataPrivacyConsent = b.DataPrivacyConsent,
+                        PlaceOfSubmission = b.PlaceOfSubmission,
+                        HouseNumber = b.HouseNumber,
+                        StreetName = b.StreetName,
+                        ZipCode = b.ZipCode,
+                        DisabilityType = b.DisabilityType,
+                        EthnicityName = b.EthnicityName,
+                        DualCitizenshipDetails = b.DualCitizenshipDetails,
+                        CivilStatusOtherDetail = b.CivilStatusOtherDetail,
+                        IsSignedDeclaration = b.IsSignedDeclaration,
+                        DateSigned = b.DateSigned
                     }
                 ).AsNoTracking().ToListAsync();
 
@@ -2602,6 +2823,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     (x.BirthDate.Year + 85) <= DateTime.Today.Year && (x.BirthDate.Year + 85) >= 2024 ? x.BirthDate.Year + 85 :
                     (x.BirthDate.Year + 80) <= DateTime.Today.Year && (x.BirthDate.Year + 80) >= 2024 ? x.BirthDate.Year + 80 :
                     0,
+                // ✅ NEW
+                TrackingNumber = x.TrackingNumber,
+                DataPrivacyConsent = x.DataPrivacyConsent,
+                PlaceOfSubmission = x.PlaceOfSubmission,
+                HouseNumber = x.HouseNumber,
+                StreetName = x.StreetName,
+                ZipCode = x.ZipCode,
+                DisabilityType = x.DisabilityType,
+                EthnicityName = x.EthnicityName,
+                DualCitizenshipDetails = x.DualCitizenshipDetails,
+                CivilStatusOtherDetail = x.CivilStatusOtherDetail,
+                IsSignedDeclaration = x.IsSignedDeclaration,
+                DateSigned = x.DateSigned
             }).ToList();
 
             return result;
@@ -3022,6 +3256,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? MunicipalityName { get; set; }
             public string? BarangayName { get; set; }
             public byte[]? RowVersion { get; set; }
+            // ✅ NEW — Annex A flat fields
+            public string? TrackingNumber { get; set; }
+            public bool DataPrivacyConsent { get; set; }
+            public int? PlaceOfSubmission { get; set; }
+            public string? HouseNumber { get; set; }
+            public string? StreetName { get; set; }
+            public string? ZipCode { get; set; }
+            public string? DisabilityType { get; set; }
+            public string? EthnicityName { get; set; }
+            public string? DualCitizenshipDetails { get; set; }
+            public string? CivilStatusOtherDetail { get; set; }
+            public bool IsSignedDeclaration { get; set; }
+            public DateTime? DateSigned { get; set; }
         }
         // Add this helper method if not already present
         private static string FormatDuplicateName(
@@ -3168,6 +3415,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public int? CgpPageNumber { get; set; }
             public Guid? CgpGenerationId { get; set; }
             public string? CgpPrefix { get; set; }
+            // ✅ NEW — Annex A flat fields
+            public string? TrackingNumber { get; set; }
+            public bool DataPrivacyConsent { get; set; }
+            public int? PlaceOfSubmission { get; set; }
+            public string? HouseNumber { get; set; }
+            public string? StreetName { get; set; }
+            public string? ZipCode { get; set; }
+            public string? DisabilityType { get; set; }
+            public string? EthnicityName { get; set; }
+            public string? DualCitizenshipDetails { get; set; }
+            public string? CivilStatusOtherDetail { get; set; }
+            public bool IsSignedDeclaration { get; set; }
+            public DateTime? DateSigned { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

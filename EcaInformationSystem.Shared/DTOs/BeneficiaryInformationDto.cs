@@ -83,6 +83,25 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? CgpPageNumber { get; set; }
         public Guid? CgpGenerationId { get; set; }
         public string? CgpPrefix { get; set; }
+        // ✅ NEW — Annex A (2026) flat fields
+        public string? TrackingNumber { get; set; }
+        public bool DataPrivacyConsent { get; set; }
+        public int? PlaceOfSubmission { get; set; }
+        public string? HouseNumber { get; set; }
+        public string? StreetName { get; set; }
+        public string? ZipCode { get; set; }
+        public string? DisabilityType { get; set; }
+        public string? EthnicityName { get; set; }
+        public string? DualCitizenshipDetails { get; set; }
+        public string? CivilStatusOtherDetail { get; set; }
+        public bool IsSignedDeclaration { get; set; }
+        public DateTime? DateSigned { get; set; }
+        // ✅ NEW — nested sub-entities (null-safe: absent until saved)
+        public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
+        public BeneficiaryBankAccountDto? BankAccount { get; set; }
+        public BeneficiaryAbroadAddressDto? AbroadAddress { get; set; }
+        public BeneficiaryClaimantDto? Claimant { get; set; }
+        public BeneficiaryVerificationChecklistDto? VerificationChecklist { get; set; }
         private string GetJsonString(JsonElement? element)
         {
             if (element == null) return string.Empty;

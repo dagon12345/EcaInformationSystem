@@ -1,0 +1,192 @@
+@* BeneficiaryFamilySection.razor — Annex A Section D: Family Information *@
+@using EcaInformationSystem.Shared.DTOs
+
+<div class="annexa-section">
+    <div class="annexa-header">
+        <span class="annexa-letter">D.</span> FAMILY INFORMATION
+    </div>
+    <div class="annexa-body">
+
+        @* ── D.1/D.2 Spouse ── *@
+        <div class="annexa-subsection" style="border-top: none; margin-top: 0; padding-top: 0;">
+            <div class="annexa-subsection-title">D.1 Name of Spouse <span class="annexa-item-note">(Last Name, First Name, Middle Name, Ext.)</span></div>
+            @{
+                var spouse = FamilyMembers.FirstOrDefault(f => f.RelationType == 1);
+            }
+            <div class="annexa-grid cols-4">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Last Name</span>
+                    <input class="annexa-input" value="@spouse?.LastName"
+                           @onchange="@(e => UpdateSpouseField(f => f.LastName = e.Value?.ToString()))" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">First Name</span>
+                    <input class="annexa-input" value="@spouse?.FirstName"
+                           @onchange="@(e => UpdateSpouseField(f => f.FirstName = e.Value?.ToString()))" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Middle Name</span>
+                    <input class="annexa-input" value="@spouse?.MiddleName"
+                           @onchange="@(e => UpdateSpouseField(f => f.MiddleName = e.Value?.ToString()))" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Ext.</span>
+                    <input class="annexa-input" placeholder="Jr./Sr./III" value="@spouse?.Extension"
+                           @onchange="@(e => UpdateSpouseField(f => f.Extension = e.Value?.ToString()))" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">D.2 Contact Number</span>
+                    <input class="annexa-input" value="@spouse?.ContactNumber"
+                           @onchange="@(e => UpdateSpouseField(f => f.ContactNumber = e.Value?.ToString()))" />
+                </div>
+            </div>
+            @if (spouse != null && HasAnySpouseData(spouse))
+            {
+                <button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" @onclick="ClearSpouse">
+                    <i class="bi bi-x-circle me-1"></i>Clear spouse info
+                </button>
+            }
+        </div>
+
+        @* ── D.3–D.6 Children ── *@
+        <div class="annexa-subsection">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="annexa-subsection-title mb-0">
+                    D.3 Name of Children <span class="annexa-item-note">(Put * if living with the grantee. Use separate sheet if necessary.)</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-light" @onclick="AddChild">
+                    <i class="bi bi-plus-circle me-1"></i>Add Child
+                </button>
+            </div>
+
+            @if (!Children.Any())
+            {
+                <p class="annexa-note mb-0">No children added. Click "Add Child" if applicable.</p>
+            }
+            else
+            {
+                @for (int i = 0; i < Children.Count; i++)
+                {
+                    var index = i;
+                    var child = Children[index];
+                    <div class="border rounded p-2 mb-2" style="background:#f8f9fb; border-color:#c8d1de !important;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="annexa-item-label mb-0">Child @(index + 1)</span>
+                            <button type="button" class="btn btn-link btn-sm text-danger p-0" @onclick="() => RemoveChild(index)">
+                                <i class="bi bi-trash me-1"></i>Remove
+                            </button>
+                        </div>
+                        <div class="annexa-grid cols-4">
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">Last Name</span>
+                                <input class="annexa-input" value="@child.LastName"
+                                       @onchange="@(e => { child.LastName = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">First Name</span>
+                                <input class="annexa-input" value="@child.FirstName"
+                                       @onchange="@(e => { child.FirstName = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">Middle Name</span>
+                                <input class="annexa-input" value="@child.MiddleName"
+                                       @onchange="@(e => { child.MiddleName = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">Ext.</span>
+                                <input class="annexa-input" placeholder="Jr./Sr./III" value="@child.Extension"
+                                       @onchange="@(e => { child.Extension = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">D.4 Sex</span>
+                                <select class="annexa-select" value="@child.Sex"
+                                        @onchange="@(e => { child.Sex = ParseNullableInt(e.Value); NotifyChanged(); })">
+                                    <option value="">Select</option>
+                                    <option value="1">Male</option>
+                                    <option value="2">Female</option>
+                                </select>
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">D.5 Age</span>
+                                <input type="number" class="annexa-input" value="@child.Age" min="0" max="150"
+                                       @onchange="@(e => { child.Age = ParseNullableInt(e.Value); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field">
+                                <span class="annexa-item-label">D.6 Contact Number</span>
+                                <input class="annexa-input" value="@child.ContactNumber"
+                                       @onchange="@(e => { child.ContactNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                            </div>
+                            <div class="annexa-field justify-content-end">
+                                <label class="annexa-checkbox-item">
+                                    <input type="checkbox" checked="@child.IsLivingWithGrantee"
+                                           @onchange="@(e => { child.IsLivingWithGrantee = (bool)(e.Value ?? false); NotifyChanged(); })" />
+                                    * Living with grantee
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
+    [Parameter] public EventCallback<List<BeneficiaryFamilyMemberDto>> FamilyMembersChanged { get; set; }
+
+    private List<BeneficiaryFamilyMemberDto> Children =>
+        FamilyMembers.Where(f => f.RelationType == 2).ToList();
+
+    private bool HasAnySpouseData(BeneficiaryFamilyMemberDto s) =>
+        !string.IsNullOrWhiteSpace(s.LastName) || !string.IsNullOrWhiteSpace(s.FirstName) ||
+        !string.IsNullOrWhiteSpace(s.MiddleName) || !string.IsNullOrWhiteSpace(s.ContactNumber);
+
+    private void UpdateSpouseField(Action<BeneficiaryFamilyMemberDto> mutate)
+    {
+        var spouse = FamilyMembers.FirstOrDefault(f => f.RelationType == 1);
+        if (spouse == null)
+        {
+            spouse = new BeneficiaryFamilyMemberDto { RelationType = 1, SortOrder = 0 };
+            FamilyMembers.Add(spouse);
+        }
+        mutate(spouse);
+        NotifyChanged();
+    }
+
+    private void ClearSpouse()
+    {
+        FamilyMembers.RemoveAll(f => f.RelationType == 1);
+        NotifyChanged();
+    }
+
+    private void AddChild()
+    {
+        FamilyMembers.Add(new BeneficiaryFamilyMemberDto
+        {
+            RelationType = 2,
+            SortOrder = Children.Count
+        });
+        NotifyChanged();
+    }
+
+    private void RemoveChild(int displayIndex)
+    {
+        var child = Children[displayIndex];
+        FamilyMembers.Remove(child);
+        NotifyChanged();
+    }
+
+    private int? ParseNullableInt(object? value)
+    {
+        var str = value?.ToString();
+        return int.TryParse(str, out var result) ? result : null;
+    }
+
+    private void NotifyChanged()
+    {
+        FamilyMembersChanged.InvokeAsync(FamilyMembers);
+        StateHasChanged();
+    }
+}
