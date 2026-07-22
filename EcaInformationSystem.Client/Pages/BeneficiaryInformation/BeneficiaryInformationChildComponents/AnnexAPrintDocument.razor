@@ -1,0 +1,514 @@
+@using EcaInformationSystem.Shared.DTOs
+@inject IJSRuntime JS
+
+<div class="annexa-doc" id="annex-a-print-target">
+
+    @* ══════════════════ HEADER — logos + agency text ══════════════════ *@
+    <div class="annexa-doc-header-row">
+        <img src="@_ncscLogoSrc" alt="NCSC Seal" class="annexa-doc-logo-left" />
+        <div class="annexa-doc-header-text">
+            <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+            <div class="annexa-doc-header-line1">Office of the President</div>
+            <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+            <div class="annexa-doc-header-address">
+                Penthouse, The Upper Class Tower, Quezon Avenue Corner Scout Reyes,<br />
+                Barangay Paligsahan, District 4, Quezon City
+            </div>
+        </div>
+        <img src="@_bagongLogoSrc" alt="Bagong Pilipinas" class="annexa-doc-logo-right" />
+    </div>
+
+    <div class="annexa-doc-annex-tag">
+        <div class="fw-bold">ANNEX A</div>
+        <div class="annexa-doc-annex-subtag">This form is not for sale.</div>
+    </div>
+
+    @* ══════════════════ TITLE BLOCK ══════════════════ *@
+    <div class="annexa-doc-title-box">
+        <div class="annexa-doc-title-main">GRANTEE/CLAIMANT FORM</div>
+        <div class="annexa-doc-title-script">"Honoring Filipino Octogenarians, Nonagenarians and Centenarians"</div>
+        <div class="annexa-doc-purpose-block">
+            <strong>PURPOSE:</strong> To claim the cash gift under Republic Act (R.A.) No. 11982.<br />
+            <strong>INSTRUCTIONS:</strong>
+            <ol class="mb-0 ps-3">
+                <li>Fill-out this form completely and correctly.</li>
+                <li>Do not leave any blank space. If not applicable, kindly indicate "N/A".</li>
+                <li>Write legibly and in CAPITAL letters.</li>
+            </ol>
+        </div>
+    </div>
+
+    @* ══════════════════ A. DATA PRIVACY CONSENT ══════════════════ *@
+    <div class="annexa-doc-bar">A. DATA PRIVACY CONSENT</div>
+    <div class="annexa-doc-section-body">
+        <p class="annexa-doc-legal-text">
+            In compliance with R.A. No. 10173, known as the "Data Privacy Act of 2012", its Implementing Rules and
+            Regulations, and issuances of the National Privacy Commission, I hereby consent the NCSC to collect,
+            use, and process my personal information for the implementation of the R.A. No. 11982 or the ECA.
+        </p>
+        <table class="annexa-doc-table">
+    <tr>
+        <td style="width:50%;">
+            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.DataPrivacyConsent ? "checked" : "")"></span>Consent</span>
+        </td>
+        <td style="width:50%;">
+            <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.DataPrivacyConsent ? "checked" : "")"></span>Dissent</span>
+        </td>
+    </tr>
+</table>
+    </div>
+
+    @* ══════════════════ B. PLACE OF SUBMISSION ══════════════════ *@
+    <div class="annexa-doc-bar">B. PLACE OF SUBMISSION</div>
+    <div class="annexa-doc-section-body">
+       <table class="annexa-doc-table">
+    <tr>
+        <td style="width:50%;">
+            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.PlaceOfSubmission == 1 ? "checked" : "")"></span>Local (within the PH)</span>
+        </td>
+        <td style="width:50%;">
+            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.PlaceOfSubmission == 2 ? "checked" : "")"></span>Abroad</span>
+        </td>
+    </tr>
+</table>
+    </div>
+
+    @* ══════════════════ C. PERSONAL INFORMATION ══════════════════ *@
+    <div class="annexa-doc-bar">C. PERSONAL INFORMATION</div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">C. 1 NCSC Registration Reference Number:</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.NcscRrn?.ToString() ?? "—")</span>
+            </td>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">C.2 LGU OSCA ID Number:</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.OscaIdNumber ?? "—")</span>
+            </td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-field-label">C.3 FIRST NAME</span><span class="annexa-doc-field-value">@Beneficiary.FirstName</span></td>
+            <td><span class="annexa-doc-field-label">C.4 MIDDLE NAME</span><span class="annexa-doc-field-value">@(Beneficiary.MiddleName ?? "—")</span></td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-field-label">C.5 LAST NAME</span><span class="annexa-doc-field-value">@(Beneficiary.LastName ?? "—")</span></td>
+            <td><span class="annexa-doc-field-label">C.6 SUFFIX <em>(Sr./Jr./II/III)</em></span><span class="annexa-doc-field-value">@(Beneficiary.Extension ?? "N/A")</span></td>
+        </tr>
+        <tr>
+            <td>
+                <span class="annexa-doc-field-label">C.7 DATE OF BIRTH <em>(Month/Date/Year)</em></span>
+                <span class="annexa-doc-field-note">Attach photocopies of primary or secondary IDs, whichever is available, to present original upon submission)</span>
+                <span class="annexa-doc-field-value">@Beneficiary.BirthDate.ToString("MMMM/dd/yyyy") &nbsp; (Age @Beneficiary.Age)</span>
+            </td>
+            <td>
+                <span class="annexa-doc-field-label">C.8 CONTACT NUMBER/S</span>
+                <span class="annexa-doc-field-note">(This will receive updates/status on the cash gift)</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.PhoneNumber ?? "—")</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" class="annexa-doc-nested-wrap">
+                <div class="annexa-doc-subheader">C.9.1 ADDRESS IN THE PHILIPPINES</div>
+                <table class="annexa-doc-table annexa-doc-table--nested">
+                     <colgroup>
+                        <col style="width:12%;">
+                        <col style="width:20%;">
+                        <col style="width:18%;">
+                        <col style="width:20%;">
+                        <col style="width:16%;">
+                        <col style="width:14%;">
+                    </colgroup>
+                    <tr class="annexa-doc-col-headers">
+                        <td>House #</td><td>Street name</td><td>Barangay</td><td>City/Municipality</td><td>Province</td><td>Zip Code</td>
+                    </tr>
+                    <tr>
+                        <td>@(Beneficiary.HouseNumber ?? "—")</td>
+                        <td>@(Beneficiary.StreetName ?? "—")</td>
+                        <td>@(Beneficiary.BarangayName ?? "—")</td>
+                        <td>@(Beneficiary.MunicipalityName ?? "—")</td>
+                        <td>@(Beneficiary.ProvinceName ?? "—")</td>
+                        <td>@(Beneficiary.ZipCode ?? "—")</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" class="annexa-doc-nested-wrap"">
+                <div class="annexa-doc-subheader">C.9.2 ADDRESS ABROAD <em>(for living abroad only)</em></div>
+                <table class="annexa-doc-table annexa-doc-table--nested">
+                     <colgroup>
+                        <col style="width:12%;">
+                        <col style="width:20%;">
+                        <col style="width:18%;">
+                        <col style="width:20%;">
+                        <col style="width:16%;">
+                        <col style="width:14%;">
+                    </colgroup>
+                    <tr class="annexa-doc-col-headers">
+                        <td>House #</td><td>Street name</td><td>City</td><td>State</td><td>Country</td><td>Zip Code</td>
+                    </tr>
+                    <tr>
+                        @if (Beneficiary.PlaceOfSubmission == 2 && Beneficiary.AbroadAddress != null)
+                        {
+                            <td>@(Beneficiary.AbroadAddress.HouseNumber ?? "—")</td>
+                            <td>@(Beneficiary.AbroadAddress.StreetName ?? "—")</td>
+                            <td>@(Beneficiary.AbroadAddress.City ?? "—")</td>
+                            <td>@(Beneficiary.AbroadAddress.State ?? "—")</td>
+                            <td>@(Beneficiary.AbroadAddress.Country ?? "—")</td>
+                            <td>@(Beneficiary.AbroadAddress.ZipCode ?? "—")</td>
+                        }
+                        else
+                        {
+                            <td colspan="6" class="text-muted fst-italic">N/A — Local submission</td>
+                        }
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="annexa-doc-field-label">C.10 SEX</span>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.Sex == 1 ? "checked" : "")"></span>Male</span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.Sex == 2 ? "checked" : "")"></span>Female</span></div>
+
+                <span class="annexa-doc-field-label mt-2 d-block">C.11 CIVIL STATUS</span>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.CivilStatus == 1 ? "checked" : "")"></span>Single</span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.CivilStatus == 3 ? "checked" : "")"></span>Married</span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.CivilStatus == 2 ? "checked" : "")"></span>Widow/Widower</span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.CivilStatus == 4 ? "checked" : "")"></span>Common-Law</span></div>
+                <div>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.CivilStatus == 5 ? "checked" : "")"></span>Others</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.CivilStatus == 5 ? (Beneficiary.CivilStatusOtherDetail ?? "—") : "")</span>
+                </div>
+            </td>
+            <td>
+                <span class="annexa-doc-field-label">C.12 CITIZENSHIP</span>
+                <div><span class="annexa-doc-checkbox"><span class="box @(Beneficiary.Citizenship == 1 ? "checked" : "")"></span>Filipino</span></div>
+                <div>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.Citizenship == 2 ? "checked" : "")"></span>Dual citizen. Indicate details:</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.Citizenship == 2 ? (Beneficiary.DualCitizenshipDetails ?? "—") : "")</span>
+                </div>
+
+                <div class="mt-2">
+                    <span class="annexa-doc-field-label">C.13 DISABILITY</span><br />
+                    <span class="annexa-doc-field-note">Are you a person with impairment / disability?</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsPersonWithDisability ? "checked" : "")"></span>Yes</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsPersonWithDisability ? "checked" : "")"></span>No</span><br />
+                    <span class="annexa-doc-field-note">If yes, state the type of disability:</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.IsPersonWithDisability ? (Beneficiary.DisabilityType ?? "—") : "")</span>
+                </div>
+
+                <div class="mt-2">
+                    <span class="annexa-doc-field-label">C.14 ETHNICITY</span><br />
+                    <span class="annexa-doc-field-note">Are you a member of the Indigenous Peoples (IP)?</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsIndigenousPeople ? "checked" : "")"></span>Yes</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsIndigenousPeople ? "checked" : "")"></span>No</span>
+                    <span class="annexa-doc-field-note">If yes, indicate the name:</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.IsIndigenousPeople ? (Beneficiary.EthnicityName ?? "—") : "")</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+    <div class="annexa-doc-page-label">PAGE 1 OF 4</div>
+    <div class="annexa-doc-footer">@ChildContent1</div>
+
+    <div class="page-break"></div>
+
+    @* ══════════════════ D. FAMILY INFORMATION ══════════════════ *@
+    <div class="annexa-doc-bar">D. FAMILY INFORMATION</div>
+    @{
+        var spouse = Beneficiary.FamilyMembers?.FirstOrDefault(f => f.RelationType == 1);
+        var children = Beneficiary.FamilyMembers?.Where(f => f.RelationType == 2).OrderBy(f => f.SortOrder).ToList() ?? new();
+    }
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:75%;">
+                <span class="annexa-doc-field-label">D.1 NAME OF SPOUSE <em>(Last Name, First Name, Middle Name, Ext.)</em></span>
+                <span class="annexa-doc-field-value">@(spouse == null ? "—" : $"{spouse.LastName}, {spouse.FirstName} {spouse.MiddleName} {spouse.Extension}".Trim())</span>
+            </td>
+            <td style="width:25%;">
+                <span class="annexa-doc-field-label">D.2 CONTACT NUMBER</span>
+                <span class="annexa-doc-field-value">@(spouse?.ContactNumber ?? "—")</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" class="annexa-doc-nested-wrap"">
+                <table class="annexa-doc-table annexa-doc-table--nested">
+                    <tr class="annexa-doc-col-headers">
+                        <td style="width:52%;">D.3 NAME OF CHILDREN <em>(Last, First, Middle, Ext.) — put * if living with the grantee</em></td>
+                        <td style="width:12%;">D.4 SEX</td>
+                        <td style="width:12%;">D.5 AGE</td>
+                        <td style="width:24%;">D.6 CONTACT NUMBERS</td>
+                    </tr>
+                    @if (!children.Any())
+                    {
+                        <tr><td colspan="4" class="text-muted fst-italic">No children on file.</td></tr>
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < children.Count; i++)
+                        {
+                            var c = children[i];
+                            <tr>
+                                <td>@(i + 1)) @c.LastName, @c.FirstName @c.MiddleName @c.Extension @(c.IsLivingWithGrantee ? "*" : "")</td>
+                                <td>@(c.Sex.HasValue ? (c.Sex == 1 ? "Male" : "Female") : "—")</td>
+                                <td>@(c.Age?.ToString() ?? "—")</td>
+                                <td>@(c.ContactNumber ?? "—")</td>
+                            </tr>
+                        }
+                    }
+                    <tr><td colspan="4" class="text-muted" style="font-size:9px;"><em>Note: Use separate sheet, if necessary</em></td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ E. TRANSACTION ACCOUNT ══════════════════ *@
+    @{ var bankAcct = Beneficiary.BankAccount; var channel = bankAcct?.PreferredChannel ?? 0; }
+    <div class="annexa-doc-bar">
+        E. GRANTEE'S TRANSACTION ACCOUNT <em style="font-weight:400; font-size:9px;">(If grantee is deceased, skip this and proceed to Section F)</em>
+    </div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:70%;">
+                <span class="annexa-doc-field-label">E.1 PREFERRED MODE TO RECEIVE THE CASH GIFT</span>
+                <span class="annexa-doc-field-note">(please check only one and make sure this is under the Grantee's name)</span>
+                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 1 ? "checked" : "")"></span>Landbank of the Philippines <em>(PISO or Savings Account)</em></span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 2 ? "checked" : "")"></span>Other Banks <em>(rural banks / overseas banks)</em></span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 3 ? "checked" : "")"></span>Electronic Money Issuers (EMIs) <em>e.g. GCash, Maya, GoTyme</em></span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 4 ? "checked" : "")"></span>Payment Service Providers (PSP) through Palawan Pawnshop</span></div>
+                <div class="annexa-doc-field-note mt-1">Note: Existing GSIS and SSS Pension Bank Accounts is recommended for this purpose.</div>
+            </td>
+            <td style="width:30%;">
+                <div class="annexa-doc-field-note">
+                    <strong>Note:</strong>
+                    <ul class="ps-3 mb-1">
+                        <li>For bank accounts, attach bank-stamped deposit slip reflecting the name of claimant (especially for joint accounts)</li>
+                        <li>For EMIs or online bank transactions, attach screenshot of successful electronic transfer slip reflecting account number and name of claimant</li>
+                    </ul>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="annexa-doc-field-label">E.2 ACCOUNT DETAILS</span>
+                <div class="row g-1 mt-1">
+                    <div class="col-6"><span class="annexa-doc-field-note">Account No.:</span> <span class="annexa-doc-underline-value">@(bankAcct?.AccountNumber ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">Bank/E-Wallet name (no acronyms):</span> <span class="annexa-doc-underline-value">@(bankAcct?.BankOrWalletName ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">Branch Name (no acronyms):</span> <span class="annexa-doc-underline-value">@(bankAcct?.BranchName ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">Bank Address:</span> <span class="annexa-doc-underline-value">@(bankAcct?.BankAddress ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">Is this a Joint Account (Yes/No)?</span> <span class="annexa-doc-underline-value">@(bankAcct?.IsJointAccount switch { true => "Yes", false => "No", null => "—" })</span></div>
+                </div>
+                <div class="mt-1"><em>For Living Abroad Only:</em></div>
+                <div class="row g-1">
+                    <div class="col-6"><span class="annexa-doc-field-note">BIC/SWIFTCODE:</span> <span class="annexa-doc-underline-value">@(bankAcct?.SwiftCode ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">IBAN for European Countries:</span> <span class="annexa-doc-underline-value">@(bankAcct?.Iban ?? "—")</span></div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ F. FOR DECEASED GRANTEES ══════════════════ *@
+    <div class="annexa-doc-bar">F. FOR DECEASED GRANTEES <em style="font-weight:400; font-size:9px;">(Attach sworn or notarized Warranty and Release From Liability Form)</em></div>
+    <table class="annexa-doc-table">
+        @if (!Beneficiary.IsDeceased)
+        {
+            <tr><td class="text-muted fst-italic">N/A — Grantee is not deceased.</td></tr>
+        }
+        else
+        {
+            <tr>
+                <td style="width:60%;">
+                    <span class="annexa-doc-field-label">F.1. DATE OF DEATH</span>
+                    <span class="annexa-doc-field-value">@(Beneficiary.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                </td>
+                <td style="width:40%;">
+                    <span class="annexa-doc-field-label">F.2 CONTACT NUMBER OF CLAIMANT</span>
+                    <span class="annexa-doc-field-value">@(Beneficiary.Claimant?.ContactNumber ?? "—")</span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <span class="annexa-doc-field-label">F.3. NAME OF CLAIMANT <em>(Last Name, First Name, Middle Name, Ext.)</em></span>
+                    <span class="annexa-doc-field-value">
+                        @(Beneficiary.Claimant == null ? "—" : $"{Beneficiary.Claimant.LastName}, {Beneficiary.Claimant.FirstName} {Beneficiary.Claimant.MiddleName} {Beneficiary.Claimant.Extension}".Trim())
+                    </span>
+                    <div class="annexa-doc-field-note mt-1">
+                        Note: In case/s the Grantee is without known immediate relatives or next of kin, the caregiver or
+                        the facility's management that provided care, shelter, and/or other essential support, including
+                        the payment of medical and related expenses for the grantee's, may claim on behalf of the deceased,
+                        provided that there is a certification issued by the concerned Local Government Unit (LGU) or
+                        Residential Care Facility (RCF).
+                    </div>
+                </td>
+            </tr>
+        }
+    </table>
+    <div class="annexa-doc-page-label">PAGE 2 OF 4</div>
+    <div class="annexa-doc-footer">@ChildContent1</div>
+
+    <div class="page-break"></div>
+
+    @if (Beneficiary.IsDeceased)
+    {
+        <table class="annexa-doc-table">
+            <tr>
+                <td colspan="2">
+                    <span class="annexa-doc-field-label">F.4. PERMANENT ADDRESS OF THE CLAIMANT IN THE PHILIPPINES OR ABROAD</span>
+                    <table class="annexa-doc-table annexa-doc-table--nested">
+                        <tr class="annexa-doc-col-headers">
+                            <td>House number</td><td>Street</td><td>Barangay</td><td>City/Municipality</td><td>Province</td><td>Zip Code</td>
+                        </tr>
+                        <tr>
+                            <td>@(Beneficiary.Claimant?.HouseNumber ?? "—")</td>
+                            <td>@(Beneficiary.Claimant?.StreetName ?? "—")</td>
+                            <td>@(Beneficiary.Claimant?.Barangay ?? "—")</td>
+                            <td>@(Beneficiary.Claimant?.CityMunicipality ?? "—")</td>
+                            <td>@(Beneficiary.Claimant?.Province ?? "—")</td>
+                            <td>@(Beneficiary.Claimant?.ZipCode ?? "—")</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <span class="annexa-doc-field-label">F.5. RELATIONSHIP TO THE DECEASED</span>
+                    <span class="annexa-doc-field-note">(attach photocopy of PSA/LCR or equivalent documents as proof of relationship, to present original copies upon submission)</span>
+                    <span class="annexa-doc-field-value">@(Beneficiary.Claimant?.RelationshipToDeceased ?? "—")</span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <span class="annexa-doc-field-label">F.6. CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT &amp; F.7. ACCOUNT DETAILS</span>
+                    <div class="annexa-doc-note">Per office policy, the claimant is paid out using the grantee's own transaction account on file (Section E above) rather than a separate claimant account.</div>
+                </td>
+            </tr>
+        </table>
+    }
+
+    @* ══════════════════ G. ATTESTATION ══════════════════ *@
+    <div class="annexa-doc-bar">G. ATTESTATION / CERTIFICATION OF PROVIDED INFORMATION</div>
+    <div class="annexa-doc-section-body">
+        <ol class="mb-2 ps-3" style="font-size:11px;">
+            <li>I hereby attest that all the information in this grantee/claim form is true and correct.</li>
+            <li>I further warrant that I have complied with all the requirements, and I have presented all original documentary requirements.</li>
+            <li>I understand that my application shall not be processed if any statement herein made is found to be false, or if any document I submitted is found to have been falsified, or if I fail to comply with all the requirements with respect to my application, without prejudice to whatever actions that may be taken against me in accordance with the applicable laws of the Republic of the Philippines.</li>
+            <li>Further, I hereby certify that I have not filed claims for cash gifts nor submitted application documents in other barangays, municipalities, cities, provinces, or in other regions/countries.</li>
+            <li>Should there be any violations or false attestation on the above statements, I will be held liable and accountable under civil law for misrepresentation and concealment of information, which shall warrant investigation, applicable charges, penalties and/or sanction.</li>
+        </ol>
+    </div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:70%;">
+                <span class="annexa-doc-field-label">SIGNATURE / THUMBMARK OF GRANTEE/CLAIMANT OVER PRINTED NAME</span>
+                <span class="annexa-doc-field-value">
+                    @(Beneficiary.IsSignedDeclaration ? $"{Beneficiary.LastName}, {Beneficiary.FirstName} — Signed/Thumbmarked" : "Not yet signed")
+                </span>
+            </td>
+            <td style="width:30%;">
+                <span class="annexa-doc-field-label">DATE SIGNED:</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.DateSigned?.ToString("MMMM dd, yyyy") ?? "—")</span>
+            </td>
+        </tr>
+    </table>
+    <div class="annexa-doc-page-label">PAGE 3 OF 4</div>
+    <div class="annexa-doc-footer">@ChildContent1</div>
+
+    <div class="page-break"></div>
+
+    @* ══════════════════ VERIFICATION CHECKLIST ══════════════════ *@
+    <div class="annexa-doc-vc-title">VERIFICATION CHECKLIST</div>
+    <div class="annexa-doc-bar">DO NOT WRITE ANYTHING HERE. FOR LGU, CFO and NCSC USE ONLY.</div>
+    <div class="annexa-doc-bar" style="background:#495057;">H. CHECKLIST <em style="font-weight:400; font-size:9px;">(to be filled-up by the Verifier/Concerned Staff)</em></div>
+    @{ var vc = Beneficiary.VerificationChecklist; }
+    <table class="annexa-doc-vc-table">
+        <tr class="annexa-doc-col-headers">
+            <td style="width:75%;">DOCUMENTS <div class="fw-normal fst-italic" style="font-size:9px;">Note: All should be with name and signature of the verifier and marked with "Verified from the original document"</div></td>
+            <td style="width:25%;">REMARKS <div class="fw-normal fst-italic" style="font-size:9px;">(note lacking docs)</div></td>
+        </tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasAnnexAForm == true ? "checked" : "")"></span>Accomplished Annex A Grantee/Claimant Form</span></td><td>@(vc?.AnnexARemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdLocal == true ? "checked" : "")"></span>Primary ID for Local Applicants: PSA/LCR issued birth certificate, National Senior Citizen ID generated from the EGov App, PhilSys / National ID, or Valid Philippine Passport</span></td><td>@(vc?.PrimaryIdLocalRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdAbroad == true ? "checked" : "")"></span>Primary ID for Applicants Abroad: Valid PH Passport or Identification Certificate, signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.PrimaryIdAbroadRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasSecondaryIds == true ? "checked" : "")"></span>Secondary IDs: Photocopy of any two (2) of the identified secondary ID in existing guidelines (indicate name of the two documents in the Remarks), signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.SecondaryIdsRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPhoto == true ? "checked" : "")"></span>Whole-body/half-upper body photo</span></td><td>@(vc?.PhotoRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasBankDepositSlip == true ? "checked" : "")"></span>Photocopy of Grantee's bank-verified deposit slip or online transaction slip, signed and marked with "Verified from the Original Document", if applicable</span></td><td>@(vc?.BankDepositSlipRemarks ?? "—")</td></tr>
+
+        @if (Beneficiary.IsDeceased)
+        {
+            <tr><td colspan="2" class="fw-bold" style="font-size:10px; background:#f1f3f5;">Other documents for deceased grantees:</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasDeathCertificate == true ? "checked" : "")"></span>Photocopy PSA/LCR death certificate or apostilled equivalent document issued overseas, signed and marked with "verified from the original document".</span></td><td>@(vc?.DeathCertificateRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasProofOfRelationship == true ? "checked" : "")"></span>Proof of relationship: Photocopy of PSA/LCR certificates/documents or apostilled equivalent document issued overseas, as proof of relationship, signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.ProofOfRelationshipRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasClaimantBankSlip == true ? "checked" : "")"></span>Photocopy of Claimant's Bank-verified deposit slip or online transaction slip signed and marked with "Verified from the Original Document" (to replace Grantee's bank account), if applicable</span></td><td>@(vc?.ClaimantBankSlipRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasWarrantyReleaseForm == true ? "checked" : "")"></span>Original Copy of Sworn or Notarized Warranty and Release From Liability Form (If notarized by a foreign notary public the document must be apostilled)</span></td><td>@(vc?.WarrantyReleaseFormRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasLguRcfCertification == true ? "checked" : "")"></span>Original LGU/RCF Certification of no relative</span></td><td>@(vc?.LguRcfCertificationRemarks ?? "—")</td></tr>
+        }
+    </table>
+
+    <div class="annexa-doc-bar" style="background:#495057;">I. VERIFICATION RESULT <em style="font-weight:400; font-size:9px;">(to be filled-up by the LGU/CFO/NCSC staff)</em></div>
+<div class="annexa-doc-section-body">
+    <div class="annexa-doc-field-note mb-2">
+        <strong>Note:</strong> This serves as the ACKNOWLEDGEMENT RECEIPT, once signed by the verifier.
+        Provide grantee/claimant a photocopy or they may take a photo (digital copy)
+    </div>
+    <div class="d-flex gap-4 justify-content-center mb-2">
+        <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsEligible ? "checked" : "")"></span><strong>Eligible</strong></span>
+        <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsEligible ? "checked" : "")"></span><strong>Not eligible</strong></span>
+    </div>
+    <p style="font-size:11px; text-align:center;">
+        I hereby certify that the original documents were presented, seen and verified by the undersigned.
+    </p>
+
+    @* ✅ Centered signoff block — matches the PDF's centered signature/office lines *@
+    <div class="annexa-doc-signoff-block">
+        <div class="annexa-doc-underline-value">@(Beneficiary.Validator ?? "—")</div>
+        <div class="text-muted fst-italic" style="font-size:9px;">Signature over printed name of Verifier (LGU/CFO/NCSC Staff)</div>
+        <div class="annexa-doc-underline-value mt-2">@(vc?.VerifierOffice ?? "—")</div>
+        <div class="text-muted fst-italic" style="font-size:9px;">Name of office with location/Contact Numbers</div>
+    </div>
+</div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">Date of Verification:</span>
+                <span class="annexa-doc-field-value">@Beneficiary.ValidationDate.ToString("MMMM dd, yyyy")</span>
+            </td>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">Tracking Number <em>(Region-LGU-ECA-year-month-000)</em></span>
+                <span class="annexa-doc-field-note">E.g. NCR-Pasig-ECA-2026-May-001</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.TrackingNumber ?? "—")</span>
+            </td>
+        </tr>
+    </table>
+    <div class="annexa-doc-page-label">PAGE 4 OF 4</div>
+    <div class="annexa-doc-footer">@ChildContent1</div>
+
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BeneficiaryInformationDto Beneficiary { get; set; } = default!;
+
+    // ✅ NCSC seal and Bagong Pilipinas logos are reused directly from
+    // PayrollLogos.cs (already the single source of truth for the Payroll
+    // Excel header and the COE PDF) — no separate PNG files needed under
+    // wwwroot/images/ for these two. Built once as data URIs for the <img> tags.
+    private readonly string _ncscLogoSrc   = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
+
+    // ✅ Footer branding block reused on every page — defined once as a
+    // RenderFragment to avoid repeating the same markup 4 times verbatim.
+    // "Puso Para sa Seniors" isn't in PayrollLogos.cs, so it stays a file path.
+private RenderFragment ChildContent1 => __builder =>
+{
+    <div class="annexa-doc-footer-brand">
+        <div class="annexa-doc-footer-logo-text" title="Puso Para sa Seniors">
+            <span>Pus</span><i class="bi bi-heart-fill annexa-doc-footer-heart"></i><span>&nbsp;para sa Seniors</span>
+        </div>
+        <div class="annexa-doc-footer-contacts">
+            <span><i class="bi bi-telephone-fill"></i> 0962-2743-622</span>
+            <span><i class="bi bi-telephone-fill"></i> (02) 8567-5646</span>
+            <span><i class="bi bi-envelope-fill"></i> contact@ncsc.gov.ph</span>
+            <span><i class="bi bi-globe"></i> www.ncsc.gov.ph</span>
+        </div>
+    </div>
+};
+}

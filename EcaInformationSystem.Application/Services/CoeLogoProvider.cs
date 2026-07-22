@@ -3,8 +3,6 @@
 // Decodes the SAME Base64 PNGs that PayrollLogos.cs uses for the Excel
 // payroll sheets. No duplication, no file paths — just a different
 // consumption format (raw bytes for QuestPDF vs. a Stream for ClosedXML).
-using System;
-
 namespace EcaInformationSystem.Application.Services
 {
     public static class CoeLogoProvider

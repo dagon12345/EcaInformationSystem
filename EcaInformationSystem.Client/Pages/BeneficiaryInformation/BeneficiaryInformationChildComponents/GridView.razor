@@ -978,245 +978,46 @@
 </HxModal>
 
 <HxOffcanvas @ref="detailsOffcanvas" Size="OffcanvasSize.Large">
-    <HeaderTemplate>
-        <h5 class="offcanvas-title">
+<HeaderTemplate>
+    <div class="d-flex justify-content-between align-items-center w-100 flex-wrap gap-2">
+        <h5 class="offcanvas-title mb-0">
             Details — @selectedDetails?.LastName, @selectedDetails?.FirstName
+            @if (!string.IsNullOrWhiteSpace(selectedDetails?.RegionName))
+            {
+                <span class="text-muted fw-normal">(@selectedDetails.RegionName)</span>
+            }
         </h5>
-    </HeaderTemplate>
-    <BodyTemplate>
-        @if (selectedDetails is not null)
-        {
-            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
-                <i class="bi bi-hash me-1"></i>Reference Number
-            </h6>
-            <div class="row g-2 mb-4">
-                <div class="col-12">
-                    <small class="text-muted d-block">Reference Number</small>
-                    @{
-                        var detailRefNo = selectedDetails!.ReferenceNumber;
-                    }
-                    @if (!string.IsNullOrWhiteSpace(detailRefNo))
-                    {
-                        <span class="tbl-badge ref-no fs-6">@detailRefNo</span>
-                    }
-                    else if (selectedDetails.Quarter.HasValue &&
-                             !string.IsNullOrWhiteSpace(selectedDetails.Batch) &&
-                             selectedDetails.RefYear.HasValue)
-                    {
-                        <span class="text-warning fst-italic">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            Code not yet generated — use bulk assign to fix
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="text-muted fst-italic">Not assigned yet</span>
-                    }
-                </div>
+    </div>
+</HeaderTemplate>
+<BodyTemplate>
+    @if (selectedDetails is not null)
+    {
+      <AnnexAPrintDocument Beneficiary="@selectedDetails" />
+      
+      <div class="system-fields-wrapper mb-3 no-print">
+            <div class="system-fields-header">
+                <i class="bi bi-gear-fill"></i> Internal / System Fields
             </div>
-
-<h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Identity Information</h6>
+<div class="system-fields-body">
+<h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-calendar me-1"></i>Date Applied/ Endorsed</span>
+</h6>
 <div class="row g-2 mb-4">
     <div class="col-6">
-        <small class="text-muted d-block">Last Name</small>
-        <span>@(selectedDetails.LastName ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">First Name</small>
-        <span>@selectedDetails.FirstName</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Middle Name</small>
-        <span>@(selectedDetails.MiddleName ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Extension</small>
-        @if (string.IsNullOrWhiteSpace(selectedDetails.Extension))
-        {
-            <span class="text-muted">N/A</span>
-        }
-        else
-        {
-            <span>@selectedDetails.Extension</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Birth Date</small>
-        <span>@selectedDetails.BirthDate.ToString("MMMM dd, yyyy")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Age</small>
-        <span>@selectedDetails.Age</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Sex</small>
-        <span>@GetSexText(selectedDetails.Sex)</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Phone Number</small>
-        @if (string.IsNullOrWhiteSpace(selectedDetails.PhoneNumber))
-        {
-            <span class="text-muted">N/A</span>
-        }
-        else
-        {
-            <span>@selectedDetails.PhoneNumber</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">OSCA ID Number</small>
-        <span>@(selectedDetails.OscaIdNumber ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">NCSC RRN</small>
-        @if (selectedDetails.NcscRrn == null)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@selectedDetails.NcscRrn?.ToString()</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Batch Code</small>
-        <span>@(selectedDetails.BatchCode ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Date Applied</small>
-        @if (selectedDetails.DateApplied == null)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@selectedDetails.DateApplied?.ToString("MMMM dd, yyyy")</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Date Endorsed</small>
-        @if (selectedDetails.DateEndorsed == null)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy")</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">OSCA ID Date Issued</small>
-        @if (selectedDetails.OscaIdDateIssued == null)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@selectedDetails.OscaIdDateIssued?.ToString("MMMM dd, yyyy")</span>
-        }
-    </div>
-</div>
-<h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Demographic Information</h6>
-<div class="row g-2 mb-4">
-    <div class="col-6">
-        <small class="text-muted d-block">Civil Status</small>
-        @if (selectedDetails.CivilStatus == null || selectedDetails.CivilStatus == 0)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@GetCivilStatusText(selectedDetails.CivilStatus)</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Citizenship</small>
-        @if (selectedDetails.Citizenship == null || selectedDetails.Citizenship == 0)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@GetCitizenshipText(selectedDetails.Citizenship)</span>
-        }
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Indigenous People</small>
-        <span>@(selectedDetails.IsIndigenousPeople ? "Yes" : "No")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Person with Disability</small>
-        <span>@(selectedDetails.IsPersonWithDisability ? "Yes" : "No")</span>
-    </div>
-</div>
-
- <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Address Information</h6>
-<div class="row g-2 mb-4">
-    <div class="col-6">
-        <small class="text-muted d-block">Region</small>
-        <span>@(selectedDetails.RegionName ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Province</small>
-        <span>@(selectedDetails.ProvinceName ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Municipality</small>
-        <span>@(selectedDetails.MunicipalityName ?? "—")</span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Barangay</small>
-        @if (string.IsNullOrWhiteSpace(selectedDetails.BarangayName) || selectedDetails.PsgcCodeBarangay == 0)
-        {
-            <span class="text-warning d-flex align-items-center gap-1">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Not set
-                <span class="badge bg-warning text-dark" style="font-size:9px;">NEEDS UPDATE</span>
-            </span>
-        }
-        else
-        {
-            <span>@selectedDetails.BarangayName</span>
-        }
-    </div>
-</div>
-
- <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Validation & Payment</h6>
- <div class="row g-2 mb-4">
-     <div class="col-6">
-         <small class="text-muted d-block">Validator</small>
-         <span>@(selectedDetails.Validator ??"—")</span>
-     </div>
-         <div class="col-6">
-             <small class="text-muted d-block">Validation Date</small>
-             <span>@selectedDetails.ValidationDate.ToString("MMMM dd, yyyy")</span>
+            <div class="annexa-grid cols-2 mt-2">
+               <div class="annexa-field">
+                  <small class="text-muted d-block">Date Applied</small>
+                  <span>@(selectedDetails.DateApplied?.ToString("MMMM dd, yyyy") ?? "—")</span>
+            </div>
+            <div class="annexa-field">
+                <small class="text-muted d-block">Date Endorsed</small>
+                 <span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
+             </div>
          </div>
+    </div>
 </div>
-           <h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+
+ <h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-clock-history me-1"></i>Payment History</span>
     @if (_isAdmin)
     {
@@ -1225,19 +1026,6 @@
         </button>
     }
 </h6>
-
-<div class="row g-2 mb-3">
-    <div class="col-6">
-        <small class="text-muted d-block">Current Status</small>
-        <span class="tbl-badge @GetPaymentBadgeClass(selectedDetails.PaymentStatus)">
-            @GetPaymentStatusText(selectedDetails.PaymentStatus)
-        </span>
-    </div>
-    <div class="col-6">
-        <small class="text-muted d-block">Current Period</small>
-        <span>@(selectedDetails.PayrollQuarter.HasValue ? $"Q{selectedDetails.PayrollQuarter}" : "—") @(selectedDetails.FiscalYear?.ToString() ?? "")</span>
-    </div>
-</div>
 
 @if (isLoadingPaymentHistory)
 {
@@ -1342,9 +1130,8 @@ else
         }
     </div>
 }
-
-                                                                                                <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
-                                                                                                <div class="row g-2 mb-4">
+<h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
+<div class="row g-2 mb-4">
                                                                                                     <div class="col-6">
                                                                                                         <small class="text-muted d-block">Is Eligible</small>
                                                                                                         @{
@@ -1380,8 +1167,7 @@ else
                                                                                                         </div>
                                                                                                     }
                                                                                                 </div>
-
-                                                                                                <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
+                                                                                                 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Other</h6>
                                                                                                 <div class="row g-2 mb-4">
                                                                                                     <div class="col-6"><small class="text-muted d-block">Is Deceased</small><span>@(selectedDetails.IsDeceased ?
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            "Yes" : "No")</span></div>
@@ -1463,35 +1249,35 @@ else
                                                                                                                     </span>
                                                                                                                 }
                                                                                                             </h6>
-                                                                                                            <BeneficiaryDocumentUpload EditId="@selectedDetails!.Id" PsgcCodeMunicipality="@selectedDetails.PsgcCodeMunicipality"
+                                                                                                                  <BeneficiaryDocumentUpload EditId="@selectedDetails!.Id" PsgcCodeMunicipality="@selectedDetails.PsgcCodeMunicipality"
                                                                                                                                        OnDeleteComplete="@(() => detailsOffcanvas.ShowAsync())" />
-                                                                                                        }
-                                                                                                    </BodyTemplate>
-                                                                                                    @* ── Offcanvas footer — Edit and Delete always visible ── *@
-                                                                                                    <FooterTemplate>
-                                                                                                        <div class="d-flex justify-content-between align-items-center w-100">
-                                                                                                            <div class="d-flex gap-2">
-                                                                                                                <button class="btn btn-outline-secondary px-4" @onclick="() => detailsOffcanvas.HideAsync()">
-                                                                                                                    Close
-                                                                                                                </button>
-                                                                                                                <button class="btn btn-outline-info px-4" @onclick="() => OpenLogModal(selectedDetails!)" title="Logs">
-                                                                                                                    <i class="bi bi-clock-history me-1"></i>Logs
-                                                                                                                </button>
-                                                                                                                @* ✅ Always visible — API gate handles unauthorized edit *@
-                                                                                                                <button class="btn btn-outline-primary px-4"
-                                                                                                                        @onclick="async () => { await OpenEditConfirmationModal(selectedDetails!, selectedDetails!.Id); }">
-                                                                                                                    <i class="bi bi-pencil-square me-1"></i>Edit
-                                                                                                                </button>
-                                                                                                            </div>
-                                                                                                            @* ✅ Always visible — API gate handles unauthorized delete *@
-                                                                                                            <button class="btn btn-outline-danger px-4"
-                                                                                                                    @onclick="async () => { await detailsOffcanvas.HideAsync(); await OpenDeleteConfirmationModal(selectedDetails!); }"
-                                                                                                                    title="Delete">
-                                                                                                                <i class="bi bi-trash me-1"></i>Delete
-                                                                                                            </button>
-                                                                                                        </div>
-                                                                                                    </FooterTemplate>
-                                                                                                </HxOffcanvas>
+
+            </div>
+        </div>
+    }
+    </BodyTemplate>
+<FooterTemplate>
+    <div class="d-flex justify-content-between align-items-center w-100">
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary px-4" @onclick="() => detailsOffcanvas.HideAsync()">
+                Close
+            </button>
+            <button class="btn btn-outline-info px-4" @onclick="() => OpenLogModal(selectedDetails!)" title="Logs">
+                <i class="bi bi-clock-history me-1"></i>Logs
+            </button>
+            <button class="btn btn-outline-primary px-4"
+                    @onclick="async () => { await OpenEditConfirmationModal(selectedDetails!, selectedDetails!.Id); }">
+                <i class="bi bi-pencil-square me-1"></i>Edit
+            </button>
+        </div>
+        <button class="btn btn-outline-danger px-4"
+                @onclick="async () => { await detailsOffcanvas.HideAsync(); await OpenDeleteConfirmationModal(selectedDetails!); }"
+                title="Delete">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+    </div>
+</FooterTemplate>
+ </HxOffcanvas>
 <HxModal @ref="addPaymentHistoryModal">
     <HeaderTemplate><h5 class="modal-title">Record New Payment</h5></HeaderTemplate>
     <BodyTemplate>
@@ -3564,6 +3350,38 @@ Convert.ToBase64String(fileBytes));
     }
 
     #region Private helpers/mappers
+    private string GetPlaceOfSubmissionText(int? value) => value switch
+{
+    1 => "Local (within the PH)",
+    2 => "Abroad",
+    _ => "Not specified"
+};
+
+private string GetCivilStatusTextV2(int? status, string? otherDetail) => status switch
+{
+    1 => "Single",
+    2 => "Widowed",
+    3 => "Married",
+    4 => "Common-Law",
+    5 => string.IsNullOrWhiteSpace(otherDetail) ? "Others" : $"Others — {otherDetail}",
+    _ => "—"
+};
+
+private string GetRelationTypeText(int type) => type switch
+{
+    1 => "Spouse",
+    2 => "Child",
+    _ => "—"
+};
+
+private string GetPreferredChannelText(int channel) => channel switch
+{
+    1 => "Landbank of the Philippines",
+    2 => "Other Banks",
+    3 => "Electronic Money Issuer (EMI)",
+    4 => "PSP — Palawan Pawnshop",
+    _ => "Not yet set"
+};
     private string GetPaymentDateLabel(int status) => status switch
     {
         2 => "Paid:",

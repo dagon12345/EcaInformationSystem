@@ -230,3 +230,208 @@
 .system-fields-body .form-section:last-child {
     margin-bottom: 0 !important;
 }
+
+
+.annexa-doc {
+    width: 850px;
+    max-width: 100%;
+    margin: 0 auto;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    border: 2px solid #000;
+    font-size: 11px;
+}
+
+.annexa-doc-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px 4px;
+}
+
+.annexa-doc-logo-left, .annexa-doc-logo-right {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.annexa-doc-header-text {
+    text-align: center;
+    flex-grow: 1;
+}
+
+.annexa-doc-header-line1 { font-family: "Old English Text MT", serif; font-size: 12px; }
+.annexa-doc-header-title { font-weight: 800; font-size: 15px; margin-top: 2px; }
+.annexa-doc-header-address { font-size: 9px; margin-top: 2px; }
+
+.annexa-doc-annex-tag {
+    text-align: right;
+    padding: 0 16px 4px;
+    font-size: 11px;
+}
+.annexa-doc-annex-subtag { font-size: 8px; font-style: italic; }
+
+.annexa-doc-title-box {
+    border-top: 2px solid #000;
+    padding: 8px 16px;
+    text-align: center;
+}
+.annexa-doc-title-main { font-weight: 800; font-size: 15px; }
+.annexa-doc-title-script { font-family: "Brush Script MT", cursive; font-size: 16px; margin: 4px 0; }
+.annexa-doc-purpose-block { text-align: left; font-size: 10px; margin-top: 6px; }
+
+.annexa-doc-bar {
+    background: #1F3864;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.annexa-doc-vc-title {
+    text-align: center;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 10px 0 6px;
+}
+
+.annexa-doc-section-body { padding: 6px 10px; }
+.annexa-doc-legal-text { font-size: 9.5px; font-style: italic; margin-bottom: 4px; }
+
+.annexa-doc-table, .annexa-doc-vc-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.annexa-doc-table td, .annexa-doc-vc-table td {
+    border: 1px solid #000;
+    padding: 4px 8px;
+    vertical-align: top;
+    font-size: 10.5px;
+}
+.annexa-doc-table--nested td { font-size: 10px; }
+
+.annexa-doc-col-headers td {
+    background: #f1f3f5;
+    font-weight: 700;
+    font-size: 9px;
+}
+
+.annexa-doc-subheader {
+    background: #dee4ec;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-bottom: 1px solid #000;
+}
+
+.annexa-doc-field-label {
+    font-weight: 700;
+    font-size: 9.5px;
+    display: block;
+}
+.annexa-doc-field-note { font-size: 8.5px; font-style: italic; color: #444; display: block; }
+.annexa-doc-field-value { font-size: 11px; display: block; margin-top: 2px; }
+.annexa-doc-underline-value { border-bottom: 1px solid #000; padding: 0 4px; font-size: 10.5px; }
+
+.annexa-doc-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+}
+.annexa-doc-checkbox .box {
+    width: 12px; height: 12px;
+    border: 1.2px solid #000;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; flex-shrink: 0;
+}
+.annexa-doc-checkbox .box.checked::after { content: "✓"; font-weight: 900; }
+
+.annexa-doc-page-label {
+    text-align: center;
+    font-size: 9px;
+    padding: 4px;
+    border-top: 1px solid #000;
+}
+
+.annexa-doc-footer {
+    border-top: 2px solid #1F3864;
+    padding: 6px 16px;
+}
+.annexa-doc-footer-brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9px;
+}
+.annexa-doc-footer-logo { height: 22px; }
+.annexa-doc-footer-contacts span { margin-left: 10px; }
+
+@media print {
+    body * { visibility: hidden; }
+    .annexa-doc, .annexa-doc * { visibility: visible; }
+    .annexa-doc { position: absolute; left: 0; top: 0; width: 100%; border: none; }
+    .no-print { display: none !important; }
+    .page-break { page-break-before: always; }
+}
+
+
+/* ── Section I signoff — centered signature/office lines ── */
+.annexa-doc-signoff-block {
+    text-align: center;
+    margin: 6px 0 4px;
+}
+.annexa-doc-signoff-block .annexa-doc-underline-value {
+    display: inline-block;
+    min-width: 260px;
+    text-align: center;
+}
+
+/* ── "Puso Para sa Seniors" footer wordmark, built from text + icon ── */
+.annexa-doc-footer-logo-text {
+    display: flex;
+    align-items: center;
+    font-family: "Segoe Print", "Comic Sans MS", cursive;
+    font-weight: 700;
+    font-size: 13px;
+    color: #1F3864;
+    white-space: nowrap;
+}
+.annexa-doc-footer-heart {
+    color: #e63946;
+    font-size: 13px;
+    margin: 0 1px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* ── A4 portrait as the default print/PDF page size ── */
+@page {
+    size: A4 portrait;
+    margin: 12mm;
+}
+.annexa-doc-nested-wrap {
+    border: none !important;
+    padding: 0 !important;
+}
+
+.annexa-doc-table tr,
+.annexa-doc-vc-table tr,
+.annexa-doc-table--nested tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Also guard the section bars and footer from splitting away from their content */
+.annexa-doc-bar,
+.annexa-doc-footer,
+.annexa-doc-page-label {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}

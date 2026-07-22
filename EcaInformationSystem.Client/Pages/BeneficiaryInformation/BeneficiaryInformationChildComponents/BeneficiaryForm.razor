@@ -64,6 +64,25 @@
             </div>
         }
     </div>
+      <div class="system-fields-body">
+
+            @* ── Remarks (system tracking, not on paper form) ── *@
+            <div class="form-section mb-3">
+                <div class="form-section-header"><i class="bi bi-chat-left-text me-2"></i>Date Applied/Endorsed (INTERNAL)</div>
+                <div class="form-section-body">
+                    <div class="form-grid">
+                           <div class="ff">
+                                    <label class="ff-label">Date Applied</label>
+                                    <UniformDateInput Value="@model.DateApplied" ValueChanged="@(v => model.DateApplied = v)" />
+                           </div>
+                          <div class="ff">
+                                    <label class="ff-label">Date Endorsed</label>
+                                    <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     @* ══════════════════════════════════════════════════════════════════
        A. DATA PRIVACY CONSENT — rendered ONCE, here only

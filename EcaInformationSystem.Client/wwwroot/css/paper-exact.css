@@ -1,0 +1,146 @@
+/* ══════════════════════════════════════════════════════════
+   ANNEX A PRINT-EXACT REPLICA — used only in the read-only
+   offcanvas detail view, distinct from the form's annexa-* classes
+   ══════════════════════════════════════════════════════════ */
+
+.annexa-doc {
+    border: 1px solid #000;
+    font-size: 12px;
+    color: #000;
+    background: #fff;
+}
+
+.annexa-doc-title-block {
+    text-align: center;
+    padding: 10px 14px 8px;
+    border-bottom: 2px solid #000;
+}
+
+.annexa-doc-title-block .doc-annex-tag {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.annexa-doc-title-block h5 {
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin: 4px 0;
+}
+
+.annexa-doc-title-block .doc-subtitle {
+    font-style: italic;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.annexa-doc-title-block .doc-purpose {
+    text-align: left;
+    font-size: 11px;
+    margin-top: 6px;
+}
+
+/* Navy section bar, exact match to paper form header bars */
+.annexa-doc-bar {
+    background: #1F3864;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+}
+
+/* Table-style field grid — mimics the PDF's bordered cell layout */
+.annexa-doc-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.annexa-doc-table td {
+    border: 1px solid #000;
+    padding: 4px 8px;
+    vertical-align: top;
+}
+
+.annexa-doc-field-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: block;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.annexa-doc-field-value {
+    font-size: 12px;
+    min-height: 16px;
+}
+
+.annexa-doc-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 16px;
+    font-size: 12px;
+}
+
+.annexa-doc-checkbox .box {
+    width: 13px;
+    height: 13px;
+    border: 1.3px solid #000;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.annexa-doc-checkbox .box.checked::after {
+    content: "✓";
+    font-weight: 900;
+}
+
+.annexa-doc-note {
+    font-size: 9.5px;
+    font-style: italic;
+    color: #444;
+    padding: 4px 8px;
+}
+
+.annexa-doc-page-label {
+    text-align: center;
+    font-size: 10px;
+    padding: 4px;
+    border-top: 1px solid #000;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PRINT MODE — isolates the .annexa-doc block, hides everything
+   else in the page when printing
+   ══════════════════════════════════════════════════════════ */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .annexa-doc, .annexa-doc * {
+        visibility: visible;
+    }
+    .annexa-doc {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        border: none;
+    }
+    .no-print {
+        display: none !important;
+    }
+    .annexa-doc-bar {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .page-break {
+        page-break-before: always;
+    }
+}
