@@ -435,3 +435,224 @@
     break-inside: avoid;
     page-break-inside: avoid;
 }
+
+/* ══════════════════════════════════════════════════════════
+   ANNEX A — FORM MODE (.annexa-doc--form)
+   Makes the editable BeneficiaryForm look identical to the
+   printed AnnexAPrintDocument while keeping real inputs.
+   ══════════════════════════════════════════════════════════ */
+
+.annexa-doc--form {
+    border: 2px solid #000;
+}
+
+/* Sections glue together with black borders like the paper form */
+.annexa-doc--form .annexa-section {
+    border: none;
+    border-top: 1px solid #000;
+    margin-bottom: 0;
+}
+.annexa-doc--form .annexa-section:first-of-type {
+    border-top: 2px solid #000;
+}
+
+/* Section headers match .annexa-doc-bar exactly */
+.annexa-doc--form .annexa-header {
+    background: #1F3864;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-bottom: 1px solid #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.annexa-doc--form .annexa-body {
+    padding: 6px 10px;
+}
+
+/* Field labels match the doc's black compact labels */
+.annexa-doc--form .annexa-item-label {
+    color: #000;
+    font-size: 9.5px;
+    font-weight: 700;
+}
+.annexa-doc--form .annexa-item-note {
+    font-size: 8.5px;
+    color: #444;
+}
+
+/* Text inputs render as underlined write-in lines, like the paper form */
+.annexa-doc--form .annexa-input {
+    border: none;
+    border-bottom: 1px solid #000;
+    border-radius: 0;
+    background: transparent;
+    font-size: 11px;
+    padding: 2px 4px;
+}
+.annexa-doc--form .annexa-input:focus {
+    border-bottom: 2px solid #1F3864;
+    box-shadow: none;
+    background: #f5f8ff;
+}
+
+/* Selects keep a thin box (a bare underline hides the dropdown affordance) */
+.annexa-doc--form .annexa-select {
+    border: 1px solid #000;
+    border-radius: 0;
+    background: #fff;
+    font-size: 11px;
+    padding: 2px 4px;
+}
+.annexa-doc--form .annexa-select:focus {
+    border-color: #1F3864;
+    box-shadow: 0 0 0 2px rgba(31, 56, 100, 0.15);
+}
+
+.annexa-doc--form .annexa-input:disabled,
+.annexa-doc--form .annexa-input.annexa-readonly,
+.annexa-doc--form .annexa-select:disabled {
+    background: #f1f3f5;
+    border-bottom-style: dashed;
+    color: #6c757d;
+}
+
+/* Checkboxes + notes match doc sizing */
+.annexa-doc--form .annexa-checkbox-item {
+    font-size: 10.5px;
+}
+.annexa-doc--form .annexa-note {
+    font-size: 9.5px;
+}
+
+/* Subsections use solid hairlines like table rules, not dashed */
+.annexa-doc--form .annexa-subsection {
+    border-top: 1px solid #000;
+    margin-top: 8px;
+    padding-top: 8px;
+}
+.annexa-doc--form .annexa-subsection-title {
+    background: #dee4ec;
+    font-size: 10px;
+    padding: 3px 8px;
+    margin: -8px -10px 8px;      /* stretch edge-to-edge like the doc subheader */
+    border-bottom: 1px solid #000;
+    color: #000;
+}
+
+/* Tighter grid to mimic packed table cells */
+.annexa-doc--form .annexa-grid {
+    gap: 6px 12px;
+}
+
+/* Footer strip stays inside the black frame */
+.annexa-doc--form .annexa-paper-footer {
+    border: none;
+    border-top: 1px solid #000;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS — applies to BOTH the editable form
+   (.annexa-doc--form) and the print replica (.annexa-doc)
+   ══════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .annexa-doc {
+        width: 100%;
+        border-width: 1px;
+    }
+
+    /* Header stacks: logo / text / logo → column, smaller seals */
+    .annexa-doc-header-row {
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px 4px;
+    }
+    .annexa-doc-logo-left,
+    .annexa-doc-logo-right {
+        width: 48px;
+        height: 48px;
+    }
+    .annexa-doc-header-title { font-size: 13px; }
+    .annexa-doc-title-main   { font-size: 13px; }
+    .annexa-doc-title-script { font-size: 14px; }
+
+    /* 4- and 3-column grids collapse to 2 */
+    .annexa-grid.cols-3,
+    .annexa-grid.cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .annexa-body { padding: 8px; }
+
+    /* Print-replica tables squeeze without breaking layout */
+    .annexa-doc-table,
+    .annexa-doc-vc-table {
+        table-layout: fixed;
+        word-break: break-word;
+    }
+    .annexa-doc-table td,
+    .annexa-doc-vc-table td {
+        padding: 3px 5px;
+        font-size: 9.5px;
+    }
+}
+
+@media (max-width: 576px) {
+    /* Everything single-column on phones */
+    .annexa-grid.cols-2,
+    .annexa-grid.cols-3,
+    .annexa-grid.cols-4 {
+        grid-template-columns: 1fr;
+    }
+
+    /* Internal/system field grids collapse too */
+    .system-fields-body .form-grid,
+    .sys-card-body .sf-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* 16px font prevents iOS Safari from auto-zooming on focus */
+    .annexa-doc--form .annexa-input,
+    .annexa-doc--form .annexa-select {
+        font-size: 16px;
+        padding: 6px 8px;
+        min-height: 40px;          /* comfortable touch target */
+    }
+    .annexa-doc--form .annexa-select {
+        width: 100%;
+    }
+
+    /* Checkbox rows stack vertically with bigger tap targets */
+    .annexa-checkbox-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .annexa-checkbox-item input[type="checkbox"],
+    .annexa-checkbox-item input[type="radio"] {
+        width: 20px;
+        height: 20px;
+    }
+    .annexa-checkbox-item { font-size: 13px; }
+
+    /* Save/Cancel buttons go full-width */
+    .sys-btn-save,
+    .sys-btn-cancel {
+        width: 100%;
+    }
+    form .d-flex.justify-content-end.gap-2 {
+        flex-direction: column;
+    }
+    /* ── Centered Tracking Number field — Section I, matches print doc placement ── */
+.annexa-tracking-number-block {
+    display: flex;
+    justify-content: center;
+    padding: 10px 14px 14px;
+    border-top: 1px dashed #c8d1de;
+    margin-top: 4px;
+}
+
+}

@@ -2,6 +2,7 @@
    Section A (Data Privacy Consent) is rendered once, near the top of
    BeneficiaryForm.razor, matching the paper form's actual position — it does
    NOT belong here anymore, to avoid the duplicate that showed up before. *@
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 
 <div class="annexa-section">
     <div class="annexa-header">
@@ -30,9 +31,8 @@
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">Date Signed</span>
-                <input type="date" class="annexa-input" value="@DateSignedString"
-                       disabled="@(!IsSignedDeclaration)"
-                       @onchange="@(e => OnDateSignedChanged(e.Value?.ToString()))" />
+                <UniformDateInput CssClass="annexa-input" Value="@DateSigned" Disabled="@(!IsSignedDeclaration)"
+                                   ValueChanged="@DateSignedChanged" />
             </div>
         </div>
 
@@ -55,8 +55,6 @@
 
     [Parameter] public bool ShowValidationHints { get; set; } = false;
 
-    private string? DateSignedString => DateSigned?.ToString("yyyy-MM-dd");
-
     private async Task OnDeclarationChanged(bool value)
     {
         IsSignedDeclaration = value;
@@ -64,14 +62,6 @@
         if (value && DateSigned == null)
             await DateSignedChanged.InvokeAsync(DateTime.Today);
         if (!value)
-            await DateSignedChanged.InvokeAsync(null);
-    }
-
-    private async Task OnDateSignedChanged(string? value)
-    {
-        if (DateTime.TryParse(value, out var parsed))
-            await DateSignedChanged.InvokeAsync(parsed);
-        else
             await DateSignedChanged.InvokeAsync(null);
     }
 }

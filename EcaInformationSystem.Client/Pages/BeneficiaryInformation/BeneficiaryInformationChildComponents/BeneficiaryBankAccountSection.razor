@@ -46,12 +46,17 @@
                                    @onchange="@(e => { Account.AccountNumber = e.Value?.ToString(); NotifyChanged(); })" />
                         </div>
                         <div class="annexa-field">
-                            <span class="annexa-item-label">Bank / E-Wallet Name <span class="annexa-item-note">(no acronyms)</span> <span class="annexa-required">*</span></span>
+                            <span class="annexa-item-label">Bank / E-Wallet Name 
+                                <span class="annexa-item-note" style="display:inline;">(no acronyms)</span> 
+                                <span class="annexa-required">*</span>
+                            </span>
                             <input class="annexa-input" value="@Account.BankOrWalletName"
                                    @onchange="@(e => { Account.BankOrWalletName = e.Value?.ToString(); NotifyChanged(); })" />
                         </div>
                         <div class="annexa-field">
-                            <span class="annexa-item-label">Branch Name <span class="annexa-item-note">(no acronyms)</span></span>
+                            <span class="annexa-item-label">Branch Name 
+                                <span class="annexa-item-note" style="display:inline;">(no acronyms)</span>
+                            </span>
                             <input class="annexa-input" value="@Account.BranchName"
                                    @onchange="@(e => { Account.BranchName = e.Value?.ToString(); NotifyChanged(); })" />
                         </div>
@@ -81,7 +86,9 @@
                                        @onchange="@(e => { Account.SwiftCode = e.Value?.ToString(); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
-                                <span class="annexa-item-label">IBAN <span class="annexa-item-note">(European Countries)</span></span>
+                                <span class="annexa-item-label">IBAN 
+                                    <span class="annexa-item-note" style="display:inline;">(European Countries)</span>
+                                </span>
                                 <input class="annexa-input" value="@Account.Iban"
                                        @onchange="@(e => { Account.Iban = e.Value?.ToString(); NotifyChanged(); })" />
                             </div>

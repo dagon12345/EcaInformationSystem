@@ -49,10 +49,6 @@
                         <label class="ff-label">Year (short)</label>
                         <input type="number" class="ff-input" placeholder="e.g. 26" @bind="model.RefYear" />
                     </div>
-                    <div class="ff">
-                        <label class="ff-label">Tracking Number <span class="badge bg-info fw-normal" style="font-size:9px;">New</span></label>
-                        <input type="text" class="ff-input" placeholder="Region-LGU-ECA-year-month-000" @bind="model.TrackingNumber" />
-                    </div>
                 </div>
                 @if (HasRefNumber)
                 {
@@ -68,7 +64,13 @@
 
             @* ── Remarks (system tracking, not on paper form) ── *@
             <div class="form-section mb-3">
-                <div class="form-section-header"><i class="bi bi-chat-left-text me-2"></i>Date Applied/Endorsed (INTERNAL)</div>
+                <div class="form-section-header">
+                    <i class="bi bi-calendar me-2"></i>
+                        Date Applied/Endorsed 
+                    <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">
+                        INTERNAL
+                    </span>
+                </div>
                 <div class="form-section-body">
                     <div class="form-grid">
                            <div class="ff">
@@ -83,7 +85,44 @@
                 </div>
             </div>
         </div>
+@* ══════════════════════════════════════════════════════════════════
+       ANNEX A DOCUMENT WRAPPER — editable replica of the printed form
+       ══════════════════════════════════════════════════════════════════ *@
+    <div class="annexa-doc annexa-doc--form mb-3">
 
+        @* ── HEADER — logos + agency text (same as AnnexAPrintDocument) ── *@
+        <div class="annexa-doc-header-row">
+            <img src="@_ncscLogoSrc" alt="NCSC Seal" class="annexa-doc-logo-left" />
+            <div class="annexa-doc-header-text">
+                <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+                <div class="annexa-doc-header-line1">Office of the President</div>
+                <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+                <div class="annexa-doc-header-address">
+                    Penthouse, The Upper Class Tower, Quezon Avenue Corner Scout Reyes,<br />
+                    Barangay Paligsahan, District 4, Quezon City
+                </div>
+            </div>
+            <img src="@_bagongLogoSrc" alt="Bagong Pilipinas" class="annexa-doc-logo-right" />
+        </div>
+
+        <div class="annexa-doc-annex-tag">
+            <div class="fw-bold">ANNEX A</div>
+            <div class="annexa-doc-annex-subtag">This form is not for sale.</div>
+        </div>
+
+        <div class="annexa-doc-title-box">
+            <div class="annexa-doc-title-main">GRANTEE/CLAIMANT FORM</div>
+            <div class="annexa-doc-title-script">"Honoring Filipino Octogenarians, Nonagenarians and Centenarians"</div>
+            <div class="annexa-doc-purpose-block">
+                <strong>PURPOSE:</strong> To claim the cash gift under Republic Act (R.A.) No. 11982.<br />
+                <strong>INSTRUCTIONS:</strong>
+                <ol class="mb-0 ps-3">
+                    <li>Fill-out this form completely and correctly.</li>
+                    <li>Do not leave any blank space. If not applicable, kindly indicate "N/A".</li>
+                    <li>Write legibly and in CAPITAL letters.</li>
+                </ol>
+            </div>
+        </div>
     @* ══════════════════════════════════════════════════════════════════
        A. DATA PRIVACY CONSENT — rendered ONCE, here only
        ══════════════════════════════════════════════════════════════════ *@
@@ -191,7 +230,7 @@
             <div class="annexa-grid cols-3 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.7 Date of Birth <span class="annexa-required">*</span></span>
-                    <UniformDateInput Value="@model.BirthDate" ValueChanged="@OnBirthDateChanged" />
+                    <UniformDateInput CssClass="annexa-input" Value="@model.BirthDate" ValueChanged="@OnBirthDateChanged" />
                     <ValidationMessage For="@(() => model.BirthDate)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
@@ -224,7 +263,7 @@
                     <div class="annexa-field">
                         <span class="annexa-item-label">
                             Region <span class="annexa-required">*</span>
-                            <span class="annexa-item-note">(required to look up Province)</span>
+                            <span class="annexa-item-note" style="display:inline;">(required to look up Province)</span>
                         </span>
                         <select class="annexa-select" value="@model.PsgcCodeRegion" @onchange="OnFormRegionChanged"
                                 disabled="@(_isFormRegionLoading || IsLoading)">
@@ -422,9 +461,21 @@
                                               EligibilityRemarksChanged="@(v => model.EligibilityRemarks = v)"
                                               AssessmentRemarks="@model.AssessmentRemarks"
                                               AssessmentRemarksChanged="@(v => model.AssessmentRemarks = v)" />
-
+ @* ── Tracking Number — matches the centered placement on the printed
+       Annex A form (Section I, alongside Date of Verification) ── *@
+    <div class="annexa-tracking-number-block">
+        <div class="annexa-field" style="max-width: 340px; margin: 0 auto;">
+            <span class="annexa-item-label text-center d-block">
+                Tracking Number
+                <span class="annexa-item-note">(Region-LGU-ECA-year-month-000)</span>
+            </span>
+            <input type="text" class="annexa-input text-center"
+                   placeholder="e.g. NCR-Pasig-ECA-2026-May-001"
+                   @bind="model.TrackingNumber" />
+        </div>
+    </div>
     <div class="annexa-paper-footer mb-3">— end of Annex A form fields —</div>
-
+</div>
     @* ══════════════════════════════════════════════════════════════════
        SYSTEM FIELDS — everything below is NOT part of the printed Annex A
        form. Wrapped in one bounding box so it reads as a single distinct
@@ -433,7 +484,6 @@
     <div class="system-fields-wrapper mb-3">
         <div class="system-fields-header">
             <i class="bi bi-gear-fill"></i> Internal / System Fields
-            <span class="annexa-tag ms-2" style="background:#fff; color:#495057;">Not part of printed form</span>
         </div>
         <div class="system-fields-body">
 
@@ -935,6 +985,9 @@
 
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
+    // ✅ Same logo sources as AnnexAPrintDocument — reused from PayrollLogos.cs
+    private readonly string _ncscLogoSrc   = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
     private bool _showValidationHints = false;
     private List<PaymentHistoryDto> paymentHistory = new();
     private bool isLoadingPaymentHistory;
