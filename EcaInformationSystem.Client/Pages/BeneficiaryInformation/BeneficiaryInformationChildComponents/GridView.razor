@@ -366,10 +366,10 @@
                                             </div>
                                         </th>
                                         <th>Phone</th>
-                                        <th>
+                                        <th style="min-width:220px;">
                                             Full Name
-                                            <input type="text" class="hdr-search" placeholder="Search name..."
-                                                   @oninput="OnFullNameFilterInput" />
+                                            <br />
+                                            <small class="hdr-subtext" title="Hover the badges on a row to see liveness verification and EFT readiness details">(Liveness / EFT)</small>
                                         </th>
                                         <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
                                             @onclick='() => SortBy("birthdate")'>
@@ -470,10 +470,22 @@
                                                         <span class="text-muted small">—</span>
                                                     }
                                                 </td>
-                                                <td>@Highlight(item.BatchCode)</td>
-                                                <td>@Highlight(item.PhoneNumber)</td>
-                                                <td>
-                                                    @Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
+                                                <td style="white-space:nowrap;"><span class="batch-code-outline">@Highlight(item.BatchCode)</span></td>
+                                                <td>@Highlight(item.PhoneNumbers.Any() ? string.Join(", ", item.PhoneNumbers.Select(n => n.Number)) : null)</td>
+                                                <td style="min-width:220px; white-space:nowrap;">
+                                                    @if (item.IsLivenessVerified == true)
+                                                    {
+                                                        <span class="tbl-badge yes-g me-1" title="Liveness verified@(item.DateOfLiveness.HasValue ? $" on {item.DateOfLiveness:MMM dd, yyyy}" : "")">
+                                                            <i class="bi bi-heart-pulse-fill"></i>
+                                                        </span>
+                                                    }
+                                                    @if (item.IsReadyForEft == true)
+                                                    {
+                                                        <span class="tbl-badge yes-g me-1" title="Ready for Electronic Fund Transfer (EFT)">
+                                                            <i class="bi bi-bank2"></i>
+                                                        </span>
+                                                    }
+                                                    <span class="fw-bold">@Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
                                                     @if (!string.IsNullOrWhiteSpace(item.MiddleName))
                                                     {
                                                         <span>&nbsp;</span>
@@ -484,6 +496,7 @@
                                                         <span>&nbsp;</span>
                                                         @Highlight(item.Extension)
                                                     }
+                                                    </span>
                                                 </td>
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
                                                 <td>
@@ -660,7 +673,7 @@
                                                     {
                                                         <span class="text-muted small">—</span>
                                                     }
-                                                </td>
+                                                </td>                                              
                                                <td>
                                                     <div class="d-flex gap-1">
                                                         <button class="btn-details" @onclick="() => OpenDetailsPanel(item)" title="View Details">
@@ -981,12 +994,17 @@
 <HeaderTemplate>
     <div class="d-flex justify-content-between align-items-center w-100 flex-wrap gap-2">
         <h5 class="offcanvas-title mb-0">
-            Details — @selectedDetails?.LastName, @selectedDetails?.FirstName
+            Details — @selectedDetails?.LastName, @selectedDetails?.FirstName 
             @if (!string.IsNullOrWhiteSpace(selectedDetails?.RegionName))
             {
-                <span class="text-muted fw-normal">(@selectedDetails.RegionName)</span>
+                <span class="text-muted fw-bold">(@selectedDetails.RegionName)</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(selectedDetails?.BatchCode))
+            {
+                <span class="text-muted fw-bold">— Batch Code: @selectedDetails.BatchCode</span>
             }
         </h5>
+
     </div>
 </HeaderTemplate>
 <BodyTemplate>
@@ -1000,7 +1018,7 @@
             </div>
 <div class="system-fields-body">
 <h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
-    <span><i class="bi bi-calendar me-1"></i>Date Applied/ Endorsed</span>
+    <span><i class="bi bi-calendar me-1"></i>Date Applied /Endorsed</span>
 </h6>
 <div class="row g-2 mb-4">
     <div class="col-6">
@@ -1011,9 +1029,40 @@
             </div>
             <div class="annexa-field">
                 <small class="text-muted d-block">Date Endorsed</small>
-                 <span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
-             </div>
+                <span>@(selectedDetails.DateEndorsed?.ToString("MMMM dd, yyyy") ?? "—")</span>
+            </div>
          </div>
+    </div>
+</div>
+<h6 class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+    <span><i class="bi bi-person-check-fill me-1"></i>Liveness Verification &amp; EFT Readiness</span>
+</h6>
+<div class="row g-2 mb-4">
+    <div class="col-6">
+        <small class="text-muted d-block">Liveness Verified?</small>
+        <span class="tbl-badge @(selectedDetails.IsLivenessVerified == true ? "yes-g" : selectedDetails.IsLivenessVerified == false ? "no-g" : "pending")">
+            @(selectedDetails.IsLivenessVerified switch
+            {
+                true => "Verified",
+                false => "Not Verified",
+                null => "Not Yet Checked"
+            })
+        </span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Date of Liveness</small>
+        <span>@(selectedDetails.DateOfLiveness?.ToString("MMMM dd, yyyy") ?? "—")</span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Ready for Electronic Fund Transfer?</small>
+        <span class="tbl-badge @(selectedDetails.IsReadyForEft == true ? "yes-g" : selectedDetails.IsReadyForEft == false ? "no-g" : "pending")">
+            @(selectedDetails.IsReadyForEft switch
+            {
+                true => "Ready",
+                false => "Not Ready",
+                null => "Not Yet Checked"
+            })
+        </span>
     </div>
 </div>
 
@@ -2151,8 +2200,6 @@ else
     private int? bulkPaymentStatus = null;
     private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
-    private string? fullNameFilter;
-    private CancellationTokenSource? _nameCts;
     private BeneficiaryInformationDto? selectedDetails;
     private HxOffcanvas detailsOffcanvas = default!;
     private HxModal logModal = default!;
@@ -3266,21 +3313,6 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
     private bool AreAllChecked() =>
         State.Beneficiaries.Any() && State.Beneficiaries.All(x => checkedIds.Contains(x.Id));
 
-    private async Task OnFullNameFilterInput(ChangeEventArgs e)
-    {
-        fullNameFilter = e.Value?.ToString();
-        _nameCts?.Cancel();
-        _nameCts?.Dispose();
-        _nameCts = new CancellationTokenSource();
-        try
-        {
-            await Task.Delay(400, _nameCts.Token);
-            State.Filter.FullName = string.IsNullOrWhiteSpace(fullNameFilter) ? null : fullNameFilter.Trim();
-            State.Filter.PageNumber = 1;
-            await State.LoadAsync();
-        }
-        catch (TaskCanceledException) { }
-    }
     private void ToggleSelectAll(ChangeEventArgs e)
     {
         if ((bool)e.Value!)
@@ -3393,7 +3425,7 @@ private string GetPreferredChannelText(int channel) => channel switch
     var issues = new List<string>();
     if (item.DateEndorsed == null) issues.Add("Date Endorsed missing");
     if (item.DateApplied == null) issues.Add("Date Applied missing");
-    if (string.IsNullOrWhiteSpace(item.PhoneNumber)) issues.Add("Phone Number missing");
+    if (!item.PhoneNumbers.Any(n => !string.IsNullOrWhiteSpace(n.Number))) issues.Add("Phone Number missing");
     if (item.NcscRrn == null) issues.Add("NCSC RRN missing");
     return issues;
 }

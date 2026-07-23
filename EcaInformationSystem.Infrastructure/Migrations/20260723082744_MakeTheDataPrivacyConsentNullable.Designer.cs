@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260723082744_MakeTheDataPrivacyConsentNullable")]
+    partial class MakeTheDataPrivacyConsentNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -662,9 +665,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Property<DateTime?>("DateOfDeath")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("DateOfLiveness")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime?>("DateSigned")
                         .HasColumnType("datetime2");
 
@@ -712,13 +712,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Property<bool?>("IsIndigenousPeople")
                         .HasColumnType("bit");
 
-                    b.Property<bool?>("IsLivenessVerified")
-                        .HasColumnType("bit");
-
                     b.Property<bool?>("IsPersonWithDisability")
-                        .HasColumnType("bit");
-
-                    b.Property<bool?>("IsReadyForEft")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsSignedDeclaration")
@@ -753,6 +747,9 @@ namespace EcaInformationSystem.Infrastructure.Migrations
 
                     b.Property<int?>("PayrollQuarter")
                         .HasColumnType("int");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("PlaceOfSubmission")
                         .HasColumnType("int");
@@ -822,9 +819,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
 
                     b.HasIndex("IsDeleted", "IsEligible")
                         .HasDatabaseName("IX_Beneficiary_IsEligible");
-
-                    b.HasIndex("IsDeleted", "IsLivenessVerified")
-                        .HasDatabaseName("IX_Beneficiary_LivenessVerified");
 
                     b.HasIndex("IsDeleted", "PaymentStatus")
                         .HasDatabaseName("IX_Beneficiary_PaymentStatus");
@@ -919,31 +913,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasDatabaseName("IX_PaymentHistory_FiscalYear_Quarter_Status");
 
                     b.ToTable("BeneficiaryPaymentHistories");
-                });
-
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryPhoneNumber", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BeneficiaryInformationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BeneficiaryInformationId")
-                        .HasDatabaseName("IX_PhoneNumber_BeneficiaryInformationId");
-
-                    b.ToTable("BeneficiaryPhoneNumbers");
                 });
 
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.ChatEntities.ChatAttachment", b =>
@@ -1970,17 +1939,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Navigation("Beneficiary");
                 });
 
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryPhoneNumber", b =>
-                {
-                    b.HasOne("EcaInformationSystem.Domain.Entities.BeneficiaryInformation", "Beneficiary")
-                        .WithMany("PhoneNumbers")
-                        .HasForeignKey("BeneficiaryInformationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Beneficiary");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.ChatEntities.ChatAttachment", b =>
                 {
                     b.HasOne("EcaInformationSystem.Domain.Entities.ChatEntities.ChatMessage", "Message")
@@ -2113,8 +2071,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Navigation("FamilyMembers");
 
                     b.Navigation("Finding");
-
-                    b.Navigation("PhoneNumbers");
 
                     b.Navigation("VerificationChecklist");
                 });

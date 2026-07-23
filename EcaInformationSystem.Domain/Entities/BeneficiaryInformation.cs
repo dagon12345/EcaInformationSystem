@@ -20,10 +20,9 @@ namespace EcaInformationSystem.Domain.Entities
         public string? MiddleName { get; set; }
         public string? Extension { get; set; }
         public DateTime BirthDate { get; set; }
-        public string? PhoneNumber { get; set; }
         public int Sex { get; set; }
-        public bool IsIndigenousPeople { get; set; }
-        public bool IsPersonWithDisability { get; set; }
+        public bool? IsIndigenousPeople { get; set; }
+        public bool? IsPersonWithDisability { get; set; }
         public int? CivilStatus { get; set; }
         public int? Citizenship { get; set; }
         public int Region { get; set; }
@@ -65,7 +64,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string? TrackingNumber { get; set; }
 
         // Section A — Data Privacy Consent (true = Consent, false = Dissent)
-        public bool DataPrivacyConsent { get; set; }
+        public bool? DataPrivacyConsent { get; set; }
 
         // Section B — 1 = Local (within PH), 2 = Abroad
         public int? PlaceOfSubmission { get; set; }
@@ -94,6 +93,16 @@ namespace EcaInformationSystem.Domain.Entities
         // purely an "I attest" flag + the date the encoder recorded it.
         public bool IsSignedDeclaration { get; set; }
         public DateTime? DateSigned { get; set; }
+        // ✅ NEW — Liveness verification: periodic proof the grantee is still alive,
+        // tracked independently of IsDeceased/DateOfDeath (which records an actual
+        // death). Both nullable — unanswered until someone performs the check.
+        public bool? IsLivenessVerified { get; set; }
+        public DateTime? DateOfLiveness { get; set; }
+
+        // ✅ NEW — Ready for Electronic Fund Transfer: manual checkbox indicating the
+        // grantee has met the requirements for EFT payout. Nullable/unbound — purely
+        // an informational marker, no automated validation tied to it.
+        public bool? IsReadyForEft { get; set; }
 
         // ── Navigation properties for the new 1:1 / 1:many sub-entities ──
         public BeneficiaryBankAccount? BankAccount { get; set; }
@@ -101,12 +110,17 @@ namespace EcaInformationSystem.Domain.Entities
         public BeneficiaryClaimant? Claimant { get; set; }
         public BeneficiaryVerificationChecklist? VerificationChecklist { get; set; }
         public ICollection<BeneficiaryFamilyMember> FamilyMembers { get; set; } = new List<BeneficiaryFamilyMember>();
+        // ✅ NEW — replaces the old single PhoneNumber scalar; grantees can have
+        // more than one contact number (their own + a caregiver's, etc.).
+        public ICollection<BeneficiaryPhoneNumber> PhoneNumbers { get; set; } = new List<BeneficiaryPhoneNumber>();
+        // NEW navigation property, alongside your other sub-entity navs
+        public BeneficiaryClaimantBankAccount? ClaimantBankAccount { get; set; }
 
         [Timestamp]
         public byte[] RowVersion { get; set; } = default!;
 
         public void Update(int? quarter, string? batch, int? refYear, string? refCode, DateTime? dateApplied, DateTime? dateEndorsed, string? batchCode, string? oscaIdNumber, DateTime? oscaIdDateIssued, int? ncscRn, string? lastName, string firstName, string? middleName, string? extensionName,
-            DateTime birthDate, string? phoneNumber, int sex, bool isIndigenousPeople, bool isPersonWithDisability, int? civilStatus, int? citizenship,
+            DateTime birthDate, int sex, bool? isIndigenousPeople, bool? isPersonWithDisability, int? civilStatus, int? citizenship,
             int region, int province, int municipality, int barangay, bool iscompliant, string validator, DateTime validationDate, int? payrollQuarter, int? fiscalYear,
             int paymentStatus, int modeOfPayment,
             DateTime? paymentDate, bool isdeceased, DateTime? dateOfDeath, bool isEligible, string? assessmentRemarks, string? eligibilityRemarks, int? remarkCategory, string? remarks
@@ -127,7 +141,6 @@ namespace EcaInformationSystem.Domain.Entities
             MiddleName = middleName;
             Extension = extensionName;
             BirthDate = birthDate;
-            PhoneNumber = phoneNumber;
             Sex = sex;
             IsIndigenousPeople = isIndigenousPeople;
             IsPersonWithDisability = isPersonWithDisability;
@@ -166,10 +179,11 @@ namespace EcaInformationSystem.Domain.Entities
         // fields out of the already-long Update() signature. Called explicitly
         // from the service layer alongside Update().
         public void UpdateAnnexADetails(
-            string? trackingNumber, bool dataPrivacyConsent, int? placeOfSubmission,
+            string? trackingNumber, bool? dataPrivacyConsent, int? placeOfSubmission,
             string? houseNumber, string? streetName, string? zipCode,
             string? disabilityType, string? ethnicityName, string? dualCitizenshipDetails,
-            string? civilStatusOtherDetail, bool isSignedDeclaration, DateTime? dateSigned)
+            string? civilStatusOtherDetail, bool isSignedDeclaration, DateTime? dateSigned, bool? isLivenessVerified,
+            DateTime? dateOfLiveness, bool? isReadyForEft)
         {
             TrackingNumber = trackingNumber;
             DataPrivacyConsent = dataPrivacyConsent;
@@ -183,6 +197,9 @@ namespace EcaInformationSystem.Domain.Entities
             CivilStatusOtherDetail = civilStatusOtherDetail;
             IsSignedDeclaration = isSignedDeclaration;
             DateSigned = dateSigned;
+            IsLivenessVerified = isLivenessVerified;
+            DateOfLiveness = dateOfLiveness;
+            IsReadyForEft = isReadyForEft;
         }
     }
 }

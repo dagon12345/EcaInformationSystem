@@ -31,15 +31,15 @@
                                   CheckedChanged="@(v => { Checklist.HasAnnexAForm = v; Notify(); })" Remarks="@Checklist.AnnexARemarks"
                                   RemarksChanged="@(v => { Checklist.AnnexARemarks = v; Notify(); })" />
                     <ChecklistRow Label="Primary ID for Local Applicants" Checked="@Checklist.HasPrimaryIdLocal"
-                                  CheckedChanged="@(v => { Checklist.HasPrimaryIdLocal = v; Notify(); })"
+                                  CheckedChanged="@(v => { Checklist.HasPrimaryIdLocal = v; Notify(); EvaluateAutoCompliant(); })"
                                   Remarks="@Checklist.PrimaryIdLocalRemarks"
                                   RemarksChanged="@(v => { Checklist.PrimaryIdLocalRemarks = v; Notify(); })" />
                     <ChecklistRow Label="Primary ID for Applicants Abroad" Checked="@Checklist.HasPrimaryIdAbroad"
-                                  CheckedChanged="@(v => { Checklist.HasPrimaryIdAbroad = v; Notify(); })"
+                                  CheckedChanged="@(v => { Checklist.HasPrimaryIdAbroad = v; Notify(); EvaluateAutoCompliant(); })"
                                   Remarks="@Checklist.PrimaryIdAbroadRemarks"
                                   RemarksChanged="@(v => { Checklist.PrimaryIdAbroadRemarks = v; Notify(); })" />
                     <ChecklistRow Label="Secondary IDs (any two)" Checked="@Checklist.HasSecondaryIds"
-                                  CheckedChanged="@(v => { Checklist.HasSecondaryIds = v; Notify(); })"
+                                  CheckedChanged="@(v => { Checklist.HasSecondaryIds = v; Notify(); EvaluateAutoCompliant(); })"
                                   Remarks="@Checklist.SecondaryIdsRemarks"
                                   RemarksChanged="@(v => { Checklist.SecondaryIdsRemarks = v; Notify(); })" />
                     <ChecklistRow Label="Whole-body / half-upper body Photo" Checked="@Checklist.HasPhoto"
@@ -133,23 +133,24 @@
                         <input class="annexa-input" value="@Validator"
                                @onchange="@(e => ValidatorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" />
                     </div>
-                        <div class="annexa-field">
-                            <span class="annexa-item-label">Verifier Office
-                                <span class="annexa-item-note" style="display:inline;">(name, location, contact)</span>
-                            </span>
-                            <input class="annexa-input" value="@Checklist.VerifierOffice"
-                                   @onchange="@(e => { Checklist.VerifierOffice = e.Value?.ToString(); Notify(); })" />
-                        </div>
+                    <div class="annexa-field">
+                        <span class="annexa-item-label">Verifier Office
+                            <span class="annexa-item-note" style="display:inline;">(name, location, contact)</span>
+                        </span>
+                        <input class="annexa-input" value="@Checklist.VerifierOffice"
+                               @onchange="@(e => { Checklist.VerifierOffice = e.Value?.ToString(); Notify(); })" />
+                    </div>
                     <div class="annexa-field" style="grid-column: 1 / -1; max-width: 340px; margin: 0 auto;">
-                        <span class="annexa-item-label text-center d-block">Date of Verification <span class="annexa-required">*</span></span>
-                        <UniformDateInput CssClass="annexa-input text-center" Value="@ValidationDate"
-                                          ValueChanged="@(v => ValidationDateChanged.InvokeAsync(v ?? DateTime.Today))" />
+                        <span class="annexa-item-label text-center d-block">Date of Verification <span
+                            class="annexa-required">*</span></span>
+                            <UniformDateInput CssClass="annexa-input text-center" Value="@ValidationDate"
+                                              ValueChanged="@(v => ValidationDateChanged.InvokeAsync(v ?? DateTime.Today))" />
+                        </div>
                     </div>
                 </div>
-            </div>
 
+            </div>
         </div>
-    </div>
 
 @code {
     // ── H. Checklist — two-way bound, no independent save ──
@@ -178,4 +179,21 @@
     [Parameter] public EventCallback<string?> AssessmentRemarksChanged { get; set; }
 
     private void Notify() => ChecklistChanged.InvokeAsync(Checklist);
+    // ✅ Auto-checks Compliant the moment ANY ONE of the three ID checkboxes is
+    // checked (Primary Local, Primary Abroad, or Secondary IDs) — no combination
+    // required. One-directional: only ever flips Compliant false → true, never
+    // the reverse. Unchecking a document afterward does nothing here, and the
+    // user's own manual toggle of Compliant is never overridden in either
+    // direction once set.
+    private void EvaluateAutoCompliant()
+    {
+        bool anyIdChecked = Checklist.HasPrimaryIdLocal
+            || Checklist.HasPrimaryIdAbroad
+            || Checklist.HasSecondaryIds;
+
+        if (anyIdChecked && !IsCompliant)
+        {
+            IsCompliantChanged.InvokeAsync(true);
+        }
+    }
 }

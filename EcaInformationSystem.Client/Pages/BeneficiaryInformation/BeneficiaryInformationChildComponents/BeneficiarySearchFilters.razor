@@ -149,6 +149,52 @@
                     }
                 </div>
 
+                @* DATE ENDORSED *@
+                <div>
+                    <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
+                    <div class="sf-grid">
+                        <div class="sf-field">
+                            <label>From</label>
+                            <input type="date" value="@(State.Filter.DateEndorsedFrom?.ToString("yyyy-MM-dd"))"
+                                   @onchange="e => OnDateEndorsedFromChanged(e)" />
+                        </div>
+                        <div class="sf-field">
+                            <label>To</label>
+                            <input type="date" value="@(State.Filter.DateEndorsedTo?.ToString("yyyy-MM-dd"))"
+                                   @onchange="e => OnDateEndorsedToChanged(e)" />
+                        </div>
+                        @if (State.Filter.DateEndorsedFrom.HasValue || State.Filter.DateEndorsedTo.HasValue)
+                        {
+                            <div class="sf-field" style="align-self: flex-end;">
+                                <button class="sf-btn sf-btn-clear" style="width: auto;" @onclick="ClearDateEndorsedFilter">
+                                    <i class="bi bi-x-circle"></i> Clear
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    @if (State.Filter.DateEndorsedFrom.HasValue || State.Filter.DateEndorsedTo.HasValue)
+                    {
+                        <small class="text-muted mt-1 d-block">
+                            <i class="bi bi-funnel-fill me-1 text-primary"></i>
+                            @if (State.Filter.DateEndorsedFrom.HasValue && State.Filter.DateEndorsedTo.HasValue)
+                            {
+                                <span>
+                                    @State.Filter.DateEndorsedFrom.Value.ToString("MMM dd, yyyy")
+                                    → @State.Filter.DateEndorsedTo.Value.ToString("MMM dd, yyyy")
+                                </span>
+                            }
+                            else if (State.Filter.DateEndorsedFrom.HasValue)
+                            {
+                                <span>From @State.Filter.DateEndorsedFrom.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                            else
+                            {
+                                <span>Until @State.Filter.DateEndorsedTo!.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                        </small>
+                    }
+                </div>
+
                 @* PAYMENT *@
                 <div>
                     <div class="sf-section-label"><i class="bi bi-credit-card me-1"></i>Payment</div>
@@ -868,6 +914,26 @@
         StateHasChanged();
     }
 
+    // ── Date Endorsed range handlers ──────────────────────────────────────────
+    private void OnDateEndorsedFromChanged(ChangeEventArgs e)
+    {
+        State.Filter.DateEndorsedFrom = DateTime.TryParse(
+            e.Value?.ToString(), out var d) ? d : null;
+    }
+
+    private void OnDateEndorsedToChanged(ChangeEventArgs e)
+    {
+        State.Filter.DateEndorsedTo = DateTime.TryParse(
+            e.Value?.ToString(), out var d) ? d : null;
+    }
+
+    private void ClearDateEndorsedFilter()
+    {
+        State.Filter.DateEndorsedFrom = null;
+        State.Filter.DateEndorsedTo = null;
+        StateHasChanged();
+    }
+
     private async Task ApplyFiltersAsync()
     {
         if (IsLoading || IsApplyingFilters) return;
@@ -998,6 +1064,8 @@
         // Inside ClearAllFilters — add alongside the other clears
         State.Filter.DateAddedFrom = null;
         State.Filter.DateAddedTo = null;
+        State.Filter.DateEndorsedFrom = null;
+        State.Filter.DateEndorsedTo = null;
 
         State.Filter = new BeneficiaryFilterDto
         {
@@ -1063,6 +1131,9 @@
     // ── Date Added ────────────────────────────────────────────────────────────
     State.Filter.DateAddedFrom == null &&
     State.Filter.DateAddedTo == null &&
+    // ── Date Endorsed ─────────────────────────────────────────────────────────
+    State.Filter.DateEndorsedFrom == null &&
+    State.Filter.DateEndorsedTo == null &&
     _birthdayToMonth == 0;
 
     private async Task LoadMunicipalitiesForProvincesAsync(List<int> provinceIds)

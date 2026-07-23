@@ -35,7 +35,6 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, Dictionary<Guid, byte[]>? rowVersions = null);
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
         Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
-        Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter);
         Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);
         Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments);
         Task<List<Guid>> FindSimilarNameIdsAsync(string term, int maxResults = 50, double minScore = 0.75);
@@ -50,10 +49,12 @@ namespace EcaInformationSystem.Application.Interfaces
         Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName);
         Task AddPaymentHistoryEntryAsync(BeneficiaryPaymentHistory entry);
         Task<List<DuplicateCheckCandidateDto>> GetDuplicateCheckPoolAsync();
-        
+
         // ── Annex A sub-entities — loaded/saved alongside the main record ──────────
         Task<List<BeneficiaryFamilyMember>> GetFamilyMembersAsync(Guid beneficiaryId);
         Task ReplaceFamilyMembersAsync(Guid beneficiaryId, List<BeneficiaryFamilyMember> members);
+        Task<List<BeneficiaryPhoneNumber>> GetPhoneNumbersAsync(Guid beneficiaryId);
+        Task ReplacePhoneNumbersAsync(Guid beneficiaryId, List<BeneficiaryPhoneNumber> numbers);
 
         Task<BeneficiaryBankAccount?> GetBankAccountAsync(Guid beneficiaryId);
         Task UpsertBankAccountAsync(Guid beneficiaryId, BeneficiaryBankAccount account);
@@ -65,5 +66,8 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<BeneficiaryClaimant?> GetClaimantAsync(Guid beneficiaryId);
         Task UpsertClaimantAsync(Guid beneficiaryId, BeneficiaryClaimant claimant);
         Task DeleteClaimantAsync(Guid beneficiaryId);
+        Task<BeneficiaryClaimantBankAccount?> GetClaimantBankAccountAsync(Guid beneficiaryId);
+        Task UpsertClaimantBankAccountAsync(Guid beneficiaryId, BeneficiaryClaimantBankAccount account);
+        Task DeleteClaimantBankAccountAsync(Guid beneficiaryId);
     }
 }

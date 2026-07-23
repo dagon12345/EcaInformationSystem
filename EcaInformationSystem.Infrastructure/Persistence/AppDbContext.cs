@@ -42,10 +42,12 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
             public DbSet<Activity> Activities => Set<Activity>();
             public DbSet<BeneficiaryFamilyMember> BeneficiaryFamilyMembers => Set<BeneficiaryFamilyMember>();
+            public DbSet<BeneficiaryPhoneNumber> BeneficiaryPhoneNumbers => Set<BeneficiaryPhoneNumber>();
             public DbSet<BeneficiaryBankAccount> BeneficiaryBankAccounts => Set<BeneficiaryBankAccount>();
             public DbSet<BeneficiaryAbroadAddress> BeneficiaryAbroadAddresses => Set<BeneficiaryAbroadAddress>();
             public DbSet<BeneficiaryClaimant> BeneficiaryClaimants => Set<BeneficiaryClaimant>();
             public DbSet<BeneficiaryVerificationChecklist> BeneficiaryVerificationChecklists => Set<BeneficiaryVerificationChecklist>();
+            public DbSet<BeneficiaryClaimantBankAccount> BeneficiaryClaimantBankAccounts => Set<BeneficiaryClaimantBankAccount>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -547,6 +549,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   {
                         entity.HasIndex(b => b.CurrentPaymentHistoryId)
                         .HasDatabaseName("IX_BeneficiaryInformation_CurrentPaymentHistoryId");
+
+                        entity.HasIndex(x => new { x.IsDeleted, x.IsLivenessVerified })
+                         .HasDatabaseName("IX_Beneficiary_LivenessVerified");
                   });
                   // ═══════════════════════════════════════════════════════════════════
                   // POSTS / FEED FEATURE
@@ -688,6 +693,28 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.ContactNumber).HasMaxLength(50);
                   });
 
+                  // ✅ NEW — replaces the old single PhoneNumber scalar column; grantees
+                  // can have multiple contact numbers.
+                  modelBuilder.Entity<BeneficiaryPhoneNumber>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasOne(x => x.Beneficiary)
+          .WithMany(b => b.PhoneNumbers)
+          .HasForeignKey(x => x.BeneficiaryInformationId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+          .HasDatabaseName("IX_PhoneNumber_BeneficiaryInformationId");
+
+                        // 100, not 11 — historical/legacy values recovered from before this
+                        // table existed aren't all clean 11-digit PH numbers (multi-number
+                        // strings glued together with no delimiter, typos, etc. — some run
+                        // 20+ characters). New entries are still enforced to exactly 11
+                        // digits at the application layer.
+                        entity.Property(x => x.Number).IsRequired().HasMaxLength(100);
+                  });
+
                   modelBuilder.Entity<BeneficiaryBankAccount>(entity =>
                   {
                         entity.HasKey(x => x.Id);
@@ -761,17 +788,17 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   });
 
                   modelBuilder.Entity<BeneficiaryVerificationChecklist>(entity =>
-                  {                       
+                  {
                         entity.HasKey(x => x.Id);
 
                         entity.HasIndex(x => x.BeneficiaryInformationId)
                               .IsUnique()
                               .HasDatabaseName("UQ_VerificationChecklist_BeneficiaryInformationId");
 
-                                                entity.HasOne(x => x.Beneficiary)
-                              .WithOne(b => b.VerificationChecklist)
-                              .HasForeignKey<BeneficiaryVerificationChecklist>(x => x.BeneficiaryInformationId)
-                              .OnDelete(DeleteBehavior.Cascade);
+                        entity.HasOne(x => x.Beneficiary)
+      .WithOne(b => b.VerificationChecklist)
+      .HasForeignKey<BeneficiaryVerificationChecklist>(x => x.BeneficiaryInformationId)
+      .OnDelete(DeleteBehavior.Cascade);
                         entity.Property(x => x.VerifierOffice).HasMaxLength(300);
 
                         entity.Property(x => x.AnnexARemarks).HasMaxLength(500);
@@ -785,6 +812,27 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.ClaimantBankSlipRemarks).HasMaxLength(500);
                         entity.Property(x => x.WarrantyReleaseFormRemarks).HasMaxLength(500);
                         entity.Property(x => x.LguRcfCertificationRemarks).HasMaxLength(500);
+                  });
+                  modelBuilder.Entity<BeneficiaryClaimantBankAccount>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.BeneficiaryInformationId)
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ClaimantBankAccount_BeneficiaryInformationId");
+
+                        entity.HasOne(x => x.Beneficiary)
+                        .WithOne(b => b.ClaimantBankAccount)
+                        .HasForeignKey<BeneficiaryClaimantBankAccount>(x => x.BeneficiaryInformationId)
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.Property(x => x.AccountNumber).HasMaxLength(100);
+                        entity.Property(x => x.BankOrWalletName).HasMaxLength(150);
+                        entity.Property(x => x.BranchName).HasMaxLength(150);
+                        entity.Property(x => x.BankAddress).HasMaxLength(300);
+                        entity.Property(x => x.SwiftCode).HasMaxLength(20);
+                        entity.Property(x => x.Iban).HasMaxLength(50);
+                        entity.Property(x => x.ModifiedBy).HasMaxLength(256);
                   });
             }
       }

@@ -161,10 +161,6 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> GetSummary([FromQuery] BeneficiaryFilterDto filter)
             => Ok(await _service.GetSummaryAsync(filter));
 
-        [HttpPost("dashboard-summary")]
-        public async Task<IActionResult> GetDashboardSummary([FromBody] BeneficiaryFilterDto filter)
-            => Ok(await _service.GetDashboardSummaryAsync(filter));
-
         [HttpPost("create")]
         [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> Create([FromBody] CreateBeneficiaryInformationDto dto)

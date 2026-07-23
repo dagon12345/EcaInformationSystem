@@ -16,6 +16,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
         public DateTime? OscaIdDateIssued { get; set; }
+        [Required(ErrorMessage = "NCSC Registration Reference Number is required.")]
         public int? NcscRrn { get; set; }
         [Required(ErrorMessage = "Last Name is required.")]
         public string? LastName { get; set; }
@@ -25,13 +26,17 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Extension { get; set; }
         [Required(ErrorMessage = "Birth Date is required.")]
         public DateTime BirthDate { get; set; }
-        public string? PhoneNumber { get; set; }
+        // ✅ Replaces the old single PhoneNumber scalar — grantees can have multiple
+        // contact numbers. At least one required; each must be a valid PH mobile
+        // number, enforced in the client (see BeneficiaryForm.razor) since nested
+        // list items aren't covered by <DataAnnotationsValidator/>.
+        public List<BeneficiaryPhoneNumberDto> PhoneNumbers { get; set; } = new();
         public int Age { get; set; }
         public int MilestoneYear { get; set; }
         [Range(1, 2, ErrorMessage = "Please select Sex.")]
         public int Sex { get; set; }
-        public bool IsIndigenousPeople { get; set; }
-        public bool IsPersonWithDisability { get; set; }
+        public bool? IsIndigenousPeople { get; set; }
+        public bool? IsPersonWithDisability { get; set; }
         public int? CivilStatus { get; set; }
         public int? Citizenship { get; set; }
         public int PsgcCodeRegion { get; set; }
@@ -83,9 +88,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? CgpPageNumber { get; set; }
         public Guid? CgpGenerationId { get; set; }
         public string? CgpPrefix { get; set; }
+        [Required(ErrorMessage = "Tracking Number is required.")]
         // ✅ NEW — Annex A (2026) flat fields
         public string? TrackingNumber { get; set; }
-        public bool DataPrivacyConsent { get; set; }
+        public bool? DataPrivacyConsent { get; set; }
         public int? PlaceOfSubmission { get; set; }
         public string? HouseNumber { get; set; }
         public string? StreetName { get; set; }
@@ -96,12 +102,17 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? CivilStatusOtherDetail { get; set; }
         public bool IsSignedDeclaration { get; set; }
         public DateTime? DateSigned { get; set; }
+        public bool? IsLivenessVerified { get; set; }
+        public DateTime? DateOfLiveness { get; set; }
+        public bool? IsReadyForEft { get; set; }
         // ✅ NEW — nested sub-entities (null-safe: absent until saved)
         public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
         public BeneficiaryBankAccountDto? BankAccount { get; set; }
         public BeneficiaryAbroadAddressDto? AbroadAddress { get; set; }
         public BeneficiaryClaimantDto? Claimant { get; set; }
         public BeneficiaryVerificationChecklistDto? VerificationChecklist { get; set; }
+        // NEW — alongside BankAccount, AbroadAddress, Claimant, VerificationChecklist
+        public BeneficiaryClaimantBankAccountDto? ClaimantBankAccount { get; set; }
         private string GetJsonString(JsonElement? element)
         {
             if (element == null) return string.Empty;

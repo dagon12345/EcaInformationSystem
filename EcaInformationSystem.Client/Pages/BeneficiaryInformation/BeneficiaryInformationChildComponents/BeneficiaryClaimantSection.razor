@@ -104,10 +104,100 @@
         </div>
     </div>
 
-    <BeneficiaryBankAccountSection Account="@GranteeBankAccount"
-                                    AccountChanged="@(_ => {})"
-                                    PlaceOfSubmission="@PlaceOfSubmission"
-                                    IsClaimantContext="true" />
+@if (IsDeceased)
+{
+    <div class="annexa-section">
+        <div class="annexa-header" style="background:#7a1f1f;">
+            <span class="annexa-letter">F.6/F.7.</span> CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT &amp; ACCOUNT DETAILS
+        </div>
+        <div class="annexa-body">
+            <p class="annexa-note mb-2">
+                Please check only one and make sure this is under the <strong>Claimant's</strong> name —
+                this account is separate from the grantee's own transaction account in Section E.
+            </p>
+
+            <div class="annexa-checkbox-row mb-3">
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="claimantChannel" checked="@(ClaimantBankAccount.PreferredChannel == 1)"
+                           @onchange="@(() => { ClaimantBankAccount.PreferredChannel = 1; NotifyBankAccountChanged(); })" />
+                    Landbank of the Philippines
+                </label>
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="claimantChannel" checked="@(ClaimantBankAccount.PreferredChannel == 2)"
+                           @onchange="@(() => { ClaimantBankAccount.PreferredChannel = 2; NotifyBankAccountChanged(); })" />
+                    Other Banks
+                </label>
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="claimantChannel" checked="@(ClaimantBankAccount.PreferredChannel == 3)"
+                           @onchange="@(() => { ClaimantBankAccount.PreferredChannel = 3; NotifyBankAccountChanged(); })" />
+                    Electronic Money Issuers (EMIs)
+                </label>
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="claimantChannel" checked="@(ClaimantBankAccount.PreferredChannel == 4)"
+                           @onchange="@(() => { ClaimantBankAccount.PreferredChannel = 4; NotifyBankAccountChanged(); })" />
+                    PSP (Palawan Pawnshop)
+                </label>
+            </div>
+
+            <div class="annexa-grid cols-3">
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Account No.</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.AccountNumber"
+                           @onchange="@(e => { ClaimantBankAccount.AccountNumber = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Bank/E-Wallet Name</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.BankOrWalletName"
+                           @onchange="@(e => { ClaimantBankAccount.BankOrWalletName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Branch Name</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.BranchName"
+                           @onchange="@(e => { ClaimantBankAccount.BranchName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Bank Address</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.BankAddress"
+                           @onchange="@(e => { ClaimantBankAccount.BankAddress = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">Joint Account?</span>
+                    <div class="annexa-checkbox-row">
+                        <label class="annexa-checkbox-item">
+                            <input type="radio" name="claimantJoint" checked="@(ClaimantBankAccount.IsJointAccount == true)"
+                                   @onchange="@(() => { ClaimantBankAccount.IsJointAccount = true; NotifyBankAccountChanged(); })" />
+                            Yes
+                        </label>
+                        <label class="annexa-checkbox-item">
+                            <input type="radio" name="claimantJoint" checked="@(ClaimantBankAccount.IsJointAccount == false)"
+                                   @onchange="@(() => { ClaimantBankAccount.IsJointAccount = false; NotifyBankAccountChanged(); })" />
+                            No
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            @if (PlaceOfSubmission == 2)
+            {
+                <div class="annexa-subsection">
+                    <div class="annexa-subsection-title">For Living Abroad Only</div>
+                    <div class="annexa-grid cols-2">
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">BIC/SWIFT Code</span>
+                            <input class="annexa-input" value="@ClaimantBankAccount.SwiftCode"
+                                   @onchange="@(e => { ClaimantBankAccount.SwiftCode = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">IBAN (European Countries)</span>
+                            <input class="annexa-input" value="@ClaimantBankAccount.Iban"
+                                   @onchange="@(e => { ClaimantBankAccount.Iban = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
 }
 
 @code {
@@ -118,11 +208,19 @@
     [Parameter] public BeneficiaryClaimantDto Claimant { get; set; } = new();
     [Parameter] public EventCallback<BeneficiaryClaimantDto> ClaimantChanged { get; set; }
 
-    [Parameter] public BeneficiaryBankAccountDto GranteeBankAccount { get; set; } = new();
+     // ✅ CHANGED — was GranteeBankAccount (reused), now the claimant's own account
+    [Parameter] public BeneficiaryClaimantBankAccountDto ClaimantBankAccount { get; set; } = new();
+    [Parameter] public EventCallback<BeneficiaryClaimantBankAccountDto> ClaimantBankAccountChanged { get; set; }
 
-    private void NotifyChanged()
+     private void NotifyChanged()
     {
         ClaimantChanged.InvokeAsync(Claimant);
+        StateHasChanged();
+    }
+
+    private void NotifyBankAccountChanged()
+    {
+        ClaimantBankAccountChanged.InvokeAsync(ClaimantBankAccount);
         StateHasChanged();
     }
 }

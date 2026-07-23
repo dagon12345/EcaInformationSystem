@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlcmd -S 'LANCELAPTOP\\\\SQLEXPRESS' -d db57463_migtest -E -Q ' *)",
+      "Bash(sqlcmd -S \"LANCELAPTOP\\\\SQLEXPRESS\" -E -Q \"DROP DATABASE db57463_migtest;\")"
+    ]
+  }
+}

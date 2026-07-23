@@ -20,6 +20,47 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
             _psgcNameCache = psgcNameCache;
         }
+        public async Task<BeneficiaryClaimantBankAccount?> GetClaimantBankAccountAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryClaimantBankAccounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+        }
+
+        public async Task UpsertClaimantBankAccountAsync(Guid beneficiaryId, BeneficiaryClaimantBankAccount account)
+        {
+            var existing = await _context.BeneficiaryClaimantBankAccounts
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+
+            if (existing == null)
+            {
+                account.Id = Guid.NewGuid();
+                account.BeneficiaryInformationId = beneficiaryId;
+                await _context.BeneficiaryClaimantBankAccounts.AddAsync(account);
+            }
+            else
+            {
+                existing.PreferredChannel = account.PreferredChannel;
+                existing.AccountNumber = account.AccountNumber;
+                existing.BankOrWalletName = account.BankOrWalletName;
+                existing.BranchName = account.BranchName;
+                existing.BankAddress = account.BankAddress;
+                existing.IsJointAccount = account.IsJointAccount;
+                existing.SwiftCode = account.SwiftCode;
+                existing.Iban = account.Iban;
+                existing.DateModified = account.DateModified;
+                existing.ModifiedBy = account.ModifiedBy;
+            }
+        }
+
+        // ✅ Mirrors DeleteClaimantAsync — cleans up when Deceased flips back to false
+        public async Task DeleteClaimantBankAccountAsync(Guid beneficiaryId)
+        {
+            var existing = await _context.BeneficiaryClaimantBankAccounts
+                .FirstOrDefaultAsync(x => x.BeneficiaryInformationId == beneficiaryId);
+            if (existing != null)
+                _context.BeneficiaryClaimantBankAccounts.Remove(existing);
+        }
         public async Task<List<BeneficiaryFamilyMember>> GetFamilyMembersAsync(Guid beneficiaryId)
         {
             return await _context.BeneficiaryFamilyMembers
@@ -55,6 +96,40 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // No SaveChangesAsync here — caller (service) commits everything in one
             // transaction alongside the main beneficiary write, same pattern as
             // AddPaymentHistoryEntryAsync.
+        }
+
+        // ✅ Replaces the old single BeneficiaryInformation.PhoneNumber scalar column —
+        // grantees can have more than one contact number. Same replace-all strategy
+        // as GetFamilyMembersAsync/ReplaceFamilyMembersAsync.
+        public async Task<List<BeneficiaryPhoneNumber>> GetPhoneNumbersAsync(Guid beneficiaryId)
+        {
+            return await _context.BeneficiaryPhoneNumbers
+                .AsNoTracking()
+                .Where(x => x.BeneficiaryInformationId == beneficiaryId)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+        }
+
+        public async Task ReplacePhoneNumbersAsync(Guid beneficiaryId, List<BeneficiaryPhoneNumber> numbers)
+        {
+            var existing = await _context.BeneficiaryPhoneNumbers
+                .Where(x => x.BeneficiaryInformationId == beneficiaryId)
+                .ToListAsync();
+
+            if (existing.Any())
+                _context.BeneficiaryPhoneNumbers.RemoveRange(existing);
+
+            foreach (var n in numbers)
+            {
+                n.Id = Guid.NewGuid();
+                n.BeneficiaryInformationId = beneficiaryId;
+            }
+
+            if (numbers.Any())
+                await _context.BeneficiaryPhoneNumbers.AddRangeAsync(numbers);
+
+            // No SaveChangesAsync here — caller (service) commits everything in one
+            // transaction alongside the main beneficiary write.
         }
 
         public async Task<BeneficiaryBankAccount?> GetBankAccountAsync(Guid beneficiaryId)
@@ -601,6 +676,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.Municipality.HasValue && request.Municipality.Value > 0)
                 query = query.Where(b => b.Municipality == request.Municipality.Value);
 
+            // ── Date Endorsed Range ───────────────────────────────────────────────
+            if (request.DateEndorsedFrom.HasValue)
+                query = query.Where(b => b.DateEndorsed >= request.DateEndorsedFrom.Value.Date);
+            if (request.DateEndorsedTo.HasValue)
+                query = query.Where(b => b.DateEndorsed < request.DateEndorsedTo.Value.Date.AddDays(1));
+
             // ✅ NEW — Milestone Year filter (was completely missing before)
             // Mirrors the same bracket rule used in BuildNarrowFilterQuery: a beneficiary
             // "belongs" to milestoneYear if BirthYear + one of {80,85,90,95,100} == milestoneYear,
@@ -893,6 +974,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FilterPayrollQuarters = filter.FilterPayrollQuarters, // ✅ new
                 DateAddedFrom = filter.DateAddedFrom,
                 DateAddedTo = filter.DateAddedTo,
+                DateEndorsedFrom = filter.DateEndorsedFrom,
+                DateEndorsedTo = filter.DateEndorsedTo,
                 Validator = filter.Validator,
                 BatchCode = filter.BatchCode,
                 GeneralSearch = filter.GeneralSearch,  // ✅ CRITICAL: Include GeneralSearch
@@ -1172,7 +1255,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     MiddleName = b.MiddleName,
                     Extension = b.Extension,
                     BirthDate = b.BirthDate,
-                    PhoneNumber = b.PhoneNumber,
                     Age = DateTime.Today.Year - b.BirthDate.Year -
                                            (b.BirthDate.Date > DateTime.Today.AddYears(
                                                -(DateTime.Today.Year - b.BirthDate.Year)) ? 1 : 0),
@@ -1235,7 +1317,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DualCitizenshipDetails = b.DualCitizenshipDetails,
                     CivilStatusOtherDetail = b.CivilStatusOtherDetail,
                     IsSignedDeclaration = b.IsSignedDeclaration,
-                    DateSigned = b.DateSigned
+                    DateSigned = b.DateSigned,
+                    IsLivenessVerified = b.IsLivenessVerified,
+                    DateOfLiveness = b.DateOfLiveness,
+                    IsReadyForEft = b.IsReadyForEft
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 
@@ -1345,7 +1430,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  MiddleName = b.MiddleName,
                  Extension = b.Extension,
                  BirthDate = b.BirthDate,
-                 PhoneNumber = b.PhoneNumber,
                  Age = DateTime.Today.Year - b.BirthDate.Year -
                  (b.BirthDate.Date > DateTime.Today.AddYears(-(DateTime.Today.Year - b.BirthDate.Year)) ? 1 : 0),
 
@@ -1593,82 +1677,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var query = await BuildNarrowFilterQuery(filter);
             return await query.CountAsync();
         }
-        public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter)
-        {
-            var query = await BuildNarrowFilterQuery(filter);
-
-            // ── Region-wide payment counts ─────────────────────────────────────
-            var paymentCounts = await query
-                .GroupBy(b => b.PaymentStatus)
-                .Select(g => new { Status = g.Key, Count = g.Count() })
-                .ToListAsync();
-
-            var total = paymentCounts.Sum(x => x.Count);
-
-            // ── Region-wide disbursement ───────────────────────────────────────
-            var paidBirthDates = await query
-                .Where(b => b.PaymentStatus == 2)
-                .Select(b => b.BirthDate)
-                .ToListAsync();
-
-            var totalDisbursement = paidBirthDates
-                .Sum(bd => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(bd)));
-
-            // ── Per-province breakdown ─────────────────────────────────────────
-            // Group by Province + PaymentStatus in one SQL query, resolve names
-            // in memory via the cache — no joins, no extra round trips.
-            var provinceRaw = await query
-                .GroupBy(b => new { b.Province, b.PaymentStatus })
-                .Select(g => new
-                {
-                    ProvinceCode = g.Key.Province,
-                    Status = g.Key.PaymentStatus,
-                    Count = g.Count()
-                })
-                .ToListAsync();
-
-            // Need BirthDates per province for paid records to compute disbursement
-            var paidByProvince = await query
-                .Where(b => b.PaymentStatus == 2)
-                .Select(b => new { b.Province, b.BirthDate })
-                .ToListAsync();
-
-            var provinceBreakdowns = provinceRaw
-                .GroupBy(x => x.ProvinceCode)
-                .Select(g =>
-                {
-                    var provinceName = _psgcNameCache.GetProvinceName(g.Key) ?? g.Key.ToString();
-                    var paidBds = paidByProvince
-                        .Where(p => p.Province == g.Key)
-                        .Select(p => p.BirthDate)
-                        .ToList();
-
-                    return new ProvinceBreakdownDto
-                    {
-                        ProvinceName = provinceName,
-                        PaidCount = g.FirstOrDefault(x => x.Status == 2)?.Count ?? 0,
-                        UnpaidCount = g.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
-                        PendingCount = g.FirstOrDefault(x => x.Status == 3)?.Count ?? 0,
-                        NotApplicableCount = g.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
-                        TotalCount = g.Sum(x => x.Count),
-                        TotalDisbursement = paidBds
-                            .Sum(bd => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(bd)))
-                    };
-                })
-                .OrderBy(p => p.ProvinceName)
-                .ToList();
-
-            return new DashboardSummaryDto
-            {
-                TotalBeneficiaries = total,
-                PaidCount = paymentCounts.FirstOrDefault(x => x.Status == 2)?.Count ?? 0,
-                UnpaidCount = paymentCounts.FirstOrDefault(x => x.Status == 1)?.Count ?? 0,
-                PendingCount = paymentCounts.FirstOrDefault(x => x.Status == 3)?.Count ?? 0,
-                NotApplicableCount = paymentCounts.FirstOrDefault(x => x.Status == 0)?.Count ?? 0,
-                TotalDisbursement = totalDisbursement,
-                ProvinceBreakdowns = provinceBreakdowns
-            };
-        }
         public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
         {
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
@@ -1708,7 +1716,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.RefYear,
                     x.b.RefCode,
                     x.b.BatchCode,
-                    x.b.PhoneNumber,
+                    PhoneNumbers = x.b.PhoneNumbers.OrderBy(n => n.SortOrder).Select(n => n.Number).ToList(),
                     x.b.LastName,
                     x.b.FirstName,
                     x.b.MiddleName,
@@ -1729,6 +1737,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.DateEndorsed,
                     x.b.DateApplied,
                     x.b.NcscRrn,
+                    x.b.IsLivenessVerified,
+                    x.b.DateOfLiveness,
+                    x.b.IsReadyForEft,
                     x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
@@ -1791,7 +1802,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     RefYear = x.RefYear,
                     RefCode = x.RefCode,
                     BatchCode = x.BatchCode,
-                    PhoneNumber = x.PhoneNumber,
+                    PhoneNumbers = x.PhoneNumbers.Select(n => new BeneficiaryPhoneNumberDto { Number = n }).ToList(),
                     LastName = x.LastName,
                     FirstName = x.FirstName ?? string.Empty,
                     MiddleName = x.MiddleName,
@@ -1828,7 +1839,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     RowVersion = x.RowVersion,
                     DateEndorsed = x.DateEndorsed,
                     DateApplied = x.DateApplied,
-                    NcscRrn = x.NcscRrn
+                    NcscRrn = x.NcscRrn,
+                    IsLivenessVerified = x.IsLivenessVerified,
+                    DateOfLiveness = x.DateOfLiveness,
+                    IsReadyForEft = x.IsReadyForEft
                 };
             }).ToList();
 
@@ -2006,7 +2020,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     // ── ID / code fields ──────────────────────────────────────────────
                     (x.Beneficiary.OscaIdNumber != null && x.Beneficiary.OscaIdNumber.ToLower().Contains(term)) ||
                     (x.Beneficiary.BatchCode != null && x.Beneficiary.BatchCode.ToLower().Contains(term)) ||
-                    (x.Beneficiary.PhoneNumber != null && x.Beneficiary.PhoneNumber.ToLower().Contains(term)) ||
+                    (x.Beneficiary.PhoneNumbers.Any(n => n.Number.Contains(term))) ||
                     (x.Beneficiary.NcscRrn != null && x.Beneficiary.NcscRrn.ToString()!.Contains(term)) ||
 
                     // ── Location name fields (joined) ─────────────────────────────────
@@ -2338,6 +2352,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x => x.Beneficiary.DateAdded < to);
             }
 
+            // ── Date Endorsed Range ───────────────────────────────────────────────────
+            if (filter.DateEndorsedFrom.HasValue)
+            {
+                var from = filter.DateEndorsedFrom.Value.Date;
+                query = query.Where(x => x.Beneficiary.DateEndorsed >= from);
+            }
+
+            if (filter.DateEndorsedTo.HasValue)
+            {
+                var to = filter.DateEndorsedTo.Value.Date.AddDays(1);
+                query = query.Where(x => x.Beneficiary.DateEndorsed < to);
+            }
+
             // ── Other ─────────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.Validator))
                 query = query.Where(x =>
@@ -2451,7 +2478,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     MiddleName = x.Beneficiary.MiddleName,
                     Extension = x.Beneficiary.Extension,
                     BirthDate = x.Beneficiary.BirthDate,
-                    PhoneNumber = x.Beneficiary.PhoneNumber,
+                    PhoneNumbers = x.Beneficiary.PhoneNumbers.OrderBy(n => n.SortOrder).Select(n => n.Number).ToList(),
                     IsIndigenousPeople = x.Beneficiary.IsIndigenousPeople,
                     IsPersonWithDisability = x.Beneficiary.IsPersonWithDisability,
                     CivilStatus = x.Beneficiary.CivilStatus,
@@ -2527,7 +2554,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             MiddleName = x.MiddleName,
             Extension = x.Extension,
             BirthDate = x.BirthDate,
-            PhoneNumber = x.PhoneNumber,
+            PhoneNumbers = x.PhoneNumbers.Select(n => new BeneficiaryPhoneNumberDto { Number = n }).ToList(),
             Age = DateTime.Today.Year - x.BirthDate.Year -
                                      (x.BirthDate.Date > DateTime.Today.AddYears(
                                          -(DateTime.Today.Year - x.BirthDate.Year)) ? 1 : 0),
@@ -2587,7 +2614,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             DualCitizenshipDetails = x.DualCitizenshipDetails,
             CivilStatusOtherDetail = x.CivilStatusOtherDetail,
             IsSignedDeclaration = x.IsSignedDeclaration,
-            DateSigned = x.DateSigned
+            DateSigned = x.DateSigned,
+            IsLivenessVerified = x.IsLivenessVerified,
+            DateOfLiveness = x.DateOfLiveness,
+            IsReadyForEft = x.IsReadyForEft,
         };
 
         private static int ComputeMilestoneYear(DateTime birthDate)
@@ -2722,7 +2752,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         IsDeleted = b.IsDeleted,
                         DateApplied = b.DateApplied,
                         DateEndorsed = b.DateEndorsed,
-                        PhoneNumber = b.PhoneNumber,
+                        PhoneNumbers = b.PhoneNumbers.OrderBy(n => n.SortOrder).Select(n => n.Number).ToList(),
                         PsgcCodeRegion = b.Region,
                         PsgcCodeProvince = b.Province,
                         PsgcCodeMunicipality = b.Municipality,
@@ -2744,7 +2774,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         DualCitizenshipDetails = b.DualCitizenshipDetails,
                         CivilStatusOtherDetail = b.CivilStatusOtherDetail,
                         IsSignedDeclaration = b.IsSignedDeclaration,
-                        DateSigned = b.DateSigned
+                        DateSigned = b.DateSigned,
+                        IsLivenessVerified = b.IsLivenessVerified,
+                        DateOfLiveness = b.DateOfLiveness,
+                        IsReadyForEft = b.IsReadyForEft
                     }
                 ).AsNoTracking().ToListAsync();
 
@@ -2778,7 +2811,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 MiddleName = x.MiddleName,
                 Extension = x.Extension,
                 BirthDate = x.BirthDate,
-                PhoneNumber = x.PhoneNumber,
+                PhoneNumbers = x.PhoneNumbers.Select(n => new BeneficiaryPhoneNumberDto { Number = n }).ToList(),
                 Age = DateTime.Today.Year - x.BirthDate.Year -
                                        (x.BirthDate.Date > DateTime.Today.AddYears(
                                            -(DateTime.Today.Year - x.BirthDate.Year)) ? 1 : 0),
@@ -2835,7 +2868,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 DualCitizenshipDetails = x.DualCitizenshipDetails,
                 CivilStatusOtherDetail = x.CivilStatusOtherDetail,
                 IsSignedDeclaration = x.IsSignedDeclaration,
-                DateSigned = x.DateSigned
+                DateSigned = x.DateSigned,
+                // ✅ FIX — these were missing from this specific mapping
+                IsLivenessVerified = x.IsLivenessVerified,
+                DateOfLiveness = x.DateOfLiveness,
+                IsReadyForEft = x.IsReadyForEft
             }).ToList();
 
             return result;
@@ -2893,7 +2930,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         break;
                     case "incomplete":
                         query = query.Where(b => b.DateEndorsed == null || b.DateApplied == null
-                            || string.IsNullOrWhiteSpace(b.PhoneNumber) || b.NcscRrn == null);
+                            || !b.PhoneNumbers.Any() || b.NcscRrn == null);
                         break;
                 }
             }
@@ -2993,6 +3030,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.DateAddedTo.HasValue)
                 query = query.Where(b => b.DateAdded < filter.DateAddedTo.Value.Date.AddDays(1));
 
+            if (filter.DateEndorsedFrom.HasValue)
+                query = query.Where(b => b.DateEndorsed >= filter.DateEndorsedFrom.Value.Date);
+
+            if (filter.DateEndorsedTo.HasValue)
+                query = query.Where(b => b.DateEndorsed < filter.DateEndorsedTo.Value.Date.AddDays(1));
+
             if (filter.SpecificAge.HasValue)
             {
                 var end = DateTime.Today.AddYears(-filter.SpecificAge.Value).Date;
@@ -3075,7 +3118,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     // ── ID / code fields ─────────────────────────────────────────
                     (b.OscaIdNumber != null && b.OscaIdNumber.ToLower().Contains(term)) ||
                     (b.BatchCode != null && b.BatchCode.ToLower().Contains(term)) ||
-                    (b.PhoneNumber != null && b.PhoneNumber.ToLower().Contains(term)) ||
+                    (b.PhoneNumbers.Any(n => n.Number.Contains(term))) ||
                     (b.NcscRrn != null && b.NcscRrn.ToString()!.Contains(term)) ||
 
                     // ── Location — matched via cache-resolved codes ─────────────
@@ -3220,8 +3263,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? Extension { get; set; }
             public DateTime BirthDate { get; set; }
             public int Sex { get; set; }
-            public bool IsIndigenousPeople { get; set; }
-            public bool IsPersonWithDisability { get; set; }
+            public bool? IsIndigenousPeople { get; set; }
+            public bool? IsPersonWithDisability { get; set; }
             public int? CivilStatus { get; set; }
             public int? Citizenship { get; set; }
             public bool IsCompliant { get; set; }
@@ -3246,7 +3289,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool IsDeleted { get; set; }
             public DateTime? DateApplied { get; set; }
             public DateTime? DateEndorsed { get; set; }
-            public string? PhoneNumber { get; set; }
+            public List<string> PhoneNumbers { get; set; } = new();
             public int PsgcCodeRegion { get; set; }
             public int PsgcCodeProvince { get; set; }
             public int PsgcCodeMunicipality { get; set; }
@@ -3258,7 +3301,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public byte[]? RowVersion { get; set; }
             // ✅ NEW — Annex A flat fields
             public string? TrackingNumber { get; set; }
-            public bool DataPrivacyConsent { get; set; }
+            public bool? DataPrivacyConsent { get; set; }
             public int? PlaceOfSubmission { get; set; }
             public string? HouseNumber { get; set; }
             public string? StreetName { get; set; }
@@ -3269,6 +3312,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? CivilStatusOtherDetail { get; set; }
             public bool IsSignedDeclaration { get; set; }
             public DateTime? DateSigned { get; set; }
+            public bool? IsLivenessVerified { get; set; }
+            public DateTime? DateOfLiveness { get; set; }
+            public bool? IsReadyForEft { get; set; }
+
         }
         // Add this helper method if not already present
         private static string FormatDuplicateName(
@@ -3374,9 +3421,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? MiddleName { get; set; }
             public string? Extension { get; set; }
             public DateTime BirthDate { get; set; }
-            public string? PhoneNumber { get; set; }
-            public bool IsIndigenousPeople { get; set; }
-            public bool IsPersonWithDisability { get; set; }
+            public List<string> PhoneNumbers { get; set; } = new();
+            public bool? IsIndigenousPeople { get; set; }
+            public bool? IsPersonWithDisability { get; set; }
             public int? CivilStatus { get; set; }
             public int? Citizenship { get; set; }
             public int Sex { get; set; }
@@ -3417,7 +3464,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? CgpPrefix { get; set; }
             // ✅ NEW — Annex A flat fields
             public string? TrackingNumber { get; set; }
-            public bool DataPrivacyConsent { get; set; }
+            public bool? DataPrivacyConsent { get; set; }
             public int? PlaceOfSubmission { get; set; }
             public string? HouseNumber { get; set; }
             public string? StreetName { get; set; }
@@ -3428,6 +3475,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public string? CivilStatusOtherDetail { get; set; }
             public bool IsSignedDeclaration { get; set; }
             public DateTime? DateSigned { get; set; }
+            public bool? IsLivenessVerified { get; set; }
+            public DateTime? DateOfLiveness { get; set; }
+            public bool? IsReadyForEft { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

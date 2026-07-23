@@ -2,6 +2,12 @@
     scrollToTop: function () {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
+    scrollToElement: function (elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    },
     registerScrollListener: function (dotNetHelper) {
         const handler = function () {
             const shouldShow = window.scrollY > 400;

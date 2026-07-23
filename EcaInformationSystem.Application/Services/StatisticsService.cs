@@ -60,7 +60,9 @@ namespace EcaInformationSystem.Application.Services
                 request.MilestoneAge.ToString(),
                 request.PaymentStatus.ToString(),
                 request.PayrollQuarter?.ToString() ?? "null",
-                request.FiscalYear?.ToString() ?? "null"); // ✅ new
+                request.FiscalYear?.ToString() ?? "null", // ✅ new
+                request.DateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",
+                request.DateEndorsedTo?.ToString("yyyyMMdd") ?? "null");
         }
         private string GetCurrentCacheVersion()
         {

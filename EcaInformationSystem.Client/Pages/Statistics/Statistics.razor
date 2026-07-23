@@ -163,6 +163,15 @@
                                 }
                             </select>
                         </div>
+                        @* ── Date Endorsed ─────────────────────────────── *@
+                        <div class="sf-field">
+                            <label>Date Endorsed From</label>
+                            <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Date Endorsed To</label>
+                            <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
+                        </div>
                     </div>
                     <div class="sf-actions">
                         <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
@@ -518,6 +527,8 @@
     private int _selectedMilestoneYear;
     private int _selectedMilestone;
     private int _selectedPaymentStatus = -1;
+    private DateTime? _dateEndorsedFrom;
+    private DateTime? _dateEndorsedTo;
 
     private bool _isLoadingProvinces;
     private bool _isLoadingMunicipalities;
@@ -651,7 +662,9 @@
                 MilestoneAge = _selectedMilestone,
                 PaymentStatus = _selectedPaymentStatus,
                 PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,
-                FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null // ✅ new
+                FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null, // ✅ new
+                DateEndorsedFrom = _dateEndorsedFrom,
+                DateEndorsedTo = _dateEndorsedTo
             };
 
             var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
@@ -689,6 +702,8 @@
         _municipalitiesForProvince = new();
         _selectedPayrollQuarter = 0;
         _selectedFiscalYear = 0; // ✅ new
+        _dateEndorsedFrom = null;
+        _dateEndorsedTo = null;
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
@@ -746,6 +761,8 @@
         public int PaymentStatus { get; set; } = -1;
         public int? PayrollQuarter { get; set; }
         public int? FiscalYear { get; set; } // ✅ new
+        public DateTime? DateEndorsedFrom { get; set; }
+        public DateTime? DateEndorsedTo { get; set; }
     }
 
     public class StatisticsReportDto

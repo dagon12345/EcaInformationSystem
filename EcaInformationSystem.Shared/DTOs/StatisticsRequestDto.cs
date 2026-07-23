@@ -10,5 +10,7 @@
         public int PaymentStatus { get; set; } = -1;
         public int? PayrollQuarter { get; set; }
         public int? FiscalYear { get; set; } // ✅ new
+        public DateTime? DateEndorsedFrom { get; set; }
+        public DateTime? DateEndorsedTo { get; set; }
     }
 }

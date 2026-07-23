@@ -46,6 +46,8 @@
         // Add these alongside your existing PaymentDateFrom/PaymentDateTo
         public DateTime? DateAddedFrom { get; set; }
         public DateTime? DateAddedTo { get; set; }
+        public DateTime? DateEndorsedFrom { get; set; }
+        public DateTime? DateEndorsedTo { get; set; }
 
         public int? FindingStatus { get; set; }
 

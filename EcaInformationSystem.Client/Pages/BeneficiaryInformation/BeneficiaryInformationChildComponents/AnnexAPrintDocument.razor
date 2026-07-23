@@ -49,10 +49,10 @@
         <table class="annexa-doc-table">
     <tr>
         <td style="width:50%;">
-            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.DataPrivacyConsent ? "checked" : "")"></span>Consent</span>
+            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.DataPrivacyConsent == true ? "checked" : "")"></span>Consent</span>
         </td>
         <td style="width:50%;">
-            <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.DataPrivacyConsent ? "checked" : "")"></span>Dissent</span>
+            <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.DataPrivacyConsent == false ? "checked" : "")"></span>Dissent</span>
         </td>
     </tr>
 </table>
@@ -103,7 +103,7 @@
             <td>
                 <span class="annexa-doc-field-label">C.8 CONTACT NUMBER/S</span>
                 <span class="annexa-doc-field-note">(This will receive updates/status on the cash gift)</span>
-                <span class="annexa-doc-field-value">@(Beneficiary.PhoneNumber ?? "—")</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.PhoneNumbers.Any() ? string.Join(", ", Beneficiary.PhoneNumbers.OrderBy(n => n.SortOrder).Select(n => n.Number)) : "—")</span>
             </td>
         </tr>
         <tr>
@@ -192,19 +192,19 @@
                 <div class="mt-2">
                     <span class="annexa-doc-field-label">C.13 DISABILITY</span><br />
                     <span class="annexa-doc-field-note">Are you a person with impairment / disability?</span>
-                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsPersonWithDisability ? "checked" : "")"></span>Yes</span>
-                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsPersonWithDisability ? "checked" : "")"></span>No</span><br />
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsPersonWithDisability == true ? "checked" : "")"></span>Yes</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsPersonWithDisability == false ? "checked" : "")"></span>No</span>                    
                     <span class="annexa-doc-field-note">If yes, state the type of disability:</span>
-                    <span class="annexa-doc-underline-value">@(Beneficiary.IsPersonWithDisability ? (Beneficiary.DisabilityType ?? "—") : "")</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.IsPersonWithDisability == null ? (Beneficiary.DisabilityType ?? "—") : "")</span>
                 </div>
 
                 <div class="mt-2">
                     <span class="annexa-doc-field-label">C.14 ETHNICITY</span><br />
                     <span class="annexa-doc-field-note">Are you a member of the Indigenous Peoples (IP)?</span>
-                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsIndigenousPeople ? "checked" : "")"></span>Yes</span>
-                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsIndigenousPeople ? "checked" : "")"></span>No</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsIndigenousPeople == true ? "checked" : "")"></span>Yes</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsIndigenousPeople == false? "checked" : "")"></span>No</span>
                     <span class="annexa-doc-field-note">If yes, indicate the name:</span>
-                    <span class="annexa-doc-underline-value">@(Beneficiary.IsIndigenousPeople ? (Beneficiary.EthnicityName ?? "—") : "")</span>
+                    <span class="annexa-doc-underline-value">@(Beneficiary.IsIndigenousPeople == null ? (Beneficiary.EthnicityName ?? "—") : "")</span>
                 </div>
             </td>
         </tr>
@@ -268,6 +268,11 @@
     <div class="annexa-doc-bar">
         E. GRANTEE'S TRANSACTION ACCOUNT <em style="font-weight:400; font-size:9px;">(If grantee is deceased, skip this and proceed to Section F)</em>
     </div>
+    <div class="@(Beneficiary.IsDeceased ? "annexa-doc-deceased-lock" : "")">
+    @if (Beneficiary.IsDeceased)
+    {
+        <span class="annexa-deceased-stamp">Deceased</span>
+    }
     <table class="annexa-doc-table">
         <tr>
             <td style="width:70%;">
@@ -275,7 +280,7 @@
                 <span class="annexa-doc-field-note">(please check only one and make sure this is under the Grantee's name)</span>
                 <div><span class="annexa-doc-checkbox"><span class="box @(channel == 1 ? "checked" : "")"></span>Landbank of the Philippines <em>(PISO or Savings Account)</em></span></div>
                 <div><span class="annexa-doc-checkbox"><span class="box @(channel == 2 ? "checked" : "")"></span>Other Banks <em>(rural banks / overseas banks)</em></span></div>
-                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 3 ? "checked" : "")"></span>Electronic Money Issuers (EMIs) <em>e.g. GCash, Maya, GoTyme</em></span></div>
+                <div><span class="annexa-doc-checkbox"><span class="box @(channel == 3 ? "checked" : "")"></span>Electronic Money Issuers (EMIs) <em>e.g. GCash</em></span></div>
                 <div><span class="annexa-doc-checkbox"><span class="box @(channel == 4 ? "checked" : "")"></span>Payment Service Providers (PSP) through Palawan Pawnshop</span></div>
                 <div class="annexa-doc-field-note mt-1">Note: Existing GSIS and SSS Pension Bank Accounts is recommended for this purpose.</div>
             </td>
@@ -307,6 +312,7 @@
             </td>
         </tr>
     </table>
+    </div>
 
     @* ══════════════════ F. FOR DECEASED GRANTEES ══════════════════ *@
     <div class="annexa-doc-bar">F. FOR DECEASED GRANTEES <em style="font-weight:400; font-size:9px;">(Attach sworn or notarized Warranty and Release From Liability Form)</em></div>
@@ -377,12 +383,34 @@
                     <span class="annexa-doc-field-value">@(Beneficiary.Claimant?.RelationshipToDeceased ?? "—")</span>
                 </td>
             </tr>
-            <tr>
-                <td colspan="2">
-                    <span class="annexa-doc-field-label">F.6. CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT &amp; F.7. ACCOUNT DETAILS</span>
-                    <div class="annexa-doc-note">Per office policy, the claimant is paid out using the grantee's own transaction account on file (Section E above) rather than a separate claimant account.</div>
-                </td>
-            </tr>
+@{ var claimantAcct = Beneficiary.ClaimantBankAccount; var claimantChannel = claimantAcct?.PreferredChannel ?? 0; }
+<tr>
+    <td colspan="2">
+        <span class="annexa-doc-field-label">F.6. CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT</span>
+        <span class="annexa-doc-field-note">(please check only one, under the Claimant's own name)</span>
+        <div><span class="annexa-doc-checkbox"><span class="box @(claimantChannel == 1 ? "checked" : "")"></span>Landbank of the Philippines</span></div>
+        <div><span class="annexa-doc-checkbox"><span class="box @(claimantChannel == 2 ? "checked" : "")"></span>Other Banks</span></div>
+        <div><span class="annexa-doc-checkbox"><span class="box @(claimantChannel == 3 ? "checked" : "")"></span>Electronic Money Issuers (EMIs)</span></div>
+        <div><span class="annexa-doc-checkbox"><span class="box @(claimantChannel == 4 ? "checked" : "")"></span>Payment Service Providers (PSP)</span></div>
+    </td>
+</tr>
+<tr>
+    <td colspan="2">
+        <span class="annexa-doc-field-label">F.7. ACCOUNT DETAILS</span>
+        <div class="row g-1 mt-1">
+            <div class="col-6"><span class="annexa-doc-field-note">Account No.:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.AccountNumber ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">Bank/E-Wallet name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BankOrWalletName ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">Branch Name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BranchName ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">Bank Address:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BankAddress ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">Joint Account:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.IsJointAccount switch { true => "Yes", false => "No", null => "—" })</span></div>
+        </div>
+        <div class="mt-1"><em>For Living Abroad Only:</em></div>
+        <div class="row g-1">
+            <div class="col-6"><span class="annexa-doc-field-note">BIC/SWIFTCODE:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.SwiftCode ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">IBAN:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.Iban ?? "—")</span></div>
+        </div>
+    </td>
+</tr>
         </table>
     }
 
@@ -473,8 +501,7 @@
                 <span class="annexa-doc-field-value">@Beneficiary.ValidationDate.ToString("MMMM dd, yyyy")</span>
             </td>
             <td style="width:50%;">
-                <span class="annexa-doc-field-label">Tracking Number <em>(Region-LGU-ECA-year-month-000)</em></span>
-                <span class="annexa-doc-field-note">E.g. NCR-Pasig-ECA-2026-May-001</span>
+                <span class="annexa-doc-field-label">NCSC Registration Number serves as the tracking number</span>
                 <span class="annexa-doc-field-value">@(Beneficiary.TrackingNumber ?? "—")</span>
             </td>
         </tr>

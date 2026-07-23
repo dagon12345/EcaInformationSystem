@@ -8,10 +8,13 @@
 @inject AuthService AuthService
 @inject BeneficiaryStateService State
 @inject BeneficiaryFindingClientService FindingService
+@inject IJSRuntime JS
 
-<EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal">
+<EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal" OnInvalidSubmit="@OnFormInvalidSubmit">
     <DataAnnotationsValidator />
-    <ValidationSummary class="text-danger mb-3 small" />
+    <div id="annexa-validation-summary">
+        <ValidationSummary class="text-danger mb-3 small" />
+    </div>
 
     @* ══════════════════════════════════════════════════════════════════
        SYSTEM FIELD — Reference Number (PDO-internal, NOT part of Annex A)
@@ -66,7 +69,7 @@
             <div class="form-section mb-3">
                 <div class="form-section-header">
                     <i class="bi bi-calendar me-2"></i>
-                        Date Applied/Endorsed 
+                        Date Applied /Endorsed & Batch Code 
                     <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">
                         INTERNAL
                     </span>
@@ -81,6 +84,10 @@
                                     <label class="ff-label">Date Endorsed</label>
                                     <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
                          </div>
+                        <div class="ff">
+                                    <label class="ff-label">Batch Code</label>
+                                    <input type="text" class="ff-input" placeholder="e.g. BATCH-2026-001" @bind="model.BatchCode" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -133,17 +140,29 @@
                 In compliance with R.A. No. 10173 ("Data Privacy Act of 2012"), I hereby consent the NCSC
                 to collect, use, and process my personal information for the implementation of R.A. No. 11982.
             </p>
-            <div class="annexa-checkbox-row">
-                <label class="annexa-checkbox-item">
-                    <input type="checkbox" checked="@model.DataPrivacyConsent"
-                           @onchange="@(e => model.DataPrivacyConsent = (bool)(e.Value ?? false))" />
+    <div class="annexa-checkbox-row">
+        <label class="annexa-checkbox-item">
+             <input type="radio" name="dataPrivacyConsent" checked="@(model.DataPrivacyConsent == true)"
+                        @onchange="@(() => model.DataPrivacyConsent = true)" />
                     Consent
-                </label>
-                <label class="annexa-checkbox-item text-muted">
-                    <input type="checkbox" checked="@(!model.DataPrivacyConsent)" disabled /> Dissent
+        </label>
+                <label class="annexa-checkbox-item">
+                    <input type="radio" name="dataPrivacyConsent" checked="@(model.DataPrivacyConsent == false)"
+                        @onchange="@(() => model.DataPrivacyConsent = false)" />
+                    Dissent
                 </label>
             </div>
-            @if (!model.DataPrivacyConsent && _showValidationHints)
+            @if (model.DataPrivacyConsent == null)
+            {
+                <span class="badge bg-secondary fw-normal" style="font-size:9px;">Not yet answered</span>
+            }
+            @if (model.DataPrivacyConsent != true && _showValidationHints)
+            {
+                <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Consent must be confirmed before saving.
+                </div>
+            }   
+            @if (model.DataPrivacyConsent != true && _showValidationHints)
             {
                 <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">
                     <i class="bi bi-exclamation-triangle me-1"></i>Consent must be confirmed before saving.
@@ -183,8 +202,9 @@
             @* C.1 / C.2 *@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
-                    <span class="annexa-item-label">C.1 NCSC Registration Reference Number</span>
-                    <InputNumber class="annexa-input" @bind-Value="model.NcscRrn" />
+                    <span class="annexa-item-label">C.1 NCSC Registration Reference Number <span class="annexa-required">*</span></span>
+                    <InputNumber class="annexa-input" @bind-Value="model.NcscRrn" @bind-Value:after="OnNcscRrnChanged" />
+                    <ValidationMessage For="@(() => model.NcscRrn)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.2 LGU OSCA ID Number</span>
@@ -238,8 +258,41 @@
                     <input class="annexa-input annexa-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" disabled />
                 </div>
                 <div class="annexa-field">
-                    <span class="annexa-item-label">C.8 Contact Number/s</span>
-                    <input class="annexa-input" @bind="model.PhoneNumber" placeholder="09171234567" />
+                    <span class="annexa-item-label">C.8 Contact Number/s <span class="annexa-required">*</span></span>
+                    @for (int i = 0; i < model.PhoneNumbers.Count; i++)
+                    {
+                        var idx = i;
+                        <div class="d-flex gap-1 align-items-start mb-1">
+                            <div class="flex-grow-1">
+                                <input class="annexa-input" value="@model.PhoneNumbers[idx].Number"
+                                       @onchange="@(e => OnPhoneNumberChanged(idx, e.Value?.ToString()))"
+                                       placeholder="09171234567" maxlength="11" />
+                                @if (_showValidationHints && !IsValidPhoneNumber(model.PhoneNumbers[idx].Number))
+                                {
+                                    <span class="ff-err d-block">Must be 11 digits starting with 09 (e.g. 09171234567).</span>
+                                }
+                            </div>
+                            <button type="button" class="annexa-icon-btn annexa-icon-btn--danger" title="Remove number"
+                                    aria-label="Remove number" @onclick="@(() => RemovePhoneNumber(idx))">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    }
+                    @if (!model.PhoneNumbers.Any() && _showValidationHints)
+                    {
+                        <span class="ff-err d-block mb-1">At least one contact number is required.</span>
+                    }
+                    @if (model.PhoneNumbers.Count < MaxPhoneNumbers)
+                    {
+                        <button type="button" class="annexa-icon-btn annexa-icon-btn--primary mt-1" title="Add another number"
+                                aria-label="Add another number" @onclick="AddPhoneNumber">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="annexa-item-note d-block mt-1">Maximum of @MaxPhoneNumbers contact numbers.</span>
+                    }
                 </div>
             </div>
 
@@ -374,7 +427,7 @@
                             <input class="annexa-input" @bind="model.DualCitizenshipDetails" />
                         </div>
                     }
-                    @if (model.IsPersonWithDisability)
+                    @if (model.IsPersonWithDisability == true)
                     {
                         <div class="annexa-field">
                             <span class="annexa-item-label">Type of Disability</span>
@@ -392,7 +445,7 @@
                            @onchange="@(e => model.IsIndigenousPeople = (bool)(e.Value ?? false))" />
                     Member of Indigenous Peoples (IP)
                 </label>
-                @if (model.IsIndigenousPeople)
+                @if (model.IsIndigenousPeople == true)
                 {
                     <input class="annexa-input" placeholder="Name of IP group" @bind="model.EthnicityName" />
                 }
@@ -427,15 +480,17 @@
     <BeneficiaryBankAccountSection Account="@(model.BankAccount ??= new())"
                                    AccountChanged="@(acct => model.BankAccount = acct)"
                                    PlaceOfSubmission="@model.PlaceOfSubmission"
-                                   IsClaimantContext="false" />
+                                   IsClaimantContext="false"
+                                   IsDeceased="@model.IsDeceased" />
 
     @* ── F. For Deceased Grantees (conditional) ── *@
-    <BeneficiaryClaimantSection IsDeceased="@model.IsDeceased"
-                               DateOfDeath="@model.DateOfDeath"
-                               PlaceOfSubmission="@model.PlaceOfSubmission"
-                               Claimant="@(model.Claimant ??= new())"
-                               ClaimantChanged="@(c => model.Claimant = c)"
-                               GranteeBankAccount="@(model.BankAccount ?? new())" />
+<BeneficiaryClaimantSection IsDeceased="@model.IsDeceased"
+                           DateOfDeath="@model.DateOfDeath"
+                           PlaceOfSubmission="@model.PlaceOfSubmission"
+                           Claimant="@(model.Claimant ??= new())"
+                           ClaimantChanged="@(c => model.Claimant = c)"
+                           ClaimantBankAccount="@(model.ClaimantBankAccount ??= new())"
+                           ClaimantBankAccountChanged="@(a => model.ClaimantBankAccount = a)" />
 
     @* ── G. Attestation / Certification ── *@
     <BeneficiaryAttestationSection IsSignedDeclaration="@model.IsSignedDeclaration"
@@ -461,20 +516,17 @@
                                               EligibilityRemarksChanged="@(v => model.EligibilityRemarks = v)"
                                               AssessmentRemarks="@model.AssessmentRemarks"
                                               AssessmentRemarksChanged="@(v => model.AssessmentRemarks = v)" />
- @* ── Tracking Number — matches the centered placement on the printed
-       Annex A form (Section I, alongside Date of Verification) ── *@
-    <div class="annexa-tracking-number-block">
-        <div class="annexa-field" style="max-width: 340px; margin: 0 auto;">
-            <span class="annexa-item-label text-center d-block">
-                Tracking Number
-                <span class="annexa-item-note">(Region-LGU-ECA-year-month-000)</span>
-            </span>
-            <input type="text" class="annexa-input text-center"
-                   placeholder="e.g. NCR-Pasig-ECA-2026-May-001"
-                   @bind="model.TrackingNumber" />
-        </div>
-    </div>
-    <div class="annexa-paper-footer mb-3">— end of Annex A form fields —</div>
+            @* ── Tracking Number — matches the centered placement on the printed
+                Annex A form (Section I, alongside Date of Verification) ── *@
+            <div class="annexa-tracking-number-block">
+                <div class="annexa-field" style="max-width: 340px; margin: 0 auto;">
+                    <span class="annexa-item-label text-center d-block">
+                        NCSC Registration Number serves as the tracking number <span class="annexa-required">*</span>
+                    </span>
+                    <input type="text" class="annexa-input annexa-readonly text-center"
+                        value="@model.TrackingNumber" disabled />
+                </div>
+            </div>
 </div>
     @* ══════════════════════════════════════════════════════════════════
        SYSTEM FIELDS — everything below is NOT part of the printed Annex A
@@ -555,6 +607,45 @@
                     }
                 </div>
             </div>
+@* ── Liveness Verification & EFT Readiness (internal workflow, not on paper form) ── *@
+<div class="form-section mb-3">
+    <div class="form-section-header">
+        <i class="bi bi-person-check-fill me-2"></i>Liveness Verification &amp; EFT Readiness
+    </div>
+    <div class="form-section-body">
+        <div class="form-grid">
+            <div class="ff">
+                <label class="ff-label">Liveness Verified?</label>
+                <label class="annexa-checkbox-item">
+                    <input type="checkbox" checked="@(model.IsLivenessVerified ?? false)"
+                           @onchange="@(e => model.IsLivenessVerified = (bool)(e.Value ?? false))" />
+                    Verified
+                </label>
+                @if (model.IsLivenessVerified == null)
+                {
+                    <span class="badge bg-secondary fw-normal mt-1" style="font-size:9px;">Not yet checked</span>
+                }
+            </div>
+            <div class="ff">
+                <label class="ff-label">Date of Liveness</label>
+                <UniformDateInput Value="@model.DateOfLiveness" ValueChanged="@(v => model.DateOfLiveness = v)"
+                                  MaxDate="@DateTime.Today" />
+            </div>
+            <div class="ff">
+                <label class="ff-label">Ready for Electronic Fund Transfer?</label>
+                <label class="annexa-checkbox-item">
+                    <input type="checkbox" checked="@(model.IsReadyForEft ?? false)"
+                           @onchange="@(e => model.IsReadyForEft = (bool)(e.Value ?? false))" />
+                    Ready for EFT
+                </label>
+                @if (model.IsReadyForEft == null)
+                {
+                    <span class="badge bg-secondary fw-normal mt-1" style="font-size:9px;">Not yet checked</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
 
             @* ── Findings (edit mode only, admin-gated) ── *@
             @if (IsEditMode)
@@ -1006,6 +1097,7 @@
     {
         BirthDate = DateTime.UtcNow.AddYears(-80),
         ValidationDate = DateTime.UtcNow,
+        PhoneNumbers = new() { new BeneficiaryPhoneNumberDto() },
     };
     // Add these fields in @code
     private bool _isAdmin;
@@ -1059,6 +1151,10 @@
             model.Batch = raw.Trim();
         StateHasChanged();
     }
+    private void OnNcscRrnChanged()
+    {
+        model.TrackingNumber = model.NcscRrn?.ToString();
+    }   
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -1330,6 +1426,32 @@
         ApplyEligibilityRules();
     }
 
+    // ✅ NEW — C.8 Contact Number/s: replaces the old single PhoneNumber input with
+    // a dynamic add/remove list, since grantees can have multiple numbers.
+    private static readonly System.Text.RegularExpressions.Regex PhoneNumberRegex =
+        new(@"^09\d{9}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static bool IsValidPhoneNumber(string number) =>
+        !string.IsNullOrWhiteSpace(number) && PhoneNumberRegex.IsMatch(number.Trim());
+
+    private const int MaxPhoneNumbers = 3;
+
+    private void AddPhoneNumber()
+    {
+        if (model.PhoneNumbers.Count >= MaxPhoneNumbers) return;
+        model.PhoneNumbers.Add(new BeneficiaryPhoneNumberDto { SortOrder = model.PhoneNumbers.Count });
+    }
+
+    private void RemovePhoneNumber(int index)
+    {
+        model.PhoneNumbers.RemoveAt(index);
+    }
+
+    private void OnPhoneNumberChanged(int index, string? value)
+    {
+        model.PhoneNumbers[index].Number = value?.Trim() ?? string.Empty;
+    }
+
     private void OnValidationDateChanged(DateTime value)
     {
         model.ValidationDate = value;
@@ -1496,6 +1618,13 @@
             model = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{id}") ?? model;
             model.BirthDate = model.BirthDate.Date;
 
+            // ✅ UI-only fallback — older/imported records may have an RRN but no
+            // TrackingNumber saved yet (it only ever got mirrored through this form).
+            // Show the mirrored value immediately on load instead of leaving the
+            // field blank until the user happens to retype the RRN.
+            if (string.IsNullOrWhiteSpace(model.TrackingNumber) && model.NcscRrn.HasValue)
+                model.TrackingNumber = model.NcscRrn.Value.ToString();
+
             // Pre-populate cascade dropdowns from the loaded record's PSGC codes
             if (model.PsgcCodeRegion > 0)
                 await LoadFormProvincesAsync(model.PsgcCodeRegion);
@@ -1522,6 +1651,7 @@
         {
             BirthDate = DateTime.UtcNow.AddYears(-80),
             ValidationDate = DateTime.UtcNow,
+            PhoneNumbers = new() { new BeneficiaryPhoneNumberDto() },
         };
         _formProvinces = new();
         _formMunicipalities = new();
@@ -1595,14 +1725,59 @@
         if (birthDate.Value.Date > today.AddYears(-age)) age--;
         return age;
     }
+    // ✅ Fires when DataAnnotations validation fails on submit (e.g. required
+    // fields like Last Name left blank) — brings the ValidationSummary list at
+    // the top of the form into view so the user isn't left staring at a save
+    // button that silently did nothing.
+    private async Task OnFormInvalidSubmit()
+    {
+        await ScrollToValidationSummaryAsync();
+    }
+
+    private async Task ScrollToValidationSummaryAsync()
+    {
+        await JS.InvokeVoidAsync("scrollInterop.scrollToElement", "annexa-validation-summary");
+    }
+
     private async Task OpenSaveConfirmationModal()
     {
         ClearMessages();
 
-        if (!model.DataPrivacyConsent || !model.IsSignedDeclaration)
+        if (model.DataPrivacyConsent != true)
         {
             _showValidationHints = true;
             toast.ShowError("Please confirm both Data Privacy Consent and the Attestation/Declaration before saving.");
+            await ScrollToValidationSummaryAsync();
+            return;
+        }
+        if (model.DataPrivacyConsent != true || !model.IsSignedDeclaration)
+        {
+            _showValidationHints = true;
+            toast.ShowError("Please confirm both Data Privacy Consent and the Attestation/Declaration before saving.");
+            await ScrollToValidationSummaryAsync();
+            return;
+        }
+
+        if (model.NcscRrn == null)
+        {
+            toast.ShowError("NCSC Registration Reference Number is required.");
+            await ScrollToValidationSummaryAsync();
+            return;
+        }
+
+        var validPhoneNumbers = model.PhoneNumbers.Where(n => !string.IsNullOrWhiteSpace(n.Number)).ToList();
+        if (!validPhoneNumbers.Any())
+        {
+            _showValidationHints = true;
+            toast.ShowError("At least one contact number is required.");
+            await ScrollToValidationSummaryAsync();
+            return;
+        }
+        if (validPhoneNumbers.Any(n => !IsValidPhoneNumber(n.Number)))
+        {
+            _showValidationHints = true;
+            toast.ShowError("One or more contact numbers are not valid Philippine mobile numbers (11 digits, starting with 09).");
+            await ScrollToValidationSummaryAsync();
             return;
         }
 
@@ -1771,7 +1946,7 @@
     MiddleName = model.MiddleName,
     Extension = model.Extension,
     BirthDate = model.BirthDate,
-    PhoneNumber = model.PhoneNumber,
+    PhoneNumbers = model.PhoneNumbers.Where(n => !string.IsNullOrWhiteSpace(n.Number)).ToList(),
     Sex = model.Sex,
     IsIndigenousPeople = model.IsIndigenousPeople,
     IsPersonWithDisability = model.IsPersonWithDisability,
@@ -1800,7 +1975,7 @@
     // sub-entity. This is the actual cause of the "must be given" error even
     // when the checkbox is visibly checked.
     TrackingNumber = model.TrackingNumber,
-    DataPrivacyConsent = model.DataPrivacyConsent,
+    DataPrivacyConsent = model.DataPrivacyConsent == true,
     PlaceOfSubmission = model.PlaceOfSubmission,
     HouseNumber = model.HouseNumber,
     StreetName = model.StreetName,
@@ -1811,12 +1986,17 @@
     CivilStatusOtherDetail = model.CivilStatusOtherDetail,
     IsSignedDeclaration = model.IsSignedDeclaration,
     DateSigned = model.DateSigned,
+    IsLivenessVerified = model.IsLivenessVerified,
+    DateOfLiveness = model.DateOfLiveness,
+    IsReadyForEft = model.IsReadyForEft,
 
     FamilyMembers = model.FamilyMembers,
     BankAccount = model.BankAccount,
     AbroadAddress = model.AbroadAddress,
     Claimant = model.Claimant,
-    VerificationChecklist = model.VerificationChecklist
+    ClaimantBankAccount = model.ClaimantBankAccount,
+    VerificationChecklist = model.VerificationChecklist,
+    
 };
 
             await SendCreateRequestAsync(_pendingDto);

@@ -13,6 +13,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
         public DateTime? OscaIdDateIssued { get; set; }
+        [Required(ErrorMessage = "NCSC Registration Reference Number is required.")]
         public int? NcscRrn { get; set; }
         [Required(ErrorMessage = "Last Name is required.")]
         public string? LastName { get; set; }
@@ -22,11 +23,11 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Extension { get; set; }
         [Required(ErrorMessage = "Birth Date is required.")]
         public DateTime BirthDate { get; set; }
-        public string? PhoneNumber { get; set; }
+        public List<BeneficiaryPhoneNumberDto> PhoneNumbers { get; set; } = new();
         [Range(1, 2, ErrorMessage = "Please select Sex.")]
         public int Sex { get; set; }
-        public bool IsIndigenousPeople { get; set; }
-        public bool IsPersonWithDisability { get; set; }
+        public bool? IsIndigenousPeople { get; set; }
+        public bool? IsPersonWithDisability { get; set; }
         public int? CivilStatus { get; set; }
         public int? Citizenship { get; set; }
         public int PsgcCodeRegion { get; set; }
@@ -57,6 +58,7 @@ namespace EcaInformationSystem.Shared.DTOs
         //  Set to true when the user has reviewed soft duplicated and confirmed they want to proceed
         // </summary>
         public bool BypassSoftDuplicateCheck { get; set; }
+        [Required(ErrorMessage = "Tracking Number is required.")]
         // ✅ NEW
         public string? TrackingNumber { get; set; }
         public bool DataPrivacyConsent { get; set; }
@@ -70,11 +72,14 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? CivilStatusOtherDetail { get; set; }
         public bool IsSignedDeclaration { get; set; }
         public DateTime? DateSigned { get; set; }
-
+        public bool? IsLivenessVerified { get; set; }
+        public DateTime? DateOfLiveness { get; set; }
+        public bool? IsReadyForEft { get; set; }
         public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
         public BeneficiaryBankAccountDto? BankAccount { get; set; }
         public BeneficiaryAbroadAddressDto? AbroadAddress { get; set; }
         public BeneficiaryClaimantDto? Claimant { get; set; }
         public BeneficiaryVerificationChecklistDto? VerificationChecklist { get; set; }
+        public BeneficiaryClaimantBankAccountDto? ClaimantBankAccount { get; set; }
     }
 }

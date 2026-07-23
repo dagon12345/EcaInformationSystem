@@ -1,11 +1,15 @@
 @* BeneficiaryBankAccountSection.razor — Annex A Sections E/F: Transaction Account *@
 @using EcaInformationSystem.Shared.DTOs
 
-<div class="annexa-section">
+<div class="annexa-section @(IsLocked ? "annexa-section--deceased-locked" : "")">
     <div class="annexa-header">
         <span class="annexa-letter">@(IsClaimantContext ? "F.6/F.7" : "E.")</span>
         @(IsClaimantContext ? "CLAIMANT'S PREFERRED MODE TO RECEIVE THE CASH GIFT" : "GRANTEE'S TRANSACTION ACCOUNT")
     </div>
+    @if (IsLocked)
+    {
+        <span class="annexa-deceased-stamp">Deceased</span>
+    }
     <div class="annexa-body">
 
         @if (IsClaimantContext)
@@ -30,7 +34,7 @@
                     <option value="0">Not yet set</option>
                     <option value="1">Landbank of the Philippines (PISO or Savings Account)</option>
                     <option value="2">Other Banks (rural / overseas)</option>
-                    <option value="3">Electronic Money Issuer (EMI) — e.g. GCash, Maya, GoTyme</option>
+                    <option value="3">Electronic Money Issuer (EMI) — e.g. GCash</option>
                     <option value="4">Payment Service Provider (PSP) — Palawan Pawnshop</option>
                 </select>
             </div>
@@ -121,6 +125,9 @@
     [Parameter] public EventCallback<BeneficiaryBankAccountDto> AccountChanged { get; set; }
     [Parameter] public int? PlaceOfSubmission { get; set; }
     [Parameter] public bool IsClaimantContext { get; set; } = false;
+    [Parameter] public bool IsDeceased { get; set; } = false;
+
+    private bool IsLocked => IsDeceased && !IsClaimantContext;
 
     private string JointAccountString => Account.IsJointAccount switch
     {

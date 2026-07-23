@@ -236,7 +236,7 @@ namespace EcaInformationSystem.Application.Services
             RefYear = x.RefYear,
             RefCode = x.RefCode,
             BatchCode = x.BatchCode,
-            PhoneNumber = x.PhoneNumber,
+            PhoneNumbers = x.PhoneNumbers,
             LastName = x.LastName,
             FirstName = x.FirstName,
             MiddleName = x.MiddleName,
@@ -644,6 +644,8 @@ namespace EcaInformationSystem.Application.Services
                 N(f.FilterRegionRoman),
                 N(f.DateAddedFrom),
                 N(f.DateAddedTo),
+                N(f.DateEndorsedFrom),
+                N(f.DateEndorsedTo),
                 // ── Other ─────────────────────────────────────────────────────
                 N(f.Validator),
                 N(f.BatchCode),
@@ -655,10 +657,11 @@ namespace EcaInformationSystem.Application.Services
         public async Task<CreateBeneficiaryResultDto> CreateAsync(CreateBeneficiaryInformationDto dto, string userName)
         {
 
-            if (!dto.DataPrivacyConsent)
+            if (dto.DataPrivacyConsent != true)
                 throw new Exception("Data Privacy Consent must be given before this record can be saved.");
             if (!dto.IsSignedDeclaration)
                 throw new Exception("The declaration must be confirmed as signed before this record can be saved.");
+            ValidatePhoneNumbers(dto.PhoneNumbers);
             //Check duplicates
             var isDuplicate = await _repo.ExistsDuplicateAsync(
                 dto.LastName,
@@ -708,7 +711,6 @@ namespace EcaInformationSystem.Application.Services
                 MiddleName = dto.MiddleName,
                 Extension = dto.Extension,
                 BirthDate = dto.BirthDate,
-                PhoneNumber = dto.PhoneNumber,
                 IsIndigenousPeople = dto.IsIndigenousPeople,
                 IsPersonWithDisability = dto.IsPersonWithDisability,
                 CivilStatus = dto.CivilStatus,
@@ -761,7 +763,9 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.PaymentStatus = initialHistory.PaymentStatus;
             beneficiary.ModeOfPayment = initialHistory.ModeOfPayment;
             beneficiary.PaymentDate = initialHistory.PaymentDate;
-            beneficiary.TrackingNumber = dto.TrackingNumber;
+            // ✅ Server is the authoritative source for this mirror — never trust the
+            // client's TrackingNumber value, always derive it from NcscRrn directly.
+            beneficiary.TrackingNumber = dto.NcscRrn?.ToString();
             beneficiary.DataPrivacyConsent = dto.DataPrivacyConsent;
             beneficiary.PlaceOfSubmission = dto.PlaceOfSubmission;
             beneficiary.HouseNumber = dto.HouseNumber;
@@ -773,6 +777,9 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.CivilStatusOtherDetail = dto.CivilStatusOtherDetail;
             beneficiary.IsSignedDeclaration = dto.IsSignedDeclaration;
             beneficiary.DateSigned = dto.DateSigned;
+            beneficiary.IsLivenessVerified = dto.IsLivenessVerified;
+            beneficiary.DateOfLiveness = dto.DateOfLiveness;
+            beneficiary.IsReadyForEft = dto.IsReadyForEft;
 
             await _repo.AddAsync(beneficiary);
             await _repo.AddPaymentHistoryEntryAsync(initialHistory);
@@ -811,6 +818,16 @@ namespace EcaInformationSystem.Application.Services
                 }).ToList();
 
                 await _repo.ReplaceFamilyMembersAsync(beneficiary.Id, familyEntities);
+            }
+
+            // ✅ NEW — replaces the old single PhoneNumber scalar; already validated
+            // (required + PH format) above via ValidatePhoneNumbers.
+            {
+                var phoneEntities = dto.PhoneNumbers
+                    .Where(n => !string.IsNullOrWhiteSpace(n.Number))
+                    .Select((n, i) => new BeneficiaryPhoneNumber { Number = n.Number.Trim(), SortOrder = i })
+                    .ToList();
+                await _repo.ReplacePhoneNumbersAsync(beneficiary.Id, phoneEntities);
             }
 
             if (dto.BankAccount != null)
@@ -863,6 +880,23 @@ namespace EcaInformationSystem.Application.Services
                     CityMunicipality = dto.Claimant.CityMunicipality,
                     Province = dto.Claimant.Province,
                     ZipCode = dto.Claimant.ZipCode
+                });
+            }
+            // ✅ NEW — claimant's own bank account, independent from the grantee's
+            if (dto.IsDeceased && dto.ClaimantBankAccount != null)
+            {
+                await _repo.UpsertClaimantBankAccountAsync(beneficiary.Id, new BeneficiaryClaimantBankAccount
+                {
+                    PreferredChannel = dto.ClaimantBankAccount.PreferredChannel,
+                    AccountNumber = dto.ClaimantBankAccount.AccountNumber,
+                    BankOrWalletName = dto.ClaimantBankAccount.BankOrWalletName,
+                    BranchName = dto.ClaimantBankAccount.BranchName,
+                    BankAddress = dto.ClaimantBankAccount.BankAddress,
+                    IsJointAccount = dto.ClaimantBankAccount.IsJointAccount,
+                    SwiftCode = dto.ClaimantBankAccount.SwiftCode,
+                    Iban = dto.ClaimantBankAccount.Iban,
+                    DateModified = DateTime.UtcNow,
+                    ModifiedBy = userName
                 });
             }
             // ✅ NEW — checklist rides the same transaction as everything else. Admin
@@ -924,7 +958,6 @@ namespace EcaInformationSystem.Application.Services
                     MiddleName = beneficiary.MiddleName,
                     Extension = beneficiary.Extension,
                     BirthDate = beneficiary.BirthDate,
-                    PhoneNumber = beneficiary.PhoneNumber,
                     Sex = beneficiary.Sex,
                     IsIndigenousPeople = beneficiary.IsIndigenousPeople,
                     IsPersonWithDisability = beneficiary.IsPersonWithDisability,
@@ -973,9 +1006,11 @@ namespace EcaInformationSystem.Application.Services
                     // aren't currently consumed by the Razor form's success path, but should
                     // still be complete and correct for any future caller that does read it.
                     FamilyMembers = dto.FamilyMembers ?? new List<BeneficiaryFamilyMemberDto>(),
+                    PhoneNumbers = dto.PhoneNumbers,
                     BankAccount = dto.BankAccount,
                     AbroadAddress = dto.PlaceOfSubmission == 2 ? dto.AbroadAddress : null,
                     Claimant = dto.IsDeceased ? dto.Claimant : null,
+                    ClaimantBankAccount = dto.IsDeceased ? dto.ClaimantBankAccount : null,  // ✅ NEW
                     VerificationChecklist = dto.VerificationChecklist
                 }
             };
@@ -1011,6 +1046,14 @@ namespace EcaInformationSystem.Application.Services
                 Age = f.Age,
                 IsLivingWithGrantee = f.IsLivingWithGrantee,
                 SortOrder = f.SortOrder
+            }).ToList();
+
+            var phoneNumbers = await _repo.GetPhoneNumbersAsync(id);
+            getById.PhoneNumbers = phoneNumbers.Select(n => new BeneficiaryPhoneNumberDto
+            {
+                Id = n.Id,
+                Number = n.Number,
+                SortOrder = n.SortOrder
             }).ToList();
 
             var bankAccount = await _repo.GetBankAccountAsync(id);
@@ -1092,6 +1135,23 @@ namespace EcaInformationSystem.Application.Services
                         ZipCode = claimant.ZipCode
                     };
             }
+            // ✅ NEW
+            var claimantBankAccount = await _repo.GetClaimantBankAccountAsync(id);
+            if (claimantBankAccount != null)
+                getById.ClaimantBankAccount = new BeneficiaryClaimantBankAccountDto
+                {
+                    Id = claimantBankAccount.Id,
+                    PreferredChannel = claimantBankAccount.PreferredChannel,
+                    AccountNumber = claimantBankAccount.AccountNumber,
+                    BankOrWalletName = claimantBankAccount.BankOrWalletName,
+                    BranchName = claimantBankAccount.BranchName,
+                    BankAddress = claimantBankAccount.BankAddress,
+                    IsJointAccount = claimantBankAccount.IsJointAccount,
+                    SwiftCode = claimantBankAccount.SwiftCode,
+                    Iban = claimantBankAccount.Iban,
+                    DateModified = claimantBankAccount.DateModified,
+                    ModifiedBy = claimantBankAccount.ModifiedBy
+                };
 
             return getById;
         }
@@ -1120,24 +1180,6 @@ namespace EcaInformationSystem.Application.Services
 
             return summary;
         }
-        public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(BeneficiaryFilterDto filter)
-        {
-            var cacheKey = BuildDashboardSummaryCacheKey(filter);
-
-            if (_memoryCache.TryGetValue(cacheKey, out DashboardSummaryDto? cached) && cached is not null)
-                return cached;
-
-            var summary = await _repo.GetDashboardSummaryAsync(filter);
-
-            _memoryCache.Set(cacheKey, summary, new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
-                SlidingExpiration = TimeSpan.FromMinutes(5)
-            });
-
-            return summary;
-        }
-
         public async Task SoftDeleteAsync(Guid Id, string userName)
         {
             var selectedBeneficiary = await _repo.GetEntityByIdAsync(Id);
@@ -1252,10 +1294,16 @@ namespace EcaInformationSystem.Application.Services
             if (dto.RowVersion != null)
                 _repo.SetOriginalRowVersion(beneficiary, dto.RowVersion);
 
-            if (!dto.DataPrivacyConsent)
+            if (dto.DataPrivacyConsent != true)
                 throw new Exception("Data Privacy Consent must be given before this record can be saved.");
             if (!dto.IsSignedDeclaration)
                 throw new Exception("The declaration must be confirmed as signed before this record can be saved.");
+            // ✅ NEW — mandatory going forward. Old imported records may still have
+            // NcscRrn = null (that's fine, untouched by this check), but every NEW
+            // record created through this form must have it.
+            if (dto.NcscRrn == null)
+                throw new Exception("NCSC Registration Reference Number is required.");
+            ValidatePhoneNumbers(dto.PhoneNumbers);
 
 
             var isDuplicate = await _repo.ExistsDuplicateAsync(
@@ -1280,7 +1328,7 @@ namespace EcaInformationSystem.Application.Services
                      dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
                      dto.OscaIdNumber, dto.OscaIdDateIssued, dto.NcscRrn,
                      dto.LastName, dto.FirstName, dto.MiddleName,
-                     dto.Extension, dto.BirthDate, dto.PhoneNumber,
+                     dto.Extension, dto.BirthDate,
                      dto.Sex, dto.IsIndigenousPeople, dto.IsPersonWithDisability,
                      dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
                      dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
@@ -1291,10 +1339,11 @@ namespace EcaInformationSystem.Application.Services
                      dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
 
             beneficiary.UpdateAnnexADetails(
-                     dto.TrackingNumber, dto.DataPrivacyConsent, dto.PlaceOfSubmission,
+                     dto.NcscRrn?.ToString(), dto.DataPrivacyConsent, dto.PlaceOfSubmission,
                      dto.HouseNumber, dto.StreetName, dto.ZipCode,
                      dto.DisabilityType, dto.EthnicityName, dto.DualCitizenshipDetails,
-                     dto.CivilStatusOtherDetail, dto.IsSignedDeclaration, dto.DateSigned);
+                     dto.CivilStatusOtherDetail, dto.IsSignedDeclaration, dto.DateSigned, dto.IsLivenessVerified, dto.DateOfLiveness,
+                     dto.IsReadyForEft);
 
             // ✅ Family members — always replace-all on edit, matches create behavior
             if (dto.FamilyMembers != null)
@@ -1314,6 +1363,16 @@ namespace EcaInformationSystem.Application.Services
                 }).ToList();
 
                 await _repo.ReplaceFamilyMembersAsync(beneficiary.Id, familyEntities);
+            }
+
+            // ✅ Phone numbers — always replace-all on edit, matches create behavior.
+            // Already validated (required + PH format) above via ValidatePhoneNumbers.
+            {
+                var phoneEntities = dto.PhoneNumbers
+                    .Where(n => !string.IsNullOrWhiteSpace(n.Number))
+                    .Select((n, i) => new BeneficiaryPhoneNumber { Number = n.Number.Trim(), SortOrder = i })
+                    .ToList();
+                await _repo.ReplacePhoneNumbersAsync(beneficiary.Id, phoneEntities);
             }
 
             if (dto.BankAccount != null)
@@ -1374,6 +1433,27 @@ namespace EcaInformationSystem.Application.Services
             else if (!dto.IsDeceased)
             {
                 await _repo.DeleteClaimantAsync(Id);
+            }
+            // ✅ NEW — same flip-cleanup pattern for the claimant's own bank account
+            if (dto.IsDeceased && dto.ClaimantBankAccount != null)
+            {
+                await _repo.UpsertClaimantBankAccountAsync(Id, new BeneficiaryClaimantBankAccount
+                {
+                    PreferredChannel = dto.ClaimantBankAccount.PreferredChannel,
+                    AccountNumber = dto.ClaimantBankAccount.AccountNumber,
+                    BankOrWalletName = dto.ClaimantBankAccount.BankOrWalletName,
+                    BranchName = dto.ClaimantBankAccount.BranchName,
+                    BankAddress = dto.ClaimantBankAccount.BankAddress,
+                    IsJointAccount = dto.ClaimantBankAccount.IsJointAccount,
+                    SwiftCode = dto.ClaimantBankAccount.SwiftCode,
+                    Iban = dto.ClaimantBankAccount.Iban,
+                    DateModified = DateTime.UtcNow,
+                    ModifiedBy = userName
+                });
+            }
+            else if (!dto.IsDeceased)
+            {
+                await _repo.DeleteClaimantBankAccountAsync(Id);
             }
             // ✅ NEW — checklist rides the same transaction as everything else. Admin
             // gating for WHO can edit these fields is enforced client-side (only admins
@@ -3349,7 +3429,7 @@ namespace EcaInformationSystem.Application.Services
                         MiddleName = NullIfEmpty(middleName),
                         Extension = NullIfEmpty(extensionName),
                         BirthDate = birthDate,
-                        PhoneNumber = NullIfEmpty(contactNumber),
+                        PhoneNumbers = ParsePhoneNumbersFromImport(contactNumber),
                         Sex = MapSex(sexRaw),
                         IsIndigenousPeople = mappedIsIndigenousPeople,
                         IsPersonWithDisability = mappedIsPersonWithDisability,
@@ -4377,6 +4457,53 @@ namespace EcaInformationSystem.Application.Services
 
         }
         #region Private helpers
+
+        // ✅ NEW — PH mobile number: exactly 11 digits, starts with "09". Shared by
+        // both CreateAsync and UpdateAsync since a grantee must always have at
+        // least one valid contact number.
+        private static readonly System.Text.RegularExpressions.Regex PhoneNumberRegex =
+            new(@"^09\d{9}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        private static void ValidatePhoneNumbers(List<BeneficiaryPhoneNumberDto>? numbers)
+        {
+            if (numbers == null || !numbers.Any(n => !string.IsNullOrWhiteSpace(n.Number)))
+                throw new Exception("At least one contact number is required.");
+
+            foreach (var n in numbers.Where(n => !string.IsNullOrWhiteSpace(n.Number)))
+            {
+                if (!PhoneNumberRegex.IsMatch(n.Number.Trim()))
+                    throw new Exception($"'{n.Number}' is not a valid Philippine mobile number. It must be 11 digits and start with '09' (e.g. 09171234567).");
+            }
+        }
+
+        // ✅ NEW — Excel import's "CONTACT NUMBER" column may contain more than one
+        // number separated by common delimiters (comma, slash, semicolon, "&", or
+        // a newline within the cell). Unlike ValidatePhoneNumbers (used by the
+        // interactive form), this is intentionally lenient: historical import data
+        // was never validated, so entries that don't match the PH format are simply
+        // dropped rather than failing the whole row.
+        private static List<BeneficiaryPhoneNumber> ParsePhoneNumbersFromImport(string? rawContactNumber)
+        {
+            if (string.IsNullOrWhiteSpace(rawContactNumber))
+                return new List<BeneficiaryPhoneNumber>();
+
+            var candidates = rawContactNumber.Split(
+                new[] { ',', '/', ';', '&', '\n', '\r' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            return candidates
+                .Where(c => PhoneNumberRegex.IsMatch(c))
+                .Distinct()
+                .Select((c, i) => new BeneficiaryPhoneNumber { Number = c, SortOrder = i })
+                .ToList();
+        }
+
+        private static string MapTriStateLabel(bool? value) => value switch
+        {
+            true => CommonConstants.Yes,
+            false => CommonConstants.No,
+            null => "Not yet answered"
+        };
         private static string MapPlaceOfSubmissionLabel(int? value) => value switch
         {
             1 => "Local",
@@ -4410,25 +4537,6 @@ namespace EcaInformationSystem.Application.Services
         : isCompliant
             ? CommonConstants.Compliant
             : CommonConstants.NonCompliant;
-        // ── Cache key reuses the same version-token pattern as BuildSummaryCacheKey,
-        // so InvalidateSummaryCache() (already called from every Create/Update/Bulk*/
-        // SoftDelete path) automatically busts this too — no new invalidation wiring.
-        private string BuildDashboardSummaryCacheKey(BeneficiaryFilterDto filter)
-        {
-            var version = GetCurrentSummaryCacheVersion();
-
-            return string.Join("|",
-                version,
-                "dashboard_summary",
-                filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
-                (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any())
-                    ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x))
-                    : CommonConstants.Null,
-                (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any())
-                    ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x))
-                    : CommonConstants.Null
-            );
-        }
         private string BuildFilterDescription(BeneficiaryFilterDto filter)
         {
             var parts = new List<string>();
@@ -4666,6 +4774,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
+                filter.DateEndorsedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
+                filter.DateEndorsedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any()) // ✅ new
                     ? string.Join(",", filter.FilterPayrollQuarters.OrderBy(x => x))
                     : CommonConstants.Null
@@ -4850,6 +4960,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,  // ✅ ADDED
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,    // ✅ ADDED
+                filter.DateEndorsedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
+                filter.DateEndorsedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())  // ✅ new
                     ? string.Join(",", filter.FilterPayrollQuarters.OrderBy(x => x))
                     : CommonConstants.Null
@@ -4904,17 +5016,15 @@ namespace EcaInformationSystem.Application.Services
             if (beneficiary.BirthDate.Date != dto.BirthDate.Date)
                 changes.Add($"{CommonConstants.BirthDate.ToTitleCase()} '{beneficiary.BirthDate.ToFullDate()}' → '{dto.BirthDate.ToFullDate()}'");
 
-            if (beneficiary.PhoneNumber != dto.PhoneNumber)
-                changes.Add($"{CommonConstants.ContactNumber.ToTitleCase()} '{beneficiary.PhoneNumber}' → '{dto.PhoneNumber}'");
-
             // ── Mapped fields ─────────────────────────────────────
             if (beneficiary.Sex != dto.Sex)
                 changes.Add($"{CommonConstants.Sex.ToTitleCase()} '{MapSexLabel(beneficiary.Sex)}' → '{MapSexLabel(dto.Sex)}'");
+
             if (beneficiary.IsIndigenousPeople != dto.IsIndigenousPeople)
-                changes.Add($"{CommonConstants.IP.ToTitleCase()} '{(beneficiary.IsIndigenousPeople ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsIndigenousPeople ? CommonConstants.Yes : CommonConstants.No)}'");
+                changes.Add($"{CommonConstants.IP.ToTitleCase()} '{MapTriStateLabel(beneficiary.IsIndigenousPeople)}' → '{MapTriStateLabel(dto.IsIndigenousPeople)}'");
 
             if (beneficiary.IsPersonWithDisability != dto.IsPersonWithDisability)
-                changes.Add($"{CommonConstants.PWD.ToTitleCase()} '{(beneficiary.IsPersonWithDisability ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.IsPersonWithDisability ? CommonConstants.Yes : CommonConstants.No)}'");
+                changes.Add($"{CommonConstants.PWD.ToTitleCase()} '{MapTriStateLabel(beneficiary.IsPersonWithDisability)}' → '{MapTriStateLabel(dto.IsPersonWithDisability)}'");
 
             if (beneficiary.CivilStatus != dto.CivilStatus)
                 changes.Add($"{CommonConstants.CivilStatus.ToTitleCase()} '{MapCivilStatusLabel(beneficiary.CivilStatus)}' → '{MapCivilStatusLabel(dto.CivilStatus)}'");
@@ -4988,7 +5098,7 @@ namespace EcaInformationSystem.Application.Services
                 changes.Add($"Tracking Number '{beneficiary.TrackingNumber}' → '{dto.TrackingNumber}'");
 
             if (beneficiary.DataPrivacyConsent != dto.DataPrivacyConsent)
-                changes.Add($"Data Privacy Consent '{(beneficiary.DataPrivacyConsent ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.DataPrivacyConsent ? CommonConstants.Yes : CommonConstants.No)}'");
+                changes.Add($"Data Privacy Consent '{(beneficiary.DataPrivacyConsent == true ? CommonConstants.Yes : CommonConstants.No)}' → '{(dto.DataPrivacyConsent == true ? CommonConstants.Yes : CommonConstants.No)}'");
 
             if (beneficiary.PlaceOfSubmission != dto.PlaceOfSubmission)
                 changes.Add($"Place of Submission '{MapPlaceOfSubmissionLabel(beneficiary.PlaceOfSubmission)}' → '{MapPlaceOfSubmissionLabel(dto.PlaceOfSubmission)}'");
@@ -5019,6 +5129,15 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.DateSigned != dto.DateSigned)
                 changes.Add($"Date Signed '{beneficiary.DateSigned.ToFullDate()}' → '{dto.DateSigned.ToFullDate()}'");
+
+            if (beneficiary.IsLivenessVerified != dto.IsLivenessVerified)
+                changes.Add($"Liveness Verified '{MapTriStateLabel(beneficiary.IsLivenessVerified)}' → '{MapTriStateLabel(dto.IsLivenessVerified)}'");
+
+            if (beneficiary.DateOfLiveness != dto.DateOfLiveness)
+                changes.Add($"Date of Liveness '{beneficiary.DateOfLiveness.ToFullDate()}' → '{dto.DateOfLiveness.ToFullDate()}'");
+
+            if (beneficiary.IsReadyForEft != dto.IsReadyForEft)
+                changes.Add($"Ready for EFT '{MapTriStateLabel(beneficiary.IsReadyForEft)}' → '{MapTriStateLabel(dto.IsReadyForEft)}'");
             return changes;
         }
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)

@@ -22,7 +22,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? RefCode { get; set; }
 
         public string? BatchCode { get; set; }
-        public string? PhoneNumber { get; set; }
+        public List<BeneficiaryPhoneNumberDto> PhoneNumbers { get; set; } = new();
         public string? LastName { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string? MiddleName { get; set; }
@@ -63,6 +63,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? DateEndorsed { get; set; }
         public DateTime? DateApplied { get; set; }
         public int? NcscRrn { get; set; }
+        public bool? IsLivenessVerified { get; set; }
+        public DateTime? DateOfLiveness { get; set; }
+        public bool? IsReadyForEft { get; set; }
 
 
         // ✅ Now passes RefCode — generated once, stored in DB
