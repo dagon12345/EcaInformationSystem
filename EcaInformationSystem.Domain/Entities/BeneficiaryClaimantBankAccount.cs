@@ -12,7 +12,9 @@ namespace EcaInformationSystem.Domain.Entities
 
         public int PreferredChannel { get; set; }
         public string? AccountNumber { get; set; }
+        public string? MobileNumber { get; set; }
         public string? BankOrWalletName { get; set; }
+        public string? GCashName { get; set; }
         public string? BranchName { get; set; }
         public string? BankAddress { get; set; }
         public bool? IsJointAccount { get; set; }

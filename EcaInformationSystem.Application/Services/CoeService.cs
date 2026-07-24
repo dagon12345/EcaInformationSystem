@@ -2,6 +2,7 @@
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Application.Services
@@ -9,10 +10,12 @@ namespace EcaInformationSystem.Application.Services
     public class CoeService : ICoeService
     {
         private readonly IBeneficiaryInformationRepository _repo;
+        private readonly ILogRepository _logRepository;
 
-        public CoeService(IBeneficiaryInformationRepository repo)
+        public CoeService(IBeneficiaryInformationRepository repo, ILogRepository logRepository)
         {
             _repo = repo;
+            _logRepository = logRepository;
         }
 
         public async Task<List<CoePreviewGroupDto>> BuildCoePreviewAsync(CoeSettingsDto settings)
@@ -73,10 +76,23 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
 
-        public async Task<byte[]> GenerateCoeAsync(CoeSettingsDto settings)
+        public async Task<byte[]> GenerateCoeAsync(CoeSettingsDto settings, string userName)
         {
             var groups = await BuildCoePreviewAsync(settings);
-            return CoeWordDocumentBuilder.Build(groups, settings);
+            var result = CoeWordDocumentBuilder.Build(groups, settings);
+
+            await _logRepository.AddAsync(new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = null,
+                Activity = $"Downloaded COE (Certificate of Eligibility) for {settings.Ids.Count} record(s)",
+                UserName = userName,
+                CreatedAt = DateTime.UtcNow,
+                Category = "Download"
+            });
+            await _logRepository.SaveChangesAsync();
+
+            return result;
         }
     }
 }

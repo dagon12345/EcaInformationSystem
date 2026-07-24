@@ -1,5 +1,6 @@
 @* BeneficiaryBankAccountSection.razor — Annex A Sections E/F: Transaction Account *@
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 
 <div class="annexa-section @(IsLocked ? "annexa-section--deceased-locked" : "")">
     <div class="annexa-header">
@@ -45,20 +46,20 @@
                     <div class="annexa-subsection-title">E.2 Account Details</div>
                     <div class="annexa-grid cols-3">
                         <div class="annexa-field">
-                            <span class="annexa-item-label">Account No. <span class="annexa-required">*</span></span>
-                            <input class="annexa-input" value="@Account.AccountNumber"
-                                   @onchange="@(e => { Account.AccountNumber = e.Value?.ToString(); NotifyChanged(); })" />
-                        </div>
-                        <div class="annexa-field">
-                            <span class="annexa-item-label">Bank / E-Wallet Name 
-                                <span class="annexa-item-note" style="display:inline;">(no acronyms)</span> 
-                                <span class="annexa-required">*</span>
+                            <span class="annexa-item-label">Bank Name
+                                <span class="annexa-item-note" style="display:inline;">(no acronyms)</span>
                             </span>
                             <input class="annexa-input" value="@Account.BankOrWalletName"
                                    @onchange="@(e => { Account.BankOrWalletName = e.Value?.ToString(); NotifyChanged(); })" />
                         </div>
                         <div class="annexa-field">
-                            <span class="annexa-item-label">Branch Name 
+                            <span class="annexa-item-label">Account No. <span class="annexa-required">*</span></span>
+                            <input class="annexa-input" value="@Account.AccountNumber"
+                                   @onchange="@(e => { Account.AccountNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div></div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Branch Name
                                 <span class="annexa-item-note" style="display:inline;">(no acronyms)</span>
                             </span>
                             <input class="annexa-input" value="@Account.BranchName"
@@ -68,6 +69,17 @@
                             <span class="annexa-item-label">Bank Address</span>
                             <input class="annexa-input" value="@Account.BankAddress"
                                    @onchange="@(e => { Account.BankAddress = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">GCash Name</span>
+                            <input class="annexa-input" value="@Account.GCashName"
+                                   @onchange="@(e => { Account.GCashName = e.Value?.ToString(); NotifyChanged(); })" />
+                        </div>
+                        <div class="annexa-field" style="grid-column: span 2;">
+                            <span class="annexa-item-label">GCash Account No.</span>
+                            <PhMobileNumberInput Value="@Account.MobileNumber"
+                                                 ValueChanged="@(v => { Account.MobileNumber = v; NotifyChanged(); })"
+                                                 ShowValidation="true" />
                         </div>
                         <div class="annexa-field">
                             <span class="annexa-item-label">Is this a Joint Account?</span>

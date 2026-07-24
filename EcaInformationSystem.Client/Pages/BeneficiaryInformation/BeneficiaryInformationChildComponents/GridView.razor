@@ -58,9 +58,11 @@
     </div>
 <small class="opacity-75 mt-1 d-block">
     Select the checkbox to Bulk Update payment status or Create Payroll.
-    <span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.
-    <span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.
-    <span class="text-danger"><i class="bi bi-person-fill-exclamation"></i> Incomplete</span> — missing required details.
+    <ul class="mb-0 ps-3 mt-1">
+        <li><span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.</li>
+        <li><span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.</li>
+        <li><span class="text-danger"><i class="bi bi-person-fill-exclamation"></i> Incomplete</span> — missing required details.</li>
+    </ul>
 </small>
 </div>
                           
@@ -70,9 +72,6 @@
                     @* ── card header buttons ── *@
                     <div class="d-flex gap-2 flex-wrap">
 
-                        <button class="btn btn-sm btn-outline-info" @onclick="GoToDashboardSummary">
-                            Dashboard Summary
-                        </button>
                     <button class="btn btn-sm btn-primary" @onclick="OnGenerateCoeClicked"
         disabled="@(!checkedIds.Any() || IsGeneratingCoe)">
     @if (IsGeneratingCoe)
@@ -125,10 +124,26 @@
             <div class="card-body p-3">
                 <div class="records-table-wrap">
 
+                    @* ── SELECTION BANNER — separate from bulk-update controls ── *@
+                    <div class="selection-banner @(checkedIds.Any() ? "selection-banner--active" : "")">
+                        <span class="sel-count @(checkedIds.Any() ? "sel-count--active" : "")">
+                            <i class="bi bi-check-circle-fill"></i>
+                            @checkedIds.Count selected
+                        </span>
+                        @if (checkedIds.Any())
+                        {
+                            <button type="button" class="btn-clear-selection" @onclick="ClearSelection">
+                                <i class="bi bi-x-lg"></i> Clear
+                            </button>
+                        }
+                    </div>
+
                     @* ── BULK BAR — all tabs always visible ── *@
                     <div class="bulk-bar">
-                        <span class="sel-count">@checkedIds.Count selected</span>
-
+                        <div class="bulk-bar-header">
+                            <i class="bi bi-lightning-charge-fill"></i> Bulk Update
+                        </div>
+                        <div class="bulk-bar-controls">
                         <div class="btn-group btn-group-sm" role="group">
                           <button type="button"
         class="btn @(activeBulkTab == "payment" ? "btn-primary" : "btn-outline-secondary")"
@@ -283,10 +298,7 @@
                                 }
                             </button>
                         }
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection"
-                                disabled="@(!checkedIds.Any())">
-                            Clear Selection
-                        </button>
+                        </div>
                     </div>
 
                     @* ── PAGINATION BAR ───────────────────────────────────── *@
@@ -992,26 +1004,49 @@
 
 <HxOffcanvas @ref="detailsOffcanvas" Size="OffcanvasSize.Large">
 <HeaderTemplate>
-    <div class="d-flex justify-content-between align-items-center w-100 flex-wrap gap-2">
-        <h5 class="offcanvas-title mb-0">
-            Details — @selectedDetails?.LastName, @selectedDetails?.FirstName 
-            @if (!string.IsNullOrWhiteSpace(selectedDetails?.RegionName))
-            {
-                <span class="text-muted fw-bold">(@selectedDetails.RegionName)</span>
-            }
-            @if (!string.IsNullOrWhiteSpace(selectedDetails?.BatchCode))
-            {
-                <span class="text-muted fw-bold">— Batch Code: @selectedDetails.BatchCode</span>
-            }
-        </h5>
+    <div class="details-header">
+        <div class="details-header-identity">
+            <div class="details-header-avatar">
+                @GetInitials(selectedDetails?.FirstName, selectedDetails?.LastName)
+            </div>
+            <div class="details-header-text">
+                <h5 class="offcanvas-title mb-0">
+                    @selectedDetails?.LastName, @selectedDetails?.FirstName
+                </h5>
+                <div class="details-header-meta">
+                    @if (!string.IsNullOrWhiteSpace(selectedDetails?.RegionName))
+                    {
+                        <span class="details-header-badge">
+                            <i class="bi bi-geo-alt-fill"></i>@selectedDetails.RegionName
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(selectedDetails?.BatchCode))
+                    {
+                        <span class="details-header-badge">
+                            <i class="bi bi-upc-scan"></i>Batch @selectedDetails.BatchCode
+                        </span>
+                    }
+                </div>
+            </div>
+        </div>
 
+        <div class="d-flex gap-2 flex-wrap no-print">
+            <button type="button" class="btn btn-primary btn-sm details-header-action" @onclick="() => _annexBModal.ShowAsync()"
+                    title="View & print the Annex B Validation Form">
+                <i class="bi bi-file-earmark-text me-1"></i>Annex B &mdash; Validation Form
+            </button>
+            <button type="button" class="btn btn-primary btn-sm details-header-action" @onclick="() => _livenessModal.ShowAsync()"
+                    title="View & print the Liveness Check and Transaction Account Form">
+                <i class="bi bi-person-check me-1"></i>Liveness &amp; Transaction Form
+            </button>
+        </div>
     </div>
 </HeaderTemplate>
 <BodyTemplate>
     @if (selectedDetails is not null)
     {
       <AnnexAPrintDocument Beneficiary="@selectedDetails" />
-      
+
       <div class="system-fields-wrapper mb-3 no-print">
             <div class="system-fields-header">
                 <i class="bi bi-gear-fill"></i> Internal / System Fields
@@ -1327,6 +1362,41 @@ else
     </div>
 </FooterTemplate>
  </HxOffcanvas>
+
+@* ── Annex B Validation Form modal — view-only preview + print, triggered from
+     the button inside the details offcanvas above. ── *@
+<HxModal @ref="_annexBModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title">Annex B &mdash; Validation Form</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (selectedDetails is not null)
+        {
+            <AnnexBPrintDocument Beneficiary="@selectedDetails" />
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _annexBModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Liveness Check and Transaction Account Form modal — view-only preview + print,
+     triggered from the button inside the details offcanvas above. ── *@
+<HxModal @ref="_livenessModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title">Liveness Check and Transaction Account Form</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (selectedDetails is not null)
+        {
+            <LivenessCheckPrintDocument Beneficiary="@selectedDetails" />
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _livenessModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
 <HxModal @ref="addPaymentHistoryModal">
     <HeaderTemplate><h5 class="modal-title">Record New Payment</h5></HeaderTemplate>
     <BodyTemplate>
@@ -2169,6 +2239,8 @@ else
 </HxModal>
 
 @code {
+    private HxModal _annexBModal = default!;
+    private HxModal _livenessModal = default!;
     private PaymentHistoryDto? _pendingSetCurrentEntry;
     private HxModal bulkPaymentHistoryModal = default!;
     private PaymentHistoryDto? _pendingDeletePaymentHistory;
@@ -3331,8 +3403,6 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         _bulkFiscalYear = null;
         _clearingQuarterFiscalYear = false;
     }
-    private void GoToDashboardSummary() => Navigation.NavigateTo("/");
-
     private async Task ExportExcel()
     {
         if (!checkedIds.Any()) { toast.ShowError("No records to export. Please check at least one record."); return; }
@@ -3481,6 +3551,13 @@ private int IncompleteDetailsCount =>
     private string GetModeOfPaymentText(int mode) => mode switch { 1 => "Cash Advance", 2 => "Bank Transfer", _ => "—" };
     private string GetModeOfPaymentBadgeClass(int mode) => mode switch { 1 => "pending", 2 => "yes-b", _ => "no-g" };
     private string GetCoStatusLabel(int? status) => status switch { 1 => "Endorsed", 2 => "Approved", _ => "Not Set" };
+    private static string GetInitials(string? firstName, string? lastName)
+    {
+        var f = string.IsNullOrWhiteSpace(firstName) ? "" : firstName.Trim()[0].ToString();
+        var l = string.IsNullOrWhiteSpace(lastName) ? "" : lastName.Trim()[0].ToString();
+        var initials = (l + f).ToUpperInvariant();
+        return string.IsNullOrEmpty(initials) ? "?" : initials;
+    }
     private string? GetCoProcessingDuration(DateTime? endorsed, DateTime? approved)
     {
         if (!endorsed.HasValue || !approved.HasValue) return null;

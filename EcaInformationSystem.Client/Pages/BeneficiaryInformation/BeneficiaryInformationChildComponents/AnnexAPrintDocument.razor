@@ -298,10 +298,12 @@
             <td colspan="2">
                 <span class="annexa-doc-field-label">E.2 ACCOUNT DETAILS</span>
                 <div class="row g-1 mt-1">
+                    <div class="col-6"><span class="annexa-doc-field-note">Bank Name (no acronyms):</span> <span class="annexa-doc-underline-value">@(bankAcct?.BankOrWalletName ?? "—")</span></div>
                     <div class="col-6"><span class="annexa-doc-field-note">Account No.:</span> <span class="annexa-doc-underline-value">@(bankAcct?.AccountNumber ?? "—")</span></div>
-                    <div class="col-6"><span class="annexa-doc-field-note">Bank/E-Wallet name (no acronyms):</span> <span class="annexa-doc-underline-value">@(bankAcct?.BankOrWalletName ?? "—")</span></div>
                     <div class="col-6"><span class="annexa-doc-field-note">Branch Name (no acronyms):</span> <span class="annexa-doc-underline-value">@(bankAcct?.BranchName ?? "—")</span></div>
                     <div class="col-6"><span class="annexa-doc-field-note">Bank Address:</span> <span class="annexa-doc-underline-value">@(bankAcct?.BankAddress ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">GCash Name:</span> <span class="annexa-doc-underline-value">@(bankAcct?.GCashName ?? "—")</span></div>
+                    <div class="col-6"><span class="annexa-doc-field-note">GCash Account No.:</span> <span class="annexa-doc-underline-value">@FormatMobileNumber(bankAcct?.MobileNumber)</span></div>
                     <div class="col-6"><span class="annexa-doc-field-note">Is this a Joint Account (Yes/No)?</span> <span class="annexa-doc-underline-value">@(bankAcct?.IsJointAccount switch { true => "Yes", false => "No", null => "—" })</span></div>
                 </div>
                 <div class="mt-1"><em>For Living Abroad Only:</em></div>
@@ -398,10 +400,12 @@
     <td colspan="2">
         <span class="annexa-doc-field-label">F.7. ACCOUNT DETAILS</span>
         <div class="row g-1 mt-1">
+            <div class="col-6"><span class="annexa-doc-field-note">Bank Name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BankOrWalletName ?? "—")</span></div>
             <div class="col-6"><span class="annexa-doc-field-note">Account No.:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.AccountNumber ?? "—")</span></div>
-            <div class="col-6"><span class="annexa-doc-field-note">Bank/E-Wallet name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BankOrWalletName ?? "—")</span></div>
             <div class="col-6"><span class="annexa-doc-field-note">Branch Name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BranchName ?? "—")</span></div>
             <div class="col-6"><span class="annexa-doc-field-note">Bank Address:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.BankAddress ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">GCash Name:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.GCashName ?? "—")</span></div>
+            <div class="col-6"><span class="annexa-doc-field-note">GCash Account No.:</span> <span class="annexa-doc-underline-value">@FormatMobileNumber(claimantAcct?.MobileNumber)</span></div>
             <div class="col-6"><span class="annexa-doc-field-note">Joint Account:</span> <span class="annexa-doc-underline-value">@(claimantAcct?.IsJointAccount switch { true => "Yes", false => "No", null => "—" })</span></div>
         </div>
         <div class="mt-1"><em>For Living Abroad Only:</em></div>
@@ -527,9 +531,7 @@
 private RenderFragment ChildContent1 => __builder =>
 {
     <div class="annexa-doc-footer-brand">
-        <div class="annexa-doc-footer-logo-text" title="Puso Para sa Seniors">
-            <span>Pus</span><i class="bi bi-heart-fill annexa-doc-footer-heart"></i><span>&nbsp;para sa Seniors</span>
-        </div>
+        <img src="images/puso-para-sa-seniors.png" alt="Puso Para sa Seniors" class="annexa-doc-footer-logo-img" />
         <div class="annexa-doc-footer-contacts">
             <span><i class="bi bi-telephone-fill"></i> 0962-2743-622</span>
             <span><i class="bi bi-telephone-fill"></i> (02) 8567-5646</span>
@@ -538,4 +540,14 @@ private RenderFragment ChildContent1 => __builder =>
         </div>
     </div>
 };
+
+    // Renders a stored 11-digit PH mobile number as 0910-123-4567 for display.
+    private static string FormatMobileNumber(string? number)
+    {
+        if (string.IsNullOrWhiteSpace(number)) return "—";
+        var digits = new string(number.Where(char.IsDigit).ToArray());
+        return digits.Length == 11
+            ? $"{digits[..4]}-{digits[4..7]}-{digits[7..]}"
+            : number;
+    }
 }

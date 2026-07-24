@@ -1,0 +1,80 @@
+@* PhMobileNumberInput.razor — one box per digit, dashed 4-3-4: [_][_][_][_]-[_][_][_]-[_][_][_][_] *@
+
+<div class="ph-mobile-wrap">
+    <div class="ph-mobile-input">
+        @for (int i = 0; i < 11; i++)
+        {
+            var idx = i;
+            <input @ref="_boxRefs[idx]" class="annexa-input ph-mobile-box" type="text" inputmode="numeric"
+                   autocomplete="off" maxlength="1" value="@_digits[idx]" disabled="@Disabled"
+                   @oninput="@(e => OnDigitInput(idx, e.Value?.ToString()))"
+                   @onkeydown="@(e => OnKeyDown(idx, e))" />
+            if (idx == 3 || idx == 6)
+            {
+                <span class="ph-mobile-dash">&ndash;</span>
+            }
+        }
+    </div>
+    @if (ShowValidation && !IsValid)
+    {
+        <span class="ff-err d-block">Must be 11 digits starting with 09 (e.g. 0910-123-4567).</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public bool ShowValidation { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private readonly ElementReference[] _boxRefs = new ElementReference[11];
+    private readonly string[] _digits = new string[11].Select(_ => string.Empty).ToArray();
+    private string? _lastValue;
+
+    private static readonly System.Text.RegularExpressions.Regex MobileRegex =
+        new(@"^09\d{9}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private bool IsValid => string.IsNullOrWhiteSpace(Value) || MobileRegex.IsMatch(Value.Trim());
+
+    protected override void OnParametersSet()
+    {
+        // Only re-derive the boxes from an externally-changed Value — avoids
+        // clobbering what the user is mid-typing when this fires from our own
+        // ValueChanged round-trip.
+        if (Value == _lastValue) return;
+        _lastValue = Value;
+
+        var digits = OnlyDigits(Value);
+        for (int i = 0; i < 11; i++)
+            _digits[i] = i < digits.Length ? digits[i].ToString() : string.Empty;
+    }
+
+    private static string OnlyDigits(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : new string(s.Where(char.IsDigit).ToArray());
+
+    private async Task OnDigitInput(int index, string? raw)
+    {
+        var digits = OnlyDigits(raw);
+        _digits[index] = digits.Length > 0 ? digits[^1].ToString() : string.Empty;
+
+        if (_digits[index].Length == 1 && index < 10)
+            await _boxRefs[index + 1].FocusAsync();
+
+        await NotifyChangedAsync();
+    }
+
+    private async Task OnKeyDown(int index, KeyboardEventArgs e)
+    {
+        if (e.Key == "Backspace" && string.IsNullOrEmpty(_digits[index]) && index > 0)
+        {
+            await _boxRefs[index - 1].FocusAsync();
+        }
+    }
+
+    private async Task NotifyChangedAsync()
+    {
+        var combined = string.Concat(_digits);
+        _lastValue = combined;
+        await ValueChanged.InvokeAsync(combined);
+    }
+}

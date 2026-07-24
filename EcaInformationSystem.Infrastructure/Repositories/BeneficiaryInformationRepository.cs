@@ -42,7 +42,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             {
                 existing.PreferredChannel = account.PreferredChannel;
                 existing.AccountNumber = account.AccountNumber;
+                existing.MobileNumber = account.MobileNumber;
                 existing.BankOrWalletName = account.BankOrWalletName;
+                existing.GCashName = account.GCashName;
                 existing.BranchName = account.BranchName;
                 existing.BankAddress = account.BankAddress;
                 existing.IsJointAccount = account.IsJointAccount;
@@ -154,7 +156,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             {
                 existing.PreferredChannel = account.PreferredChannel;
                 existing.AccountNumber = account.AccountNumber;
+                existing.MobileNumber = account.MobileNumber;
                 existing.BankOrWalletName = account.BankOrWalletName;
+                existing.GCashName = account.GCashName;
                 existing.BranchName = account.BranchName;
                 existing.BankAddress = account.BankAddress;
                 existing.IsJointAccount = account.IsJointAccount;
@@ -681,6 +685,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(b => b.DateEndorsed >= request.DateEndorsedFrom.Value.Date);
             if (request.DateEndorsedTo.HasValue)
                 query = query.Where(b => b.DateEndorsed < request.DateEndorsedTo.Value.Date.AddDays(1));
+
+            // ── Date Added Range ──────────────────────────────────────────────────
+            if (request.DateAddedFrom.HasValue)
+                query = query.Where(b => b.DateAdded >= request.DateAddedFrom.Value.Date);
+            if (request.DateAddedTo.HasValue)
+                query = query.Where(b => b.DateAdded < request.DateAddedTo.Value.Date.AddDays(1));
 
             // ✅ NEW — Milestone Year filter (was completely missing before)
             // Mirrors the same bracket rule used in BuildNarrowFilterQuery: a beneficiary

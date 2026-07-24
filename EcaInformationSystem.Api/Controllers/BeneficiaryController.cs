@@ -249,7 +249,8 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpPost("export")]
         public async Task<IActionResult> Export([FromBody] BeneficiaryFilterDto filter)
         {
-            var bytes = await _service.ExportFilteredAsTemplateAsync(filter);
+            var userName = User.Identity?.Name ?? "System";
+            var bytes = await _service.ExportFilteredAsTemplateAsync(filter, userName);
             return File(bytes,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx");

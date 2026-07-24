@@ -17,12 +17,12 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter);
         Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream, string fileName);
-        Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter);
+        Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter, string userName);
         Task<BeneficiaryImportResultDto> UpdateExcelAsync(Stream fileStream, string fileName, string sheetName, string userName);
         byte[] GenerateImportTemplate();
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
         Task<List<BeneficiaryInformationDto>> GetByIdsAsync(List<Guid> ids);
-        Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings);
+        Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings, string userName);
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
@@ -39,7 +39,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);
         Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(BeneficiaryFilterDto filter);
-        Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings);
+        Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings, string userName);
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
         Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter);
         Task<PagedResultDto<BeneficiaryListItemDto>> SearchSimilarNamesAsync(BeneficiaryFilterDto filter);

@@ -1,0 +1,315 @@
+@* AnnexBPrintDocument.razor — Annex B: Validation Form. Pure reflection of Annex A's own
+   fields (no new entity/DTO fields) — reuses the same BeneficiaryInformationDto. Independent,
+   one-page A4 document with its own print scope (#annex-b-print-target) — printing it never
+   pulls in Annex A, even when both are rendered on the same page. *@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Services
+
+@* ── Live print-formatting controls — Scale/Font/Margin apply as CSS custom
+     properties on .annexb-doc, so this preview always shows exactly what
+     will print (no separate print-only sizing to keep in sync). Print button
+     lives up here too, next to the settings that shape what it prints. ── *@
+<div class="no-print annexb-print-controls mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-1"></i>Print Settings</h6>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="PrintAsync"
+                title="View & print the Annex B Validation Form">
+            <i class="bi bi-printer me-1"></i>Print Annex B
+        </button>
+    </div>
+    <div class="row g-3 align-items-end">
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Scale <span class="text-muted">(@_scalePercent%)</span></label>
+            <input type="range" class="form-range" min="60" max="120" step="1"
+                   @bind-value="_scalePercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Font Size <span class="text-muted">(@_fontPercent%)</span></label>
+            <input type="range" class="form-range" min="70" max="130" step="1"
+                   @bind-value="_fontPercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Margin <span class="text-muted">(@_marginMm mm)</span></label>
+            <input type="range" class="form-range" min="0" max="25" step="1"
+                   @bind-value="_marginMm" @bind-value:event="oninput" />
+        </div>
+    </div>
+    <div class="text-end mt-2 d-flex justify-content-end gap-3">
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SavePrintSettingsAsync">
+            <i class="bi bi-save me-1"></i>Save as default
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="ResetPrintSettings">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+        </button>
+    </div>
+</div>
+
+<div class="annexb-doc" id="annex-b-print-target" style="@RootStyle">
+  <div class="annexb-doc-inner">
+
+    @* ══════════════════ HEADER — logos + agency text (same treatment as Annex A) ══════════════════ *@
+    <div class="annexa-doc-header-row">
+        <img src="@_ncscLogoSrc" alt="NCSC Seal" class="annexa-doc-logo-left" />
+        <div class="annexa-doc-header-text">
+            <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+            <div class="annexa-doc-header-line1">Office of the President</div>
+            <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+            <div class="annexa-doc-header-address">
+                20th Floor, The Upper Class Tower, Quezon Avenue Corner Scout Reyes,<br />
+                Barangay Paligsahan, District 4, Quezon City
+            </div>
+        </div>
+        <img src="@_bagongLogoSrc" alt="Bagong Pilipinas" class="annexa-doc-logo-right" />
+    </div>
+
+    <div class="annexa-doc-annex-tag">
+        <div class="fw-bold fst-italic">ANNEX B</div>
+    </div>
+
+    @* ══════════════════ TITLE BLOCK ══════════════════ *@
+    <div class="annexa-doc-title-box annexb-title-box">
+        <div class="annexa-doc-title-main">VALIDATION FORM</div>
+        <div class="text-muted fst-italic annexb-doc-subtitle">(to be filled-up by NCSC personnel only)</div>
+    </div>
+
+    @* ══════════════════ A. PERSONAL INFORMATION ══════════════════ *@
+    <div class="annexa-doc-bar">A. PERSONAL INFORMATION</div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.1 NCSC Registration Reference Number:</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.NcscRrn?.ToString() ?? "—")</span>
+            </td>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.2 OSCA ID Number</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.OscaIdNumber ?? "—")</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="annexa-doc-field-label">A.3 Full Name <em>(Last Name, Given Name, Middle Name, Ext.)</em></span>
+                <span class="annexa-doc-field-value">@FullName</span>
+            </td>
+        </tr>
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.4 Date of Birth <em>(Month/Day/Year)</em></span>
+                <span class="annexa-doc-field-value">@Beneficiary.BirthDate.ToString("MMMM dd, yyyy")</span>
+            </td>
+            <td style="width:50%;">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <span class="annexa-doc-field-label">A.5 Date of Death if deceased <em>(Month/Day/Year)</em></span>
+                        <span class="annexa-doc-field-value">@(Beneficiary.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "—")</span>
+                    </div>
+                    <div class="text-end flex-shrink-0 annexb-doc-age-cell">
+                        <span class="annexa-doc-field-label d-block">A.6 Age</span>
+                        <span class="annexa-doc-field-value">@Beneficiary.Age</span>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ B. DOCUMENTARY REQUIREMENTS ══════════════════ *@
+    <div class="annexa-doc-bar">B. DOCUMENTARY REQUIREMENTS <em style="font-weight:400; font-size:9px;">(to be filled-up by NCSC personnel)</em></div>
+    @{ var vc = Beneficiary.VerificationChecklist; }
+    <table class="annexa-doc-vc-table">
+        <tr class="annexa-doc-col-headers">
+            <td style="width:75%;">
+                <div class="fw-normal fst-italic annexb-doc-vc-note">
+                    Note: All should be with named and signature of the verifier and marked with <strong>"Verified from the original document"</strong>
+                </div>
+            </td>
+            <td style="width:25%;" class="fw-bold">REMARKS</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasAnnexAForm == true ? "checked" : "")"></span>Accomplished Annex A Grantee/Claimant Form</span></td>
+            <td>@vc?.AnnexARemarks</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdLocal == true ? "checked" : "")"></span>Primary ID <strong>for Local Applicants:</strong> PSA/LCR issued birth certificate, National Senior Citizen ID generated from the EGov App, PhilSys/National ID, or Valid Philippine Passport</span></td>
+            <td>@vc?.PrimaryIdLocalRemarks</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdAbroad == true ? "checked" : "")"></span>Primary ID <strong>for Applicants Abroad:</strong> Valid PH Passport or Identification Certificate, signed and marked with <strong>"Verified from the Original Document"</strong></span></td>
+            <td>@vc?.PrimaryIdAbroadRemarks</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasSecondaryIds == true ? "checked" : "")"></span>Secondary IDs: Photocopy of any two (2) of the identified secondary ID in existing guidelines <em>(indicate name of the two documents in the Remarks)</em>, signed and marked with <strong>"Verified from the Original Document"</strong></span></td>
+            <td>@vc?.SecondaryIdsRemarks</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPhoto == true ? "checked" : "")"></span>Whole-body/half-upper body photo</span></td>
+            <td>@vc?.PhotoRemarks</td>
+        </tr>
+        <tr>
+            <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasBankDepositSlip == true ? "checked" : "")"></span>Photocopy of Grantee's bank-verified deposit slip or screenshot of GCash Profile Information Sheet, signed and marked with <strong>"Verified from the Original Document"</strong>, if applicable</span></td>
+            <td>@vc?.BankDepositSlipRemarks</td>
+        </tr>
+
+        @if (Beneficiary.IsDeceased)
+        {
+            <tr>
+                <td class="fst-italic fw-bold annexb-doc-deceased-label">Other documents for deceased grantees:</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasDeathCertificate == true ? "checked" : "")"></span>Photocopy PSA/LCR death certificate or apostilled equivalent document issued overseas, signed and marked with <strong>"verified from the original document"</strong>.</span></td>
+                <td>@vc?.DeathCertificateRemarks</td>
+            </tr>
+            <tr>
+                <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasProofOfRelationship == true ? "checked" : "")"></span>Proof of relationship: Photocopy of PSA/LCR certificates/documents or apostilled equivalent document issued overseas, as proof of relationship, signed and marked with <strong>"Verified from the Original Document"</strong></span></td>
+                <td>@vc?.ProofOfRelationshipRemarks</td>
+            </tr>
+            <tr>
+                <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasClaimantBankSlip == true ? "checked" : "")"></span>Photocopy of Claimant's Bank-verified deposit slip or screenshot of GCash Profile Information signed and marked with <strong>"Verified from the Original Document"</strong> (to replace Grantee's bank account)</span></td>
+                <td>@vc?.ClaimantBankSlipRemarks</td>
+            </tr>
+            <tr>
+                <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasWarrantyReleaseForm == true ? "checked" : "")"></span>Original Copy of Warranty and Release From Liability Form</span></td>
+                <td>@vc?.WarrantyReleaseFormRemarks</td>
+            </tr>
+            <tr>
+                <td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasLguRcfCertification == true ? "checked" : "")"></span>Original LGU/RCF Certification of no relative</span></td>
+                <td>@vc?.LguRcfCertificationRemarks</td>
+            </tr>
+        }
+    </table>
+
+    @* ══════════════════ C. VALIDATION ASSESSMENT REPORT ══════════════════ *@
+    <div class="annexa-doc-bar">C. VALIDATION ASSESSMENT REPORT</div>
+    <table class="annexa-doc-table annexb-doc-boxed-table">
+        <tr>
+            <td>
+                <span class="annexa-doc-field-label">C.1 Findings/Concerns/Recommendations</span>
+                @* Intentionally left blank — filled in by hand by NCSC personnel, not reflected from any system field. *@
+                <div class="annexb-doc-findings-box"></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="annexa-doc-field-label">C.2 Assessment</span>
+                <div class="d-flex gap-4 mt-1 justify-content-center">
+                    <span class="annexa-doc-checkbox"><span class="box annexa-doc-radio-box @(Beneficiary.IsEligible ? "checked" : "")"></span>Eligible</span>
+                    <span class="annexa-doc-checkbox"><span class="box annexa-doc-radio-box @(!Beneficiary.IsEligible ? "checked" : "")"></span>Not eligible</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ D. VALIDATED BY ══════════════════ *@
+    <div class="annexa-doc-bar">D. VALIDATED BY</div>
+    <table class="annexa-doc-table annexb-doc-boxed-table">
+        <tr>
+            <td>
+                <div class="annexa-doc-signoff-block">
+                    <div class="annexa-doc-underline-value">@(Beneficiary.Validator ?? "—") &nbsp;&nbsp; @Beneficiary.ValidationDate.ToString("MMMM dd, yyyy")</div>
+                    <div class="text-muted fst-italic annexb-doc-signoff-caption">Signature over printed name of NCSC staff and Date</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="annexa-doc-footer">
+        <div class="annexa-doc-footer-brand">
+            <img src="images/puso-para-sa-seniors.png" alt="Puso Para sa Seniors" class="annexa-doc-footer-logo-img" />
+            <div class="annexa-doc-footer-contacts">
+                <span><i class="bi bi-telephone-fill"></i> 0962-2743-622</span>
+                <span><i class="bi bi-telephone-fill"></i> (02) 8567-5646</span>
+                <span><i class="bi bi-envelope-fill"></i> contact@ncsc.gov.ph</span>
+                <span><i class="bi bi-globe"></i> www.ncsc.gov.ph</span>
+            </div>
+        </div>
+    </div>
+
+  </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BeneficiaryInformationDto Beneficiary { get; set; } = default!;
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+    [Inject] public ToastService Toast { get; set; } = default!;
+
+    private readonly string _ncscLogoSrc = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
+
+    // ── Live print-formatting controls (Scale/Font/Margin) — defaults render
+    // identically to the pre-existing tuned layout; moving a slider only
+    // adjusts CSS custom properties read by paper-exact.css, so this same
+    // on-screen preview is exactly what prints. ──
+    private int _scalePercent = 100;
+    private int _fontPercent = 100;
+    private int _marginMm = 0;
+
+    private string RootStyle =>
+        $"--ab-scale:{(_scalePercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--ab-font-scale:{(_fontPercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--ab-margin:{_marginMm}mm;";
+
+    private void ResetPrintSettings()
+    {
+        _scalePercent = 100;
+        _fontPercent = 100;
+        _marginMm = 0;
+    }
+
+    private const string ScaleStorageKey = "annexb-print-scale";
+    private const string FontStorageKey = "annexb-print-font";
+    private const string MarginStorageKey = "annexb-print-margin";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var savedScale = await JS.InvokeAsync<string?>("localStorage.getItem", ScaleStorageKey);
+            var savedFont = await JS.InvokeAsync<string?>("localStorage.getItem", FontStorageKey);
+            var savedMargin = await JS.InvokeAsync<string?>("localStorage.getItem", MarginStorageKey);
+
+            var changed = false;
+            if (int.TryParse(savedScale, out var scale)) { _scalePercent = scale; changed = true; }
+            if (int.TryParse(savedFont, out var font)) { _fontPercent = font; changed = true; }
+            if (int.TryParse(savedMargin, out var margin)) { _marginMm = margin; changed = true; }
+
+            if (changed) StateHasChanged();
+        }
+        catch
+        {
+            // localStorage unavailable — keep the built-in defaults.
+        }
+    }
+
+    private async Task SavePrintSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ScaleStorageKey, _scalePercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", FontStorageKey, _fontPercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", MarginStorageKey, _marginMm.ToString());
+            Toast.ShowSuccess("Print settings saved as your default for Annex B.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save print settings: {ex.Message}");
+        }
+    }
+
+    private string FullName
+    {
+        get
+        {
+            var givenMiddleExt = string.Join(" ", new[]
+            {
+                Beneficiary.FirstName.ToUpperInvariant(),
+                Beneficiary.MiddleName?.ToUpperInvariant(),
+                Beneficiary.Extension?.ToUpperInvariant()
+            }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            return $"{Beneficiary.LastName?.ToUpperInvariant()}, {givenMiddleExt}";
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("printAnnexBOnly");
+}

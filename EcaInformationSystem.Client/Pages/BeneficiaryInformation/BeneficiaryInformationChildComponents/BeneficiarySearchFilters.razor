@@ -204,7 +204,7 @@
                             <MultiSelectDropdown TItem="PaymentStatusOption" Items="_paymentStatusOptions"
                                                  SelectedIds="State.SelectedPaymentStatuses"
                                                  SelectedIdsChanged="@(ids => { State.SelectedPaymentStatuses = ids; })"
-                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payment Statuses"
+                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)" Placeholder="Payment Status"
                                                  Disabled="@IsLoading" />
                         </div>
                         @* PAYROLL QUARTER *@

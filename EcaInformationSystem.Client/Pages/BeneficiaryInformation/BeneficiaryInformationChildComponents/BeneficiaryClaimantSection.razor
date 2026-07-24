@@ -1,5 +1,6 @@
 @* BeneficiaryClaimantSection.razor — Annex A Section F: For Deceased Grantees *@
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 
 @if (IsDeceased)
 {
@@ -141,24 +142,36 @@
 
             <div class="annexa-grid cols-3">
                 <div class="annexa-field">
+                    <span class="annexa-item-label">Bank Name</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.BankOrWalletName"
+                           @onchange="@(e => { ClaimantBankAccount.BankOrWalletName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
                     <span class="annexa-item-label">Account No.</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.AccountNumber"
                            @onchange="@(e => { ClaimantBankAccount.AccountNumber = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
                 </div>
-                <div class="annexa-field">
-                    <span class="annexa-item-label">Bank/E-Wallet Name</span>
-                    <input class="annexa-input" value="@ClaimantBankAccount.BankOrWalletName"
-                           @onchange="@(e => { ClaimantBankAccount.BankOrWalletName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
-                </div>
+                <div></div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Branch Name</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.BranchName"
                            @onchange="@(e => { ClaimantBankAccount.BranchName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
                 </div>
-                <div class="annexa-field">
+                <div class="annexa-field" style="grid-column: span 2;">
                     <span class="annexa-item-label">Bank Address</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.BankAddress"
                            @onchange="@(e => { ClaimantBankAccount.BankAddress = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field">
+                    <span class="annexa-item-label">GCash Name</span>
+                    <input class="annexa-input" value="@ClaimantBankAccount.GCashName"
+                           @onchange="@(e => { ClaimantBankAccount.GCashName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                </div>
+                <div class="annexa-field" style="grid-column: span 2;">
+                    <span class="annexa-item-label">GCash Account No.</span>
+                    <PhMobileNumberInput Value="@ClaimantBankAccount.MobileNumber"
+                                         ValueChanged="@(v => { ClaimantBankAccount.MobileNumber = v; NotifyBankAccountChanged(); })"
+                                         ShowValidation="true" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Joint Account?</span>

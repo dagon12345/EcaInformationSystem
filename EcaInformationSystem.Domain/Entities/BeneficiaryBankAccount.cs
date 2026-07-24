@@ -13,7 +13,9 @@ namespace EcaInformationSystem.Domain.Entities
         // 1 = Landbank, 2 = Other Bank, 3 = EMI, 4 = PSP (Palawan Pawnshop)
 
         public string? AccountNumber { get; set; }
+        public string? MobileNumber { get; set; }
         public string? BankOrWalletName { get; set; }
+        public string? GCashName { get; set; }
         public string? BranchName { get; set; }
         public string? BankAddress { get; set; }
         public bool? IsJointAccount { get; set; }

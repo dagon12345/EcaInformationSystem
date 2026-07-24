@@ -40,7 +40,8 @@ namespace EcaInformationSystem.Api.Controllers
 
             try
             {
-                var fileBytes = await _beneficiaryInformationService.GeneratePayrollAsync(settings);
+                var userName = User.Identity?.Name ?? "System";
+                var fileBytes = await _beneficiaryInformationService.GeneratePayrollAsync(settings, userName);
                 var fileName = $"CashGiftPayroll_{DateTime.Today:yyyy-MM-dd}.zip";
 
                 return File(fileBytes, "application/zip", fileName);
@@ -63,7 +64,8 @@ namespace EcaInformationSystem.Api.Controllers
 
             try
             {
-                var jobId = await _beneficiaryInformationService.QueuePayrollGenerationAsync(settings);
+                var userName = User.Identity?.Name ?? "System";
+                var jobId = await _beneficiaryInformationService.QueuePayrollGenerationAsync(settings, userName);
                 return Accepted(new { jobId });
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }

@@ -27,7 +27,8 @@ namespace EcaInformationSystem.Api.Controllers
         {
             try
             {
-                var bytes = await _service.GenerateCoeAsync(settings);
+                var userName = User.Identity?.Name ?? "System";
+                var bytes = await _service.GenerateCoeAsync(settings, userName);
                 return File(bytes,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     $"COE_{DateTime.Today:yyyy-MM-dd}.docx");

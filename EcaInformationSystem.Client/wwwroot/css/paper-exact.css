@@ -10,6 +10,463 @@
     background: #fff;
 }
 
+/* Annex B — Validation Form. Independent one-page A4 document, same look as
+   .annexa-doc, but given its own print scope (see @media print below) so it
+   never drags Annex A along when printed, even though both may sit on the
+   same page (offcanvas / Create-Edit form). */
+.annexb-doc {
+    border: 1px solid #000;
+    color: #000;
+    background: #fff;
+
+    /* Live print-formatting controls (set inline by AnnexBPrintDocument.razor
+       from its Scale/Font/Margin sliders). Defaults here make the component
+       render identically even if used without those controls ever touching
+       the style attribute. */
+    --ab-scale: 1;
+    --ab-font-scale: 1;
+    --ab-margin: 0mm;
+    padding: var(--ab-margin);
+}
+
+/* Scale applies to the WHOLE subtree (text, borders, logos, spacing) as one
+   uniform zoom — the user sees this live in the modal preview before
+   printing, so if a border ever looks clipped they can nudge the slider
+   themselves instead of us guessing a safe fixed value. */
+.annexb-doc-inner {
+    zoom: var(--ab-scale);
+}
+
+/* ── Compact Annex B sizing — same on screen and in print, so the live
+   preview in the modal is exactly what comes out of the printer. Spacing,
+   logo size, box size etc. are fixed compact values (already tuned to fit
+   one A4 page at 100% scale); only font-size reads through --ab-font-scale,
+   so the Font Size slider can nudge text independently of everything else. */
+.annexb-doc {
+    font-size: 10px;
+    margin-top: 10px;
+}
+.annexb-doc .annexa-doc-header-row {
+    padding: 6px 12px 3px;
+}
+.annexb-doc .annexa-doc-logo-left,
+.annexb-doc .annexa-doc-logo-right {
+    width: 54px;
+    height: 54px;
+}
+.annexb-doc .annexa-doc-header-line1 {
+    font-size: calc(10px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-header-title {
+    font-size: calc(12px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-header-address {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-annex-tag {
+    font-size: calc(9px * var(--ab-font-scale));
+    padding: 0 12px 3px;
+}
+.annexb-doc .annexa-doc-title-box {
+    padding: 6px 12px;
+}
+.annexb-doc .annexa-doc-title-main {
+    font-size: calc(12px * var(--ab-font-scale));
+}
+.annexb-doc .annexb-doc-subtitle {
+    font-size: calc(9px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-bar {
+    font-size: calc(10px * var(--ab-font-scale));
+    padding: 3px 8px;
+}
+.annexb-doc .annexb-doc-vc-note {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-field-label {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-field-value {
+    font-size: calc(10px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-table td,
+.annexb-doc .annexa-doc-vc-table td {
+    font-size: calc(8.5px * var(--ab-font-scale));
+    padding: 3px 6px;
+}
+.annexb-doc .annexa-doc-col-headers td {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+/* A.6 Age lives inside the same <td> as A.5 Date of Death (so the row stays
+   a plain 2-column row like every other row in Section A — see the earlier
+   fix for why mixing column counts per row broke alignment). This restores
+   the visual divider between the two without splitting them back into
+   separate table cells. */
+.annexb-doc .annexb-doc-age-cell {
+    border-left: 1px solid #000;
+    padding-left: 8px;
+}
+/* Section B's checklist labels are long and MUST wrap across multiple
+   lines. inline-flex (the shared default, fine for short two-word labels
+   like Male/Female elsewhere) treats the box + entire label as one flex
+   line — it doesn't reflow like a paragraph, so long labels were getting
+   torn apart mid-word instead of wrapping normally ("Primary ID for Local
+   / Applicants:" splitting into "Primary" / "ID Applicants:"). Switching to
+   plain inline lets the checkbox sit as a small inline-block glyph and the
+   label text after it wrap exactly like normal paragraph text. */
+.annexb-doc .annexa-doc-vc-table .annexa-doc-checkbox {
+    display: inline;
+    font-size: calc(10px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-vc-table .annexa-doc-checkbox .box {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.annexb-doc .annexa-doc-checkbox {
+    font-size: calc(10px * var(--ab-font-scale));
+    margin-right: 12px;
+    gap: 3px;
+}
+.annexb-doc .annexa-doc-checkbox .box {
+    width: 11px;
+    height: 11px;
+    border-width: 1.1px;
+    font-size: calc(8px * var(--ab-font-scale));
+}
+.annexb-doc .annexb-doc-deceased-label {
+    font-size: calc(8px * var(--ab-font-scale));
+}
+.annexb-doc .annexb-doc-findings-box {
+    min-height: 30px;
+}
+.annexb-doc .annexa-doc-underline-value {
+    font-size: calc(8.5px * var(--ab-font-scale));
+    min-width: 200px;
+}
+.annexb-doc .annexa-doc-signoff-block {
+    margin: 4px 0 3px;
+}
+.annexb-doc .annexb-doc-signoff-caption {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-footer {
+    padding: 4px 12px;
+}
+.annexb-doc .annexa-doc-footer-brand {
+    font-size: calc(7.5px * var(--ab-font-scale));
+}
+.annexb-doc .annexa-doc-footer-logo-img {
+    height: 16px;
+}
+
+/* B. Documentary Requirements — drop the heavy grid look (a full border
+   boxing every single checklist row) in favor of a clean list: outer
+   border only, no per-row lines — but keep a single vertical rule
+   between the requirement text and the Remarks column, so Remarks
+   still reads as its own boxed-off column rather than blank space. */
+.annexb-doc .annexa-doc-vc-table {
+    border: 1px solid #000;
+}
+.annexb-doc .annexa-doc-vc-table td {
+    border: none;
+    line-height: 1.35;
+}
+/* Every row — including the "Other documents for deceased grantees:" label
+   row — now has exactly two <td> cells (the label row's second cell is
+   just empty), so this border-right lands at the same 75%/25% split point
+   on every single row with no exceptions, giving one unbroken straight
+   line down the table instead of a line that gaps out wherever a row used
+   to span both columns via colspan. */
+.annexb-doc .annexa-doc-vc-table td:first-child {
+    border-right: 1px solid #000;
+}
+.annexb-doc .annexa-doc-vc-table tr.annexa-doc-col-headers td {
+    border-bottom: 1px solid #000;
+}
+
+/* Breathing room between Section A / B / C blocks now that the grid
+   lines are gone. */
+.annexb-doc .annexa-doc-table + .annexa-doc-bar,
+.annexb-doc .annexa-doc-vc-table + .annexa-doc-bar {
+    margin-top: 10px;
+}
+
+/* Section A (Personal Information) keeps its full bordered grid — every
+   cell boxed, same as the base .annexa-doc-table td rule further down.
+   Sections C/D (which reuse the same .annexa-doc-table class) instead get
+   ONE outer box border and no internal grid — same "clean list" treatment
+   as Section B, just without a second column to divide. The
+   .annexb-doc-boxed-table marker on C/D's <table> is what tells them apart
+   from Section A's plain, fully-gridded table. */
+.annexb-doc .annexb-doc-boxed-table {
+    border: 1px solid #000;
+}
+.annexb-doc .annexb-doc-boxed-table td {
+    border: none;
+}
+
+/* Tables inside Annex B set both width:100% and their own border. Without
+   border-box, that border is added OUTSIDE the 100% width (default
+   content-box sizing), making the table a hair wider than its container —
+   enough to push the right-hand border out of view. border-box keeps the
+   border INSIDE the declared width instead, so at the default 100% scale
+   the table never exceeds its container and the right border always shows. */
+.annexb-doc table {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* B. Documentary Requirements has two uniform columns in every row (unlike
+   Section A/C/D's tables, which mix colspans and per-row column counts and
+   so can't safely go table-layout:fixed). Fixed layout locks the table to
+   its declared width regardless of the long unbroken requirement text,
+   instead of auto-layout silently widening the last column to fit content
+   and pushing the right border past the page edge. */
+.annexb-doc .annexa-doc-vc-table {
+    table-layout: fixed;
+    overflow-wrap: break-word;
+}
+
+/* word-break: break-word (the previous value here) breaks ANYWHERE the line
+   is tight, splitting ordinary words like "Primary" into "Prima"/"ry" even
+   though the whole word would have fit fine on the next line. overflow-wrap
+   only forces a mid-word break as a last resort, when a single word can't
+   fit a line by itself — every checklist label wraps normally now. The
+   checkbox icon + label share one inline-flex span; without min-width:0 a
+   flex item won't shrink below its content's natural width, which was
+   forcing the overflow that triggered those word-breaks in the first place. */
+.annexb-doc .annexa-doc-vc-table .annexa-doc-checkbox {
+    min-width: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   LIVENESS CHECK AND TRANSACTION ACCOUNT FORM — internal NCSC form
+   (no Annex letter), same read-only replica + live print-formatting
+   pattern as Annex B above, given its own print scope (#liveness-print-target)
+   so printing it never pulls in Annex A/B even when all three sit on the
+   same page (offcanvas / Create-Edit form).
+   ══════════════════════════════════════════════════════════ */
+.liveness-doc {
+    border: 1px solid #000;
+    color: #000;
+    background: #fff;
+
+    --lc-scale: 1;
+    --lc-font-scale: 1;
+    --lc-margin: 0mm;
+    padding: var(--lc-margin);
+}
+
+.liveness-doc-inner {
+    zoom: var(--lc-scale);
+}
+
+/* Compact sizing — same on screen and in print (see the identical rationale
+   on .annexb-doc above). Only font-size reads through --lc-font-scale. */
+.liveness-doc {
+    font-size: 10px;
+    margin-top: 10px;
+}
+.liveness-doc .annexa-doc-header-row {
+    padding: 6px 12px 3px;
+}
+.liveness-doc .annexa-doc-logo-left,
+.liveness-doc .annexa-doc-logo-right {
+    width: 54px;
+    height: 54px;
+}
+.liveness-doc .annexa-doc-header-line1 {
+    font-size: calc(10px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-header-title {
+    font-size: calc(12px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-header-address {
+    font-size: calc(7.5px * var(--lc-font-scale));
+}
+/* Brand-navy org name, same treatment as .annexb-doc .annexa-doc-header-title
+   in annexa-form.css — this form's header otherwise defaults to plain black. */
+.liveness-doc .annexa-doc-header-title {
+    color: #1F3864;
+}
+.liveness-doc-title-box {
+    border-top: none;
+    padding: 6px 12px;
+}
+.liveness-doc .annexa-doc-title-main {
+    font-size: calc(12px * var(--lc-font-scale));
+}
+.liveness-doc-subtitle {
+    font-size: calc(9px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-bar {
+    font-size: calc(10px * var(--lc-font-scale));
+    padding: 3px 8px;
+}
+.liveness-doc .annexa-doc-field-label {
+    font-size: calc(7.5px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-field-value {
+    font-size: calc(10px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-table td,
+.liveness-doc .annexa-doc-vc-table td {
+    font-size: calc(8.5px * var(--lc-font-scale));
+    padding: 3px 6px;
+}
+.liveness-doc .annexa-doc-col-headers td {
+    font-size: calc(7.5px * var(--lc-font-scale));
+}
+/* A.6 Age lives inside the same <td> as A.5 Date of Death, same reasoning
+   as Annex B's Section A — mixing a 3-cell row into an otherwise 2-cell
+   table broke column alignment across rows there, so it stays nested here
+   from the start. */
+.liveness-doc-age-cell {
+    border-left: 1px solid #000;
+    padding-left: 8px;
+}
+
+/* B. Liveness Check Details — same "clean list" outer-box + Remarks-divider
+   treatment as Annex B's Documentary Requirements table. */
+.liveness-doc .annexa-doc-vc-table {
+    border: 1px solid #000;
+    table-layout: fixed;
+}
+.liveness-doc .annexa-doc-vc-table td {
+    border: none;
+    line-height: 1.35;
+}
+.liveness-doc .annexa-doc-vc-table td:first-child {
+    border-right: 1px solid #000;
+}
+.liveness-doc .annexa-doc-vc-table tr.annexa-doc-col-headers td {
+    border-bottom: 1px solid #000;
+}
+
+/* Sections C/D reuse .annexa-doc-table but want ONE outer box border and no
+   internal grid — same marker-class pattern as Annex B's C/D sections. */
+.liveness-doc .liveness-doc-boxed-table {
+    border: 1px solid #000;
+}
+.liveness-doc .liveness-doc-boxed-table td {
+    border: none;
+    padding: 6px 10px;
+}
+/* Horizontal rule above ASSESSMENT, separating it from the bank/GCash/PSP
+   fields above it, matching the reference form. Specificity (not
+   !important) is what beats .liveness-doc-boxed-table td's border:none
+   above — same selector shape plus the extra class. */
+.liveness-doc .liveness-doc-boxed-table td.liveness-doc-assessment-cell {
+    border-top: 1px solid #000;
+}
+
+.liveness-doc-subheader {
+    font-weight: 700;
+    font-size: calc(9px * var(--lc-font-scale));
+    text-transform: uppercase;
+    margin: 6px 0 4px;
+}
+.liveness-doc-subheader--sm {
+    font-style: italic;
+    font-size: calc(8.5px * var(--lc-font-scale));
+    text-transform: none;
+}
+
+/* Each Section C detail is a label + a blank-filled line, exactly like the
+   paper form's "Label: ____________" layout — the value stretches to fill
+   the remaining row width via flex-grow instead of a fixed column. */
+.liveness-doc-field-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: calc(8.5px * var(--lc-font-scale));
+    padding: 1px 0;
+}
+.liveness-doc-field-inline-label {
+    font-weight: 700;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.liveness-doc-underline-value {
+    border-bottom: 1px solid #000;
+    min-height: 11px;
+    padding: 0 4px;
+}
+.liveness-doc-field-fill {
+    flex: 1 1 auto;
+    min-width: 60px;
+}
+.liveness-doc-inline-note {
+    font-size: calc(7.5px * var(--lc-font-scale));
+    color: #444;
+    flex-basis: 100%;
+}
+.liveness-doc-findings-line {
+    border-bottom: 1px solid #000;
+    min-height: 11px;
+    margin-top: 2px;
+}
+
+/* GCash-style boxed digit display (read-only) — mirrors PhMobileNumberInput's
+   4-3-4 grouping used in the live edit form, just static spans instead of
+   inputs since this is a print replica, not an editable control. */
+.liveness-doc-digit-boxes {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+.liveness-doc-digit-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 14px;
+    border: 1px solid #000;
+    font-size: calc(8px * var(--lc-font-scale));
+}
+.liveness-doc-digit-dash {
+    color: #444;
+    font-weight: 700;
+}
+
+.liveness-doc .annexa-doc-checkbox {
+    font-size: calc(10px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-checkbox .box {
+    width: 11px;
+    height: 11px;
+    border-width: 1.1px;
+}
+.liveness-doc-signoff-caption {
+    font-size: calc(7.5px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-signoff-block {
+    margin: 4px 0 3px;
+}
+.liveness-doc .annexa-doc-footer {
+    padding: 4px 12px;
+}
+.liveness-doc .annexa-doc-footer-brand {
+    font-size: calc(7.5px * var(--lc-font-scale));
+}
+.liveness-doc .annexa-doc-footer-logo-img {
+    height: 16px;
+}
+
+.liveness-doc .annexa-doc-table + .annexa-doc-bar,
+.liveness-doc .annexa-doc-vc-table + .annexa-doc-bar {
+    margin-top: 10px;
+}
+
+.liveness-doc table {
+    box-sizing: border-box;
+    width: 100%;
+}
+
 .annexa-doc-title-block {
     text-align: center;
     padding: 10px 14px 8px;
@@ -101,6 +558,22 @@
     font-weight: 900;
 }
 
+/* Radio-style variant — used for Annex B's C.2 Eligible / Not Eligible pair */
+.annexa-doc-checkbox .box.annexa-doc-radio-box {
+    border-radius: 50%;
+}
+
+/* Text-glyph dot, same mechanism as the "✓" checkmark above — a generated
+   empty box with width/height proved unreliable across print engines, since
+   ::after defaults to display:inline (which ignores width/height) and some
+   print pipelines don't apply the override consistently. A glyph is just
+   text, so it always paints. */
+.annexa-doc-checkbox .box.annexa-doc-radio-box.checked::after {
+    content: "●";
+    font-size: 8px;
+    line-height: 1;
+}
+
 .annexa-doc-note {
     font-size: 9.5px;
     font-style: italic;
@@ -142,5 +615,56 @@
     }
     .page-break {
         page-break-before: always;
+    }
+
+    /* Annex B print isolation — triggered by its own "Print Annex B" button
+       (printAnnexBOnly() in printInterop.js), which marks <body> right before
+       calling window.print(). While marked, force-hide Annex A (even though
+       the rule above made it visible by default) and show only Annex B —
+       so printing Annex B never pulls in Annex A's 4 pages, regardless of
+       whether both happen to be rendered on the same page. */
+    body.printing-annex-b .annexa-doc,
+    body.printing-annex-b .annexa-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-annex-b .annexb-doc,
+    body.printing-annex-b .annexb-doc * {
+        visibility: visible !important;
+    }
+    /* position:fixed (not absolute) is deliberate — Annex B's print button
+       lives inside an HxModal/HxOffcanvas, and Bootstrap's .modal wrapper is
+       itself position:fixed, which becomes the containing block for any
+       position:absolute descendant. That mis-anchored the page origin and
+       left a large invisible-but-space-occupying gap that spilled into extra
+       blank pages. For paged/print media, position:fixed is defined relative
+       to the page box itself, escaping the modal's positioning entirely. */
+    body.printing-annex-b .annexb-doc {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        border: none;
+    }
+
+    /* Liveness Check form print isolation — triggered by printLivenessOnly()
+       in printInterop.js, same marker-class mechanism as Annex B above. Also
+       hides Annex A/B (both of which default to visible under the base rules
+       earlier in this block) whenever this specific form is what's printing. */
+    body.printing-liveness .annexa-doc,
+    body.printing-liveness .annexa-doc *,
+    body.printing-liveness .annexb-doc,
+    body.printing-liveness .annexb-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-liveness .liveness-doc,
+    body.printing-liveness .liveness-doc * {
+        visibility: visible !important;
+    }
+    body.printing-liveness .liveness-doc {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        border: none;
     }
 }

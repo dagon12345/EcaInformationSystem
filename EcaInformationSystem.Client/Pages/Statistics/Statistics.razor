@@ -163,16 +163,38 @@
                                 }
                             </select>
                         </div>
-                        @* ── Date Endorsed ─────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Date Endorsed From</label>
-                            <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
+                    </div>
+
+                    @* ── Date Ranges ──────────────────────────────────── *@
+                    <div class="sf-date-ranges">
+                        <div>
+                            <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
+                            <div class="sf-grid">
+                                <div class="sf-field">
+                                    <label>From</label>
+                                    <input type="date" class="ff-input" @bind="_dateAddedFrom" />
+                                </div>
+                                <div class="sf-field">
+                                    <label>To</label>
+                                    <input type="date" class="ff-input" @bind="_dateAddedTo" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="sf-field">
-                            <label>Date Endorsed To</label>
-                            <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
+                        <div>
+                            <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
+                            <div class="sf-grid">
+                                <div class="sf-field">
+                                    <label>From</label>
+                                    <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
+                                </div>
+                                <div class="sf-field">
+                                    <label>To</label>
+                                    <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
+                                </div>
+                            </div>
                         </div>
                     </div>
+
                     <div class="sf-actions">
                         <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
                         <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync">
@@ -529,6 +551,8 @@
     private int _selectedPaymentStatus = -1;
     private DateTime? _dateEndorsedFrom;
     private DateTime? _dateEndorsedTo;
+    private DateTime? _dateAddedFrom;
+    private DateTime? _dateAddedTo;
 
     private bool _isLoadingProvinces;
     private bool _isLoadingMunicipalities;
@@ -664,7 +688,9 @@
                 PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,
                 FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null, // ✅ new
                 DateEndorsedFrom = _dateEndorsedFrom,
-                DateEndorsedTo = _dateEndorsedTo
+                DateEndorsedTo = _dateEndorsedTo,
+                DateAddedFrom = _dateAddedFrom,
+                DateAddedTo = _dateAddedTo
             };
 
             var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
@@ -704,6 +730,8 @@
         _selectedFiscalYear = 0; // ✅ new
         _dateEndorsedFrom = null;
         _dateEndorsedTo = null;
+        _dateAddedFrom = null;
+        _dateAddedTo = null;
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
@@ -763,6 +791,8 @@
         public int? FiscalYear { get; set; } // ✅ new
         public DateTime? DateEndorsedFrom { get; set; }
         public DateTime? DateEndorsedTo { get; set; }
+        public DateTime? DateAddedFrom { get; set; }
+        public DateTime? DateAddedTo { get; set; }
     }
 
     public class StatisticsReportDto

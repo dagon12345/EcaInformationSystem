@@ -18,15 +18,17 @@ namespace EcaInformationSystem.Application.Services
         private readonly TokenService _tokenService;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
         private readonly IDataProtector _mfaProtector; // ✅ NEW
+        private readonly ILogRepository _logRepository;
 
         private const int MaxFailedAttempts = 5;
         public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository,
-            TokenService tokenService, IDataProtectionProvider dataProtectionProvider)
+            TokenService tokenService, IDataProtectionProvider dataProtectionProvider, ILogRepository logRepository)
         {
             _pendingUserRegistrationRepository = pendingUserRegistrationRepository;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
             _tokenService = tokenService;
             _mfaProtector = dataProtectionProvider.CreateProtector("MfaSecrets");
+            _logRepository = logRepository;
         }
         public async Task<bool> IsMfaEnabledAsync(Guid userId)
         {
@@ -123,7 +125,7 @@ namespace EcaInformationSystem.Application.Services
                 return AuthResult.NeedsMfa(user.Id.ToString());
             }
 
-            return IssueToken(user);
+            return await IssueTokenAsync(user);
         }
 
         public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -238,7 +240,7 @@ namespace EcaInformationSystem.Application.Services
             if (!isValid)
                 return AuthResult.Failed("Invalid or expired code.");
 
-            return IssueToken(user);
+            return await IssueTokenAsync(user);
         }
         private static readonly HashSet<string> AllowedSelfRegisterRoles = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -247,7 +249,7 @@ namespace EcaInformationSystem.Application.Services
             // through the SuperAdmin user management page, not open registration.
         };
         // ✅ NEW — extracted so both LoginAsync (non-MFA path) and VerifyMfaAndIssueTokenAsync can use it
-        private AuthResult IssueToken(PendingUserRegistration user)
+        private async Task<AuthResult> IssueTokenAsync(PendingUserRegistration user)
         {
             var token = _tokenService.GenerateToken(
                 user.Id,
@@ -270,6 +272,18 @@ namespace EcaInformationSystem.Application.Services
 
             // ✅ CHANGED — show every login until MFA is actually enabled, not just once
             result.ShowMfaPrompt = !user.IsMfaEnabled;
+
+            // ✅ NEW — audit trail of who logged in and when
+            await _logRepository.AddAsync(new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = null,
+                Activity = "User logged in",
+                UserName = user.UserName,
+                CreatedAt = DateTime.UtcNow,
+                Category = "Login"
+            });
+            await _logRepository.SaveChangesAsync();
 
             return result;
         }

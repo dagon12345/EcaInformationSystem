@@ -189,6 +189,35 @@
     box-shadow: 0 0 0 2px rgba(31, 56, 100, 0.15);
 }
 
+/* Boxed, dashed PH mobile number input — one box per digit: 0910 - 123 - 4567 */
+.ph-mobile-wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+.ph-mobile-input {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.ph-mobile-box {
+    width: 1.9em;
+    height: 1.9em;
+    padding: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.ph-mobile-dash {
+    color: #adb5bd;
+    font-weight: 700;
+    padding: 0 1px;
+}
+
 .annexa-input:disabled,
 .annexa-input.annexa-readonly {
     background: #f1f3f5;
@@ -377,6 +406,14 @@
 }
 .annexa-doc-annex-subtag { font-size: 8px; font-style: italic; }
 
+/* Annex B specifics: brand-navy org name (matches the reference letterhead),
+   and no rule above "VALIDATION FORM" — Annex A keeps its own defaults.
+   Selector combines both classes so it outweighs .annexa-doc-title-box's own
+   border-top on specificity, regardless of which rule appears later in the
+   file (equal single-class specificity was letting the base rule win). */
+.annexb-doc .annexa-doc-header-title { color: #1F3864; }
+.annexa-doc-title-box.annexb-title-box { border-top: none; }
+
 .annexa-doc-title-box {
     border-top: 2px solid #000;
     padding: 8px 16px;
@@ -497,20 +534,10 @@
     text-align: center;
 }
 
-/* ── "Puso Para sa Seniors" footer wordmark, built from text + icon ── */
-.annexa-doc-footer-logo-text {
-    display: flex;
-    align-items: center;
-    font-family: "Segoe Print", "Comic Sans MS", cursive;
-    font-weight: 700;
-    font-size: 13px;
-    color: #1F3864;
-    white-space: nowrap;
-}
-.annexa-doc-footer-heart {
-    color: #e63946;
-    font-size: 13px;
-    margin: 0 1px;
+/* ── "Puso Para sa Seniors" footer logo ── */
+.annexa-doc-footer-logo-img {
+    height: 22px;
+    width: auto;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
@@ -518,7 +545,7 @@
 /* ── A4 portrait as the default print/PDF page size ── */
 @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 8mm;
 }
 .annexa-doc-nested-wrap {
     border: none !important;
@@ -662,7 +689,7 @@
    (.annexa-doc--form) and the print replica (.annexa-doc)
    ══════════════════════════════════════════════════════════ */
 
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
     .annexa-doc {
         width: 100%;
         border-width: 1px;
@@ -704,7 +731,7 @@
     }
 }
 
-@media (max-width: 576px) {
+@media screen and (max-width: 576px) {
     /* Everything single-column on phones */
     .annexa-grid.cols-2,
     .annexa-grid.cols-3,

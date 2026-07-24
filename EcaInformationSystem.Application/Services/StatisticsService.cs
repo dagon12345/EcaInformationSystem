@@ -62,7 +62,9 @@ namespace EcaInformationSystem.Application.Services
                 request.PayrollQuarter?.ToString() ?? "null",
                 request.FiscalYear?.ToString() ?? "null", // ✅ new
                 request.DateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",
-                request.DateEndorsedTo?.ToString("yyyyMMdd") ?? "null");
+                request.DateEndorsedTo?.ToString("yyyyMMdd") ?? "null",
+                request.DateAddedFrom?.ToString("yyyyMMdd") ?? "null",
+                request.DateAddedTo?.ToString("yyyyMMdd") ?? "null");
         }
         private string GetCurrentCacheVersion()
         {

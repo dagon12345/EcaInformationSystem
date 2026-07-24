@@ -12,5 +12,7 @@
         public int? FiscalYear { get; set; } // ✅ new
         public DateTime? DateEndorsedFrom { get; set; }
         public DateTime? DateEndorsedTo { get; set; }
+        public DateTime? DateAddedFrom { get; set; }
+        public DateTime? DateAddedTo { get; set; }
     }
 }

@@ -284,7 +284,7 @@ namespace EcaInformationSystem.Application.Services
                 PageSize = filter.PageSize      // ✅ TotalPages derives from this + TotalCount
             };
         }
-        public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter)
+        public async Task<byte[]> ExportFilteredAsTemplateAsync(BeneficiaryFilterDto filter, string userName)
         {
             var allData = (await _repo.GetByIdsAsync(filter.Ids))
                     .DistinctBy(x => x.Id)
@@ -305,6 +305,12 @@ namespace EcaInformationSystem.Application.Services
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
+
+            await AddSystemLogAsync(
+                $"Exported {data.Count} record(s) to Excel",
+                userName,
+                "Download");
+
             return stream.ToArray();
         }
         private void BuildExportTemplateSheet(IXLWorksheet ws, List<BeneficiaryInformationDto> records)
@@ -836,7 +842,9 @@ namespace EcaInformationSystem.Application.Services
                 {
                     PreferredChannel = dto.BankAccount.PreferredChannel,
                     AccountNumber = dto.BankAccount.AccountNumber,
+                    MobileNumber = dto.BankAccount.MobileNumber,
                     BankOrWalletName = dto.BankAccount.BankOrWalletName,
+                    GCashName = dto.BankAccount.GCashName,
                     BranchName = dto.BankAccount.BranchName,
                     BankAddress = dto.BankAccount.BankAddress,
                     IsJointAccount = dto.BankAccount.IsJointAccount,
@@ -889,7 +897,9 @@ namespace EcaInformationSystem.Application.Services
                 {
                     PreferredChannel = dto.ClaimantBankAccount.PreferredChannel,
                     AccountNumber = dto.ClaimantBankAccount.AccountNumber,
+                    MobileNumber = dto.ClaimantBankAccount.MobileNumber,
                     BankOrWalletName = dto.ClaimantBankAccount.BankOrWalletName,
+                    GCashName = dto.ClaimantBankAccount.GCashName,
                     BranchName = dto.ClaimantBankAccount.BranchName,
                     BankAddress = dto.ClaimantBankAccount.BankAddress,
                     IsJointAccount = dto.ClaimantBankAccount.IsJointAccount,
@@ -1063,7 +1073,9 @@ namespace EcaInformationSystem.Application.Services
                     Id = bankAccount.Id,
                     PreferredChannel = bankAccount.PreferredChannel,
                     AccountNumber = bankAccount.AccountNumber,
+                    MobileNumber = bankAccount.MobileNumber,
                     BankOrWalletName = bankAccount.BankOrWalletName,
+                    GCashName = bankAccount.GCashName,
                     BranchName = bankAccount.BranchName,
                     BankAddress = bankAccount.BankAddress,
                     IsJointAccount = bankAccount.IsJointAccount,
@@ -1143,7 +1155,9 @@ namespace EcaInformationSystem.Application.Services
                     Id = claimantBankAccount.Id,
                     PreferredChannel = claimantBankAccount.PreferredChannel,
                     AccountNumber = claimantBankAccount.AccountNumber,
+                    MobileNumber = claimantBankAccount.MobileNumber,
                     BankOrWalletName = claimantBankAccount.BankOrWalletName,
+                    GCashName = claimantBankAccount.GCashName,
                     BranchName = claimantBankAccount.BranchName,
                     BankAddress = claimantBankAccount.BankAddress,
                     IsJointAccount = claimantBankAccount.IsJointAccount,
@@ -1381,7 +1395,9 @@ namespace EcaInformationSystem.Application.Services
                 {
                     PreferredChannel = dto.BankAccount.PreferredChannel,
                     AccountNumber = dto.BankAccount.AccountNumber,
+                    MobileNumber = dto.BankAccount.MobileNumber,
                     BankOrWalletName = dto.BankAccount.BankOrWalletName,
+                    GCashName = dto.BankAccount.GCashName,
                     BranchName = dto.BankAccount.BranchName,
                     BankAddress = dto.BankAccount.BankAddress,
                     IsJointAccount = dto.BankAccount.IsJointAccount,
@@ -1441,7 +1457,9 @@ namespace EcaInformationSystem.Application.Services
                 {
                     PreferredChannel = dto.ClaimantBankAccount.PreferredChannel,
                     AccountNumber = dto.ClaimantBankAccount.AccountNumber,
+                    MobileNumber = dto.ClaimantBankAccount.MobileNumber,
                     BankOrWalletName = dto.ClaimantBankAccount.BankOrWalletName,
+                    GCashName = dto.ClaimantBankAccount.GCashName,
                     BranchName = dto.ClaimantBankAccount.BranchName,
                     BankAddress = dto.ClaimantBankAccount.BankAddress,
                     IsJointAccount = dto.ClaimantBankAccount.IsJointAccount,
@@ -1509,7 +1527,7 @@ namespace EcaInformationSystem.Application.Services
             return result;
         }
         #region Excel Updating/Importing and creating Payroll - START
-        public async Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings)
+        public async Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings, string userName)
         {
             if (settings?.Ids == null || !settings.Ids.Any())
                 throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
@@ -1526,7 +1544,7 @@ namespace EcaInformationSystem.Application.Services
                     // The original `this` instance belongs to the HTTP request's scope,
                     // which is disposed (along with its DbContext) by the time this runs.
                     var scopedService = serviceProvider.GetRequiredService<IBeneficiaryInformationService>();
-                    var fileBytes = await scopedService.GeneratePayrollAsync(settings);
+                    var fileBytes = await scopedService.GeneratePayrollAsync(settings, userName);
 
                     // ✅ Application layer asks Infrastructure to persist the result —
                     // it doesn't touch System.IO directly, keeping file-system specifics
@@ -1558,7 +1576,7 @@ namespace EcaInformationSystem.Application.Services
         //      least one data row instead of just a footer.
         // ============================================================
 
-        public async Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings)
+        public async Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings, string userName)
         {
             if (settings.Ids == null || !settings.Ids.Any())
                 throw new InvalidOperationException(CommonConstants.NoRecordsSelected);
@@ -1648,6 +1666,11 @@ namespace EcaInformationSystem.Application.Services
 
                 await _repo.SaveChangesAsync();
             }
+
+            await AddSystemLogAsync(
+                $"Downloaded Payroll for {allData.Count} record(s)",
+                userName,
+                "Download");
 
             return finalizedResult;
         }
@@ -5151,6 +5174,22 @@ namespace EcaInformationSystem.Application.Services
                 CreatedAt = DateTime.UtcNow
             };
             await _logRepository.AddAsync(log);
+        }
+
+        // Not tied to a single beneficiary — e.g. exports/payroll downloads covering many records.
+        private async Task AddSystemLogAsync(string activity, string userName, string category)
+        {
+            var log = new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = null,
+                Activity = activity,
+                UserName = userName,
+                CreatedAt = DateTime.UtcNow,
+                Category = category
+            };
+            await _logRepository.AddAsync(log);
+            await _logRepository.SaveChangesAsync();
         }
         private static T? FindBestNameMatch<T>(IEnumerable<T> items, Func<T, string?> nameSelector, string rawName,
         int minimumScore = 60) where T : class

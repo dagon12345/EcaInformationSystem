@@ -208,7 +208,7 @@
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.2 LGU OSCA ID Number</span>
-                    <input class="annexa-input" @bind="model.OscaIdNumber" />
+                    <input class="annexa-input" @bind="model.OscaIdNumber" @bind:event="oninput" />
                 </div>
             </div>
 
@@ -216,12 +216,12 @@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.3 First Name <span class="annexa-required">*</span></span>
-                    <input class="annexa-input" @bind="model.FirstName" />
+                    <input class="annexa-input" @bind="model.FirstName" @bind:event="oninput" />
                     <ValidationMessage For="@(() => model.FirstName)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.4 Middle Name</span>
-                    <input class="annexa-input" @bind="model.MiddleName" />
+                    <input class="annexa-input" @bind="model.MiddleName" @bind:event="oninput" />
                 </div>
             </div>
 
@@ -229,7 +229,7 @@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.5 Last Name <span class="annexa-required">*</span></span>
-                    <input class="annexa-input" @bind="model.LastName" />
+                    <input class="annexa-input" @bind="model.LastName" @bind:event="oninput" />
                     <ValidationMessage For="@(() => model.LastName)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
@@ -406,11 +406,18 @@
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">C.13 Disability</span>
-                        <label class="annexa-checkbox-item">
-                            <input type="checkbox" checked="@model.IsPersonWithDisability"
-                                   @onchange="@(e => model.IsPersonWithDisability = (bool)(e.Value ?? false))" />
-                            Yes
-                        </label>
+                        <div class="d-flex gap-3">
+                            <label class="annexa-checkbox-item">
+                                <input type="checkbox" checked="@(model.IsPersonWithDisability == true)"
+                                       @onchange="@(e => model.IsPersonWithDisability = (bool)(e.Value ?? false) ? true : (bool?)null)" />
+                                Yes
+                            </label>
+                            <label class="annexa-checkbox-item">
+                                <input type="checkbox" checked="@(model.IsPersonWithDisability == false)"
+                                       @onchange="@(e => model.IsPersonWithDisability = (bool)(e.Value ?? false) ? false : (bool?)null)" />
+                                No
+                            </label>
+                        </div>
                     </div>
 
                     @if (model.CivilStatus == 5)
@@ -439,12 +446,19 @@
 
             @* C.14 *@
             <div class="annexa-subsection">
-                <span class="annexa-item-label">C.14 Ethnicity</span>
-                <label class="annexa-checkbox-item mb-1">
-                    <input type="checkbox" checked="@model.IsIndigenousPeople"
-                           @onchange="@(e => model.IsIndigenousPeople = (bool)(e.Value ?? false))" />
-                    Member of Indigenous Peoples (IP)
-                </label>
+                <span class="annexa-item-label">C.14 Ethnicity — Member of Indigenous Peoples (IP)</span>
+                <div class="d-flex gap-3 mb-1">
+                    <label class="annexa-checkbox-item">
+                        <input type="checkbox" checked="@(model.IsIndigenousPeople == true)"
+                               @onchange="@(e => model.IsIndigenousPeople = (bool)(e.Value ?? false) ? true : (bool?)null)" />
+                        Yes
+                    </label>
+                    <label class="annexa-checkbox-item">
+                        <input type="checkbox" checked="@(model.IsIndigenousPeople == false)"
+                               @onchange="@(e => model.IsIndigenousPeople = (bool)(e.Value ?? false) ? false : (bool?)null)" />
+                        No
+                    </label>
+                </div>
                 @if (model.IsIndigenousPeople == true)
                 {
                     <input class="annexa-input" placeholder="Name of IP group" @bind="model.EthnicityName" />
@@ -528,6 +542,7 @@
                 </div>
             </div>
 </div>
+
     @* ══════════════════════════════════════════════════════════════════
        SYSTEM FIELDS — everything below is NOT part of the printed Annex A
        form. Wrapped in one bounding box so it reads as a single distinct
