@@ -30,6 +30,13 @@ namespace EcaInformationSystem.Application.Services
             _mfaProtector = dataProtectionProvider.CreateProtector("MfaSecrets");
             _logRepository = logRepository;
         }
+        public async Task<AuthResult> ReissueTokenAsync(Guid userId)
+        {
+            var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+            return await IssueTokenAsync(user);
+        }
+
         public async Task<bool> IsMfaEnabledAsync(Guid userId)
         {
             var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)

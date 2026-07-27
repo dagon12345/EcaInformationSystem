@@ -179,13 +179,22 @@
 }
 
 <div class="sidebar-footer">
-    <div class="user-card">
-        <div class="avatar">@GetInitials(UserName)</div>
+    <button type="button" class="user-card user-card--link" @onclick="GoToProfile" title="View your profile">
+        @if (_currentUserId.HasValue)
+        {
+            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="avatar avatar-img"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <div class="avatar" style="display:none;">@GetInitials(DisplayName)</div>
+        }
+        else
+        {
+            <div class="avatar">@GetInitials(DisplayName)</div>
+        }
         <div class="user-info">
             <div class="user-name">@DisplayName</div>
-            <div class="user-role">Welcome</div>
+            <div class="user-role">View Profile</div>
         </div>
-    </div>
+    </button>
     <button class="toggle-btn" @onclick="OnToggle">
         <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
         <span>@(Collapsed ? "Expand" : "Collapse")</span>
@@ -199,6 +208,7 @@
     private bool _legendCollapsed = true; // open by default
 
     private string DisplayName = "User";
+    private Guid? _currentUserId;
     private bool _isSuperAdmin;
     private bool _isAdmin;
     private bool _isPdo;
@@ -237,7 +247,14 @@
         var user = authState.User;
         var fullName = user.FindFirst("FullName")?.Value;
         DisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : UserName;
+        _currentUserId = Guid.TryParse(user.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
     }
+
+    private void GoToProfile() => Nav.NavigateTo("/profile");
+
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
 
     private async Task LoadJurisdictionNamesAsync()
     {

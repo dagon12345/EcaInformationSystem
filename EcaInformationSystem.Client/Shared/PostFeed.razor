@@ -89,7 +89,11 @@
                  id="@($"post-{post.Id}")"
                  @onmouseenter="() => TrackViewOnce(post.Id)">
                 <div class="feed-post-header">
-                    <div class="feed-avatar">@GetInitials(post.AuthorName)</div>
+                    <a href="@($"/profile/{post.AuthorUserId}")" class="feed-avatar-link" title="View profile">
+                        <img src="@AvatarUrl(post.AuthorUserId)" alt="" class="feed-avatar avatar-img"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                        <div class="feed-avatar" style="display:none;">@GetInitials(post.AuthorName)</div>
+                    </a>
                     <div class="feed-post-header-text">
                         <div class="feed-post-author">@post.AuthorName</div>
                         <div class="feed-post-meta">
@@ -286,7 +290,11 @@
                             @foreach (var c in comments)
                             {
                                 <div class="feed-comment">
-                                    <div class="feed-comment-avatar">@GetInitials(c.AuthorName)</div>
+                                    <a href="@($"/profile/{c.UserId}")" class="feed-avatar-link" title="View profile">
+                                        <img src="@AvatarUrl(c.UserId)" alt="" class="feed-comment-avatar avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                        <div class="feed-comment-avatar" style="display:none;">@GetInitials(c.AuthorName)</div>
+                                    </a>
                                     <div class="feed-comment-body">
                                         <div class="feed-comment-meta">
                                             <span class="feed-comment-author">@c.AuthorName</span>
@@ -1091,6 +1099,10 @@
         if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
         return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
     }
+
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
 
     private string GetCommentDraft(Guid postId)
         => _newCommentContent.TryGetValue(postId, out var val) ? val : string.Empty;

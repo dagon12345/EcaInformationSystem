@@ -219,6 +219,18 @@ namespace EcaInformationSystem.Client.Services
         public async Task<string?> GetTokenAsync()
             => await _js.InvokeAsync<string?>("localStorage.getItem", "authToken");
 
+        // ✅ NEW — after a self-service profile edit (name/position), the server
+        // reissues a fresh JWT with the new claims. Swap it into storage and
+        // refresh the in-memory role/region cache so every component reading
+        // FullName/Position off the token — NavMenu, MainLayout, etc. — reflects
+        // the edit immediately, without forcing a full logout/login.
+        public async Task UpdateStoredTokenAsync(string newToken)
+        {
+            await _js.InvokeVoidAsync("localStorage.setItem", "authToken", newToken);
+            _cachedRole = ParseRoleFromToken(newToken);
+            _cachedRegionCode = ParseRegionFromToken(newToken);
+        }
+
         public async Task<HttpClient> GetAuthorizedClientAsync()
         {
             var token = await _js.InvokeAsync<string?>("localStorage.getItem", "authToken");

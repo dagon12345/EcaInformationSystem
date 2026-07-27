@@ -49,6 +49,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryVerificationChecklist> BeneficiaryVerificationChecklists => Set<BeneficiaryVerificationChecklist>();
             public DbSet<BeneficiaryClaimantBankAccount> BeneficiaryClaimantBankAccounts => Set<BeneficiaryClaimantBankAccount>();
             public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
+            public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -852,6 +853,29 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.SetBy).HasMaxLength(256);
                         entity.Property(x => x.ModifiedBy).HasMaxLength(256);
                         entity.Property(x => x.RowVersion).IsRowVersion();
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // USER PROFILE PICTURE
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<UserProfilePicture>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.UserId)
+                        .IsUnique()
+                        .HasDatabaseName("UQ_UserProfilePicture_UserId");
+
+                        // No DB-level FK to PendingUserRegistrations — that table has no primary
+                        // key constraint in the actual database (pre-existing, unrelated to this
+                        // feature), so EF can't create one here. The 1:1 link is enforced at the
+                        // application layer (UserProfileRepository) via the unique index above.
+                        entity.Ignore(x => x.User);
+
+                        entity.Property(x => x.ImageData).IsRequired().HasColumnType("varbinary(max)");
+                        entity.Property(x => x.ThumbnailData).IsRequired().HasColumnType("varbinary(max)");
+                        entity.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+                        entity.Property(x => x.UploadedBy).HasMaxLength(256);
                   });
             }
       }

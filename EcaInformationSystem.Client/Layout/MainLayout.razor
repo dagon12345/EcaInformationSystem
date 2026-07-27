@@ -37,24 +37,39 @@
                         <ActivityReminderBell @ref="_activityBell" />
                         <UploadQueueIndicator />
 
-                        @* ── User info + role badge ────────────────────────── *@
-                        <div class="d-flex align-items-center gap-2 me-2">
-                            <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
-                                <span style="font-size:12px; color:#6b7280; font-weight:500;">
-                                    @context.User.Identity?.Name
-                                </span>
-                                @if (!string.IsNullOrWhiteSpace(_userRole))
-                                {
-                                    <span class="badge @GetRoleBadgeClass(_userRole)"
-                                          style="font-size:9px; padding:2px 6px; margin-top:2px;">
-                                        <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
+                        @* ── User info + role badge — click opens a dropdown with
+                             View Profile / Logout (logout no longer sits as its
+                             own bare icon in the navbar). ────────────────────── *@
+                        <div class="dropdown navbar-profile-dropdown me-2">
+                            <button class="btn navbar-profile-toggle dropdown-toggle" type="button"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
+                                    <span style="font-size:12px; color:#6b7280; font-weight:500;">
+                                        @_displayFullName
                                     </span>
-                                }
-                            </div>
+                                    @if (!string.IsNullOrWhiteSpace(_userRole))
+                                    {
+                                        <span class="badge @GetRoleBadgeClass(_userRole)"
+                                              style="font-size:9px; padding:2px 6px; margin-top:2px;">
+                                            <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
+                                        </span>
+                                    }
+                                </div>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="/profile">
+                                        <i class="bi bi-person-circle me-2"></i>View Profile
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <button type="button" class="dropdown-item text-danger" @onclick="RequestLogout">
+                                        <i class="bi bi-box-arrow-right me-2"></i>Logout
+                                    </button>
+                                </li>
+                            </ul>
                         </div>
-                        <button class="icon-btn" @onclick="HandleLogout" title="Logout">
-                            <i class="bi bi-box-arrow-right"></i>
-                        </button>
                     </div>
                 </div>
 
@@ -81,6 +96,35 @@
             </div>
         </div>
         <ChatWidget />
+
+        @* ── Logout confirmation — reached via the profile dropdown above ── *@
+        @if (_showLogoutConfirm)
+        {
+            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1080;">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-warning-emphasis">
+                                <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Log Out?
+                            </h5>
+                            <button type="button" class="btn-close" @onclick="CancelLogout"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">
+                                You're about to end your current session. Any unsaved changes on this page
+                                will be lost. Are you sure you want to log out?
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CancelLogout">Cancel</button>
+                            <button class="btn btn-danger" @onclick="HandleLogout">
+                                <i class="bi bi-box-arrow-right me-1"></i>Yes, Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </Authorized>
     <NotAuthorized>
         @Body
@@ -92,6 +136,7 @@
     private bool collapsed = false;
     private bool mobileOpen = false;
     private string userName = string.Empty;
+    private string _displayFullName = "User";
     private string currentPage = "Dashboard";
     private string? _userRole;
     private bool _showPermissionBanner = false;
@@ -99,6 +144,7 @@
     private string _bannerType = "error";
     private System.Threading.CancellationTokenSource? _bannerCts;
     private DuplicateNotificationBell? _duplicateBell;
+    private bool _showLogoutConfirm;
 
     public static MainLayout? Current { get; private set; }
 
@@ -140,6 +186,8 @@
         if (user.Identity?.IsAuthenticated == true)
         {
             userName = user.Identity.Name ?? "User";
+            var fullName = user.FindFirst("FullName")?.Value;
+            _displayFullName = !string.IsNullOrWhiteSpace(fullName) ? fullName : userName;
 
             if (!ChatClientService.IsConnected)
             {
@@ -259,6 +307,9 @@
     }
 
     private void ToggleSidebar() => collapsed = !collapsed;
+
+    private void RequestLogout() => _showLogoutConfirm = true;
+    private void CancelLogout() => _showLogoutConfirm = false;
 
     private async Task HandleLogout()
     {

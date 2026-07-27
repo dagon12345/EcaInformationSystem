@@ -131,6 +131,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 };
             }).ToList();
 
+            // AuthorName/Position/Region were stored as a snapshot on the Post row
+            // at creation time — editing your profile afterward never touched old
+            // posts, so the feed kept showing whatever name/position was current
+            // back when you posted. Overlay the CURRENT values here instead, same
+            // as how the avatar is already looked up live by AuthorUserId rather
+            // than stored per-post. Falls back to the snapshot if the author's
+            // account no longer exists (e.g. deleted/orphaned test data).
+            await ApplyLiveAuthorInfoAsync(items, i => i.AuthorUserId,
+                (i, name, position, region) => { i.AuthorName = name; i.AuthorPosition = position; i.AuthorRegion = region; });
+
             return new PagedResultDto<PostDto>
             {
                 Items = items,
@@ -254,6 +264,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .ToListAsync();
 
+            await ApplyLiveAuthorInfoAsync(items, i => i.UserId,
+                (i, name, position, region) => { i.AuthorName = name; i.AuthorPosition = position; i.AuthorRegion = region; });
+
             return new PagedResultDto<PostCommentDto>
             {
                 Items = items,
@@ -287,5 +300,48 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task SaveChangesAsync()
             => await _context.SaveChangesAsync();
+
+        // Overlays each item's AuthorName/Position/Region with the author's CURRENT
+        // profile values (looked up by AuthorUserId), instead of the frozen snapshot
+        // stored on the Post/PostComment row at creation time. If the author's
+        // account no longer exists, the item is left untouched (keeps its snapshot).
+        private async Task ApplyLiveAuthorInfoAsync<T>(
+            List<T> items,
+            Func<T, Guid> getAuthorId,
+            Action<T, string, string?, string?> setAuthorInfo)
+        {
+            if (items.Count == 0) return;
+
+            var authorIds = items.Select(getAuthorId).Distinct().ToList();
+
+            var authors = await _context.PendingUserRegistrations
+                .AsNoTracking()
+                .Where(u => authorIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName, u.Position, u.Region })
+                .ToListAsync();
+
+            if (authors.Count == 0) return;
+
+            var regionCodes = authors.Where(a => a.Region.HasValue).Select(a => a.Region!.Value).Distinct().ToList();
+            var regionNames = regionCodes.Count == 0
+                ? new Dictionary<int, string?>()
+                : await _context.Regions.AsNoTracking()
+                    .Where(r => regionCodes.Contains(r.PsgcCodeRegion))
+                    .ToDictionaryAsync(r => r.PsgcCodeRegion, r => r.Name);
+
+            var authorLookup = authors.ToDictionary(a => a.Id, a => (
+                a.FullName,
+                a.Position,
+                RegionName: a.Region.HasValue && regionNames.TryGetValue(a.Region.Value, out var rn) ? rn : null
+            ));
+
+            foreach (var item in items)
+            {
+                if (authorLookup.TryGetValue(getAuthorId(item), out var current))
+                {
+                    setAuthorInfo(item, current.FullName, current.Position, current.RegionName);
+                }
+            }
+        }
     }
 }

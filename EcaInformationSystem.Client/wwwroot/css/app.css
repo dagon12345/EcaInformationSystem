@@ -2174,6 +2174,30 @@
     font-size: 10px;
     font-weight: 700;
     color: #6c757d;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.chat-avatar-link {
+    display: inline-flex;
+    flex-shrink: 0;
+    text-decoration: none;
+}
+
+.chat-message-avatar {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    object-fit: cover;
 }
 
 .chat-message-content {
@@ -6068,6 +6092,21 @@ body {
             background: #f3f4f6;
         }
 
+    /* .user-card is now a real <button> (was a plain div) so it's keyboard/
+       screen-reader accessible as the "go to profile" trigger — reset the
+       native button chrome back to how the div used to look. */
+    .user-card--link {
+        border: none;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+        font: inherit;
+    }
+
+    .avatar-img {
+        object-fit: cover;
+    }
+
     .avatar {
         width: 30px;
         height: 30px;
@@ -6211,3 +6250,68 @@ body {
     .form-label {
         color: black
     }
+
+/* ── Top navbar profile dropdown (name/role badge → View Profile / Logout) ── */
+.navbar-profile-toggle {
+    border: none;
+    background: transparent;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+}
+.navbar-profile-toggle:hover {
+    background: #f3f4f6;
+    border-radius: 6px;
+}
+.navbar-profile-toggle::after {
+    margin-left: 8px;
+    align-self: center;
+}
+.navbar-profile-dropdown .dropdown-menu {
+    min-width: 180px;
+    font-size: 13px;
+}
+
+/* ── User Profile page + shared small-avatar rendering (Feed, Chat, NavMenu) ── */
+.profile-avatar-wrap {
+    width: 120px;
+    height: 120px;
+}
+.profile-avatar-img {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #eef2f8;
+}
+.profile-avatar-fallback {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy, #1F3864) 0%, var(--navy-light, #2d4f8a) 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 36px;
+}
+
+/* Small avatar variant reused wherever a user's picture appears inline —
+   NavMenu sidebar, Feed post/comment authors, Chat messages. */
+.avatar-sm-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+/* Wraps a Feed post/comment avatar (img + initials fallback share the same
+   sized class) in a clickable link to that author's profile, without adding
+   underline/spacing that would break the existing flex layout. */
+.feed-avatar-link {
+    display: inline-flex;
+    flex-shrink: 0;
+    text-decoration: none;
+}

@@ -15,5 +15,10 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<bool> ResetMfaAsync(Guid userId, string currentPassword);
         Task ResetMfaByAdminAsync(Guid targetUserId);
         Task<bool> IsMfaEnabledAsync(Guid userId);
+
+        // Regenerates the JWT for an already-logged-in user whose FullName/Position
+        // just changed — those are embedded as token claims, so the client's stored
+        // token goes stale the moment a profile edit saves until this reissues one.
+        Task<AuthResult> ReissueTokenAsync(Guid userId);
     }
 }

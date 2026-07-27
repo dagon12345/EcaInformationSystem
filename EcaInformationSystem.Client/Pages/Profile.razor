@@ -1,0 +1,562 @@
+@page "/profile"
+@page "/profile/{UserId:guid}"
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ToastService Toast
+@inject NavigationManager Navigation
+
+<PageTitle>@(_isSelf ? "My Profile" : _publicProfile?.FullName ?? "Profile")</PageTitle>
+
+<div class="content-area">
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon"><i class="bi bi-person-circle"></i></div>
+        <div>
+            <div class="page-header-title">@(_isSelf ? "My Profile" : "User Profile")</div>
+            <div class="page-header-sub">@(_isSelf ? "Manage your account details and security" : "Viewing another user's profile")</div>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Loading profile...</p>
+        </div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>@_loadError</div>
+    }
+    else if (_isSelf && _myProfile is not null)
+    {
+        <div class="row g-3">
+            @* ── Avatar + identity card ── *@
+            <div class="col-lg-4">
+                <div class="sys-card">
+                    <div class="sys-card-body text-center">
+                        <div class="profile-avatar-wrap mx-auto mb-3">
+                            @if (_myProfile.HasProfilePicture && !_pictureRemoved)
+                            {
+                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" alt="" class="profile-avatar-img"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="profile-avatar-fallback" style="display:none;">@GetInitials(_myProfile.FullName)</div>
+                            }
+                            else
+                            {
+                                <div class="profile-avatar-fallback">@GetInitials(_myProfile.FullName)</div>
+                            }
+                        </div>
+
+                        <InputFile OnChange="OnPictureSelectedAsync" accept="image/*" class="d-none" id="profilePictureInput" />
+                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                            <label for="profilePictureInput" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-camera me-1"></i>Change Picture
+                            </label>
+                            @if (_myProfile.HasProfilePicture && !_pictureRemoved)
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="RequestRemovePicture" disabled="@_isSavingPicture">
+                                    <i class="bi bi-trash me-1"></i>Remove
+                                </button>
+                            }
+                        </div>
+                        @if (_isSavingPicture)
+                        {
+                            <div class="small text-muted mt-2"><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</div>
+                        }
+
+                        <hr />
+                        <h5 class="mb-0">@_myProfile.FullName</h5>
+                        <div class="text-muted small">@_myProfile.Position</div>
+                        <span class="badge bg-secondary mt-2">@_myProfile.Role</span>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Editable details ── *@
+            <div class="col-lg-8">
+                <div class="sys-card mb-3">
+                    <div class="sys-card-header"><i class="bi bi-person-lines-fill me-2"></i>Account Details</div>
+                    <div class="sys-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Username</label>
+                                <input class="form-control" value="@_myProfile.UserName" disabled readonly />
+                                <div class="form-text">Your username cannot be changed.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Region</label>
+                                <input class="form-control" value="@(_myProfile.RegionName ?? "—")" disabled readonly />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Full Name</label>
+                                <input class="form-control" @bind="_editFullName" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Position</label>
+                                <input class="form-control" @bind="_editPosition" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Birthday</label>
+                                <input type="date" class="form-control" @bind="_editBirthDate" />
+                            </div>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button class="btn btn-primary" @onclick="RequestSaveProfile" disabled="@_isSavingProfile">
+                                @if (_isSavingProfile)
+                                {
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <span><i class="bi bi-save me-1"></i>Save Changes</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Security / MFA ── *@
+                <div class="sys-card">
+                    <div class="sys-card-header"><i class="bi bi-shield-lock me-2"></i>Security</div>
+                    <div class="sys-card-body">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <div class="fw-semibold">Multi-Factor Authentication (MFA)</div>
+                                <div class="small text-muted">
+                                    @(_myProfile.IsMfaEnabled
+                                        ? "Enabled — an authenticator app code is required at login."
+                                        : "Not enabled on this account.")
+                                </div>
+                            </div>
+                            @if (_myProfile.IsMfaEnabled)
+                            {
+                                <button class="btn btn-outline-danger btn-sm" @onclick="RequestDisableMfa">
+                                    <i class="bi bi-shield-x me-1"></i>Turn Off MFA
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="btn btn-outline-primary btn-sm" href="/mfa-setup">
+                                    <i class="bi bi-shield-plus me-1"></i>Set Up MFA
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (_publicProfile is not null)
+    {
+        @* ── Read-only view of someone else's profile ── *@
+        <div class="row g-3 justify-content-center">
+            <div class="col-lg-5">
+                <div class="sys-card">
+                    <div class="sys-card-body text-center">
+                        <div class="profile-avatar-wrap mx-auto mb-3">
+                            @if (_publicProfile.HasProfilePicture)
+                            {
+                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" alt="Profile picture" class="profile-avatar-img" />
+                            }
+                            else
+                            {
+                                <div class="profile-avatar-fallback">@GetInitials(_publicProfile.FullName)</div>
+                            }
+                        </div>
+                        <h5 class="mb-0">@_publicProfile.FullName</h5>
+                        <div class="text-muted small">@_publicProfile.Position</div>
+                        @if (!string.IsNullOrWhiteSpace(_publicProfile.RegionName))
+                        {
+                            <div class="text-muted small"><i class="bi bi-geo-alt me-1"></i>@_publicProfile.RegionName</div>
+                        }
+                        <span class="badge bg-secondary mt-2">@_publicProfile.Role</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@* ── MFA disable confirmation (password required) ── *@
+@if (_showMfaConfirm)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Turn Off MFA?
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDisableMfa"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This removes multi-factor authentication from your account — logging in will only require your password afterward. Enter your current password to confirm.</p>
+                    <input type="password" class="form-control" placeholder="Current password"
+                           @bind="_mfaPassword" @bind:event="oninput" @onkeydown="OnMfaPasswordKeyDown" />
+                    @if (_mfaError is not null)
+                    {
+                        <div class="text-danger small mt-2">@_mfaError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDisableMfa" disabled="@_isDisablingMfa">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDisableMfaAsync" disabled="@(_isDisablingMfa || string.IsNullOrWhiteSpace(_mfaPassword))">
+                        @if (_isDisablingMfa)
+                        {
+                            <span>Working...</span>
+                        }
+                        else
+                        {
+                            <span>Yes, Turn Off MFA</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Shared caution confirmation — Save Changes / Remove Picture ── *@
+@if (_pendingAction is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>@_pendingActionTitle
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelPendingAction"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@_pendingActionMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelPendingAction" disabled="@_isPendingActionBusy">Cancel</button>
+                    <button class="btn @(_pendingAction == "removePicture" ? "btn-danger" : "btn-primary")"
+                            @onclick="ConfirmPendingActionAsync" disabled="@_isPendingActionBusy">
+                        @if (_isPendingActionBusy)
+                        {
+                            <span>Working...</span>
+                        }
+                        else
+                        {
+                            <span>@(_pendingAction == "removePicture" ? "Yes, Remove Picture" : "Yes, Save Changes")</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? UserId { get; set; }
+
+    private bool _isSelf;
+    private bool _isLoading = true;
+    private string? _loadError;
+
+    private UserProfileDto? _myProfile;
+    private PublicUserProfileDto? _publicProfile;
+
+    private string _editFullName = string.Empty;
+    private string _editPosition = string.Empty;
+    private DateTime _editBirthDate = DateTime.Today;
+    private bool _isSavingProfile;
+    private bool _isSavingPicture;
+    private bool _pictureRemoved;
+
+    private bool _showMfaConfirm;
+    private string _mfaPassword = string.Empty;
+    private string? _mfaError;
+    private bool _isDisablingMfa;
+
+    // "save" or "removePicture" — null means no confirmation dialog showing.
+    private string? _pendingAction;
+    private string _pendingActionTitle = string.Empty;
+    private string _pendingActionMessage = string.Empty;
+    private bool _isPendingActionBusy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        _pictureRemoved = false;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
+
+            _isSelf = UserId is null || UserId == currentUserId;
+
+            if (_isSelf)
+            {
+                _myProfile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
+                if (_myProfile is not null)
+                {
+                    _editFullName = _myProfile.FullName;
+                    _editPosition = _myProfile.Position;
+                    _editBirthDate = _myProfile.BirthDate.Date;
+                }
+            }
+            else
+            {
+                _publicProfile = await Http.GetFromJsonAsync<PublicUserProfileDto>($"api/UserProfile/{UserId}");
+                if (_publicProfile is null) _loadError = "This user's profile could not be found.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load the profile: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (_myProfile is null) return;
+
+        if (string.IsNullOrWhiteSpace(_editFullName) || string.IsNullOrWhiteSpace(_editPosition))
+        {
+            Toast.ShowError("Name and position cannot be blank.");
+            return;
+        }
+
+        _isSavingProfile = true;
+        try
+        {
+            var request = new UpdateProfileRequestDto
+            {
+                FullName = _editFullName.Trim(),
+                Position = _editPosition.Trim(),
+                BirthDate = _editBirthDate
+            };
+
+            var response = await Http.PutAsJsonAsync("api/UserProfile/me", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save your profile." : error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ProfileUpdateResponse>();
+            if (result is not null)
+            {
+                _myProfile = result.Profile;
+                await AuthService.UpdateStoredTokenAsync(result.Token);
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+            }
+
+            Toast.ShowSuccess("Profile updated.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save your profile: {ex.Message}");
+        }
+        finally
+        {
+            _isSavingProfile = false;
+        }
+    }
+
+    private async Task OnPictureSelectedAsync(InputFileChangeEventArgs e)
+    {
+        const long maxBytes = 10 * 1024 * 1024;
+        var file = e.File;
+        if (file is null) return;
+
+        if (file.Size > maxBytes)
+        {
+            Toast.ShowError("Image is too large (max 10MB).");
+            return;
+        }
+
+        _isSavingPicture = true;
+        try
+        {
+            using var stream = file.OpenReadStream(maxBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            using var form = new MultipartFormDataContent();
+            var byteContent = new ByteArrayContent(ms.ToArray());
+            byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+                string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+            form.Add(byteContent, "file", file.Name);
+
+            var response = await Http.PostAsync("api/UserProfile/me/picture", form);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to upload picture." : error);
+                return;
+            }
+
+            if (_myProfile is not null) _myProfile.HasProfilePicture = true;
+            _pictureRemoved = false;
+            _pictureVersion++;
+            Toast.ShowSuccess("Profile picture updated.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to upload picture: {ex.Message}");
+        }
+        finally
+        {
+            _isSavingPicture = false;
+        }
+    }
+
+    private async Task RemovePictureAsync()
+    {
+        _isSavingPicture = true;
+        try
+        {
+            var response = await Http.DeleteAsync("api/UserProfile/me/picture");
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.ShowError("Failed to remove picture.");
+                return;
+            }
+
+            _pictureRemoved = true;
+            if (_myProfile is not null) _myProfile.HasProfilePicture = false;
+            Toast.ShowSuccess("Profile picture removed.");
+        }
+        finally
+        {
+            _isSavingPicture = false;
+        }
+    }
+
+    private void RequestSaveProfile()
+    {
+        if (_myProfile is null) return;
+
+        if (string.IsNullOrWhiteSpace(_editFullName) || string.IsNullOrWhiteSpace(_editPosition))
+        {
+            Toast.ShowError("Name and position cannot be blank.");
+            return;
+        }
+
+        _pendingAction = "save";
+        _pendingActionTitle = "Save Profile Changes?";
+        _pendingActionMessage = "This updates your Full Name, Position, and Birthday, and reflects immediately " +
+            "wherever your name appears — Feed, Chat, and the sidebar. Continue?";
+    }
+
+    private void RequestRemovePicture()
+    {
+        _pendingAction = "removePicture";
+        _pendingActionTitle = "Remove Profile Picture?";
+        _pendingActionMessage = "Your profile picture will be removed everywhere it appears — Feed, Chat, and the " +
+            "sidebar — and everyone will see your initials instead until you upload a new one. Continue?";
+    }
+
+    private void CancelPendingAction() => _pendingAction = null;
+
+    private async Task ConfirmPendingActionAsync()
+    {
+        _isPendingActionBusy = true;
+        try
+        {
+            if (_pendingAction == "save")
+            {
+                await SaveProfileAsync();
+            }
+            else if (_pendingAction == "removePicture")
+            {
+                await RemovePictureAsync();
+            }
+        }
+        finally
+        {
+            _isPendingActionBusy = false;
+            _pendingAction = null;
+        }
+    }
+
+    private void RequestDisableMfa()
+    {
+        _mfaPassword = string.Empty;
+        _mfaError = null;
+        _showMfaConfirm = true;
+    }
+
+    private void CancelDisableMfa() => _showMfaConfirm = false;
+
+    private async Task OnMfaPasswordKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_mfaPassword))
+            await ConfirmDisableMfaAsync();
+    }
+
+    private async Task ConfirmDisableMfaAsync()
+    {
+        _isDisablingMfa = true;
+        _mfaError = null;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/mfa/reset", new ResetMfaRequest { CurrentPassword = _mfaPassword });
+            if (!response.IsSuccessStatusCode)
+            {
+                _mfaError = "Incorrect password. Please try again.";
+                return;
+            }
+
+            if (_myProfile is not null) _myProfile.IsMfaEnabled = false;
+            _showMfaConfirm = false;
+            Toast.ShowSuccess("MFA has been turned off.");
+        }
+        catch (Exception ex)
+        {
+            _mfaError = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            _isDisablingMfa = false;
+        }
+    }
+
+    // Absolute URL — the API runs on a different origin than the client
+    // (Http.BaseAddress), and a plain <img src> resolves relative URLs
+    // against the PAGE's origin, not HttpClient's, so a relative path 404s.
+    // The ?v= bump forces the browser to refetch right after a new picture
+    // is uploaded — the URL is otherwise identical, so it'd keep showing a
+    // cached copy of the old one until a hard refresh.
+    private int _pictureVersion;
+    private string AvatarUrl(Guid userId, bool thumb) =>
+        $"{Http.BaseAddress}api/UserProfile/{userId}/avatar{(thumb ? "/thumb" : "")}?v={_pictureVersion}";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
+    private class ProfileUpdateResponse
+    {
+        public UserProfileDto Profile { get; set; } = new();
+        public string Token { get; set; } = string.Empty;
+    }
+}

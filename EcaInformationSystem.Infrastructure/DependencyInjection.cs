@@ -75,6 +75,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IActivityRepository, ActivityRepository>();
             services.AddScoped<IBeneficiaryVerificationChecklistRepository, BeneficiaryVerificationChecklistRepository>();
             services.AddScoped<IAnnualGranteeTargetRepository, AnnualGranteeTargetRepository>();
+            services.AddScoped<IUserProfileRepository, UserProfileRepository>();
             return services;
         }
     }

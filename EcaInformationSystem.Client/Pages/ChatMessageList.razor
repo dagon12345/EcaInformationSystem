@@ -2,6 +2,7 @@
 @using EcaInformationSystem.Shared.DTOs.Chat
 @inject ChatStateService ChatState
 @inject IJSRuntime JS
+@inject HttpClient Http
 @implements IAsyncDisposable
 
 <div id="@_containerId" class="chat-message-list">
@@ -45,7 +46,14 @@
 
             @if (message.SenderId != CurrentUserId)
             {
-                <div class="chat-message-sender">@message.SenderName</div>
+                <div class="chat-message-sender">
+                    <a href="@($"/profile/{message.SenderId}")" class="chat-avatar-link" title="View profile">
+                        <img src="@AvatarUrl(message.SenderId)" alt="" class="chat-message-avatar avatar-img"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
+                        <span class="chat-message-avatar" style="display:none;">@GetInitials(message.SenderName)</span>
+                    </a>
+                    @message.SenderName
+                </div>
             }
 
             @if (message.IsDeleted)
@@ -291,6 +299,18 @@
 </div>
 
 @code {
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
     private Guid _pendingDeleteMessageId;
     private Guid? _confirmingDeleteMessageId;
     private bool _isDeletingMessage;
