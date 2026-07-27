@@ -20,6 +20,13 @@ namespace EcaInformationSystem.Shared.DTOs
 
         public double MatchScore { get; set; }
         public string MatchReason { get; set; } = string.Empty;
+
+        // ── Resolution state — persisted server-side, keyed by (Record1Id, Record2Id),
+        // since pairs themselves are recomputed fresh on every scan. ──────────────────
+        public bool IsResolved { get; set; }
+        public string? Remarks { get; set; }
+        public DateTime? ResolvedAt { get; set; }
+        public string? ResolvedBy { get; set; }
     }
 
     public class PossibleDuplicateSummaryDto
@@ -30,5 +37,18 @@ namespace EcaInformationSystem.Shared.DTOs
         //Tells the uo the scan was cut short
         public bool TimedOut { get; set; }
         public string FilterDescription { get; set; } = string.Empty;
+    }
+
+    public class ResolveDuplicatePairRequestDto
+    {
+        public Guid Record1Id { get; set; }
+        public Guid Record2Id { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    public class UnresolveDuplicatePairRequestDto
+    {
+        public Guid Record1Id { get; set; }
+        public Guid Record2Id { get; set; }
     }
 }

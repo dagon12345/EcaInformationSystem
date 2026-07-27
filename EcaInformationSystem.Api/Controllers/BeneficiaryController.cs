@@ -202,6 +202,22 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
 
+        [HttpPost("possible-duplicates/resolve")]
+        public async Task<IActionResult> ResolveDuplicatePair([FromBody] ResolveDuplicatePairRequestDto request)
+        {
+            var userName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "Unknown";
+            var result = await _service.ResolveDuplicatePairAsync(request.Record1Id, request.Record2Id, request.Remarks, userName);
+            return Ok(result);
+        }
+
+        [HttpPost("possible-duplicates/unresolve")]
+        public async Task<IActionResult> UnresolveDuplicatePair([FromBody] UnresolveDuplicatePairRequestDto request)
+        {
+            var userName = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "Unknown";
+            var result = await _service.UnresolveDuplicatePairAsync(request.Record1Id, request.Record2Id, userName);
+            return Ok(result);
+        }
+
         [HttpPut("{id:guid}")]
         [Authorize(Policy = "AdminOrPDO")] // Admin and PDO can edit but the PDO have jurisdiction restrictions
         public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)

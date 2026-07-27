@@ -1706,7 +1706,8 @@ else
                                                                                                                                     <th style="width:56px;">Match</th>
                                                                                                                                     <th>Record 1</th>
                                                                                                                                     <th>Record 2</th>
-                                                                                                                                    <th style="width:90px;">Actions</th>
+                                                                                                                                    <th style="width:80px;">Status</th>
+                                                                                                                                    <th style="width:100px;">Actions</th>
                                                                                                                                 </tr>
                                                                                                                             </thead>
                                                                                                                             <tbody>
@@ -1716,7 +1717,7 @@ else
                                                                                                                                 @if (!filteredPairs.Any())
                                                                                                                                 {
                                                                                                                                     <tr>
-                                                                                                                                        <td colspan="6" class="text-center text-muted py-3">
+                                                                                                                                        <td colspan="7" class="text-center text-muted py-3">
                                                                                                                                             No pairs match your filter.
                                                                                                                                         </td>
                                                                                                                                     </tr>
@@ -1732,7 +1733,7 @@ else
                                                                                                                                         _duplicateViewingId == pair.Record1Id ||
                                                                                                                                         _duplicateViewingId == pair.Record2Id;
 
-                                                                                                                                    <tr class="@(hasPaid ? "table-danger" : "")
+                                                                                                                                    <tr class="@(pair.IsResolved ? "table-success" : hasPaid ? "table-danger" : "")
                                                                                                                                         @(isViewing ? "table-primary" : "")"
                                                                                                                                         style="cursor:pointer;">
                                                                                                                                         <td class="text-center text-muted small">
@@ -1791,6 +1792,18 @@ else
                                                                                                                                                 </span>
                                                                                                                                             }
                                                                                                                                         </td>
+                                                                                                                                        <td class="text-center">
+                                                                                                                                            @if (pair.IsResolved)
+                                                                                                                                            {
+                                                                                                                                                <span class="badge bg-success" style="font-size:9px;" title="@(string.IsNullOrWhiteSpace(pair.Remarks) ? "Resolved" : pair.Remarks)">
+                                                                                                                                                    <i class="bi bi-check-circle-fill me-1"></i>Resolved
+                                                                                                                                                </span>
+                                                                                                                                            }
+                                                                                                                                            else
+                                                                                                                                            {
+                                                                                                                                                <span class="badge bg-secondary" style="font-size:9px;">Unresolved</span>
+                                                                                                                                            }
+                                                                                                                                        </td>
                                                                                                                                         <td>
                                                                                                                                             <div class="d-flex flex-column gap-1">
 
@@ -1799,6 +1812,21 @@ else
                                                                                                                                                         @onclick="async () => await LoadDuplicateCompareAsync(pair)">
                                                                                                                                                     <i class="bi bi-eye me-1"></i>View
                                                                                                                                                 </button>
+
+                                                                                                                                                @if (pair.IsResolved)
+                                                                                                                                                {
+                                                                                                                                                    <button class="btn btn-xs btn-outline-secondary btn-sm" style="font-size:11px;"
+                                                                                                                                                            @onclick="async () => await UndoResolveGridPairAsync(pair)">
+                                                                                                                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+                                                                                                                                                    </button>
+                                                                                                                                                }
+                                                                                                                                                else
+                                                                                                                                                {
+                                                                                                                                                    <button class="btn btn-xs btn-outline-success btn-sm" style="font-size:11px;"
+                                                                                                                                                            @onclick="async () => await ResolveGridPairAsync(pair)">
+                                                                                                                                                        <i class="bi bi-check-lg me-1"></i>Resolve
+                                                                                                                                                    </button>
+                                                                                                                                                }
 
                                                                                                                                                 <button class="btn btn-xs btn-outline-primary btn-sm" style="font-size:11px;"
                                                                                                                                                         @onclick="async () => await NavigateToDuplicateEdit(pair.Record1Id)">
@@ -2850,6 +2878,23 @@ public void Dispose()
         })
         .OrderByDescending(p => p.MatchScore)
         ?? Enumerable.Empty<PossibleDuplicatePairDto>();
+
+    // Resolution is stored server-side keyed by the beneficiary pair, so acting
+    // on it here keeps the bell's counts in sync without needing a refetch.
+    private async Task ResolveGridPairAsync(PossibleDuplicatePairDto pair)
+    {
+        var remarks = await JS.InvokeAsync<string?>("prompt", "Optional remarks (e.g. confirmed not a duplicate):");
+        if (remarks is null) return; // user cancelled the prompt
+
+        var ok = await State.ResolveDuplicatePairAsync(pair, remarks);
+        if (ok) StateHasChanged();
+    }
+
+    private async Task UndoResolveGridPairAsync(PossibleDuplicatePairDto pair)
+    {
+        var ok = await State.UnresolveDuplicatePairAsync(pair);
+        if (ok) StateHasChanged();
+    }
 
     // Simple, honest approach: don't try to silently validate every record
     // in the pairs list (expensive, and still racy). Instead, when a navigate-

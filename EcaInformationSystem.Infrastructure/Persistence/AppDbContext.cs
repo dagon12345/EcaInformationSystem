@@ -50,6 +50,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryClaimantBankAccount> BeneficiaryClaimantBankAccounts => Set<BeneficiaryClaimantBankAccount>();
             public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
+            public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -876,6 +877,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.ThumbnailData).IsRequired().HasColumnType("varbinary(max)");
                         entity.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
                         entity.Property(x => x.UploadedBy).HasMaxLength(256);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // RESOLVED DUPLICATE PAIR (Duplicate-notification bell — mark/unmark
+                  // a possible-duplicate match as resolved, with remarks)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<ResolvedDuplicatePair>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => new { x.Record1Id, x.Record2Id })
+                        .IsUnique()
+                        .HasDatabaseName("UQ_ResolvedDuplicatePair_Records");
+
+                        entity.Property(x => x.Remarks).HasMaxLength(1000);
+                        entity.Property(x => x.ResolvedBy).HasMaxLength(256);
+                        entity.Property(x => x.UnresolvedBy).HasMaxLength(256);
                   });
             }
       }

@@ -28,12 +28,13 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPsgcNameCache _psgcNameCache;
         private readonly IStatisticsService _statisticsService;
         private readonly IBeneficiaryVerificationChecklistRepository _checklistRepo;
+        private readonly IResolvedDuplicatePairRepository _resolvedDuplicatePairRepo;
         private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
     , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
     ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker,
     IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache, IStatisticsService statisticsService,
-    IBeneficiaryVerificationChecklistRepository checklistRepo)
+    IBeneficiaryVerificationChecklistRepository checklistRepo, IResolvedDuplicatePairRepository resolvedDuplicatePairRepo)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -47,6 +48,7 @@ namespace EcaInformationSystem.Application.Services
             _psgcNameCache = psgcNameCache;
             _statisticsService = statisticsService;
             _checklistRepo = checklistRepo;
+            _resolvedDuplicatePairRepo = resolvedDuplicatePairRepo;
         }
         public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
         {
@@ -594,7 +596,63 @@ namespace EcaInformationSystem.Application.Services
                 });
             }
 
+            // ✅ Overlaid fresh on every call (even on a cache hit) so a pair
+            // resolved/unresolved elsewhere shows up immediately, without
+            // needing to invalidate the whole scan cache.
+            await StampResolutionStatusAsync(summary.Pairs);
+
             return summary;
+        }
+
+        private async Task StampResolutionStatusAsync(List<PossibleDuplicatePairDto> pairs)
+        {
+            if (pairs.Count == 0) return;
+
+            var keys = pairs.Select(p => (p.Record1Id, p.Record2Id));
+            var resolved = await _resolvedDuplicatePairRepo.GetForPairsAsync(keys);
+            if (resolved.Count == 0) return;
+
+            foreach (var pair in pairs)
+            {
+                var lo = pair.Record1Id.CompareTo(pair.Record2Id) <= 0 ? pair.Record1Id : pair.Record2Id;
+                var hi = pair.Record1Id.CompareTo(pair.Record2Id) <= 0 ? pair.Record2Id : pair.Record1Id;
+
+                if (resolved.TryGetValue((lo, hi), out var entry))
+                {
+                    pair.IsResolved = entry.IsResolved;
+                    pair.Remarks = entry.Remarks;
+                    pair.ResolvedAt = entry.ResolvedAt;
+                    pair.ResolvedBy = entry.ResolvedBy;
+                }
+            }
+        }
+
+        public async Task<PossibleDuplicatePairDto> ResolveDuplicatePairAsync(Guid record1Id, Guid record2Id, string? remarks, string resolvedBy)
+        {
+            var entry = await _resolvedDuplicatePairRepo.ResolveAsync(record1Id, record2Id, remarks, resolvedBy);
+            return new PossibleDuplicatePairDto
+            {
+                Record1Id = record1Id,
+                Record2Id = record2Id,
+                IsResolved = entry.IsResolved,
+                Remarks = entry.Remarks,
+                ResolvedAt = entry.ResolvedAt,
+                ResolvedBy = entry.ResolvedBy
+            };
+        }
+
+        public async Task<PossibleDuplicatePairDto> UnresolveDuplicatePairAsync(Guid record1Id, Guid record2Id, string unresolvedBy)
+        {
+            var entry = await _resolvedDuplicatePairRepo.UnresolveAsync(record1Id, record2Id, unresolvedBy);
+            return new PossibleDuplicatePairDto
+            {
+                Record1Id = record1Id,
+                Record2Id = record2Id,
+                IsResolved = entry.IsResolved,
+                Remarks = entry.Remarks,
+                ResolvedAt = entry.ResolvedAt,
+                ResolvedBy = entry.ResolvedBy
+            };
         }
         private string BuildDuplicateScanCacheKey(BeneficiaryFilterDto f)
         {

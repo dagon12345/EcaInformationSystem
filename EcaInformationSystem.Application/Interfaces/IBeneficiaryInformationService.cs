@@ -39,6 +39,8 @@ namespace EcaInformationSystem.Application.Interfaces
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkAssignRefNumberAsync(List<Guid> ids, int quarter, string batch, int refYear, string userName);
         Task<PossibleDuplicateSummaryDto> GetPossibleDuplicatesAsync(BeneficiaryFilterDto filter);
+        Task<PossibleDuplicatePairDto> ResolveDuplicatePairAsync(Guid record1Id, Guid record2Id, string? remarks, string resolvedBy);
+        Task<PossibleDuplicatePairDto> UnresolveDuplicatePairAsync(Guid record1Id, Guid record2Id, string unresolvedBy);
         Task<Guid> QueuePayrollGenerationAsync(PayrollSettingsDto settings, string userName);
         Task<PossibleDuplicateSummaryDto> GetGlobalDuplicateSummaryAsync();
         Task<PagedResultDto<LogEntryDto>> GetAllLogsAsync(LogFilterDto filter);

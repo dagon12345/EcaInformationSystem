@@ -729,6 +729,79 @@ public class BeneficiaryStateService
         _ => status.ToString()
     };
 
+    public async Task<bool> ResolveDuplicatePairAsync(PossibleDuplicatePairDto pair, string? remarks)
+    {
+        try
+        {
+            var request = new ResolveDuplicatePairRequestDto
+            {
+                Record1Id = pair.Record1Id,
+                Record2Id = pair.Record2Id,
+                Remarks = remarks
+            };
+
+            var response = await _http.PostAsJsonAsync("api/beneficiary/possible-duplicates/resolve", request);
+            if (!response.IsSuccessStatusCode) return false;
+
+            var result = await response.Content.ReadFromJsonAsync<PossibleDuplicatePairDto>();
+            if (result is null) return false;
+
+            ApplyResolutionToMatchingPairs(pair, result);
+            NotifyDuplicateNotificationsChanged();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> UnresolveDuplicatePairAsync(PossibleDuplicatePairDto pair)
+    {
+        try
+        {
+            var request = new UnresolveDuplicatePairRequestDto
+            {
+                Record1Id = pair.Record1Id,
+                Record2Id = pair.Record2Id
+            };
+
+            var response = await _http.PostAsJsonAsync("api/beneficiary/possible-duplicates/unresolve", request);
+            if (!response.IsSuccessStatusCode) return false;
+
+            var result = await response.Content.ReadFromJsonAsync<PossibleDuplicatePairDto>();
+            if (result is null) return false;
+
+            ApplyResolutionToMatchingPairs(pair, result);
+            NotifyDuplicateNotificationsChanged();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // The same beneficiary pair can be cached inside more than one notification's
+    // result (overlapping filters can both surface it) — update every occurrence
+    // so the bell stays consistent no matter which notification the user acted from.
+    private void ApplyResolutionToMatchingPairs(PossibleDuplicatePairDto pair, PossibleDuplicatePairDto result)
+    {
+        foreach (var notification in DuplicateScanNotifications)
+        {
+            var match = notification.Result?.Pairs.FirstOrDefault(p =>
+                (p.Record1Id == pair.Record1Id && p.Record2Id == pair.Record2Id) ||
+                (p.Record1Id == pair.Record2Id && p.Record2Id == pair.Record1Id));
+
+            if (match is null) continue;
+
+            match.IsResolved = result.IsResolved;
+            match.Remarks = result.Remarks;
+            match.ResolvedAt = result.ResolvedAt;
+            match.ResolvedBy = result.ResolvedBy;
+        }
+    }
+
     public void ClearDuplicateNotification(Guid notificationId)
     {
         var notification = DuplicateScanNotifications.FirstOrDefault(n => n.Id == notificationId);
