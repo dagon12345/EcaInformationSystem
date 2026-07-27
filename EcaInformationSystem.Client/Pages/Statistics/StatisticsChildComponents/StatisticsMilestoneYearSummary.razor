@@ -1,0 +1,57 @@
+@* StatisticsMilestoneYearSummary.razor — the "Milestone Year Summary" card with
+   proportional bars per year and per-age badge breakdown. *@
+@using EcaInformationSystem.Client.Pages.Statistics
+
+@if (Report.MilestoneYearSummary.Any())
+{
+    <div class="sys-card mb-3">
+        <div class="sys-card-header">
+            <i class="bi bi-calendar-event me-2"></i>
+            Milestone Year Summary
+        </div>
+        <div class="sys-card-body">
+            <div class="milestone-year-grid">
+                @foreach (var year in Report.MilestoneYearSummary.OrderByDescending(x => x.Year))
+                {
+                    var maxYearCount = Report.MilestoneYearSummary.Any()
+                        ? Report.MilestoneYearSummary.Max(x => x.TotalCount)
+                        : 1;
+                    var pct = maxYearCount > 0
+                        ? (double)year.TotalCount / maxYearCount * 100
+                        : 0;
+
+                    <div class="milestone-year-card">
+                        <div class="milestone-year-header">
+                            <span class="milestone-year-label">@year.Year</span>
+                            <span class="milestone-year-total">@year.TotalCount.ToString("N0")</span>
+                        </div>
+                        <div class="milestone-year-bar-track">
+                            <div class="milestone-year-bar milestone-year-bar--@GetYearColor(year.Year)"
+                                 style="width:@pct%;">
+                            </div>
+                        </div>
+                        <div class="milestone-year-breakdown">
+                            <span class="badge" style="background:#0d6efd;">80: @year.Age80Count</span>
+                            <span class="badge" style="background:#198754;">85: @year.Age85Count</span>
+                            <span class="badge" style="background:#ffc107;color:#000;">90: @year.Age90Count</span>
+                            <span class="badge" style="background:#fd7e14;">95: @year.Age95Count</span>
+                            <span class="badge" style="background:#dc3545;">100: @year.Age100Count</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public StatisticsReportDto Report { get; set; } = new();
+
+    private static string GetYearColor(int year) => year switch
+    {
+        2024 => "2024",
+        2025 => "2025",
+        2026 => "2026",
+        _ => "default"
+    };
+}

@@ -1,0 +1,58 @@
+@* StatisticsSummaryCards.razor — the two top-of-page stat-card rows
+   (Total/Paid/Unpaid/Pending, then Disbursed/Male/Female/%Female). *@
+@using EcaInformationSystem.Client.Pages.Statistics
+
+<div class="dash-stat-grid mb-3">
+    <div class="dash-stat-card dash-stat-card--navy">
+        <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
+        <div class="dash-stat-value">@Report.TotalBeneficiaries.ToString("N0")</div>
+        <div class="dash-stat-label">Total Grantees</div>
+    </div>
+    <div class="dash-stat-card dash-stat-card--green">
+        <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+        <div class="dash-stat-value">@Report.PaidCount.ToString("N0")</div>
+        <div class="dash-stat-label">Paid</div>
+    </div>
+    <div class="dash-stat-card dash-stat-card--red">
+        <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+        <div class="dash-stat-value">@Report.UnpaidCount.ToString("N0")</div>
+        <div class="dash-stat-label">Unpaid</div>
+    </div>
+    <div class="dash-stat-card dash-stat-card--amber">
+        <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
+        <div class="dash-stat-value">@Report.PendingCount.ToString("N0")</div>
+        <div class="dash-stat-label">Pending</div>
+    </div>
+</div>
+
+<div class="dash-stat-grid mb-3">
+    <div class="dash-stat-card" style="background:#0dcaf0;">
+        <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
+        <div class="dash-stat-value">₱@Report.TotalDisbursement.ToString("N0")</div>
+        <div class="dash-stat-label">Total Disbursed</div>
+    </div>
+    <div class="dash-stat-card" style="background:#6f42c1;">
+        <div class="dash-stat-icon"><i class="bi bi-gender-male"></i></div>
+        <div class="dash-stat-value">@Report.TotalMale.ToString("N0")</div>
+        <div class="dash-stat-label">Male</div>
+    </div>
+    <div class="dash-stat-card" style="background:#d63384;">
+        <div class="dash-stat-icon"><i class="bi bi-gender-female"></i></div>
+        <div class="dash-stat-value">@Report.TotalFemale.ToString("N0")</div>
+        <div class="dash-stat-label">Female</div>
+    </div>
+    <div class="dash-stat-card" style="background:#20c997;">
+        <div class="dash-stat-icon"><i class="bi bi-people"></i></div>
+        <div class="dash-stat-value">@FemalePercent%</div>
+        <div class="dash-stat-label">% Female</div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StatisticsReportDto Report { get; set; } = new();
+
+    private double FemalePercent =>
+        (Report.TotalMale + Report.TotalFemale) > 0
+            ? Math.Round((double)Report.TotalFemale / (Report.TotalMale + Report.TotalFemale) * 100)
+            : 0;
+}

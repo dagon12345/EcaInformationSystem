@@ -48,6 +48,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryClaimant> BeneficiaryClaimants => Set<BeneficiaryClaimant>();
             public DbSet<BeneficiaryVerificationChecklist> BeneficiaryVerificationChecklists => Set<BeneficiaryVerificationChecklist>();
             public DbSet<BeneficiaryClaimantBankAccount> BeneficiaryClaimantBankAccounts => Set<BeneficiaryClaimantBankAccount>();
+            public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -833,6 +834,24 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.SwiftCode).HasMaxLength(20);
                         entity.Property(x => x.Iban).HasMaxLength(50);
                         entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // ANNUAL GRANTEE TARGET (Statistics — per-region monthly targets)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<AnnualGranteeTarget>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        // One target row per region per fiscal year — Upsert relies on this
+                        // for its "does one already exist" lookup.
+                        entity.HasIndex(x => new { x.RegionCode, x.FiscalYear })
+                        .IsUnique()
+                        .HasDatabaseName("UQ_AnnualGranteeTarget_Region_FiscalYear");
+
+                        entity.Property(x => x.SetBy).HasMaxLength(256);
+                        entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+                        entity.Property(x => x.RowVersion).IsRowVersion();
                   });
             }
       }

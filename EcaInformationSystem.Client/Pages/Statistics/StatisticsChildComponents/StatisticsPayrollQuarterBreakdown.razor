@@ -1,0 +1,39 @@
+@* StatisticsPayrollQuarterBreakdown.razor — per-quarter count/paid/disbursement table. *@
+@using EcaInformationSystem.Client.Pages.Statistics
+
+@if (Report.PayrollQuarterBreakdown.Any())
+{
+    <div class="sys-card mb-3">
+        <div class="sys-card-header">
+            <i class="bi bi-calendar3-range me-2"></i>
+            Payroll Quarter Breakdown
+        </div>
+        <div class="sys-card-body p-0">
+            <table class="table table-sm mb-0 stat-table">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Quarter</th>
+                        <th class="text-center">Count</th>
+                        <th class="text-center">Paid</th>
+                        <th class="text-end">Disbursed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var q in Report.PayrollQuarterBreakdown)
+                    {
+                        <tr>
+                            <td class="fw-semibold">Quarter @q.Quarter</td>
+                            <td class="text-center">@q.Count.ToString("N0")</td>
+                            <td class="text-center">@q.PaidCount.ToString("N0")</td>
+                            <td class="text-end">₱@q.TotalDisbursement.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public StatisticsReportDto Report { get; set; } = new();
+}

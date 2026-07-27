@@ -1,0 +1,426 @@
+@* StatisticsAnnualTargetSection.razor — Annual Grantee Target vs actual-paid comparison.
+   The target is set per (Region, FiscalYear) by that region's Admin/SuperAdmin, split
+   across 12 months however the PDO organized its rollout. "Paid" here always reflects
+   PaymentHistory.PaymentDate bucketed by calendar month, regardless of the main page's
+   filters — this section intentionally tracks its own fiscal year so it can be checked
+   independently of whatever the rest of the dashboard is currently filtered to. *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject ToastService Toast
+
+<div class="sys-card mb-3">
+    <div class="sys-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-bullseye me-2"></i>Annual Grantee Target@(_comparison?.RegionName is { } rn ? $" — {rn}" : "")</span>
+        <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" style="width:auto;" @bind="SelectedFiscalYear">
+                @* Always includes next year, whatever "now" is — e.g. viewed in 2027 this
+                   naturally starts at 2028, no fixed cutoff to remember to bump. *@
+                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+            @if (_isAdmin)
+            {
+                <button class="btn btn-sm btn-outline-primary" @onclick="OpenEditor">
+                    <i class="bi bi-pencil-square me-1"></i>@(_comparison?.HasTarget == true ? "Edit Target" : "Set Target")
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="sys-card-body">
+        @if (_isLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <span class="ms-2 text-muted">Loading target...</span>
+            </div>
+        }
+        else if (_loadError is not null)
+        {
+            <div class="alert alert-danger py-2 mb-0">@_loadError</div>
+        }
+        else if (_comparison is not null)
+        {
+            @if (!_comparison.HasTarget)
+            {
+                <div class="alert alert-secondary py-2 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    No annual target has been set for @_comparison.RegionName in @SelectedFiscalYear yet.
+                    @if (_isAdmin)
+                    {
+                        <span>Click <strong>Set Target</strong> above to add one.</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="dash-stat-grid mb-2">
+                    <div class="dash-stat-card dash-stat-card--navy">
+                        <div class="dash-stat-icon"><i class="bi bi-flag-fill"></i></div>
+                        <div class="dash-stat-value">@_comparison.AnnualTarget.ToString("N0")</div>
+                        <div class="dash-stat-label">Full-Year Target</div>
+                    </div>
+                    <div class="dash-stat-card" style="background:#6c757d;">
+                        <div class="dash-stat-icon"><i class="bi bi-calendar-range"></i></div>
+                        <div class="dash-stat-value">@TargetToDate.ToString("N0")</div>
+                        <div class="dash-stat-label">Target Through @ThroughMonthLabel</div>
+                    </div>
+                    <div class="dash-stat-card dash-stat-card--green">
+                        <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                        <div class="dash-stat-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
+                        <div class="dash-stat-label">Actually Paid Through @ThroughMonthLabel</div>
+                    </div>
+                    <div class="dash-stat-card @(YtdGapCardClass)">
+                        <div class="dash-stat-icon"><i class="bi @(YtdGap >= 0 ? "bi-arrow-up-circle-fill" : "bi-arrow-down-circle-fill")"></i></div>
+                        <div class="dash-stat-value">@Math.Abs(YtdGap).ToString("N0")</div>
+                        <div class="dash-stat-label">@(YtdGap >= 0 ? "Ahead of Pace" : "Behind Pace")</div>
+                    </div>
+                </div>
+
+                @if (_comparison.DateSet is not null)
+                {
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-person-check me-1"></i>
+                        Set by <strong>@_comparison.SetBy</strong> on @_comparison.DateSet.Value.ToLocalTime().ToString("MMMM dd, yyyy")
+                        @if (_comparison.DateModified is not null)
+                        {
+                            <span>&nbsp;— last updated by <strong>@_comparison.ModifiedBy</strong> on @_comparison.DateModified.Value.ToLocalTime().ToString("MMMM dd, yyyy")</span>
+                        }
+                    </p>
+                }
+
+                <p class="text-muted small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    "Ahead/Behind Pace" compares grantees actually paid against the target accumulated only
+                    through @ThroughMonthLabel — not the full-year target — so progress reads correctly
+                    partway through the year.
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 stat-table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Month</th>
+                                <th class="text-end">Target</th>
+                                <th class="text-end">Paid</th>
+                                <th class="text-end">Variance</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in _comparison.Monthly)
+                            {
+                                var variance = m.PaidCount - m.Target;
+                                <tr>
+                                    <td class="fw-semibold">@m.MonthName</td>
+                                    <td class="text-end">@m.Target.ToString("N0")</td>
+                                    <td class="text-end">@m.PaidCount.ToString("N0")</td>
+                                    <td class="text-end @(variance > 0 ? "text-success" : variance < 0 ? "text-danger" : "text-muted") fw-semibold">
+                                        @(variance > 0 ? "+" : "")@variance.ToString("N0")
+                                    </td>
+                                    <td class="text-center">
+                                        @if (m.Target == 0)
+                                        {
+                                            <span class="badge bg-secondary">No Target Set</span>
+                                        }
+                                        else if (m.PaidCount >= m.Target)
+                                        {
+                                            <span class="badge bg-success">Met / Exceeded</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Behind</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-secondary fw-bold">
+                            <tr>
+                                <td>TOTAL (Full Year)</td>
+                                <td class="text-end">@_comparison.AnnualTarget.ToString("N0")</td>
+                                <td class="text-end">@_comparison.TotalPaidYtd.ToString("N0")</td>
+                                <td class="text-end @(_comparison.TotalPaidYtd - _comparison.AnnualTarget >= 0 ? "text-success" : "text-danger")">
+                                    @((_comparison.TotalPaidYtd - _comparison.AnnualTarget) > 0 ? "+" : "")@((_comparison.TotalPaidYtd - _comparison.AnnualTarget).ToString("N0"))
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@* ══════════════════ SET / EDIT TARGET MODAL ══════════════════ *@
+@if (_showEditor)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-bullseye me-2"></i>@(_comparison?.HasTarget == true ? "Edit" : "Set") Annual Grantee Target — @SelectedFiscalYear</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditor"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Split the year's grantee-served target across 12 months however this region has
+                        organized its rollout — the months don't need to be equal.
+                    </p>
+
+                    @* Running total banner — always visible while scrolling/editing, so the
+                       effect of each keystroke is immediately obvious. *@
+                    <div class="d-flex align-items-center justify-content-between p-2 mb-3 rounded"
+                         style="background:#eef2f8; border:1px solid #cfe0f5;">
+                        <span class="fw-semibold text-primary"><i class="bi bi-calculator me-1"></i>Annual Total</span>
+                        <span class="fs-5 fw-bold text-primary">@_editMonthly.Sum().ToString("N0")</span>
+                    </div>
+
+                    @for (int q = 0; q < 4; q++)
+                    {
+                        var quarter = q;
+                        var quarterStart = quarter * 3;
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center justify-content-between border-bottom pb-1 mb-2">
+                                <span class="fw-bold text-primary">Q@(quarter + 1) — @QuarterMonthRange(quarter)</span>
+                                <span class="text-muted small">Subtotal: @QuarterSubtotal(quarter).ToString("N0")</span>
+                            </div>
+                            <div class="row g-2">
+                                @for (int i = 0; i < 3; i++)
+                                {
+                                    var idx = quarterStart + i;
+                                    <div class="col-md-4 col-sm-4 col-12">
+                                        <label class="form-label small mb-1">@MonthNames[idx]</label>
+                                        <input type="number" min="0" class="form-control"
+                                               @bind="_editMonthly[idx]" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <button class="btn btn-outline-danger" @onclick="RequestClearAll">
+                        <i class="bi bi-eraser me-1"></i>Clear All
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-secondary" @onclick="CloseEditor">Cancel</button>
+                        <button class="btn btn-primary" @onclick="RequestSave">
+                            <i class="bi bi-save me-1"></i>Save Target
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ══════════════════ SHARED CAUTION / CONFIRMATION MODAL ══════════════════
+   Used for both "Save Target" and "Clear All" — same caution treatment for
+   any action that changes what gets persisted, so neither feels like an
+   afterthought next to the other. *@
+@if (_pendingAction is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>@_pendingActionTitle
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelPendingAction"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@_pendingActionMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelPendingAction" disabled="@_isSaving">Cancel</button>
+                    <button class="btn @(_pendingAction == "clear" ? "btn-danger" : "btn-primary")"
+                            @onclick="ConfirmPendingActionAsync" disabled="@_isSaving">
+                        @if (_isSaving)
+                        {
+                            <span>Working...</span>
+                        }
+                        else
+                        {
+                            <span>@(_pendingAction == "clear" ? "Yes, Clear All" : "Yes, Save Target")</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] MonthNames =
+    {
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    };
+
+    private int _fiscalYear = DateTime.Now.Year;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isAdmin;
+    private string? _loadError;
+    private bool _showEditor;
+    private readonly int[] _editMonthly = new int[12];
+
+    // "save" or "clear" — null means no confirmation dialog is showing.
+    private string? _pendingAction;
+    private string _pendingActionTitle = string.Empty;
+    private string _pendingActionMessage = string.Empty;
+
+    private AnnualTargetComparisonDto? _comparison;
+
+    private int SelectedFiscalYear
+    {
+        get => _fiscalYear;
+        set
+        {
+            if (_fiscalYear == value) return;
+            _fiscalYear = value;
+            _ = LoadAsync();
+        }
+    }
+
+    private int YtdGap => (_comparison?.TotalPaidYtd ?? 0) - TargetToDate;
+    private string YtdGapCardClass => YtdGap >= 0 ? "dash-stat-card--green" : "dash-stat-card--red";
+
+    // How many months of this fiscal year have actually elapsed: fully elapsed
+    // for past years, up through the current calendar month for the current
+    // year, and none yet for a future year — comparing "paid so far" against
+    // the WHOLE year's target on day one of January would make every region
+    // look wildly behind, and against a future year's target would look
+    // wildly ahead, so this scopes the target down to only the months that
+    // have actually happened.
+    private int ThroughMonth => _fiscalYear < DateTime.Now.Year ? 12
+        : _fiscalYear > DateTime.Now.Year ? 0
+        : DateTime.Now.Month;
+
+    private string ThroughMonthLabel => ThroughMonth == 0
+        ? "Now"
+        : new DateTime(1, ThroughMonth, 1).ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture);
+
+    private int TargetToDate => _comparison?.Monthly.Where(m => m.Month <= ThroughMonth).Sum(m => m.Target) ?? 0;
+
+    private string QuarterMonthRange(int quarter) =>
+        $"{MonthNames[quarter * 3][..3]}–{MonthNames[quarter * 3 + 2][..3]}";
+
+    private int QuarterSubtotal(int quarter) =>
+        _editMonthly[quarter * 3] + _editMonthly[quarter * 3 + 1] + _editMonthly[quarter * 3 + 2];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // AuthService's role cache is populated asynchronously (from the stored
+        // JWT) — without awaiting InitAsync() here, IsAdmin() can read the cache
+        // before it's warmed up on a fresh page load, which is what was making
+        // the Edit/Set Target button intermittently disappear for actual admins.
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            _comparison = await Http.GetFromJsonAsync<AnnualTargetComparisonDto>($"api/AnnualGranteeTarget/{_fiscalYear}");
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load the annual target: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenEditor()
+    {
+        if (_comparison is not null)
+        {
+            for (int i = 0; i < 12; i++)
+                _editMonthly[i] = _comparison.Monthly.FirstOrDefault(m => m.Month == i + 1)?.Target ?? 0;
+        }
+        _showEditor = true;
+    }
+
+    private void CloseEditor() => _showEditor = false;
+
+    private void RequestClearAll()
+    {
+        _pendingAction = "clear";
+        _pendingActionTitle = "Clear All Monthly Targets?";
+        _pendingActionMessage = $"This resets all 12 months back to 0 for FY {SelectedFiscalYear}. " +
+            "Nothing is saved yet — you can still Cancel here, or Cancel out of the editor afterward without saving.";
+    }
+
+    private void RequestSave()
+    {
+        var total = _editMonthly.Sum();
+        _pendingAction = "save";
+        _pendingActionTitle = "Save Annual Grantee Target?";
+        _pendingActionMessage = $"You're about to set the FY {SelectedFiscalYear} target for " +
+            $"{_comparison?.RegionName} to {total:N0} grantees for the year, split across the 12 months you entered. " +
+            "This replaces any existing target for this region and year.";
+    }
+
+    private void CancelPendingAction() => _pendingAction = null;
+
+    private async Task ConfirmPendingActionAsync()
+    {
+        if (_pendingAction == "clear")
+        {
+            for (int i = 0; i < 12; i++) _editMonthly[i] = 0;
+            _pendingAction = null;
+            return;
+        }
+
+        await SaveTargetAsync();
+        _pendingAction = null;
+    }
+
+    private async Task SaveTargetAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            var dto = new UpsertAnnualGranteeTargetDto
+            {
+                FiscalYear = _fiscalYear,
+                MonthlyTargets = _editMonthly.ToArray()
+            };
+
+            var response = await Http.PutAsJsonAsync("api/AnnualGranteeTarget", dto);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save the target." : error);
+                return;
+            }
+
+            Toast.ShowSuccess("Annual target saved.");
+            _showEditor = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save the target: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

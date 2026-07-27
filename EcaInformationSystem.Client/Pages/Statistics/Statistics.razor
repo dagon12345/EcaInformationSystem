@@ -1,5 +1,6 @@
 ﻿@page "/statistics"
 @using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Pages.Statistics.StatisticsChildComponents
 @attribute [Authorize]
 @inject HttpClient Http
 @inject NavigationManager Navigation
@@ -22,6 +23,10 @@
             </button>
         </div>
     </div>
+
+    @* ── Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
+         monthly targets against actual grantees paid (PaymentHistory.PaymentDate). ── *@
+    <StatisticsAnnualTargetSection />
 
     @if (_isLoading)
     {

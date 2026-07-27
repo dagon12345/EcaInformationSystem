@@ -1,0 +1,64 @@
+@* StatisticsProvinceBreakdown.razor — per-province table with a TOTAL footer row. *@
+@using EcaInformationSystem.Client.Pages.Statistics
+
+<div class="sys-card mt-3">
+    <div class="sys-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-map-fill me-2"></i>Breakdown by Province</span>
+        <span class="badge bg-light text-dark">@Report.ProvinceBreakdowns.Count provinces</span>
+    </div>
+    <div class="sys-card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 stat-table">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Province</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">80</th>
+                        <th class="text-center">85</th>
+                        <th class="text-center">90</th>
+                        <th class="text-center">95</th>
+                        <th class="text-center">100</th>
+                        <th class="text-center">M</th>
+                        <th class="text-center">F</th>
+                        <th class="text-end">Disbursed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Report.ProvinceBreakdowns)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@p.ProvinceName</td>
+                            <td class="text-center">@p.TotalCount.ToString("N0")</td>
+                            <td class="text-center">@p.Age80Count</td>
+                            <td class="text-center">@p.Age85Count</td>
+                            <td class="text-center">@p.Age90Count</td>
+                            <td class="text-center">@p.Age95Count</td>
+                            <td class="text-center">@p.Age100Count</td>
+                            <td class="text-center">@p.MaleCount</td>
+                            <td class="text-center">@p.FemaleCount</td>
+                            <td class="text-end fw-semibold">₱@p.TotalDisbursement.ToString("N0")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td>TOTAL</td>
+                        <td class="text-center">@Report.TotalBeneficiaries.ToString("N0")</td>
+                        <td class="text-center">@Report.TotalAge80</td>
+                        <td class="text-center">@Report.TotalAge85</td>
+                        <td class="text-center">@Report.TotalAge90</td>
+                        <td class="text-center">@Report.TotalAge95</td>
+                        <td class="text-center">@Report.TotalAge100</td>
+                        <td class="text-center">@Report.TotalMale</td>
+                        <td class="text-center">@Report.TotalFemale</td>
+                        <td class="text-end">₱@Report.TotalDisbursement.ToString("N0")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StatisticsReportDto Report { get; set; } = new();
+}
