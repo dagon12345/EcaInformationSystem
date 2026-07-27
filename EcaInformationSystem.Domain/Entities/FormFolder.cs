@@ -14,6 +14,13 @@
 
         public bool IsDeleted { get; set; }
 
+        // One level of nesting only — a subfolder's ParentFolderId points at a
+        // root folder; a subfolder may not itself have children (enforced in
+        // FormFolderService, not here).
+        public Guid? ParentFolderId { get; set; }
+        public FormFolder? ParentFolder { get; set; }
+        public ICollection<FormFolder> ChildFolders { get; set; } = new List<FormFolder>();
+
         public ICollection<FormDocument> Documents { get; set; } = new List<FormDocument>();
     }
 }

@@ -490,6 +490,17 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                         entity.HasIndex(x => x.IsDeleted);
                         entity.HasIndex(x => x.Name);
+
+                        // ✅ NEW — self-referencing, one level of nesting. Restrict (not
+                        // Cascade/SetNull) because folders are soft-deleted, never actually
+                        // removed, so this FK is never asked to react to a real delete —
+                        // reparenting subfolders to root on delete is handled in the service.
+                        entity.HasOne(x => x.ParentFolder)
+                      .WithMany(f => f.ChildFolders)
+                      .HasForeignKey(x => x.ParentFolderId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                        entity.HasIndex(x => x.ParentFolderId);
                   });
 
                   modelBuilder.Entity<FormDocument>(entity =>

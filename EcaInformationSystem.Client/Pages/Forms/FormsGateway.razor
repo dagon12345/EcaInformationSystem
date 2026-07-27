@@ -25,36 +25,75 @@
 
         <div class="forms-folder-item @(_selectedFolderId == null && !_uncategorizedOnly ? "active" : "")"
              @onclick="() => SelectFolder(null, false)">
-            <i class="bi bi-collection"></i>
-            <span>All Forms</span>
+            <span class="forms-folder-toggle-spacer"></span>
+            <i class="bi bi-collection forms-folder-icon"></i>
+            <span class="forms-folder-name">All Forms</span>
             <span class="folder-count">@_allCount</span>
         </div>
 
         <div class="forms-folder-item @(_uncategorizedOnly ? "active" : "")"
              @onclick="() => SelectFolder(null, true)">
-            <i class="bi bi-inbox"></i>
-            <span>Uncategorized</span>
+            <span class="forms-folder-toggle-spacer"></span>
+            <i class="bi bi-inbox forms-folder-icon"></i>
+            <span class="forms-folder-name">Uncategorized</span>
             <span class="folder-count">@_uncategorizedCount</span>
         </div>
 
         <hr class="my-2" />
 
-        @foreach (var folder in _folders)
+        @foreach (var folder in RootFolders)
         {
+            var children = SubfoldersOf(folder.Id).ToList();
+            var hasChildren = children.Count > 0;
+            var isExpanded = IsFolderExpanded(folder.Id);
+
             <div class="forms-folder-item @(_selectedFolderId == folder.Id ? "active" : "")"
                  @onclick="() => SelectFolder(folder.Id, false)">
-                <i class="bi bi-folder-fill"></i>
-                <span class="text-truncate" title="@folder.Name">@folder.Name</span>
+                @if (hasChildren)
+                {
+                    <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") forms-folder-toggle"
+                       @onclick="() => ToggleFolderExpand(folder.Id)" @onclick:stopPropagation="true"
+                       title="@(isExpanded ? "Hide subfolders" : "Show subfolders")"></i>
+                }
+                else
+                {
+                    <span class="forms-folder-toggle-spacer"></span>
+                }
+                <i class="bi bi-folder-fill forms-folder-icon"></i>
+                <span class="forms-folder-name text-truncate" title="@folder.Name">@folder.Name</span>
                 <span class="folder-count">@folder.DocumentCount</span>
 
                 @if (_isAdmin)
                 {
                     <div class="folder-actions" @onclick:stopPropagation="true">
+                        <i class="bi bi-folder-plus" @onclick="() => OpenCreateSubfolderModal(folder)" title="New Subfolder"></i>
                         <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(folder)" title="Rename"></i>
                         <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(folder)" title="Delete"></i>
                     </div>
                 }
             </div>
+
+            @if (hasChildren && isExpanded)
+            {
+                @foreach (var sub in children)
+                {
+                    <div class="forms-folder-item forms-folder-item--sub @(_selectedFolderId == sub.Id ? "active" : "")"
+                         @onclick="() => SelectFolder(sub.Id, false)">
+                        <span class="forms-folder-toggle-spacer"></span>
+                        <i class="bi bi-folder2 forms-folder-icon"></i>
+                        <span class="forms-folder-name text-truncate" title="@sub.Name">@sub.Name</span>
+                        <span class="folder-count">@sub.DocumentCount</span>
+
+                        @if (_isAdmin)
+                        {
+                            <div class="folder-actions" @onclick:stopPropagation="true">
+                                <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(sub)" title="Rename"></i>
+                                <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(sub)" title="Delete"></i>
+                            </div>
+                        }
+                    </div>
+                }
+            }
         }
 
         @if (_isAdmin)
@@ -85,7 +124,7 @@
             <i class="bi bi-info-circle-fill"></i>
             <div>
                 <strong>About this page.</strong>
-                Official NCSC forms and templates for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
+                Official NCSC files for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
                 @if (_isAdmin)
                 {
                     <span>As an Administrator, you can manage folders and upload, edit, or delete forms here.</span>
@@ -98,17 +137,44 @@
         </div>
 
         @* ── Search bar ── *@
-        <div class="forms-search-bar mb-3">
-            <i class="bi bi-search"></i>
-            <input type="text" class="forms-search-input" placeholder="Search by title, description, category, or file name..."
-                   value="@_searchTerm" @oninput="OnSearchInput" />
-            @if (!string.IsNullOrWhiteSpace(_searchTerm))
-            {
-                <button class="forms-search-clear" @onclick="ClearSearch" title="Clear search">
-                    <i class="bi bi-x-circle-fill"></i>
-                </button>
-            }
+        <div class="d-flex gap-2 mb-3 align-items-center">
+            <div class="forms-search-bar flex-grow-1 mb-0">
+                <i class="bi bi-search"></i>
+                <input type="text" class="forms-search-input" placeholder="Search by title, description, category, or file name..."
+                       value="@_searchTerm" @oninput="OnSearchInput" />
+                @if (!string.IsNullOrWhiteSpace(_searchTerm))
+                {
+                    <button class="forms-search-clear" @onclick="ClearSearch" title="Clear search">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </button>
+                }
+            </div>
+            <select class="form-select form-select-sm w-auto flex-shrink-0" @bind="_sortBy" @bind:after="ApplyCurrentViewAsync">
+                <option value="Date">Sort by Date</option>
+                <option value="Name">Sort by Name</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary flex-shrink-0" @onclick="ToggleSortOrder"
+                    title="Toggle sort order">
+                <i class="bi @(_sortAscending ? "bi-sort-alpha-down" : "bi-sort-alpha-down-alt")"></i>
+                @GetSortDirectionLabel()
+            </button>
         </div>
+
+        @* ── Subfolder tiles — browse into a subfolder rather than seeing its files mixed in here ── *@
+        @if (_selectedFolderId.HasValue && SubfoldersOf(_selectedFolderId.Value).Any())
+        {
+            <div class="forms-subfolder-tiles mb-3">
+                @foreach (var sub in SubfoldersOf(_selectedFolderId.Value))
+                {
+                    <div class="forms-subfolder-tile" @onclick="() => SelectFolder(sub.Id, false)">
+                        <i class="bi bi-folder2"></i>
+                        <span class="text-truncate" title="@sub.Name">@sub.Name</span>
+                        <span class="folder-count">@sub.DocumentCount</span>
+                        <i class="bi bi-chevron-right forms-subfolder-tile-arrow"></i>
+                    </div>
+                }
+            </div>
+        }
 
         @if (_isLoading)
         {
@@ -206,7 +272,11 @@
 
 @* ── Create/Edit Folder Modal ── *@
 <HxModal @ref="_folderModal">
-    <HeaderTemplate><h5>@(_editingFolder == null ? "New Folder" : "Rename Folder")</h5></HeaderTemplate>
+    <HeaderTemplate>
+        <h5>
+            @(_editingFolder != null ? "Rename Folder" : _folderParentId.HasValue ? $"New Subfolder in \"{_folderParentName}\"" : "New Folder")
+        </h5>
+    </HeaderTemplate>
     <BodyTemplate>
         <div class="mb-2">
             <label class="ff-label">Folder Name <span class="req">*</span></label>
@@ -242,6 +312,13 @@
             {
                 <span>This folder is empty.</span>
             }
+            @if (_targetFolder != null && SubfoldersOf(_targetFolder.Id).Any())
+            {
+                <span>
+                    Its <strong>@SubfoldersOf(_targetFolder.Id).Count() subfolder(s)</strong> will
+                    <u>not</u> be deleted — they'll be promoted to top-level folders.
+                </span>
+            }
         </p>
         <p class="text-muted small mb-2">Type the folder name below to confirm.</p>
         <input class="ff-input" @bind="_deleteFolderConfirmText" placeholder="@_targetFolder?.Name" />
@@ -267,9 +344,9 @@
             <label class="ff-label">Folder</label>
             <select class="ff-input" @bind="_uploadFolderId">
                 <option value="">-- Uncategorized --</option>
-                @foreach (var folder in _folders)
+                @foreach (var folder in FlattenedFolderOptions())
                 {
-                    <option value="@folder.Id">@folder.Name</option>
+                    <option value="@folder.Id">@(folder.ParentFolderId.HasValue ? $"— {folder.Name}" : folder.Name)</option>
                 }
             </select>
         </div>
@@ -307,9 +384,9 @@
             <label class="ff-label">Folder</label>
             <select class="ff-input" @bind="_editFolderId">
                 <option value="">-- Uncategorized --</option>
-                @foreach (var folder in _folders)
+                @foreach (var folder in FlattenedFolderOptions())
                 {
-                    <option value="@folder.Id">@folder.Name</option>
+                    <option value="@folder.Id">@(folder.ParentFolderId.HasValue ? $"— {folder.Name}" : folder.Name)</option>
                 }
             </select>
         </div>
@@ -401,6 +478,8 @@
 
     private string _searchTerm = string.Empty;
     private System.Threading.CancellationTokenSource? _searchDebounceCts;
+    private bool _sortAscending = true;
+    private string _sortBy = "Date";
 
     // Folder modals
     private HxModal _folderModal = default!;
@@ -410,6 +489,31 @@
     private string _folderNameInput = string.Empty;
     private string? _folderDescriptionInput;
     private string _deleteFolderConfirmText = string.Empty;
+    private Guid? _folderParentId;
+    private string? _folderParentName;
+
+    // ── Folder tree helpers (one level of nesting) ─────────────────────────
+    private IEnumerable<FormFolderDto> RootFolders => _folders.Where(f => f.ParentFolderId == null);
+    private IEnumerable<FormFolderDto> SubfoldersOf(Guid parentId) => _folders.Where(f => f.ParentFolderId == parentId);
+
+    // Folders whose subfolder list is currently collapsed — expanded by default.
+    private readonly HashSet<Guid> _collapsedFolderIds = new();
+    private bool IsFolderExpanded(Guid folderId) => !_collapsedFolderIds.Contains(folderId);
+    private void ToggleFolderExpand(Guid folderId)
+    {
+        if (!_collapsedFolderIds.Add(folderId))
+            _collapsedFolderIds.Remove(folderId);
+    }
+
+    private IEnumerable<FormFolderDto> FlattenedFolderOptions()
+    {
+        foreach (var root in RootFolders)
+        {
+            yield return root;
+            foreach (var sub in SubfoldersOf(root.Id))
+                yield return sub;
+        }
+    }
 
     // Form modals
     private HxModal _uploadModal = default!;
@@ -458,11 +562,15 @@
 
     private async Task ApplyCurrentViewAsync()
     {
+        // Strictly this folder's own files — subfolders are browsed into via
+        // their own tile in the main panel, not mixed into the parent's list.
         var filter = new FormDocumentSearchDto
         {
             SearchTerm = _searchTerm,
             FolderId = _selectedFolderId,
-            UncategorizedOnly = _uncategorizedOnly
+            UncategorizedOnly = _uncategorizedOnly,
+            SortBy = _sortBy,
+            SortAscending = _sortAscending
         };
 
         _displayedForms = await FormService.SearchAsync(filter);
@@ -518,12 +626,36 @@
         await ApplyCurrentViewAsync();
     }
 
+    private async Task ToggleSortOrder()
+    {
+        _sortAscending = !_sortAscending;
+        await ApplyCurrentViewAsync();
+    }
+
+    private string GetSortDirectionLabel()
+    {
+        if (_sortBy == "Name") return _sortAscending ? "A → Z" : "Z → A";
+        return _sortAscending ? "Oldest First" : "Newest First";
+    }
+
     // ── Folder CRUD ──────────────────────────────────────────────────────────
     private Task OpenCreateFolderModal()
     {
         _editingFolder = null;
         _folderNameInput = string.Empty;
         _folderDescriptionInput = null;
+        _folderParentId = null;
+        _folderParentName = null;
+        return _folderModal.ShowAsync();
+    }
+
+    private Task OpenCreateSubfolderModal(FormFolderDto parent)
+    {
+        _editingFolder = null;
+        _folderNameInput = string.Empty;
+        _folderDescriptionInput = null;
+        _folderParentId = parent.Id;
+        _folderParentName = parent.Name;
         return _folderModal.ShowAsync();
     }
 
@@ -532,6 +664,8 @@
         _editingFolder = folder;
         _folderNameInput = folder.Name;
         _folderDescriptionInput = folder.Description;
+        _folderParentId = folder.ParentFolderId;
+        _folderParentName = null;
         return _folderModal.ShowAsync();
     }
 
@@ -553,7 +687,8 @@
                 result = await FolderService.CreateAsync(new FormFolderCreateDto
                 {
                     Name = _folderNameInput,
-                    Description = _folderDescriptionInput
+                    Description = _folderDescriptionInput,
+                    ParentFolderId = _folderParentId
                 });
             }
             else
@@ -567,7 +702,9 @@
 
             if (result.Success)
             {
-                toast.ShowSuccess(_editingFolder == null ? "Folder created." : "Folder renamed.");
+                toast.ShowSuccess(_editingFolder != null ? "Folder renamed."
+                    : _folderParentId.HasValue ? "Subfolder created."
+                    : "Folder created.");
                 await _folderModal.HideAsync();
                 await LoadFoldersAsync();
             }

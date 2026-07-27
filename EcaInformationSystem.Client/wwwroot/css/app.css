@@ -1097,16 +1097,47 @@
         font-weight: 600;
     }
 
-    .forms-folder-item i:first-child {
+    .forms-folder-item .forms-folder-icon {
         font-size: 14px;
         flex-shrink: 0;
     }
 
-    .forms-folder-item span:nth-child(2) {
+    .forms-folder-item .forms-folder-name {
         flex-grow: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+.forms-folder-toggle {
+    font-size: 10px;
+    color: #9ca3af;
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    padding: 2px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+    .forms-folder-toggle:hover {
+        color: #374151;
+        background: #e5e7eb;
+    }
+
+.forms-folder-toggle-spacer {
+    flex-shrink: 0;
+    width: 14px;
+}
+
+.forms-folder-item--sub {
+    padding-left: 18px;
+    font-size: 12px;
+}
+
+    .forms-folder-item--sub .forms-folder-icon {
+        font-size: 12px;
+        color: #9ca3af;
     }
 
 .folder-count {
@@ -1206,6 +1237,54 @@
     .forms-info-banner strong {
         color: #1e3a8a;
     }
+
+/* ── Subfolder tiles — browse from a parent folder into a subfolder ──────── */
+.forms-subfolder-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.forms-subfolder-tile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #f9fafb;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+    .forms-subfolder-tile:hover {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+        color: #1e40af;
+    }
+
+    .forms-subfolder-tile i:first-child {
+        font-size: 15px;
+        color: #6b7280;
+        flex-shrink: 0;
+    }
+
+    .forms-subfolder-tile span:first-of-type {
+        flex-grow: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+.forms-subfolder-tile-arrow {
+    font-size: 11px;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
 .form-card {
     background: #fff;
     border: 1px solid #e5e7eb;

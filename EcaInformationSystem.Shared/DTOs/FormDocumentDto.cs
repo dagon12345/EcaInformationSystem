@@ -33,6 +33,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? SearchTerm { get; set; }   // matches Title, Description, OriginalFileName, Category
         public Guid? FolderId { get; set; }       // null = all folders; use Guid.Empty sentinel for "Uncategorized" if you want that too
         public bool UncategorizedOnly { get; set; } = false;
+
+        // "Date" (UploadedAt) or "Name" (Title). Defaults to ascending.
+        public string SortBy { get; set; } = "Date";
+        public bool SortAscending { get; set; } = true;
     }
     public class UploadFormDocumentRequest
     {

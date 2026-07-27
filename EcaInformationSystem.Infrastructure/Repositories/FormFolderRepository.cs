@@ -37,6 +37,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task<int> CountDocumentsInFolderAsync(Guid folderId)
             => await _context.FormDocuments.CountAsync(d => d.FolderId == folderId && !d.IsDeleted);
 
+        public async Task<List<FormFolder>> GetChildFoldersAsync(Guid parentFolderId)
+            => await _context.FormFolders
+                .Where(f => f.ParentFolderId == parentFolderId && !f.IsDeleted)
+                .ToListAsync();
+
         public Task UpdateAsync(FormFolder folder)
         {
             _context.FormFolders.Update(folder);

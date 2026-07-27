@@ -6,6 +6,8 @@
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int DocumentCount { get; set; }
+        public Guid? ParentFolderId { get; set; }
+        public string? ParentFolderName { get; set; }
         public string CreatedBy { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public string? UpdatedBy { get; set; }
@@ -16,6 +18,7 @@
     {
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public Guid? ParentFolderId { get; set; }
     }
 
     public class FormFolderUpdateDto

@@ -61,7 +61,15 @@ namespace EcaInformationSystem.Application.Services
                     d.OriginalFileName.ToLowerInvariant().Contains(term));
             }
 
-            return query.OrderByDescending(d => d.UploadedAt).Select(ToDto).ToList();
+            query = filter.SortBy == "Name"
+                ? (filter.SortAscending
+                    ? query.OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(d => d.Title, StringComparer.OrdinalIgnoreCase))
+                : (filter.SortAscending
+                    ? query.OrderBy(d => d.UploadedAt)
+                    : query.OrderByDescending(d => d.UploadedAt));
+
+            return query.Select(ToDto).ToList();
         }
 
         public async Task<(byte[] Data, string ContentType, string FileName)?> DownloadAsync(Guid id)
