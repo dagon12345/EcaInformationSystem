@@ -105,5 +105,54 @@ namespace EcaInformationSystem.Application.Services
             var regions = await _regionRepo.GetAllAsync();
             return regions.FirstOrDefault(r => r.PsgcCodeRegion == regionCode.Value)?.Name;
         }
+
+        public async Task<List<UpcomingBirthdayDto>> GetUpcomingBirthdaysAsync(int withinDays = 7)
+        {
+            var users = await _userRepo.GetAllAsync();
+            var regions = await _regionRepo.GetAllAsync();
+            var today = DateTime.Today;
+
+            var results = new List<UpcomingBirthdayDto>();
+
+            foreach (var user in users)
+            {
+                // Default(DateTime) means "never set" for this non-nullable column —
+                // and only surface birthdays for accounts that are actually active.
+                if (user.BirthDate == default || !user.IsActivated || user.ApprovalStatus != 1)
+                    continue;
+
+                var nextOccurrence = NextBirthdayOccurrence(user.BirthDate, today);
+                var daysUntil = (nextOccurrence - today).Days;
+                if (daysUntil < 0 || daysUntil > withinDays) continue;
+
+                results.Add(new UpcomingBirthdayDto
+                {
+                    UserId = user.Id,
+                    FullName = user.FullName,
+                    Position = user.Position,
+                    RegionName = user.Region.HasValue
+                        ? regions.FirstOrDefault(r => r.PsgcCodeRegion == user.Region.Value)?.Name
+                        : null,
+                    BirthDate = user.BirthDate,
+                    DaysUntil = daysUntil,
+                    TurningAge = nextOccurrence.Year - user.BirthDate.Year
+                });
+            }
+
+            return results.OrderBy(r => r.DaysUntil).ToList();
+        }
+
+        // Finds the next calendar occurrence of a birthday from "today" (inclusive) —
+        // Feb 29 falls back to Feb 28 in non-leap years rather than skipping the year.
+        private static DateTime NextBirthdayOccurrence(DateTime birthDate, DateTime today)
+        {
+            DateTime BuildDate(int year) =>
+                birthDate.Month == 2 && birthDate.Day == 29 && !DateTime.IsLeapYear(year)
+                    ? new DateTime(year, 2, 28)
+                    : new DateTime(year, birthDate.Month, birthDate.Day);
+
+            var candidate = BuildDate(today.Year);
+            return candidate < today ? BuildDate(today.Year + 1) : candidate;
+        }
     }
 }

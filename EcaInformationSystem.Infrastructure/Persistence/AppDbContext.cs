@@ -51,6 +51,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
+            public DbSet<StickyNote> StickyNotes => Set<StickyNote>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -905,6 +906,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.Remarks).HasMaxLength(1000);
                         entity.Property(x => x.ResolvedBy).HasMaxLength(256);
                         entity.Property(x => x.UnresolvedBy).HasMaxLength(256);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // STICKY NOTE (Feed sidebar — strictly private per-user notepad)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<StickyNote>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.UserId)
+                        .HasDatabaseName("IX_StickyNote_UserId");
+
+                        entity.Property(x => x.Title).IsRequired().HasMaxLength(150);
+                        entity.Property(x => x.Type).IsRequired().HasMaxLength(20);
+                        entity.Property(x => x.Content).HasMaxLength(4000);
+                        entity.Property(x => x.ChecklistItemsJson).HasColumnType("nvarchar(max)");
+                        entity.Property(x => x.Color).IsRequired().HasMaxLength(20);
                   });
             }
       }

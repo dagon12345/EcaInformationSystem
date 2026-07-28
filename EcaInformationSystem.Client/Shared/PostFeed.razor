@@ -11,7 +11,10 @@
 @inject PostsClientService PostsClient
 @inject IConfiguration Configuration
 @inject NavigationManager Navigation
+@inject StickyNoteClientService StickyNotes
+@inject ToastService toast
 
+<div class="feed-page-layout">
 <div class="feed-container">
 
     <div class="feed-header">
@@ -390,6 +393,189 @@
     }
 </div>
 
+@if (_isAuthenticated)
+{
+    <aside class="feed-birthday-sidebar">
+        <div class="birthday-widget">
+
+            @if (!_upcomingBirthdays.Any())
+            {
+                <div class="birthday-widget-header">
+                    <i class="bi bi-gift-fill"></i>
+                    <span>Upcoming Birthdays</span>
+                </div>
+                <div class="birthday-widget-empty">
+                    <i class="bi bi-calendar-heart"></i>
+                    <p>No upcoming birthdays this week.</p>
+                </div>
+            }
+
+            @{ var todays = TodaysBirthdays.ToList(); }
+            @if (todays.Any())
+            {
+                <div class="birthday-hero">
+                    <div class="birthday-hero-confetti">🎉 🎈 🎂 🎈 🎉</div>
+                    <div class="birthday-hero-title">
+                        Happy Birthday@(todays.Count == 1 ? "" : "s")!
+                    </div>
+                    @foreach (var b in todays)
+                    {
+                        <a href="@($"/profile/{b.UserId}")" class="birthday-hero-person" title="View profile">
+                            <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-hero-avatar avatar-img"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <div class="birthday-hero-avatar birthday-hero-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
+                            <div class="birthday-hero-name">@b.FullName</div>
+                            @if (!string.IsNullOrWhiteSpace(b.Position))
+                            {
+                                <div class="birthday-hero-position">@b.Position</div>
+                            }
+                            <div class="birthday-hero-age">Turning @b.TurningAge today 🎂</div>
+                        </a>
+                    }
+                </div>
+            }
+
+            @{ var later = LaterBirthdays.OrderBy(b => b.DaysUntil).ToList(); }
+            @if (later.Any())
+            {
+                <div class="birthday-widget-header">
+                    <i class="bi bi-gift-fill"></i>
+                    <span>Upcoming Birthdays</span>
+                </div>
+                <div class="birthday-widget-list">
+                    @foreach (var b in later)
+                    {
+                        <a href="@($"/profile/{b.UserId}")" class="birthday-card" title="View profile">
+                            <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-avatar avatar-img"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
+                            <div class="birthday-info">
+                                <div class="birthday-name">@b.FullName</div>
+                                @if (!string.IsNullOrWhiteSpace(b.Position) || !string.IsNullOrWhiteSpace(b.RegionName))
+                                {
+                                    <div class="birthday-meta">
+                                        @b.Position
+                                        @if (!string.IsNullOrWhiteSpace(b.Position) && !string.IsNullOrWhiteSpace(b.RegionName))
+                                        {
+                                            <span> · </span>
+                                        }
+                                        @b.RegionName
+                                    </div>
+                                }
+                            </div>
+                            <div class="birthday-badge">
+                                @b.BirthDate.ToString("MMM dd")<br />
+                                <span class="birthday-badge-days">in @b.DaysUntil day@(b.DaysUntil == 1 ? "" : "s")</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="sticky-notes-widget" @onclick:stopPropagation="true">
+            <div class="notes-widget-header">
+                <div class="notes-widget-title"><i class="bi bi-stickies-fill"></i><span>My Sticky Notes</span></div>
+                <div class="notes-widget-add-wrap">
+                    <button class="notes-add-btn" @onclick="() => _showAddMenu = !_showAddMenu" title="New note">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                    @if (_showAddMenu)
+                    {
+                        <div class="notes-add-backdrop" @onclick="() => _showAddMenu = false"></div>
+                        <div class="notes-add-menu">
+                            <button @onclick='() => OpenCreateNote("Note")'><i class="bi bi-file-earmark-text"></i> Note</button>
+                            <button @onclick='() => OpenCreateNote("Checklist")'><i class="bi bi-check2-square"></i> Checklist</button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="notes-widget-filters">
+                <input type="text" class="notes-search-input" placeholder="Search notes..."
+                       value="@_notesSearchTerm" @oninput="e => _notesSearchTerm = e.Value?.ToString() ?? string.Empty" />
+                <select class="notes-filter-select" @bind="_notesFilterType">
+                    <option value="All">All</option>
+                    <option value="Note">Notes</option>
+                    <option value="Checklist">Checklists</option>
+                </select>
+            </div>
+
+            <div class="notes-widget-list">
+                @if (_notesLoading)
+                {
+                    <div class="notes-widget-empty"><span class="spinner-border spinner-border-sm"></span></div>
+                }
+                else if (!FilteredNotes.Any())
+                {
+                    <div class="notes-widget-empty">
+                        <i class="bi bi-journal-plus"></i>
+                        <p>@(_notes.Any() ? "No notes match your filter." : "No notes yet — click + to add one.")</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var note in FilteredNotes)
+                    {
+                            <div class="sticky-note-card sticky-note--@note.Color">
+                                <div class="sticky-note-top">
+                                    <div class="sticky-note-title text-truncate" title="@note.Title">@note.Title</div>
+                                    <div class="sticky-note-actions">
+                                        <button class="sticky-note-icon-btn" title="View full details" @onclick="() => OpenViewNote(note)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="sticky-note-icon-btn" title="Edit" @onclick="() => OpenEditNote(note)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (_confirmDeleteNoteId == note.Id)
+                                        {
+                                            <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Confirm delete" @onclick="() => ConfirmDeleteNoteAsync(note.Id)">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                            <button class="sticky-note-icon-btn" title="Cancel" @onclick="CancelDeleteNote">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Delete" @onclick="() => AskDeleteNote(note.Id)">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+
+                                @if (note.Type == "Checklist")
+                                {
+                                    <div class="sticky-note-checklist">
+                                        @foreach (var (item, idx) in note.ChecklistItems.Select((it, i) => (it, i)).Take(6))
+                                        {
+                                            <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
+                                                <input type="checkbox" checked="@item.IsChecked" @onchange="() => ToggleChecklistItemAsync(note, idx)" />
+                                                <span>@item.Text</span>
+                                            </label>
+                                        }
+                                        @if (note.ChecklistItems.Count > 6)
+                                        {
+                                            <div class="sticky-note-more">+@(note.ChecklistItems.Count - 6) more</div>
+                                        }
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(note.Content))
+                                {
+                                    <p class="sticky-note-content">@note.Content</p>
+                                }
+
+                                <div class="sticky-note-time">@GetRelativeNoteTime(note)</div>
+                            </div>
+                        }
+                    }
+            </div>
+        </div>
+    </aside>
+}
+</div>
+
 @if (_lightboxImageId.HasValue)
 {
     <div class="feed-lightbox-backdrop" tabindex="0" @ref="_lightboxBackdropRef"
@@ -453,6 +639,126 @@
             <button class="btn btn-sm btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_isDeleting">
                 @(_isDeleting ? "Deleting..." : "Delete")
             </button>
+        </div>
+    </div>
+}
+
+@if (_showNoteModal)
+{
+    <div class="modal-backdrop-custom" @onclick="RequestCloseNoteModal">
+    <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
+        <div class="modal-panel-header">
+            <strong>@(_noteDraft.Id.HasValue ? "Edit" : "New") @(_noteDraft.Type == "Checklist" ? "Checklist" : "Note")</strong>
+            <button class="btn-close" @onclick="RequestCloseNoteModal"></button>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label small fw-bold">Title</label>
+            <input class="form-control" @bind="_noteDraft.Title" maxlength="150" placeholder="e.g. Payroll follow-ups" />
+        </div>
+
+        @if (_noteDraft.Type == "Checklist")
+        {
+            <label class="form-label small fw-bold">Items</label>
+            <div class="note-checklist-editor">
+                @for (int i = 0; i < _noteDraft.ChecklistItems.Count; i++)
+                {
+                    var idx = i;
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <input type="checkbox" checked="@_noteDraft.ChecklistItems[idx].IsChecked"
+                               @onchange="e => _noteDraft.ChecklistItems[idx].IsChecked = (bool)(e.Value ?? false)" />
+                        <input class="form-control form-control-sm" placeholder="Item text"
+                               @bind="_noteDraft.ChecklistItems[idx].Text" maxlength="200" />
+                        <button class="btn btn-sm btn-outline-secondary" title="Remove item"
+                                @onclick="() => RemoveChecklistItem(idx)" disabled="@(_noteDraft.ChecklistItems.Count <= 1)">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                }
+            </div>
+            <button class="btn btn-sm btn-outline-primary" @onclick="AddChecklistItem">
+                <i class="bi bi-plus-lg me-1"></i>Add item
+            </button>
+        }
+        else
+        {
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Content</label>
+                <textarea class="form-control" rows="5" maxlength="4000" @bind="_noteDraft.Content" placeholder="Write your note..."></textarea>
+            </div>
+        }
+
+        <div class="mt-3">
+            <label class="form-label small fw-bold d-block">Color</label>
+            <div class="note-color-swatches">
+                @foreach (var color in NoteColors)
+                {
+                    <button type="button" class="note-color-swatch note-color-swatch--@color @(_noteDraft.Color == color ? "note-color-swatch--selected" : "")"
+                            title="@color" @onclick="() => _noteDraft.Color = color"></button>
+                }
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RequestCloseNoteModal">Cancel</button>
+            <button class="btn btn-sm btn-primary" @onclick="SaveNoteAsync" disabled="@_isSavingNote">
+                @(_isSavingNote ? "Saving..." : "Save")
+            </button>
+        </div>
+
+        @if (_showNoteDiscardConfirm)
+        {
+            <div class="discard-confirm-overlay" @onclick:stopPropagation="true">
+                <div class="discard-confirm-box">
+                    <div class="fw-semibold mb-1">Discard unsaved changes?</div>
+                    <p class="text-muted small mb-2">Your @(_noteDraft.Type == "Checklist" ? "checklist" : "note") hasn't been saved.</p>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CancelNoteDiscard">Keep editing</button>
+                        <button class="btn btn-sm btn-danger" @onclick="ConfirmNoteDiscard">Discard</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    </div>
+}
+
+@if (_viewNote is not null)
+{
+    <div class="modal-backdrop-custom" @onclick="CloseViewNote">
+        <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
+            <div class="modal-panel-header">
+                <strong>@_viewNote.Title</strong>
+                <button class="btn-close" @onclick="CloseViewNote"></button>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="note-color-swatch note-color-swatch--@_viewNote.Color" style="width:16px; height:16px;"></span>
+                <span class="text-muted" style="font-size:12.5px;">@_viewNote.Type</span>
+            </div>
+
+            @if (_viewNote.Type == "Checklist")
+            {
+                <div class="sticky-note-checklist mb-2">
+                    @foreach (var item in _viewNote.ChecklistItems)
+                    {
+                        <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
+                            <input type="checkbox" checked="@item.IsChecked" disabled />
+                            <span>@item.Text</span>
+                        </label>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(_viewNote.Content))
+            {
+                <p class="mb-2" style="font-size:13px; color:#374151; white-space:pre-wrap;">@_viewNote.Content</p>
+            }
+            else
+            {
+                <p class="text-muted small mb-2">No content.</p>
+            }
+
+            <div class="sticky-note-time">@GetRelativeNoteTime(_viewNote)</div>
         </div>
     </div>
 }
@@ -571,6 +877,186 @@
 
     private class ImageOffset { public double X { get; set; } public double Y { get; set; } }
 
+    // ── Upcoming birthdays widget ────────────────────────────────────────
+    private List<UpcomingBirthdayDto> _upcomingBirthdays = new();
+    private IEnumerable<UpcomingBirthdayDto> TodaysBirthdays => _upcomingBirthdays.Where(b => b.DaysUntil == 0);
+    private IEnumerable<UpcomingBirthdayDto> LaterBirthdays => _upcomingBirthdays.Where(b => b.DaysUntil > 0);
+
+    private async Task LoadUpcomingBirthdaysAsync()
+    {
+        try { _upcomingBirthdays = await Http.GetFromJsonAsync<List<UpcomingBirthdayDto>>("api/UserProfile/upcoming-birthdays?withinDays=7") ?? new(); }
+        catch { _upcomingBirthdays = new(); }
+    }
+
+    // ── Sticky notes widget — strictly private to the logged-in user ───────
+    private static readonly string[] NoteColors = { "yellow", "pink", "blue", "green", "purple", "orange" };
+
+    private List<StickyNoteDto> _notes = new();
+    private bool _notesLoading;
+    private string _notesFilterType = "All";
+    private string _notesSearchTerm = string.Empty;
+    private bool _showAddMenu;
+    private bool _showNoteModal;
+    private bool _isSavingNote;
+    private StickyNoteUpsertDto _noteDraft = new();
+    private string _noteOpenSnapshot = string.Empty;
+    private bool _showNoteDiscardConfirm;
+    private Guid? _confirmDeleteNoteId;
+    private StickyNoteDto? _viewNote;
+
+    private IEnumerable<StickyNoteDto> FilteredNotes => _notes.Where(n =>
+        (_notesFilterType == "All" || n.Type == _notesFilterType) &&
+        (string.IsNullOrWhiteSpace(_notesSearchTerm) ||
+            n.Title.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+            (n.Content?.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            n.ChecklistItems.Any(i => i.Text.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase))));
+
+    private async Task LoadNotesAsync()
+    {
+        _notesLoading = true;
+        try { _notes = await StickyNotes.GetMineAsync(); }
+        catch { _notes = new(); }
+        finally { _notesLoading = false; }
+    }
+
+    private static string GetRelativeNoteTime(StickyNoteDto note)
+        => (note.UpdatedAt ?? note.CreatedAt).ToLocalTime().ToString("MMM dd, h:mm tt");
+
+    private void OpenCreateNote(string type)
+    {
+        _noteDraft = new StickyNoteUpsertDto { Type = type, Color = "yellow" };
+        if (type == "Checklist") _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
+        _showAddMenu = false;
+        _showNoteModal = true;
+        _noteOpenSnapshot = SerializeNoteDraft();
+    }
+
+    private void OpenEditNote(StickyNoteDto note)
+    {
+        _noteDraft = new StickyNoteUpsertDto
+        {
+            Id = note.Id,
+            Title = note.Title,
+            Type = note.Type,
+            Content = note.Content,
+            Color = note.Color,
+            ChecklistItems = note.ChecklistItems
+                .Select(i => new StickyNoteChecklistItemDto { Text = i.Text, IsChecked = i.IsChecked })
+                .ToList()
+        };
+        if (_noteDraft.Type == "Checklist" && _noteDraft.ChecklistItems.Count == 0)
+            _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
+        _showNoteModal = true;
+        _noteOpenSnapshot = SerializeNoteDraft();
+    }
+
+    private string SerializeNoteDraft() => System.Text.Json.JsonSerializer.Serialize(_noteDraft);
+    private bool NoteIsDirty => SerializeNoteDraft() != _noteOpenSnapshot;
+
+    // Clicking the backdrop, the × button, or Cancel all go through here — if
+    // nothing changed since the modal opened it closes immediately, otherwise
+    // it asks first so an accidental outside click can't silently lose edits.
+    private void RequestCloseNoteModal()
+    {
+        if (NoteIsDirty)
+        {
+            _showNoteDiscardConfirm = true;
+        }
+        else
+        {
+            CloseNoteModal();
+        }
+    }
+
+    private void CancelNoteDiscard() => _showNoteDiscardConfirm = false;
+
+    private void ConfirmNoteDiscard()
+    {
+        _showNoteDiscardConfirm = false;
+        CloseNoteModal();
+    }
+
+    private void CloseNoteModal()
+    {
+        _showNoteModal = false;
+        _showNoteDiscardConfirm = false;
+    }
+
+    private void AddChecklistItem() => _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
+
+    private void RemoveChecklistItem(int index)
+    {
+        if (_noteDraft.ChecklistItems.Count > 1) _noteDraft.ChecklistItems.RemoveAt(index);
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_noteDraft.Title))
+        {
+            toast.ShowError("Title is required.");
+            return;
+        }
+
+        if (_noteDraft.Type == "Checklist")
+        {
+            _noteDraft.ChecklistItems = _noteDraft.ChecklistItems
+                .Where(i => !string.IsNullOrWhiteSpace(i.Text))
+                .ToList();
+        }
+
+        _isSavingNote = true;
+        try
+        {
+            var (success, note, error) = await StickyNotes.UpsertAsync(_noteDraft);
+            if (!success || note is null)
+            {
+                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save note." : error);
+                return;
+            }
+
+            var existingIndex = _notes.FindIndex(n => n.Id == note.Id);
+            if (existingIndex >= 0) _notes[existingIndex] = note;
+            else _notes.Insert(0, note);
+
+            _showNoteModal = false;
+            toast.ShowSuccess("Note saved.");
+        }
+        finally
+        {
+            _isSavingNote = false;
+        }
+    }
+
+    private void OpenViewNote(StickyNoteDto note) => _viewNote = note;
+    private void CloseViewNote() => _viewNote = null;
+
+    private void AskDeleteNote(Guid id) => _confirmDeleteNoteId = id;
+    private void CancelDeleteNote() => _confirmDeleteNoteId = null;
+
+    private async Task ConfirmDeleteNoteAsync(Guid id)
+    {
+        var ok = await StickyNotes.DeleteAsync(id);
+        if (ok) _notes.RemoveAll(n => n.Id == id);
+        _confirmDeleteNoteId = null;
+    }
+
+    private async Task ToggleChecklistItemAsync(StickyNoteDto note, int itemIndex)
+    {
+        note.ChecklistItems[itemIndex].IsChecked = !note.ChecklistItems[itemIndex].IsChecked;
+        StateHasChanged();
+
+        var dto = new StickyNoteUpsertDto
+        {
+            Id = note.Id,
+            Title = note.Title,
+            Type = note.Type,
+            Content = note.Content,
+            Color = note.Color,
+            ChecklistItems = note.ChecklistItems
+        };
+        await StickyNotes.UpsertAsync(dto);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try { _viewerKey = await JS.InvokeAsync<string>("viewerKey.get"); }
@@ -583,6 +1069,12 @@
         _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
         await LoadFeedAsync(reset: true);
+
+        if (_isAuthenticated)
+        {
+            await LoadUpcomingBirthdaysAsync();
+            await LoadNotesAsync();
+        }
 
         // ✅ If we were opened via a shared link, ensure that post is present
         // (even if it's older than the first page) and scroll/highlight it.

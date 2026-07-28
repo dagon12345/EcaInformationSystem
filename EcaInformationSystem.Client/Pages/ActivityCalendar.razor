@@ -15,6 +15,17 @@
         <div class="feed-header-subtitle">Scheduled events and deadlines across NCSC Caraga Region</div>
     </div>
 </div>
+@if (_todayActivityCount > 0)
+{
+    <div class="calendar-today-alert" @onclick="() => OnDayClick(DateTime.Today)">
+        <i class="bi bi-bell-fill calendar-today-alert-icon"></i>
+        <span>
+            <strong>@_todayActivityCount</strong> activit@(_todayActivityCount == 1 ? "y" : "ies")
+            scheduled <strong>today</strong> — click to view
+        </span>
+        <i class="bi bi-chevron-right ms-auto"></i>
+    </div>
+}
 <div class="calendar-container">
     <div class="calendar-card">
         <div class="calendar-header">
@@ -79,7 +90,7 @@
                                 <div class="calendar-week-cells">
                                     @foreach (var cell in week.Days)
                                     {
-                                        <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell-muted") @(cell.Date == DateTime.Today ? "calendar-cell-today" : "")"
+                                        <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell-muted") @(cell.Date == DateTime.Today ? "calendar-cell-today" : "") @(cell.Date == DateTime.Today && cell.Segments.Count > 0 ? "calendar-cell-today-busy" : "")"
                                              @onclick="() => OnDayClick(cell.Date)">
                                             <div class="calendar-date">@cell.Date.Day</div>
                                         </div>
@@ -138,9 +149,12 @@
                                             }
                                         </small>
                                     </div>
-                                    @if (CanManage(a))
-                                    {
-                                        <div class="calendar-activity-actions">
+                                    <div class="calendar-activity-actions">
+                                        <button class="btn-icon" title="View full details" @onclick="() => OpenViewModal(a)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        @if (CanManage(a))
+                                        {
                                             <button class="btn-icon" title="Edit" @onclick="() => OpenEditModal(a)">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -159,20 +173,73 @@
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             }
-                                        </div>
-                                    }
-                                    else if (_canManage)
-                                    {
-                                        <span class="text-muted" style="font-size:10px;">@a.RegionName — view only</span>
-                                    }
+                                        }
+                                        else if (_canManage)
+                                        {
+                                            <span class="text-muted" style="font-size:10px;">@a.RegionName — view only</span>
+                                        }
+                                    </div>
                                 </div>
                             }
                         }
 
                         @if (_canManage)
                         {
-                            <button class="btn btn-sm btn-primary ms-auto" @onclick="() => OpenCreateModal(DateTime.Today)">+ Add
+                            <button class="btn btn-sm btn-primary ms-auto" @onclick="() => OpenCreateModal(_selectedDate!.Value)">+ Add
                                 Activity for this day</button>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (_viewActivity is not null)
+                {
+                    <div class="modal-backdrop-custom" @onclick="CloseViewModal">
+                        <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
+                            <div class="modal-panel-header">
+                                <strong>@_viewActivity.Title</strong>
+                                <button class="btn-close" @onclick="CloseViewModal"></button>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="calendar-dot @PriorityCss(_viewActivity.Priority)"></span>
+                                <span class="text-muted" style="font-size:12.5px;">@_viewActivity.Type</span>
+                            </div>
+
+                            <div class="activity-reminder-meta mb-2">
+                                <div class="activity-reminder-meta-row">
+                                    <i class="bi bi-clock"></i>
+                                    <span>
+                                        @(_viewActivity.IsAllDay ? "All day" : _viewActivity.StartDate.ToString("h:mm tt"))
+                                        @if (_viewActivity.EndDate is not null && _viewActivity.EndDate.Value.Date != _viewActivity.StartDate.Date)
+                                        {
+                                            <span> • @_viewActivity.StartDate.ToString("MMM dd") - @_viewActivity.EndDate.Value.ToString("MMM dd")</span>
+                                        }
+                                    </span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(_viewActivity.Location))
+                                {
+                                    <div class="activity-reminder-meta-row">
+                                        <i class="bi bi-geo-alt"></i>
+                                        <span>@_viewActivity.Location</span>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(_viewActivity.RegionName))
+                                {
+                                    <div class="activity-reminder-meta-row">
+                                        <i class="bi bi-geo"></i>
+                                        <span>@_viewActivity.RegionName</span>
+                                    </div>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(_viewActivity.Description))
+                            {
+                                <p class="mb-0" style="font-size:13px; color:#374151; white-space:pre-wrap;">@_viewActivity.Description</p>
+                            }
+                            else
+                            {
+                                <p class="text-muted small mb-0">No description provided.</p>
                             }
                         </div>
                     </div>
@@ -193,6 +260,8 @@
     private List<ActivityDto> _dayActivities = new();
     private int? _confirmingDeleteId;
     private int? _myRegionCode;
+    private int _todayActivityCount;
+    private ActivityDto? _viewActivity;
 
     private readonly string[] _dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
@@ -203,8 +272,17 @@
         _myRegionCode = AuthService.GetRegionCode();
 
         await LoadMonthAsync();
+        await LoadTodayCountAsync();
         ActivityClient.ActivityChanged += OnActivityChanged;
         ActivityClient.ActivityDeleted += OnActivityDeleted;
+    }
+
+    // Kept independent of the visible month — the "today" banner should stay
+    // accurate even while browsing a different month.
+    private async Task LoadTodayCountAsync()
+    {
+        try { _todayActivityCount = (await ActivityClient.GetDayAsync(DateTime.Today)).Count; }
+        catch { _todayActivityCount = 0; }
     }
     private bool CanManage(ActivityDto a) =>
     _canManage && _myRegionCode.HasValue && a.PsgcCodeRegion == _myRegionCode;
@@ -224,6 +302,7 @@
     private async Task RefreshLive()
     {
         await LoadMonthAsync();
+        await LoadTodayCountAsync();
         if (_selectedDate is not null)
             _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
         StateHasChanged();
@@ -379,6 +458,9 @@ LoadMonthAsync();
     private void OpenCreateModal(DateTime date) => _createModal?.OpenForCreate(date);
     private void OpenEditModal(ActivityDto a) => _createModal?.OpenForEdit(a);
 
+    private void OpenViewModal(ActivityDto a) => _viewActivity = a;
+    private void CloseViewModal() => _viewActivity = null;
+
     private void AskDelete(int id) => _confirmingDeleteId = id;
     private void CancelDelete() => _confirmingDeleteId = null;
 
@@ -389,11 +471,13 @@ LoadMonthAsync();
         if (_selectedDate is not null)
             _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
         await LoadMonthAsync();
+        await LoadTodayCountAsync();
     }
 
     private async Task RefreshAfterSave()
     {
         await LoadMonthAsync();
+        await LoadTodayCountAsync();
         if (_selectedDate is not null)
             _dayActivities = await ActivityClient.GetDayAsync(_selectedDate.Value);
     }

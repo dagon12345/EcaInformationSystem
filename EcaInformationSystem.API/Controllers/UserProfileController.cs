@@ -74,6 +74,13 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(new { message = "Profile picture removed." });
         }
 
+        // Internal-only (not AllowAnonymous) — surfaces upcoming staff birthdays
+        // for the Feed's "welcome" widget.
+        [HttpGet("upcoming-birthdays")]
+        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        public async Task<IActionResult> GetUpcomingBirthdays([FromQuery] int withinDays = 7)
+            => Ok(await _profileService.GetUpcomingBirthdaysAsync(withinDays));
+
         // Any logged-in user can view another user's basic public profile —
         // e.g. clicking an avatar/name in Chat or the Feed.
         [HttpGet("{userId:guid}")]

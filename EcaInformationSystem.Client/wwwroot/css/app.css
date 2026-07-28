@@ -932,10 +932,492 @@
     right: 20px;
 }
 /* ── Feed width cap — keeps posts compact even on wide desktop screens ── */
+.feed-page-layout {
+    display: flex;
+    gap: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+    align-items: flex-start;
+    justify-content: center;
+}
+
 .feed-container {
     max-width: 800px;
-    margin: 0 auto;
+    margin: 0;
     width: 100%;
+}
+
+@media (max-width: 1050px) {
+    .feed-page-layout {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .feed-birthday-sidebar {
+        width: 100%;
+        order: -1; /* surface it above the feed on narrow screens, like a banner */
+    }
+}
+
+/* ── Birthday widget (Feed sidebar) — scrolls with the page, not sticky ── */
+.feed-birthday-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    position: static;
+}
+
+.birthday-widget {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #eceef1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    overflow: hidden;
+}
+
+.birthday-widget-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #374151;
+    border-bottom: 1px solid #f1f3f4;
+}
+.birthday-widget-header i { color: #d6336c; font-size: 15px; }
+
+.birthday-widget-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.birthday-widget-empty {
+    text-align: center;
+    padding: 28px 16px;
+    color: #9ca3af;
+}
+.birthday-widget-empty i {
+    font-size: 26px;
+    color: #d1d5db;
+    display: block;
+    margin-bottom: 8px;
+}
+.birthday-widget-empty p {
+    margin: 0;
+    font-size: 12.5px;
+}
+
+.birthday-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    text-decoration: none;
+    color: inherit;
+    border-bottom: 1px solid #f6f7f8;
+    transition: background 0.12s ease;
+}
+.birthday-card:last-child { border-bottom: none; }
+.birthday-card:hover { background: #f8f9fa; color: inherit; }
+
+.birthday-avatar, .birthday-avatar-fallback {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+.birthday-avatar-fallback {
+    background: linear-gradient(135deg, #0C447C, #185FA5);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.birthday-info { flex: 1; min-width: 0; }
+.birthday-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #202124;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.birthday-meta {
+    font-size: 11px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.birthday-badge {
+    flex-shrink: 0;
+    text-align: right;
+    font-size: 10.5px;
+    color: #9ca3af;
+    line-height: 1.4;
+}
+.birthday-badge-days {
+    display: inline-block;
+    margin-top: 1px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1a73e8;
+    font-weight: 600;
+    font-size: 10px;
+}
+
+/* ── "It's their birthday today" hero — the welcoming graphic ───────────── */
+.birthday-hero {
+    position: relative;
+    text-align: center;
+    padding: 20px 16px 18px;
+    background: linear-gradient(160deg, #fdf2f8 0%, #fff7ed 50%, #eff6ff 100%);
+    border-bottom: 1px solid #f1f3f4;
+    overflow: hidden;
+}
+.birthday-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(214,51,108,0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 15%, rgba(249,171,0,0.14) 0%, transparent 40%),
+        radial-gradient(circle at 50% 90%, rgba(26,115,232,0.10) 0%, transparent 45%);
+    pointer-events: none;
+}
+
+.birthday-hero-confetti {
+    font-size: 20px;
+    letter-spacing: 4px;
+    margin-bottom: 4px;
+    animation: birthdayConfettiBounce 1.6s ease-in-out infinite;
+    position: relative;
+}
+@keyframes birthdayConfettiBounce {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+}
+
+.birthday-hero-title {
+    font-size: 16px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #d6336c, #f9ab00, #1a73e8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+.birthday-hero-person {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    padding: 10px 8px;
+    border-radius: 12px;
+    transition: background 0.15s ease;
+}
+.birthday-hero-person:hover { background: rgba(255,255,255,0.6); color: inherit; }
+.birthday-hero-person + .birthday-hero-person { margin-top: 4px; }
+
+.birthday-hero-avatar, .birthday-hero-avatar-fallback {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 8px;
+    display: block;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 3px #f9ab00, 0 4px 14px rgba(249,171,0,0.35);
+    animation: birthdayAvatarGlow 2s ease-in-out infinite;
+}
+.birthday-hero-avatar-fallback {
+    background: linear-gradient(135deg, #0C447C, #185FA5);
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+}
+@keyframes birthdayAvatarGlow {
+    0%, 100% { box-shadow: 0 0 0 3px #f9ab00, 0 4px 14px rgba(249,171,0,0.35); }
+    50%      { box-shadow: 0 0 0 5px #f9ab00, 0 4px 20px rgba(249,171,0,0.55); }
+}
+
+.birthday-hero-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+.birthday-hero-position {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 1px;
+}
+.birthday-hero-age {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: #fff;
+    color: #9a3412;
+    font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* ── Sticky Notes widget (Feed sidebar) — private per-user notepad ─────── */
+.sticky-notes-widget {
+    margin-top: 16px;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #eceef1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    overflow: hidden;
+}
+
+.notes-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f3f4;
+}
+.notes-widget-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #374151;
+}
+.notes-widget-title i { color: #d97706; font-size: 15px; }
+
+.notes-widget-add-wrap { position: relative; }
+.notes-add-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: #eff6ff;
+    color: #1a73e8;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s ease;
+}
+.notes-add-btn:hover { background: #dbeafe; }
+
+.notes-add-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 19; /* below the menu (20) but above everything else — closes it on any outside click */
+}
+
+.notes-add-menu {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+    z-index: 20;
+    overflow: hidden;
+    min-width: 140px;
+}
+.notes-add-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    background: none;
+    text-align: left;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    color: #374151;
+}
+.notes-add-menu button:hover { background: #f8f9fa; }
+.notes-add-menu button i { color: #6b7280; width: 14px; }
+
+.notes-widget-filters {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f3f4;
+}
+.notes-search-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+.notes-search-input:focus { outline: none; border-color: #1a73e8; }
+.notes-filter-select {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 11.5px;
+    color: #374151;
+    flex-shrink: 0;
+}
+
+.notes-widget-list {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.notes-widget-list::-webkit-scrollbar { width: 6px; }
+.notes-widget-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+.notes-widget-list::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+.notes-widget-list::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+.notes-widget-empty {
+    text-align: center;
+    padding: 24px 12px;
+    color: #9ca3af;
+}
+.notes-widget-empty i { font-size: 24px; color: #d1d5db; display: block; margin-bottom: 8px; }
+.notes-widget-empty p { margin: 0; font-size: 12px; }
+
+/* ── Individual sticky note card ─────────────────────────────────────── */
+.sticky-note-card {
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid transparent;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.sticky-note-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+
+.sticky-note--yellow { background: #fef9c3; border-color: #fde68a; }
+.sticky-note--pink   { background: #fce7f3; border-color: #fbcfe8; }
+.sticky-note--blue   { background: #dbeafe; border-color: #bfdbfe; }
+.sticky-note--green  { background: #dcfce7; border-color: #bbf7d0; }
+.sticky-note--purple { background: #ede9fe; border-color: #ddd6fe; }
+.sticky-note--orange { background: #ffedd5; border-color: #fed7aa; }
+
+.sticky-note-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+.sticky-note-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1f2937;
+    min-width: 0;
+}
+.sticky-note-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+.sticky-note-card:hover .sticky-note-actions { opacity: 1; }
+
+.sticky-note-icon-btn {
+    background: rgba(255,255,255,0.6);
+    border: none;
+    border-radius: 5px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #4b5563;
+}
+.sticky-note-icon-btn:hover { background: #fff; color: #1f2937; }
+.sticky-note-icon-btn--danger:hover { color: #d93025; }
+
+.sticky-note-content {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+}
+
+.sticky-note-checklist {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.sticky-note-checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: #374151;
+    cursor: pointer;
+}
+.sticky-note-checklist-item input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.sticky-note-checklist-item span { word-break: break-word; }
+.sticky-note-checklist-item--done span {
+    text-decoration: line-through;
+    color: #9ca3af;
+}
+.sticky-note-more {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.sticky-note-time {
+    margin-top: 8px;
+    font-size: 10px;
+    color: rgba(0,0,0,0.4);
+}
+
+/* ── Note create/edit color picker ───────────────────────────────────── */
+.note-checklist-editor { max-height: 220px; overflow-y: auto; padding-right: 2px; }
+
+.note-color-swatches { display: flex; gap: 8px; }
+.note-color-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+}
+.note-color-swatch--yellow { background: #fde68a; }
+.note-color-swatch--pink   { background: #fbcfe8; }
+.note-color-swatch--blue   { background: #bfdbfe; }
+.note-color-swatch--green  { background: #bbf7d0; }
+.note-color-swatch--purple { background: #ddd6fe; }
+.note-color-swatch--orange { background: #fed7aa; }
+.note-color-swatch--selected {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1a73e8;
 }
 
 .modal-backdrop-custom {

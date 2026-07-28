@@ -77,6 +77,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IAnnualGranteeTargetRepository, AnnualGranteeTargetRepository>();
             services.AddScoped<IUserProfileRepository, UserProfileRepository>();
             services.AddScoped<IResolvedDuplicatePairRepository, ResolvedDuplicatePairRepository>();
+            services.AddScoped<IStickyNoteRepository, StickyNoteRepository>();
             return services;
         }
     }

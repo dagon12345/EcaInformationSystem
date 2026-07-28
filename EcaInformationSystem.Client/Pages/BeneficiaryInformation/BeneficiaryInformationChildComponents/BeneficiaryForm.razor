@@ -1151,7 +1151,7 @@
     private CreateBeneficiaryInformationDto? _pendingDto;
     private ReferenceNumberModal _refNumberModal = default!;
     // ── Ref number section toggle ─────────────────────────────────────────────
-    private bool _showRefNumber = false;
+    private bool _showRefNumber = true;
     // ✅ True only when all three fields are filled
     private bool HasRefNumber =>
         model.Quarter != null &&

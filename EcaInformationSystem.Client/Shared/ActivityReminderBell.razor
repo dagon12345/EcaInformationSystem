@@ -79,7 +79,7 @@
                 <i class="bi bi-calendar-event-fill"></i>
             </div>
 
-            <div class="activity-reminder-eyebrow">Starting now</div>
+            <div class="activity-reminder-eyebrow">@(_modalActivity.IsAllDay ? "Scheduled Today" : "Starting now")</div>
             <h2 class="activity-reminder-title">@_modalActivity.Title</h2>
 
             <div class="activity-reminder-meta">
@@ -135,6 +135,7 @@
         _myRegionCode = AuthService.GetRegionCode();
 
         await LoadTodayActivitiesAsync();
+        ShowAllDayRemindersOnLoad();
         await ConnectRealtimeAsync();
 
         ActivityClient.ActivityStarting += OnActivityStarting;
@@ -194,6 +195,39 @@
         _modalActivity = null;
         _modalQueue.Clear();
         GoToCalendar();
+    }
+
+    // ✅ static — deliberately survives this component being disposed and
+    // recreated within the same page load (e.g. MainLayout's <AuthorizeView>
+    // remounts its Authorized content on every auth-state change, such as the
+    // token refresh after saving the Profile page — that's a Blazor quirk, not
+    // a real re-login). Without this memory, each remount would re-run
+    // OnInitializedAsync and pop the "already seen" reminder again. Resets
+    // naturally once the date rolls over.
+    private static DateTime _shownAllDayRemindersDate = DateTime.MinValue;
+    private static readonly HashSet<int> _shownAllDayActivityIds = new();
+
+    // All-day events don't have a meaningful "starting now" moment to hook a
+    // real-time trigger to — their nominal start is midnight, long past by the
+    // time someone actually logs in — so surface them proactively right here,
+    // once, on load, instead of waiting for a SignalR tick that will never fire.
+    private void ShowAllDayRemindersOnLoad()
+    {
+        if (_shownAllDayRemindersDate != DateTime.Today)
+        {
+            _shownAllDayRemindersDate = DateTime.Today;
+            _shownAllDayActivityIds.Clear();
+        }
+
+        foreach (var activity in _todayActivities.Where(a => a.IsAllDay))
+        {
+            if (!_shownAllDayActivityIds.Add(activity.Id)) continue; // already shown today
+
+            if (_modalActivity is null)
+                _modalActivity = activity;
+            else
+                _modalQueue.Enqueue(activity);
+        }
     }
 
     private async Task LoadTodayActivitiesAsync()

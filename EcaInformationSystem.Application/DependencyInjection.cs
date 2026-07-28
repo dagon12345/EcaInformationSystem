@@ -37,6 +37,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IBeneficiaryVerificationChecklistService, BeneficiaryVerificationChecklistService>();
             services.AddScoped<IAnnualGranteeTargetService, AnnualGranteeTargetService>();
             services.AddScoped<IUserProfileService, UserProfileService>();
+            services.AddScoped<IStickyNoteService, StickyNoteService>();
             return services;
         }
     }

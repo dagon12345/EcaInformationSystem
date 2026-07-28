@@ -10,6 +10,7 @@
 
 <style>
     .mfa-notice-banner {
+        position: static; /* scrolls away with the page — never sticky */
         background: linear-gradient(90deg, #FEF3C7, #FDE68A);
         border: 1px solid #F59E0B;
         border-radius: 10px;
@@ -74,6 +75,7 @@
     /* ── Collapsed state — a thin bar instead of a full banner, still inline
            with the content, not floating over anything ── */
     .mfa-notice-collapsed {
+        position: static; /* scrolls away with the page — never sticky */
         display: flex;
         align-items: center;
         justify-content: space-between;

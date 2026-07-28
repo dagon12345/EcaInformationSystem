@@ -14,5 +14,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
 
         // thumbnail: true = small preview (avatars everywhere), false = full-size (profile page display)
         Task<(byte[] Data, string ContentType)?> GetProfilePictureAsync(Guid userId, bool thumbnail);
+
+        Task<List<UpcomingBirthdayDto>> GetUpcomingBirthdaysAsync(int withinDays = 7);
     }
 }
