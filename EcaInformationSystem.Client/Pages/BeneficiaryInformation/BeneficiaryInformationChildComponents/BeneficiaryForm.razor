@@ -218,12 +218,12 @@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.3 First Name <span class="annexa-required">*</span></span>
-                    <input class="annexa-input" @bind="model.FirstName" @bind:event="oninput" />
+                    <input class="annexa-input" value="@model.FirstName" @oninput="e => model.FirstName = SanitizeName(e.Value?.ToString())" />
                     <ValidationMessage For="@(() => model.FirstName)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.4 Middle Name</span>
-                    <input class="annexa-input" @bind="model.MiddleName" @bind:event="oninput" />
+                    <input class="annexa-input" value="@model.MiddleName" @oninput="e => model.MiddleName = SanitizeName(e.Value?.ToString())" />
                 </div>
             </div>
 
@@ -231,7 +231,7 @@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.5 Last Name <span class="annexa-required">*</span></span>
-                    <input class="annexa-input" @bind="model.LastName" @bind:event="oninput" />
+                    <input class="annexa-input" value="@model.LastName" @oninput="e => model.LastName = SanitizeName(e.Value?.ToString())" />
                     <ValidationMessage For="@(() => model.LastName)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
@@ -1171,7 +1171,17 @@
     private void OnNcscRrnChanged()
     {
         model.TrackingNumber = model.NcscRrn?.ToString();
-    }   
+    }
+
+    // Name fields (First/Middle/Last) — strips anything that isn't a letter,
+    // space, or dash as the user types, rather than only flagging it after
+    // the fact via validation.
+    private static string SanitizeName(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        return new string(input.Where(c => char.IsLetter(c) || c == ' ' || c == '-').ToArray());
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;

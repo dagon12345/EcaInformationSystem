@@ -19,9 +19,12 @@ namespace EcaInformationSystem.Shared.DTOs
         [Required(ErrorMessage = "NCSC Registration Reference Number is required.")]
         public int? NcscRrn { get; set; }
         [Required(ErrorMessage = "Last Name is required.")]
+        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "Last Name can only contain letters, spaces, and dashes.")]
         public string? LastName { get; set; }
         [Required(ErrorMessage = "First Name is required.")]
+        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "First Name can only contain letters, spaces, and dashes.")]
         public string FirstName { get; set; } = string.Empty;
+        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "Middle Name can only contain letters, spaces, and dashes.")]
         public string? MiddleName { get; set; }
         public string? Extension { get; set; }
         [Required(ErrorMessage = "Birth Date is required.")]
