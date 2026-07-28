@@ -6,6 +6,6 @@ namespace EcaInformationSystem.Application.Interfaces.Services
     {
         Task<AnnualTargetComparisonDto> GetComparisonAsync(int regionCode, int fiscalYear);
 
-        Task<AnnualGranteeTargetDto> UpsertAsync(int regionCode, int fiscalYear, int[] monthlyTargets, string userName);
+        Task<AnnualGranteeTargetDto> UpsertAsync(int regionCode, int fiscalYear, int[] quarterlyTargets, string userName);
     }
 }

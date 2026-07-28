@@ -43,14 +43,14 @@ namespace EcaInformationSystem.Api.Controllers
             if (regionCode is null)
                 return BadRequest("No region is assigned to this account.");
 
-            if (dto.MonthlyTargets is null || dto.MonthlyTargets.Length != 12)
-                return BadRequest("Exactly 12 monthly target values (January-December) are required.");
+            if (dto.QuarterlyTargets is null || dto.QuarterlyTargets.Length != 4)
+                return BadRequest("Exactly 4 quarterly target values (Q1-Q4) are required.");
 
-            if (dto.MonthlyTargets.Any(t => t < 0))
-                return BadRequest("Monthly targets cannot be negative.");
+            if (dto.QuarterlyTargets.Any(t => t < 0))
+                return BadRequest("Quarterly targets cannot be negative.");
 
             var userName = _currentUser.GetUserName();
-            var result = await _service.UpsertAsync(regionCode.Value, dto.FiscalYear, dto.MonthlyTargets, userName);
+            var result = await _service.UpsertAsync(regionCode.Value, dto.FiscalYear, dto.QuarterlyTargets, userName);
             return Ok(result);
         }
 

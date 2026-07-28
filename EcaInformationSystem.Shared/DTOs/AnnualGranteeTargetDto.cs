@@ -4,11 +4,11 @@ namespace EcaInformationSystem.Shared.DTOs
     {
         public Guid Id { get; set; }
         public int RegionCode { get; set; }
-        public string? RegionName { get; set; } 
+        public string? RegionName { get; set; }
         public int FiscalYear { get; set; }
 
-        // Index 0 = January ... index 11 = December.
-        public int[] MonthlyTargets { get; set; } = new int[12];
+        // Index 0 = Q1 ... index 3 = Q4.
+        public int[] QuarterlyTargets { get; set; } = new int[4];
         public int AnnualTotal { get; set; }
 
         public DateTime DateSet { get; set; }
@@ -21,15 +21,15 @@ namespace EcaInformationSystem.Shared.DTOs
     {
         public int FiscalYear { get; set; }
 
-        // Index 0 = January ... index 11 = December. Doesn't have to be evenly
-        // split — the PDO organizes its own monthly rollout.
-        public int[] MonthlyTargets { get; set; } = new int[12];
+        // Index 0 = Q1 ... index 3 = Q4. Doesn't have to be evenly split — the
+        // PDO organizes its own quarterly rollout.
+        public int[] QuarterlyTargets { get; set; } = new int[4];
     }
 
-    public class MonthlyTargetVsActualDto
+    public class QuarterTargetVsActualDto
     {
-        public int Month { get; set; } // 1-12
-        public string MonthName { get; set; } = string.Empty;
+        public int Quarter { get; set; } // 1-4
+        public string QuarterLabel { get; set; } = string.Empty; // "Q1".."Q4"
         public int Target { get; set; }
         public int PaidCount { get; set; }
     }
@@ -46,7 +46,7 @@ namespace EcaInformationSystem.Shared.DTOs
 
         public int AnnualTarget { get; set; }
         public int TotalPaidYtd { get; set; }
-        public List<MonthlyTargetVsActualDto> Monthly { get; set; } = new();
+        public List<QuarterTargetVsActualDto> Quarterly { get; set; } = new();
 
         // Who set/last touched this target, for the "last set by" line in the UI.
         public DateTime? DateSet { get; set; }

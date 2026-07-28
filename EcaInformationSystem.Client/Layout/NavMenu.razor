@@ -1,6 +1,7 @@
 ﻿@using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
 @inject AuthService AuthService
@@ -180,19 +181,34 @@
 
 <div class="sidebar-footer">
     <button type="button" class="user-card user-card--link" @onclick="GoToProfile" title="View your profile">
-        @if (_currentUserId.HasValue)
-        {
-            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="avatar avatar-img"
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-            <div class="avatar" style="display:none;">@GetInitials(DisplayName)</div>
-        }
-        else
-        {
-            <div class="avatar">@GetInitials(DisplayName)</div>
-        }
+        <div class="position-relative">
+            @if (_currentUserId.HasValue)
+            {
+                <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="avatar avatar-img"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <div class="avatar" style="display:none;">@GetInitials(DisplayName)</div>
+            }
+            else
+            {
+                <div class="avatar">@GetInitials(DisplayName)</div>
+            }
+            @if (_mfaEnabled == false)
+            {
+                <span class="mfa-warning-dot" title="Add two-factor authentication to secure your account"></span>
+            }
+        </div>
         <div class="user-info">
             <div class="user-name">@DisplayName</div>
-            <div class="user-role">View Profile</div>
+            @if (_mfaEnabled == false)
+            {
+                <div class="user-role text-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure your account
+                </div>
+            }
+            else
+            {
+                <div class="user-role">View Profile</div>
+            }
         </div>
     </button>
     <button class="toggle-btn" @onclick="OnToggle">
@@ -209,6 +225,7 @@
 
     private string DisplayName = "User";
     private Guid? _currentUserId;
+    private bool? _mfaEnabled; // null = not checked yet
     private bool _isSuperAdmin;
     private bool _isAdmin;
     private bool _isPdo;
@@ -238,7 +255,29 @@
             await LoadJurisdictionNamesAsync();
         }
 
+        await LoadMfaStatusAsync();
+
         StateHasChanged();
+    }
+
+    // Surfaced as a red dot on the avatar + "Secure your account" instead of
+    // a separate Feed banner — one place, one action: open the profile.
+    private async Task LoadMfaStatusAsync()
+    {
+        try
+        {
+            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
+            _mfaEnabled = status?.IsMfaEnabled ?? true;
+        }
+        catch
+        {
+            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
+        }
+    }
+
+    private class MfaStatusResponse
+    {
+        public bool IsMfaEnabled { get; set; }
     }
 
     protected override async Task OnInitializedAsync()

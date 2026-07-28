@@ -44,7 +44,8 @@
                         <div class="profile-avatar-wrap mx-auto mb-3">
                             @if (_myProfile.HasProfilePicture && !_pictureRemoved)
                             {
-                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" alt="" class="profile-avatar-img"
+                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" alt="" class="profile-avatar-img" style="cursor:pointer;"
+                                     title="Click to view full picture" @onclick="OpenAvatarLightbox"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                 <div class="profile-avatar-fallback" style="display:none;">@GetInitials(_myProfile.FullName)</div>
                             }
@@ -123,9 +124,30 @@
                 </div>
 
                 @* ── Security / MFA ── *@
-                <div class="sys-card">
-                    <div class="sys-card-header"><i class="bi bi-shield-lock me-2"></i>Security</div>
+                <div class="sys-card @(!_myProfile.IsMfaEnabled ? "sys-card--mfa-warning" : "")">
+                    <div class="sys-card-header d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-shield-lock me-2"></i>Security</span>
+                        @if (!_myProfile.IsMfaEnabled)
+                        {
+                            <span class="badge bg-danger" style="font-size:10px;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure account
+                            </span>
+                        }
+                    </div>
                     <div class="sys-card-body">
+                        @if (!_myProfile.IsMfaEnabled)
+                        {
+                            <div class="mfa-warning-note mb-3">
+                                <i class="bi bi-info-circle-fill"></i>
+                                <div>
+                                    This is the "Secure account" notice you see near your profile picture — it means
+                                    two-factor authentication isn't set up yet. Without it, your account only needs a
+                                    password to sign in. Setting up MFA below adds a one-time code from an authenticator
+                                    app for extra protection, and clears the notice everywhere it appears.
+                                </div>
+                            </div>
+                        }
+
                         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                             <div>
                                 <div class="fw-semibold">Multi-Factor Authentication (MFA)</div>
@@ -143,7 +165,7 @@
                             }
                             else
                             {
-                                <a class="btn btn-outline-primary btn-sm" href="/mfa-setup">
+                                <a class="btn btn-primary btn-sm" href="/mfa-setup">
                                     <i class="bi bi-shield-plus me-1"></i>Set Up MFA
                                 </a>
                             }
@@ -163,7 +185,8 @@
                         <div class="profile-avatar-wrap mx-auto mb-3">
                             @if (_publicProfile.HasProfilePicture)
                             {
-                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" alt="Profile picture" class="profile-avatar-img" />
+                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" alt="Profile picture" class="profile-avatar-img"
+                                     style="cursor:pointer;" title="Click to view full picture" @onclick="OpenAvatarLightbox" />
                             }
                             else
                             {
@@ -183,6 +206,17 @@
         </div>
     }
 </div>
+
+@* ── Avatar lightbox — click the picture to see it full size ── *@
+@if (_showAvatarLightbox)
+{
+    <div class="avatar-lightbox-backdrop" @onclick="CloseAvatarLightbox">
+        <button class="avatar-lightbox-close" @onclick="CloseAvatarLightbox" title="Close">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <img src="@AvatarLightboxUrl" alt="Profile picture" class="avatar-lightbox-image" @onclick:stopPropagation="true" />
+    </div>
+}
 
 @* ── MFA disable confirmation (password required) ── *@
 @if (_showMfaConfirm)
@@ -273,6 +307,7 @@
     private bool _isSavingProfile;
     private bool _isSavingPicture;
     private bool _pictureRemoved;
+    private bool _showAvatarLightbox;
 
     private bool _showMfaConfirm;
     private string _mfaPassword = string.Empty;
@@ -545,6 +580,13 @@
     private int _pictureVersion;
     private string AvatarUrl(Guid userId, bool thumb) =>
         $"{Http.BaseAddress}api/UserProfile/{userId}/avatar{(thumb ? "/thumb" : "")}?v={_pictureVersion}";
+
+    private string AvatarLightboxUrl => _isSelf
+        ? AvatarUrl(_myProfile!.Id, thumb: false)
+        : AvatarUrl(_publicProfile!.Id, thumb: false);
+
+    private void OpenAvatarLightbox() => _showAvatarLightbox = true;
+    private void CloseAvatarLightbox() => _showAvatarLightbox = false;
 
     private static string GetInitials(string name)
     {

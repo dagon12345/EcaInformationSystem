@@ -1,4 +1,3 @@
-using System.Globalization;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
@@ -9,6 +8,8 @@ namespace EcaInformationSystem.Application.Services
 {
     public class AnnualGranteeTargetService : IAnnualGranteeTargetService
     {
+        private static readonly string[] QuarterLabels = { "Q1", "Q2", "Q3", "Q4" };
+
         private readonly IAnnualGranteeTargetRepository _repo;
         private readonly IRegionRepository _regionRepo;
         private readonly ILogRepository _logRepo;
@@ -23,21 +24,21 @@ namespace EcaInformationSystem.Application.Services
         public async Task<AnnualTargetComparisonDto> GetComparisonAsync(int regionCode, int fiscalYear)
         {
             var target = await _repo.GetAsync(regionCode, fiscalYear);
-            var paidCounts = await _repo.GetMonthlyPaidCountsAsync(regionCode, fiscalYear);
+            var paidCounts = await _repo.GetQuarterlyPaidCountsAsync(regionCode, fiscalYear);
             var regionName = await ResolveRegionNameAsync(regionCode);
 
-            var monthlyTargets = target?.ToMonthlyArray() ?? new int[12];
+            var quarterlyTargets = target?.ToQuarterlyArray() ?? new int[4];
 
-            var monthly = new List<MonthlyTargetVsActualDto>(12);
-            for (int i = 0; i < 12; i++)
+            var quarterly = new List<QuarterTargetVsActualDto>(4);
+            for (int i = 0; i < 4; i++)
             {
-                var month = i + 1;
-                monthly.Add(new MonthlyTargetVsActualDto
+                var quarter = i + 1;
+                quarterly.Add(new QuarterTargetVsActualDto
                 {
-                    Month = month,
-                    MonthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month),
-                    Target = monthlyTargets[i],
-                    PaidCount = paidCounts.TryGetValue(month, out var count) ? count : 0
+                    Quarter = quarter,
+                    QuarterLabel = QuarterLabels[i],
+                    Target = quarterlyTargets[i],
+                    PaidCount = paidCounts.TryGetValue(quarter, out var count) ? count : 0
                 });
             }
 
@@ -48,8 +49,8 @@ namespace EcaInformationSystem.Application.Services
                 FiscalYear = fiscalYear,
                 HasTarget = target is not null,
                 AnnualTarget = target?.AnnualTotal ?? 0,
-                TotalPaidYtd = monthly.Sum(m => m.PaidCount),
-                Monthly = monthly,
+                TotalPaidYtd = quarterly.Sum(q => q.PaidCount),
+                Quarterly = quarterly,
                 DateSet = target?.DateSet,
                 SetBy = target?.SetBy,
                 DateModified = target?.DateModified,
@@ -57,10 +58,10 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
-        public async Task<AnnualGranteeTargetDto> UpsertAsync(int regionCode, int fiscalYear, int[] monthlyTargets, string userName)
+        public async Task<AnnualGranteeTargetDto> UpsertAsync(int regionCode, int fiscalYear, int[] quarterlyTargets, string userName)
         {
             var existedBefore = await _repo.GetAsync(regionCode, fiscalYear) is not null;
-            var saved = await _repo.UpsertAsync(regionCode, fiscalYear, monthlyTargets, userName);
+            var saved = await _repo.UpsertAsync(regionCode, fiscalYear, quarterlyTargets, userName);
             var regionName = await ResolveRegionNameAsync(regionCode);
 
             await _logRepo.AddAsync(new Log
@@ -79,7 +80,7 @@ namespace EcaInformationSystem.Application.Services
                 RegionCode = saved.RegionCode,
                 RegionName = regionName,
                 FiscalYear = saved.FiscalYear,
-                MonthlyTargets = saved.ToMonthlyArray(),
+                QuarterlyTargets = saved.ToQuarterlyArray(),
                 AnnualTotal = saved.AnnualTotal,
                 DateSet = saved.DateSet,
                 SetBy = saved.SetBy,

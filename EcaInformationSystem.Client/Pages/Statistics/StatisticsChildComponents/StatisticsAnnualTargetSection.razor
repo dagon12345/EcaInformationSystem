@@ -1,9 +1,10 @@
 @* StatisticsAnnualTargetSection.razor — Annual Grantee Target vs actual-paid comparison.
    The target is set per (Region, FiscalYear) by that region's Admin/SuperAdmin, split
-   across 12 months however the PDO organized its rollout. "Paid" here always reflects
-   PaymentHistory.PaymentDate bucketed by calendar month, regardless of the main page's
-   filters — this section intentionally tracks its own fiscal year so it can be checked
-   independently of whatever the rest of the dashboard is currently filtered to. *@
+   across the 4 payroll quarters however the PDO organized its rollout. "Paid" here
+   reflects the stored PayrollQuarter/FiscalYear columns on BeneficiaryPaymentHistory —
+   the same authoritative fields used to filter the rest of the Statistics page — not
+   a PaymentDate-derived calendar bucket, so it always matches whatever quarter/year the
+   payroll was actually run under. *@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @inject HttpClient Http
@@ -67,12 +68,12 @@
                     <div class="dash-stat-card" style="background:#6c757d;">
                         <div class="dash-stat-icon"><i class="bi bi-calendar-range"></i></div>
                         <div class="dash-stat-value">@TargetToDate.ToString("N0")</div>
-                        <div class="dash-stat-label">Target Through @ThroughMonthLabel</div>
+                        <div class="dash-stat-label">Target Through @ThroughQuarterLabel</div>
                     </div>
                     <div class="dash-stat-card dash-stat-card--green">
                         <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
                         <div class="dash-stat-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
-                        <div class="dash-stat-label">Actually Paid Through @ThroughMonthLabel</div>
+                        <div class="dash-stat-label">Actually Paid Through @ThroughQuarterLabel</div>
                     </div>
                     <div class="dash-stat-card @(YtdGapCardClass)">
                         <div class="dash-stat-icon"><i class="bi @(YtdGap >= 0 ? "bi-arrow-up-circle-fill" : "bi-arrow-down-circle-fill")"></i></div>
@@ -96,7 +97,7 @@
                 <p class="text-muted small mb-3">
                     <i class="bi bi-info-circle me-1"></i>
                     "Ahead/Behind Pace" compares grantees actually paid against the target accumulated only
-                    through @ThroughMonthLabel — not the full-year target — so progress reads correctly
+                    through @ThroughQuarterLabel — not the full-year target — so progress reads correctly
                     partway through the year.
                 </p>
 
@@ -104,7 +105,7 @@
                     <table class="table table-sm table-hover mb-0 stat-table">
                         <thead class="table-dark">
                             <tr>
-                                <th>Month</th>
+                                <th>Quarter</th>
                                 <th class="text-end">Target</th>
                                 <th class="text-end">Paid</th>
                                 <th class="text-end">Variance</th>
@@ -112,22 +113,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var m in _comparison.Monthly)
+                            @foreach (var q in _comparison.Quarterly)
                             {
-                                var variance = m.PaidCount - m.Target;
+                                var variance = q.PaidCount - q.Target;
                                 <tr>
-                                    <td class="fw-semibold">@m.MonthName</td>
-                                    <td class="text-end">@m.Target.ToString("N0")</td>
-                                    <td class="text-end">@m.PaidCount.ToString("N0")</td>
+                                    <td class="fw-semibold">@q.QuarterLabel <span class="text-muted small">(@QuarterMonthRange(q.Quarter - 1))</span></td>
+                                    <td class="text-end">@q.Target.ToString("N0")</td>
+                                    <td class="text-end">@q.PaidCount.ToString("N0")</td>
                                     <td class="text-end @(variance > 0 ? "text-success" : variance < 0 ? "text-danger" : "text-muted") fw-semibold">
                                         @(variance > 0 ? "+" : "")@variance.ToString("N0")
                                     </td>
                                     <td class="text-center">
-                                        @if (m.Target == 0)
+                                        @if (q.Target == 0)
                                         {
                                             <span class="badge bg-secondary">No Target Set</span>
                                         }
-                                        else if (m.PaidCount >= m.Target)
+                                        else if (q.PaidCount >= q.Target)
                                         {
                                             <span class="badge bg-success">Met / Exceeded</span>
                                         }
@@ -169,40 +170,29 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">
-                        Split the year's grantee-served target across 12 months however this region has
-                        organized its rollout — the months don't need to be equal.
+                        Split the year's grantee-served target across the 4 payroll quarters however this
+                        region has organized its rollout — the quarters don't need to be equal.
                     </p>
 
-                    @* Running total banner — always visible while scrolling/editing, so the
-                       effect of each keystroke is immediately obvious. *@
+                    @* Running total banner — always visible while editing, so the effect of
+                       each keystroke is immediately obvious. *@
                     <div class="d-flex align-items-center justify-content-between p-2 mb-3 rounded"
                          style="background:#eef2f8; border:1px solid #cfe0f5;">
                         <span class="fw-semibold text-primary"><i class="bi bi-calculator me-1"></i>Annual Total</span>
-                        <span class="fs-5 fw-bold text-primary">@_editMonthly.Sum().ToString("N0")</span>
+                        <span class="fs-5 fw-bold text-primary">@_editQuarterly.Sum().ToString("N0")</span>
                     </div>
 
-                    @for (int q = 0; q < 4; q++)
-                    {
-                        var quarter = q;
-                        var quarterStart = quarter * 3;
-                        <div class="mb-3">
-                            <div class="d-flex align-items-center justify-content-between border-bottom pb-1 mb-2">
-                                <span class="fw-bold text-primary">Q@(quarter + 1) — @QuarterMonthRange(quarter)</span>
-                                <span class="text-muted small">Subtotal: @QuarterSubtotal(quarter).ToString("N0")</span>
+                    <div class="row g-3">
+                        @for (int i = 0; i < 4; i++)
+                        {
+                            var idx = i;
+                            <div class="col-md-3 col-sm-6 col-12">
+                                <label class="form-label small mb-1 fw-semibold">Q@(idx + 1) <span class="text-muted fw-normal">(@QuarterMonthRange(idx))</span></label>
+                                <input type="number" min="0" class="form-control"
+                                       @bind="_editQuarterly[idx]" />
                             </div>
-                            <div class="row g-2">
-                                @for (int i = 0; i < 3; i++)
-                                {
-                                    var idx = quarterStart + i;
-                                    <div class="col-md-4 col-sm-4 col-12">
-                                        <label class="form-label small mb-1">@MonthNames[idx]</label>
-                                        <input type="number" min="0" class="form-control"
-                                               @bind="_editMonthly[idx]" />
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
                 <div class="modal-footer d-flex justify-content-between">
                     <button class="btn btn-outline-danger" @onclick="RequestClearAll">
@@ -258,11 +248,7 @@
 }
 
 @code {
-    private static readonly string[] MonthNames =
-    {
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    };
+    private static readonly string[] QuarterMonthRanges = { "Jan–Mar", "Apr–Jun", "Jul–Sep", "Oct–Dec" };
 
     private int _fiscalYear = DateTime.Now.Year;
     private bool _isLoading = true;
@@ -270,7 +256,7 @@
     private bool _isAdmin;
     private string? _loadError;
     private bool _showEditor;
-    private readonly int[] _editMonthly = new int[12];
+    private readonly int[] _editQuarterly = new int[4];
 
     // "save" or "clear" — null means no confirmation dialog is showing.
     private string? _pendingAction;
@@ -293,28 +279,22 @@
     private int YtdGap => (_comparison?.TotalPaidYtd ?? 0) - TargetToDate;
     private string YtdGapCardClass => YtdGap >= 0 ? "dash-stat-card--green" : "dash-stat-card--red";
 
-    // How many months of this fiscal year have actually elapsed: fully elapsed
-    // for past years, up through the current calendar month for the current
-    // year, and none yet for a future year — comparing "paid so far" against
-    // the WHOLE year's target on day one of January would make every region
-    // look wildly behind, and against a future year's target would look
-    // wildly ahead, so this scopes the target down to only the months that
-    // have actually happened.
-    private int ThroughMonth => _fiscalYear < DateTime.Now.Year ? 12
+    // How many quarters of this fiscal year have actually elapsed: fully
+    // elapsed for past years, up through the current calendar quarter for the
+    // current year, and none yet for a future year — comparing "paid so far"
+    // against the WHOLE year's target on day one of Q1 would make every
+    // region look wildly behind, and against a future year's target would
+    // look wildly ahead, so this scopes the target down to only the quarters
+    // that have actually happened.
+    private int ThroughQuarter => _fiscalYear < DateTime.Now.Year ? 4
         : _fiscalYear > DateTime.Now.Year ? 0
-        : DateTime.Now.Month;
+        : (DateTime.Now.Month - 1) / 3 + 1;
 
-    private string ThroughMonthLabel => ThroughMonth == 0
-        ? "Now"
-        : new DateTime(1, ThroughMonth, 1).ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture);
+    private string ThroughQuarterLabel => ThroughQuarter == 0 ? "Now" : $"Q{ThroughQuarter}";
 
-    private int TargetToDate => _comparison?.Monthly.Where(m => m.Month <= ThroughMonth).Sum(m => m.Target) ?? 0;
+    private int TargetToDate => _comparison?.Quarterly.Where(q => q.Quarter <= ThroughQuarter).Sum(q => q.Target) ?? 0;
 
-    private string QuarterMonthRange(int quarter) =>
-        $"{MonthNames[quarter * 3][..3]}–{MonthNames[quarter * 3 + 2][..3]}";
-
-    private int QuarterSubtotal(int quarter) =>
-        _editMonthly[quarter * 3] + _editMonthly[quarter * 3 + 1] + _editMonthly[quarter * 3 + 2];
+    private static string QuarterMonthRange(int quarterIndex) => QuarterMonthRanges[quarterIndex];
 
     protected override async Task OnInitializedAsync()
     {
@@ -350,8 +330,8 @@
     {
         if (_comparison is not null)
         {
-            for (int i = 0; i < 12; i++)
-                _editMonthly[i] = _comparison.Monthly.FirstOrDefault(m => m.Month == i + 1)?.Target ?? 0;
+            for (int i = 0; i < 4; i++)
+                _editQuarterly[i] = _comparison.Quarterly.FirstOrDefault(q => q.Quarter == i + 1)?.Target ?? 0;
         }
         _showEditor = true;
     }
@@ -361,18 +341,18 @@
     private void RequestClearAll()
     {
         _pendingAction = "clear";
-        _pendingActionTitle = "Clear All Monthly Targets?";
-        _pendingActionMessage = $"This resets all 12 months back to 0 for FY {SelectedFiscalYear}. " +
+        _pendingActionTitle = "Clear All Quarterly Targets?";
+        _pendingActionMessage = $"This resets all 4 quarters back to 0 for FY {SelectedFiscalYear}. " +
             "Nothing is saved yet — you can still Cancel here, or Cancel out of the editor afterward without saving.";
     }
 
     private void RequestSave()
     {
-        var total = _editMonthly.Sum();
+        var total = _editQuarterly.Sum();
         _pendingAction = "save";
         _pendingActionTitle = "Save Annual Grantee Target?";
         _pendingActionMessage = $"You're about to set the FY {SelectedFiscalYear} target for " +
-            $"{_comparison?.RegionName} to {total:N0} grantees for the year, split across the 12 months you entered. " +
+            $"{_comparison?.RegionName} to {total:N0} grantees for the year, split across the 4 quarters you entered. " +
             "This replaces any existing target for this region and year.";
     }
 
@@ -382,7 +362,7 @@
     {
         if (_pendingAction == "clear")
         {
-            for (int i = 0; i < 12; i++) _editMonthly[i] = 0;
+            for (int i = 0; i < 4; i++) _editQuarterly[i] = 0;
             _pendingAction = null;
             return;
         }
@@ -399,7 +379,7 @@
             var dto = new UpsertAnnualGranteeTargetDto
             {
                 FiscalYear = _fiscalYear,
-                MonthlyTargets = _editMonthly.ToArray()
+                QuarterlyTargets = _editQuarterly.ToArray()
             };
 
             var response = await Http.PutAsJsonAsync("api/AnnualGranteeTarget", dto);

@@ -939,6 +939,53 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .OrderBy(q => q.Quarter)
                 .ToList();
 
+            // ── Statistical Report — Applications & Validations by LGU ──────────
+            // "Endorsed" = DateEndorsed is set (same field the page's own "Date
+            // Endorsed" filter above uses). "Validated" = IsCompliant among those
+            // endorsed. Variance is whatever's endorsed but not yet validated, with
+            // that beneficiary's own AssessmentRemarks surfaced as the reason.
+            static bool IsOctoNona(BeneficiaryInformation b)
+            {
+                var age = ComputeAge(b.BirthDate);
+                return age >= 80 && age < 100;
+            }
+            static bool IsCente(BeneficiaryInformation b) => ComputeAge(b.BirthDate) >= 100;
+
+            static string BuildVarianceReasons(IEnumerable<BeneficiaryInformation> notValidated)
+            {
+                var reasons = notValidated
+                    .Select(b => b.AssessmentRemarks)
+                    .Where(r => !string.IsNullOrWhiteSpace(r))
+                    .Distinct()
+                    .ToList();
+                return reasons.Count > 0 ? string.Join("; ", reasons) : "-";
+            }
+
+            report.LguValidationBreakdown = allData
+                .GroupBy(b => new { b.Province, b.Municipality })
+                .Select(g =>
+                {
+                    var provinceName = _psgcNameCache.GetProvinceName(g.Key.Province) ?? g.Key.Province.ToString();
+                    var municipalityName = _psgcNameCache.GetMunicipalityName(g.Key.Municipality) ?? g.Key.Municipality.ToString();
+                    var endorsedOctoNona = g.Where(b => b.DateEndorsed.HasValue && IsOctoNona(b)).ToList();
+                    var endorsedCente = g.Where(b => b.DateEndorsed.HasValue && IsCente(b)).ToList();
+
+                    return new LguValidationStatisticsDto
+                    {
+                        ProvinceName = provinceName,
+                        MunicipalityName = municipalityName,
+                        EndorsedOctoNona = endorsedOctoNona.Count,
+                        EndorsedCente = endorsedCente.Count,
+                        ValidatedOctoNona = endorsedOctoNona.Count(b => b.IsCompliant),
+                        ValidatedCente = endorsedCente.Count(b => b.IsCompliant),
+                        ReasonsOctoNona = BuildVarianceReasons(endorsedOctoNona.Where(b => !b.IsCompliant)),
+                        ReasonsCente = BuildVarianceReasons(endorsedCente.Where(b => !b.IsCompliant))
+                    };
+                })
+                .Where(x => x.EndorsedOctoNona > 0 || x.EndorsedCente > 0)
+                .OrderBy(x => x.ProvinceName).ThenBy(x => x.MunicipalityName)
+                .ToList();
+
             return report;
         }
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(

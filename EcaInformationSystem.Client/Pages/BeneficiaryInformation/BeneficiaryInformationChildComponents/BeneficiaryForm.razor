@@ -2,10 +2,12 @@
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
+@using Microsoft.AspNetCore.Components.Authorization
 @inject HttpClient Http
 @inject ToastService toast
 @inject NavigationManager Navigation
 @inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject BeneficiaryStateService State
 @inject BeneficiaryFindingClientService FindingService
 @inject IJSRuntime JS
@@ -517,7 +519,7 @@
     <BeneficiaryVerificationChecklistSection Checklist="@(model.VerificationChecklist ??= new())"
                                               ChecklistChanged="@(c => model.VerificationChecklist = c)"
                                               IsDeceased="@model.IsDeceased"
-                                              IsAdmin="@_isAdmin"
+                                              IsAdmin="@(_isAdmin || _isPdo)"
                                               IsEligible="@model.IsEligible"
                                               IsEligibleChanged="@(v => { model.IsEligible = v; StateHasChanged(); })"
                                               IsCompliant="@model.IsCompliant"
@@ -1178,6 +1180,19 @@
         _isAdmin = AuthService.IsAdmin();
         _isPdo = AuthService.IsPDO();
         _roleLoaded = true;
+
+        // Default the "Verified By" field to the logged-in user's own name —
+        // only when it's still blank, so an already-recorded verifier (from a
+        // different admin/PDO) is never silently overwritten.
+        if (string.IsNullOrWhiteSpace(model.Validator))
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var fullName = authState.User.FindFirst("FullName")?.Value;
+            if (!string.IsNullOrWhiteSpace(fullName))
+            {
+                model.Validator = fullName;
+            }
+        }
 
         StateHasChanged();
     }

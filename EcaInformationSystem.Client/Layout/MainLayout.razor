@@ -1,6 +1,7 @@
 ﻿@using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Client.Services
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
 @inherits LayoutComponentBase
 @inject AuthService AuthService
 @inject NavigationManager Navigation
@@ -32,34 +33,64 @@
                     </div>
                     <div class="navbar-actions">
 
-                        @* ── Duplicate notification bell ─────────────────────────── *@
-                        <DuplicateNotificationBell @ref="_duplicateBell" />
-                        <ActivityReminderBell @ref="_activityBell" />
-                        <UploadQueueIndicator />
+                        @* ── Single notification bell — duplicates, calendar, uploads ── *@
+                        <UnifiedNotificationBell @ref="_notificationBell" />
 
                         @* ── User info + role badge — click opens a dropdown with
                              View Profile / Logout (logout no longer sits as its
                              own bare icon in the navbar). ────────────────────── *@
                         <div class="dropdown navbar-profile-dropdown me-2">
-                            <button class="btn navbar-profile-toggle dropdown-toggle" type="button"
+                            <button class="btn navbar-profile-toggle dropdown-toggle position-relative" type="button"
                                     data-bs-toggle="dropdown" aria-expanded="false">
-                                <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
-                                    <span style="font-size:12px; color:#6b7280; font-weight:500;">
-                                        @_displayFullName
-                                    </span>
-                                    @if (!string.IsNullOrWhiteSpace(_userRole))
-                                    {
-                                        <span class="badge @GetRoleBadgeClass(_userRole)"
-                                              style="font-size:9px; padding:2px 6px; margin-top:2px;">
-                                            <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
+                                @if (_mfaEnabled == false)
+                                {
+                                    <span class="navbar-profile-mfa-dot" title="Add two-factor authentication to secure your account"></span>
+                                }
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
+                                        <span style="font-size:12px; color:#6b7280; font-weight:500;">
+                                            @_displayFullName
                                         </span>
+                                        @if (!string.IsNullOrWhiteSpace(_userRole))
+                                        {
+                                            <span class="badge @GetRoleBadgeClass(_userRole)"
+                                                  style="font-size:9px; padding:2px 6px; margin-top:2px;">
+                                                <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
+                                            </span>
+                                        }
+                                    </div>
+                                    @if (_currentUserId.HasValue)
+                                    {
+                                        <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-avatar avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                        <div class="navbar-profile-avatar" style="display:none;">@GetInitials(_displayFullName)</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="navbar-profile-avatar">@GetInitials(_displayFullName)</div>
                                     }
                                 </div>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li>
-                                    <a class="dropdown-item" href="/profile">
-                                        <i class="bi bi-person-circle me-2"></i>View Profile
+                                    <a class="dropdown-item d-flex align-items-center" href="/profile">
+                                        @if (_currentUserId.HasValue)
+                                        {
+                                            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-menu-avatar avatar-img me-2"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="navbar-profile-menu-avatar me-2" style="display:none;">@GetInitials(_displayFullName)</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="navbar-profile-menu-avatar me-2">@GetInitials(_displayFullName)</div>
+                                        }
+                                        View Profile
+                                        @if (_mfaEnabled == false)
+                                        {
+                                            <span class="badge bg-danger ms-2" style="font-size:9px;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure account
+                                            </span>
+                                        }
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider" /></li>
@@ -132,7 +163,6 @@
 </AuthorizeView>
 
 @code {
-    private ActivityReminderBell? _activityBell;
     private bool collapsed = false;
     private bool mobileOpen = false;
     private string userName = string.Empty;
@@ -143,8 +173,10 @@
     private string _permissionMessage = string.Empty;
     private string _bannerType = "error";
     private System.Threading.CancellationTokenSource? _bannerCts;
-    private DuplicateNotificationBell? _duplicateBell;
+    private UnifiedNotificationBell? _notificationBell;
     private bool _showLogoutConfirm;
+    private bool? _mfaEnabled; // null = not checked yet
+    private Guid? _currentUserId;
 
     public static MainLayout? Current { get; private set; }
 
@@ -188,6 +220,7 @@
             userName = user.Identity.Name ?? "User";
             var fullName = user.FindFirst("FullName")?.Value;
             _displayFullName = !string.IsNullOrWhiteSpace(fullName) ? fullName : userName;
+            _currentUserId = Guid.TryParse(user.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
 
             if (!ChatClientService.IsConnected)
             {
@@ -207,6 +240,8 @@
             // no notification permissions to request and no chat audio to prime.
             await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
             await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission");
+
+            await LoadMfaStatusAsync();
         }
 
         StateHasChanged();
@@ -285,8 +320,7 @@
         UpdateCurrentPage(e.Location);
         DismissBanner();
         mobileOpen = false;
-        _duplicateBell?.CloseDropdown();
-        _activityBell?.CloseDropdown();
+        _notificationBell?.CloseDropdown();
         InvokeAsync(StateHasChanged);
     }
 
@@ -319,6 +353,38 @@
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
         Navigation.NavigateTo("/login", true);
+    }
+
+    // Surfaced as a red dot on the profile entry instead of a separate Feed
+    // banner — one place, one action: open the profile and set it up there.
+    private async Task LoadMfaStatusAsync()
+    {
+        try
+        {
+            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
+            _mfaEnabled = status?.IsMfaEnabled ?? true;
+        }
+        catch
+        {
+            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
+        }
+    }
+
+    private class MfaStatusResponse
+    {
+        public bool IsMfaEnabled { get; set; }
+    }
+
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
     }
 
     public void Dispose()

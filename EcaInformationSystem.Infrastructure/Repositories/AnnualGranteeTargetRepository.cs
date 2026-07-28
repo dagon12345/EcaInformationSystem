@@ -21,7 +21,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .FirstOrDefaultAsync(t => t.RegionCode == regionCode && t.FiscalYear == fiscalYear);
         }
 
-        public async Task<AnnualGranteeTarget> UpsertAsync(int regionCode, int fiscalYear, int[] monthlyTargets, string userName)
+        public async Task<AnnualGranteeTarget> UpsertAsync(int regionCode, int fiscalYear, int[] quarterlyTargets, string userName)
         {
             var existing = await _context.AnnualGranteeTargets
                 .FirstOrDefaultAsync(t => t.RegionCode == regionCode && t.FiscalYear == fiscalYear);
@@ -36,12 +36,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DateSet = DateTime.UtcNow,
                     SetBy = userName
                 };
-                existing.SetMonthlyTargets(monthlyTargets);
+                existing.SetQuarterlyTargets(quarterlyTargets);
                 await _context.AnnualGranteeTargets.AddAsync(existing);
             }
             else
             {
-                existing.SetMonthlyTargets(monthlyTargets);
+                existing.SetQuarterlyTargets(quarterlyTargets);
                 existing.DateModified = DateTime.UtcNow;
                 existing.ModifiedBy = userName;
             }
@@ -50,20 +50,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             return existing;
         }
 
-        public async Task<Dictionary<int, int>> GetMonthlyPaidCountsAsync(int regionCode, int fiscalYear)
+        // Grouped by the stored PayrollQuarter/FiscalYear columns on the payment
+        // history row itself — not by bucketing PaymentDate into a calendar
+        // quarter — so this always matches whatever quarter/year the payroll
+        // was actually run under, same as the rest of the Statistics page.
+        public async Task<Dictionary<int, int>> GetQuarterlyPaidCountsAsync(int regionCode, int fiscalYear)
         {
             var counts = await _context.BeneficiaryPaymentHistories
                 .AsNoTracking()
                 .Where(h => h.PaymentStatus == 2
-                    && h.PaymentDate.HasValue
-                    && h.PaymentDate.Value.Year == fiscalYear
+                    && h.PayrollQuarter.HasValue
+                    && h.FiscalYear == fiscalYear
                     && h.Beneficiary!.Region == regionCode
                     && !h.Beneficiary.IsDeleted)
-                .GroupBy(h => h.PaymentDate!.Value.Month)
-                .Select(g => new { Month = g.Key, Count = g.Select(h => h.BeneficiaryInformationId).Distinct().Count() })
+                .GroupBy(h => h.PayrollQuarter!.Value)
+                .Select(g => new { Quarter = g.Key, Count = g.Select(h => h.BeneficiaryInformationId).Distinct().Count() })
                 .ToListAsync();
 
-            return counts.ToDictionary(x => x.Month, x => x.Count);
+            return counts.ToDictionary(x => x.Quarter, x => x.Count);
         }
     }
 }

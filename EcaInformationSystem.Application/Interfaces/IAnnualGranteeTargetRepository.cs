@@ -6,11 +6,12 @@ namespace EcaInformationSystem.Application.Interfaces
     {
         Task<AnnualGranteeTarget?> GetAsync(int regionCode, int fiscalYear);
 
-        Task<AnnualGranteeTarget> UpsertAsync(int regionCode, int fiscalYear, int[] monthlyTargets, string userName);
+        Task<AnnualGranteeTarget> UpsertAsync(int regionCode, int fiscalYear, int[] quarterlyTargets, string userName);
 
-        // Key = calendar month (1-12) of PaymentHistory.PaymentDate, value = count of
-        // DISTINCT beneficiaries paid that month, scoped to the given region/year.
-        // Months with zero paid grantees are simply absent from the dictionary.
-        Task<Dictionary<int, int>> GetMonthlyPaidCountsAsync(int regionCode, int fiscalYear);
+        // Key = payroll quarter (1-4, the stored BeneficiaryPaymentHistory.PayrollQuarter
+        // column — not derived from PaymentDate), value = count of DISTINCT beneficiaries
+        // paid in that quarter, scoped to the given region/fiscal year. Quarters with zero
+        // paid grantees are simply absent from the dictionary.
+        Task<Dictionary<int, int>> GetQuarterlyPaidCountsAsync(int regionCode, int fiscalYear);
     }
 }

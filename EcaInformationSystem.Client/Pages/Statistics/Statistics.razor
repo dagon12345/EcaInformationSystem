@@ -533,6 +533,85 @@
                 }
             </div>
         }
+
+        @* ── Statistical Report — Applications & Validations by LGU ──────── *@
+        @if (_report.LguValidationBreakdown.Any())
+        {
+            <div class="sys-card mt-3">
+                <div class="sys-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-clipboard2-check-fill me-2"></i>Statistical Report — Applications and Validations</span>
+                    <span class="badge bg-light text-dark">@_report.LguValidationBreakdown.Count LGUs</span>
+                </div>
+                <p class="text-muted small px-3 pt-2 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Endorsed</strong> = has a Date Endorsed on record. <strong>Validated</strong> = marked
+                    Compliant in the Verification Checklist. <strong>Variance</strong> is endorsed grantees not yet
+                    validated.
+                </p>
+                <div class="sys-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0 stat-table lgu-report-table">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th rowspan="2" class="align-middle">Name of LGU</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Endorsed by the LGU</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Validated Grantees</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Variance</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var provinceGroup in _report.LguValidationBreakdown.GroupBy(x => x.ProvinceName))
+                                {
+                                    <tr class="lgu-province-header">
+                                        <td colspan="7"><i class="bi bi-map me-1"></i>@provinceGroup.Key</td>
+                                    </tr>
+                                    @foreach (var lgu in provinceGroup)
+                                    {
+                                        <tr>
+                                            <td class="ps-4">@lgu.MunicipalityName</td>
+                                            <td class="text-center lgu-group-start">@lgu.EndorsedOctoNona</td>
+                                            <td class="text-center">@lgu.EndorsedCente</td>
+                                            <td class="text-center lgu-group-start">@lgu.ValidatedOctoNona</td>
+                                            <td class="text-center">@lgu.ValidatedCente</td>
+                                            <td class="text-center lgu-group-start @(lgu.VarianceOctoNona > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceOctoNona</td>
+                                            <td class="text-center @(lgu.VarianceCente > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceCente</td>
+                                        </tr>
+                                    }
+                                    <tr class="lgu-province-subtotal">
+                                        <td class="ps-4 fst-italic">Subtotal — @provinceGroup.Key</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.EndorsedOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.EndorsedCente)</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.ValidatedOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.ValidatedCente)</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.VarianceOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.VarianceCente)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-secondary fw-bold">
+                                <tr>
+                                    <td>TOTAL</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.EndorsedOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.EndorsedCente)</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.ValidatedOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.ValidatedCente)</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.VarianceOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.VarianceCente)</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
     }
 </div>
 @code {
@@ -822,6 +901,7 @@
         public List<ProvinceStatisticsDto> ProvinceBreakdowns { get; set; } = new();
         public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
         public List<MilestoneYearSummaryDto> MilestoneYearSummary { get; set; } = new();
+        public List<LguValidationStatisticsDto> LguValidationBreakdown { get; set; } = new(); // ✅ new
     }
 
     public class MilestoneYearSummaryDto
@@ -880,5 +960,20 @@
         public int Count { get; set; }
         public int PaidCount { get; set; }
         public decimal TotalDisbursement { get; set; }
+    }
+
+    // ✅ new — "Statistical Report": Applications & Validations by LGU
+    public class LguValidationStatisticsDto
+    {
+        public string ProvinceName { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+        public int EndorsedOctoNona { get; set; }
+        public int EndorsedCente { get; set; }
+        public int ValidatedOctoNona { get; set; }
+        public int ValidatedCente { get; set; }
+        public int VarianceOctoNona { get; set; }
+        public int VarianceCente { get; set; }
+        public string ReasonsOctoNona { get; set; } = "-";
+        public string ReasonsCente { get; set; } = "-";
     }
 }

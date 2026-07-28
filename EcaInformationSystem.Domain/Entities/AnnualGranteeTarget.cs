@@ -3,8 +3,9 @@ using System.ComponentModel.DataAnnotations;
 namespace EcaInformationSystem.Domain.Entities
 {
     // One row per (RegionCode, FiscalYear) — the PDO admin/super admin for that
-    // region sets an annual grantee-served target here, split across 12 months
-    // however the region has organized its rollout (not necessarily even).
+    // region sets an annual grantee-served target here, split across the 4
+    // payroll quarters however the region has organized its rollout (not
+    // necessarily even).
     public class AnnualGranteeTarget
     {
         public Guid Id { get; set; }
@@ -12,18 +13,10 @@ namespace EcaInformationSystem.Domain.Entities
         public int RegionCode { get; set; }
         public int FiscalYear { get; set; }
 
-        public int JanTarget { get; set; }
-        public int FebTarget { get; set; }
-        public int MarTarget { get; set; }
-        public int AprTarget { get; set; }
-        public int MayTarget { get; set; }
-        public int JunTarget { get; set; }
-        public int JulTarget { get; set; }
-        public int AugTarget { get; set; }
-        public int SepTarget { get; set; }
-        public int OctTarget { get; set; }
-        public int NovTarget { get; set; }
-        public int DecTarget { get; set; }
+        public int Q1Target { get; set; }
+        public int Q2Target { get; set; }
+        public int Q3Target { get; set; }
+        public int Q4Target { get; set; }
 
         public DateTime DateSet { get; set; }
         public string SetBy { get; set; } = string.Empty;
@@ -33,30 +26,16 @@ namespace EcaInformationSystem.Domain.Entities
         [Timestamp]
         public byte[] RowVersion { get; set; } = default!;
 
-        public int AnnualTotal =>
-            JanTarget + FebTarget + MarTarget + AprTarget + MayTarget + JunTarget +
-            JulTarget + AugTarget + SepTarget + OctTarget + NovTarget + DecTarget;
+        public int AnnualTotal => Q1Target + Q2Target + Q3Target + Q4Target;
 
-        public int[] ToMonthlyArray() => new[]
-        {
-            JanTarget, FebTarget, MarTarget, AprTarget, MayTarget, JunTarget,
-            JulTarget, AugTarget, SepTarget, OctTarget, NovTarget, DecTarget
-        };
+        public int[] ToQuarterlyArray() => new[] { Q1Target, Q2Target, Q3Target, Q4Target };
 
-        public void SetMonthlyTargets(int[] monthly)
+        public void SetQuarterlyTargets(int[] quarterly)
         {
-            JanTarget = monthly[0];
-            FebTarget = monthly[1];
-            MarTarget = monthly[2];
-            AprTarget = monthly[3];
-            MayTarget = monthly[4];
-            JunTarget = monthly[5];
-            JulTarget = monthly[6];
-            AugTarget = monthly[7];
-            SepTarget = monthly[8];
-            OctTarget = monthly[9];
-            NovTarget = monthly[10];
-            DecTarget = monthly[11];
+            Q1Target = quarterly[0];
+            Q2Target = quarterly[1];
+            Q3Target = quarterly[2];
+            Q4Target = quarterly[3];
         }
     }
 }

@@ -22,6 +22,29 @@
         public List<MunicipalityStatisticsDto> MunicipalityBreakdowns { get; set; } = new();
         public List<MilestoneYearSummaryDto> MilestoneYearSummary { get; set; } = new();
         public Dictionary<int, int> FiscalYearBreakdown { get; set; } = new();
+        public List<LguValidationStatisticsDto> LguValidationBreakdown { get; set; } = new();
+    }
+
+    // "Statistical Report" breakdown — Applications and Validations by LGU, split into
+    // the Octogenarian/Nonagenarian bracket (80-99) and Centenarian bracket (100+),
+    // matching the printed Annex report layout. "Endorsed" = DateEndorsed is set;
+    // "Validated" = IsCompliant is true among those endorsed; "Variance" is whatever's
+    // endorsed but not yet validated.
+    public class LguValidationStatisticsDto
+    {
+        public string ProvinceName { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+
+        public int EndorsedOctoNona { get; set; }
+        public int EndorsedCente { get; set; }
+        public int ValidatedOctoNona { get; set; }
+        public int ValidatedCente { get; set; }
+
+        public int VarianceOctoNona => EndorsedOctoNona - ValidatedOctoNona;
+        public int VarianceCente => EndorsedCente - ValidatedCente;
+
+        public string ReasonsOctoNona { get; set; } = "-";
+        public string ReasonsCente { get; set; } = "-";
     }
     public class PayrollQuarterStatisticsDto
     {
