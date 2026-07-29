@@ -22,5 +22,13 @@ window.feedInterop = {
             x: (clientX - rect.left) / scale,
             y: (clientY - rect.top) / scale
         };
+    },
+    // Backs the sticky-note bullet/checklist toolbar — reads the current
+    // text selection range from a <textarea> so the C# side can figure out
+    // which lines to prefix, same idea as Word's "apply to selected lines".
+    getTextareaSelection: function (elementId) {
+        const el = document.getElementById(elementId);
+        if (!el) return { start: 0, end: 0 };
+        return { start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 };
     }
 };

@@ -135,10 +135,14 @@
                 @* ── VIEW 3: Room list ────────────────────────────────────── *@
                 <div class="chat-panel-header">
                     <strong class="flex-grow-1">Messages</strong>
-                    <button class="btn-new-chat" title="Jump to mentions" @onclick="OpenMentionsList">
+                    <button class="btn-new-chat btn-mentions" title="Jump to mentions" @onclick="OpenMentionsList">
                         <i class="bi bi-at"></i>
+                        @if (ChatState.UnreadMentionCount > 0)
+                        {
+                            <span class="btn-icon-badge">@(ChatState.UnreadMentionCount > 99 ? "99+" : ChatState.UnreadMentionCount.ToString())</span>
+                        }
                     </button>
-                    <button class="btn-new-chat" title="Start a new conversation" @onclick="OpenUserPicker">
+                    <button class="btn-new-chat btn-compose" title="Compose new message" @onclick="OpenUserPicker">
                         <i class="bi bi-plus-lg"></i>
                     </button>
                 </div>
@@ -152,13 +156,26 @@
                     @foreach (var room in ChatState.Rooms)
                     {
                         <div class="chat-room-item" @onclick="() => SelectRoomAsync(room)">
-                            <div class="chat-room-icon @GetRoomIconClass(room.Type)">
-                                <i class="bi @GetRoomIcon(room.Type)"></i>
-                                @if (room.Type == "Direct" && room.OtherUserId.HasValue && ChatState.IsUserOnline(room.OtherUserId.Value))
-                                {
-                                    <span class="chat-presence-dot-badge online"></span>
-                                }
-                            </div>
+                            @if (room.Type == "Direct" && room.OtherUserId.HasValue)
+                            {
+                                <div class="chat-room-icon chat-room-icon--avatar avatar-preview-trigger">
+                                    <img src="@AvatarUrl(room.OtherUserId.Value)" alt="" class="chat-room-avatar-img"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                    <span class="chat-room-avatar-fallback" style="display:none;">@GetInitials(room.DisplayName)</span>
+                                    @if (ChatState.IsUserOnline(room.OtherUserId.Value))
+                                    {
+                                        <span class="chat-presence-dot-badge online"></span>
+                                    }
+                                    <img src="@AvatarUrl(room.OtherUserId.Value)" alt="" class="avatar-preview-popup"
+                                         onerror="this.style.display='none';" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="chat-room-icon @GetRoomIconClass(room.Type)">
+                                    <i class="bi @GetRoomIcon(room.Type)"></i>
+                                </div>
+                            }
                             <div class="chat-room-info">
                                 <div class="chat-room-name">@room.DisplayName</div>
                                 @if (!string.IsNullOrWhiteSpace(room.LastMessagePreview))
@@ -189,8 +206,27 @@
                     <button class="btn-back" @onclick="ChatState.ReturnToRoomList">
                         <i class="bi bi-arrow-left"></i>
                     </button>
+                    @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
+                    {
+                        <a href="@($"/profile/{ChatState.ActiveRoom.OtherUserId.Value}")" class="chat-header-avatar-link avatar-preview-trigger" title="View profile">
+                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" alt="" class="chat-header-avatar avatar-img"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <span class="chat-header-avatar chat-header-avatar-fallback" style="display:none;">@GetInitials(ChatState.ActiveRoom.DisplayName)</span>
+                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" alt="" class="avatar-preview-popup"
+                                 onerror="this.style.display='none';" />
+                        </a>
+                    }
                     <div class="flex-grow-1 overflow-hidden">
-                        <strong class="text-truncate d-block">@ChatState.ActiveRoom.DisplayName</strong>
+                        @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
+                        {
+                            <a href="@($"/profile/{ChatState.ActiveRoom.OtherUserId.Value}")" class="chat-sender-link" title="View profile">
+                                <strong class="text-truncate d-block">@ChatState.ActiveRoom.DisplayName</strong>
+                            </a>
+                        }
+                        else
+                        {
+                            <strong class="text-truncate d-block">@ChatState.ActiveRoom.DisplayName</strong>
+                        }
                         @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
                         {
                             <small class="chat-header-presence">
@@ -294,6 +330,7 @@
 
         await ChatState.LoadRoomsAsync();
         await ChatState.LoadOnlineUsersAsync();
+        await ChatState.RefreshUnreadMentionCountAsync();
     }
     private async Task OpenDeleteConfirmModal(Guid roomId)
     {
@@ -445,6 +482,18 @@
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
 
     private static string GetRoomIcon(string type) => type switch
     {

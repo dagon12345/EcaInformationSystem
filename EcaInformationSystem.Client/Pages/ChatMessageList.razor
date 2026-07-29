@@ -46,14 +46,16 @@
 
             @if (message.SenderId != CurrentUserId)
             {
-                <div class="chat-message-sender">
-                    <a href="@($"/profile/{message.SenderId}")" class="chat-avatar-link" title="View profile">
+                <a href="@($"/profile/{message.SenderId}")" class="chat-message-sender chat-sender-link" title="View profile" @onclick:stopPropagation="true">
+                    <span class="avatar-preview-trigger">
                         <img src="@AvatarUrl(message.SenderId)" alt="" class="chat-message-avatar avatar-img"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
                         <span class="chat-message-avatar" style="display:none;">@GetInitials(message.SenderName)</span>
-                    </a>
+                        <img src="@AvatarUrl(message.SenderId)" alt="" class="avatar-preview-popup"
+                             onerror="this.style.display='none';" />
+                    </span>
                     @message.SenderName
-                </div>
+                </a>
             }
 
             @if (message.IsDeleted)
@@ -653,6 +655,26 @@
 
         // ✅ Escape FIRST — everything starts as safe, inert text
         var escaped = System.Net.WebUtility.HtmlEncode(content);
+
+        // ✅ Bold @mentions using the message's own structured Mentions list —
+        // only text that's an actual recognized mention gets bolded, never
+        // just any "@word" the sender happened to type. Matched against the
+        // already-escaped text/names so nothing here can reopen the HTML
+        // encoding that was just applied above.
+        var mentionNames = message.Mentions
+            .Select(m => m.IsEveryoneMention ? "everyone" : m.MentionedUserName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in mentionNames)
+        {
+            var encodedName = System.Net.WebUtility.HtmlEncode(name);
+            var pattern = "@" + System.Text.RegularExpressions.Regex.Escape(encodedName);
+            escaped = System.Text.RegularExpressions.Regex.Replace(
+                escaped, pattern,
+                $"<strong class=\"chat-mention-tag\">@{encodedName}</strong>",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
 
         // ✅ THEN replace URL matches with real anchor tags. Since we matched
         // against the escaped string, any "<" or ">" a user typed is already

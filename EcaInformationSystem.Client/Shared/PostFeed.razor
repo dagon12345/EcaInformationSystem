@@ -485,24 +485,16 @@
                     </div>
                 }
             </div>
-        </div>
+        </div> 
 
         <div class="sticky-notes-widget" @onclick:stopPropagation="true">
             <div class="notes-widget-header notes-widget-header--clickable" @onclick="() => _notesExpanded = !_notesExpanded">
                 <div class="notes-widget-title"><i class="bi bi-stickies-fill"></i><span>My Sticky Notes</span></div>
                 <div class="notes-widget-header-actions">
                     <div class="notes-widget-add-wrap" @onclick:stopPropagation="true">
-                        <button class="notes-add-btn" @onclick="() => _showAddMenu = !_showAddMenu" title="New note">
+                        <button class="notes-add-btn" @onclick="OpenCreateNote" title="New note">
                             <i class="bi bi-plus-lg"></i>
                         </button>
-                        @if (_showAddMenu)
-                        {
-                            <div class="notes-add-backdrop" @onclick="() => _showAddMenu = false"></div>
-                            <div class="notes-add-menu">
-                                <button @onclick='() => OpenCreateNote("Note")'><i class="bi bi-file-earmark-text"></i> Note</button>
-                                <button @onclick='() => OpenCreateNote("Checklist")'><i class="bi bi-check2-square"></i> Checklist</button>
-                            </div>
-                        }
                     </div>
                     <i class="bi @(_notesExpanded ? "bi-chevron-up" : "bi-chevron-down") notes-widget-chevron"></i>
                 </div>
@@ -512,11 +504,6 @@
                 <div class="notes-widget-filters">
                     <input type="text" class="notes-search-input" placeholder="Search notes..."
                            value="@_notesSearchTerm" @oninput="e => _notesSearchTerm = e.Value?.ToString() ?? string.Empty" />
-                    <select class="notes-filter-select" @bind="_notesFilterType">
-                        <option value="All">All</option>
-                        <option value="Note">Notes</option>
-                        <option value="Checklist">Checklists</option>
-                    </select>
                 </div>
 
                 <div class="notes-widget-list">
@@ -535,16 +522,10 @@
                     {
                         @foreach (var note in FilteredNotes)
                         {
-                                <div class="sticky-note-card sticky-note--@note.Color">
+                                <div class="sticky-note-card sticky-note--@note.Color sticky-note-card--clickable" @onclick="() => OpenEditNote(note)">
                                     <div class="sticky-note-top">
                                         <div class="sticky-note-title text-truncate" title="@note.Title">@note.Title</div>
-                                        <div class="sticky-note-actions">
-                                            <button class="sticky-note-icon-btn" title="View full details" @onclick="() => OpenViewNote(note)">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="sticky-note-icon-btn" title="Edit" @onclick="() => OpenEditNote(note)">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
+                                        <div class="sticky-note-actions" @onclick:stopPropagation="true">
                                             @if (_confirmDeleteNoteId == note.Id)
                                             {
                                                 <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Confirm delete" @onclick="() => ConfirmDeleteNoteAsync(note.Id)">
@@ -563,25 +544,29 @@
                                         </div>
                                     </div>
 
-                                    @if (note.Type == "Checklist")
+                                    @{ var noteLines = ParseNoteLines(note.Content); }
+                                    @if (noteLines.Count > 0)
                                     {
-                                        <div class="sticky-note-checklist">
-                                            @foreach (var (item, idx) in note.ChecklistItems.Select((it, i) => (it, i)).Take(6))
+                                        <div class="sticky-note-lines">
+                                            @foreach (var line in noteLines)
                                             {
-                                                <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
-                                                    <input type="checkbox" checked="@item.IsChecked" @onchange="() => ToggleChecklistItemAsync(note, idx)" />
-                                                    <span>@item.Text</span>
-                                                </label>
-                                            }
-                                            @if (note.ChecklistItems.Count > 6)
-                                            {
-                                                <div class="sticky-note-more">+@(note.ChecklistItems.Count - 6) more</div>
+                                                @if (line.Kind == NoteLineKind.Checklist)
+                                                {
+                                                    <label class="sticky-note-checklist-item @(line.Checked ? "sticky-note-checklist-item--done" : "")" @onclick:stopPropagation="true">
+                                                        <input type="checkbox" checked="@line.Checked" @onchange="() => ToggleContentChecklistLineAsync(note, line.LineIndex)" />
+                                                        <span>@line.Text</span>
+                                                    </label>
+                                                }
+                                                else if (line.Kind == NoteLineKind.Bullet)
+                                                {
+                                                    <div class="sticky-note-bullet-item">@line.Text</div>
+                                                }
+                                                else
+                                                {
+                                                    <p class="sticky-note-content-line">@line.Text</p>
+                                                }
                                             }
                                         </div>
-                                    }
-                                    else if (!string.IsNullOrWhiteSpace(note.Content))
-                                    {
-                                        <p class="sticky-note-content">@note.Content</p>
                                     }
 
                                     <div class="sticky-note-time">@GetRelativeNoteTime(note)</div>
@@ -667,7 +652,7 @@
     <div class="modal-backdrop-custom" @onclick="RequestCloseNoteModal">
     <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
         <div class="modal-panel-header">
-            <strong>@(_noteDraft.Id.HasValue ? "Edit" : "New") @(_noteDraft.Type == "Checklist" ? "Checklist" : "Note")</strong>
+            <strong>@(_noteDraft.Id.HasValue ? "Edit" : "New") Note</strong>
             <button class="btn-close" @onclick="RequestCloseNoteModal"></button>
         </div>
 
@@ -676,36 +661,24 @@
             <input class="form-control" @bind="_noteDraft.Title" maxlength="150" placeholder="e.g. Payroll follow-ups" />
         </div>
 
-        @if (_noteDraft.Type == "Checklist")
-        {
-            <label class="form-label small fw-bold">Items</label>
-            <div class="note-checklist-editor">
-                @for (int i = 0; i < _noteDraft.ChecklistItems.Count; i++)
-                {
-                    var idx = i;
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <input type="checkbox" checked="@_noteDraft.ChecklistItems[idx].IsChecked"
-                               @onchange="e => _noteDraft.ChecklistItems[idx].IsChecked = (bool)(e.Value ?? false)" />
-                        <input class="form-control form-control-sm" placeholder="Item text"
-                               @bind="_noteDraft.ChecklistItems[idx].Text" maxlength="200" />
-                        <button class="btn btn-sm btn-outline-secondary" title="Remove item"
-                                @onclick="() => RemoveChecklistItem(idx)" disabled="@(_noteDraft.ChecklistItems.Count <= 1)">
-                            <i class="bi bi-x"></i>
-                        </button>
-                    </div>
-                }
+        <div class="mb-2">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label small fw-bold mb-0">Content</label>
+                <div class="note-format-toolbar">
+                    <button type="button" class="note-format-btn" title="Bullet list — select lines first"
+                            @onclick='() => ToggleLineFormatAsync("- ")'>
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                    <button type="button" class="note-format-btn" title="Checklist — select lines first"
+                            @onclick='() => ToggleLineFormatAsync("- [ ] ")'>
+                        <i class="bi bi-check2-square"></i>
+                    </button>
+                </div>
             </div>
-            <button class="btn btn-sm btn-outline-primary" @onclick="AddChecklistItem">
-                <i class="bi bi-plus-lg me-1"></i>Add item
-            </button>
-        }
-        else
-        {
-            <div class="mb-2">
-                <label class="form-label small fw-bold">Content</label>
-                <textarea class="form-control" rows="5" maxlength="4000" @bind="_noteDraft.Content" placeholder="Write your note..."></textarea>
-            </div>
-        }
+            <textarea id="@_noteContentTextareaId" class="form-control" rows="6" maxlength="4000"
+                      @bind="_noteDraft.Content" placeholder="Write your note — select a line and click the bullet/checklist button above to format it..."></textarea>
+            <div class="note-format-hint">Select one or more lines, then click a button above to turn them into a bullet or checklist item. Click again to undo.</div>
+        </div>
 
         <div class="mt-3">
             <label class="form-label small fw-bold d-block">Color</label>
@@ -730,7 +703,7 @@
             <div class="discard-confirm-overlay" @onclick:stopPropagation="true">
                 <div class="discard-confirm-box">
                     <div class="fw-semibold mb-1">Discard unsaved changes?</div>
-                    <p class="text-muted small mb-2">Your @(_noteDraft.Type == "Checklist" ? "checklist" : "note") hasn't been saved.</p>
+                    <p class="text-muted small mb-2">Your note hasn't been saved.</p>
                     <div class="d-flex justify-content-end gap-2">
                         <button class="btn btn-sm btn-outline-secondary" @onclick="CancelNoteDiscard">Keep editing</button>
                         <button class="btn btn-sm btn-danger" @onclick="ConfirmNoteDiscard">Discard</button>
@@ -739,46 +712,6 @@
             </div>
         }
     </div>
-    </div>
-}
-
-@if (_viewNote is not null)
-{
-    <div class="modal-backdrop-custom" @onclick="CloseViewNote">
-        <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
-            <div class="modal-panel-header">
-                <strong>@_viewNote.Title</strong>
-                <button class="btn-close" @onclick="CloseViewNote"></button>
-            </div>
-
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="note-color-swatch note-color-swatch--@_viewNote.Color" style="width:16px; height:16px;"></span>
-                <span class="text-muted" style="font-size:12.5px;">@_viewNote.Type</span>
-            </div>
-
-            @if (_viewNote.Type == "Checklist")
-            {
-                <div class="sticky-note-checklist mb-2">
-                    @foreach (var item in _viewNote.ChecklistItems)
-                    {
-                        <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
-                            <input type="checkbox" checked="@item.IsChecked" disabled />
-                            <span>@item.Text</span>
-                        </label>
-                    }
-                </div>
-            }
-            else if (!string.IsNullOrWhiteSpace(_viewNote.Content))
-            {
-                <p class="mb-2" style="font-size:13px; color:#374151; white-space:pre-wrap;">@_viewNote.Content</p>
-            }
-            else
-            {
-                <p class="text-muted small mb-2">No content.</p>
-            }
-
-            <div class="sticky-note-time">@GetRelativeNoteTime(_viewNote)</div>
-        </div>
     </div>
 }
 
@@ -918,23 +851,58 @@
 
     private List<StickyNoteDto> _notes = new();
     private bool _notesLoading;
-    private string _notesFilterType = "All";
     private string _notesSearchTerm = string.Empty;
-    private bool _showAddMenu;
     private bool _showNoteModal;
     private bool _isSavingNote;
     private StickyNoteUpsertDto _noteDraft = new();
     private string _noteOpenSnapshot = string.Empty;
     private bool _showNoteDiscardConfirm;
     private Guid? _confirmDeleteNoteId;
-    private StickyNoteDto? _viewNote;
+    private readonly string _noteContentTextareaId = $"note-content-{Guid.NewGuid():N}";
+
+    // ── Inline bullet/checklist formatting — a note is just plain text;
+    // "- text" renders as a bullet and "- [ ] text" / "- [x] text" renders as
+    // a checkable checklist item, same idea as a Word "apply to selection"
+    // toggle instead of a separate note type. ──────────────────────────────
+    private enum NoteLineKind { Plain, Bullet, Checklist }
+    private record NoteLine(int LineIndex, NoteLineKind Kind, bool Checked, string Text);
+
+    private static readonly System.Text.RegularExpressions.Regex ChecklistLineRegex =
+        new(@"^- \[( |x|X)\] (.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static List<NoteLine> ParseNoteLines(string? content)
+    {
+        var result = new List<NoteLine>();
+        if (string.IsNullOrWhiteSpace(content)) return result;
+
+        var rawLines = content.Replace("\r\n", "\n").Split('\n');
+        for (int i = 0; i < rawLines.Length; i++)
+        {
+            var line = rawLines[i];
+            if (line.Length == 0) continue;
+
+            var checklistMatch = ChecklistLineRegex.Match(line);
+            if (checklistMatch.Success)
+            {
+                var isChecked = checklistMatch.Groups[1].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+                result.Add(new NoteLine(i, NoteLineKind.Checklist, isChecked, checklistMatch.Groups[2].Value));
+            }
+            else if (line.StartsWith("- "))
+            {
+                result.Add(new NoteLine(i, NoteLineKind.Bullet, false, line[2..]));
+            }
+            else
+            {
+                result.Add(new NoteLine(i, NoteLineKind.Plain, false, line));
+            }
+        }
+        return result;
+    }
 
     private IEnumerable<StickyNoteDto> FilteredNotes => _notes.Where(n =>
-        (_notesFilterType == "All" || n.Type == _notesFilterType) &&
-        (string.IsNullOrWhiteSpace(_notesSearchTerm) ||
-            n.Title.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ||
-            (n.Content?.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
-            n.ChecklistItems.Any(i => i.Text.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase))));
+        string.IsNullOrWhiteSpace(_notesSearchTerm) ||
+        n.Title.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (n.Content?.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
 
     private async Task LoadNotesAsync()
     {
@@ -947,11 +915,9 @@
     private static string GetRelativeNoteTime(StickyNoteDto note)
         => (note.UpdatedAt ?? note.CreatedAt).ToLocalTime().ToString("MMM dd, h:mm tt");
 
-    private void OpenCreateNote(string type)
+    private void OpenCreateNote()
     {
-        _noteDraft = new StickyNoteUpsertDto { Type = type, Color = "yellow" };
-        if (type == "Checklist") _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
-        _showAddMenu = false;
+        _noteDraft = new StickyNoteUpsertDto { Color = "yellow" };
         _showNoteModal = true;
         _noteOpenSnapshot = SerializeNoteDraft();
     }
@@ -962,15 +928,9 @@
         {
             Id = note.Id,
             Title = note.Title,
-            Type = note.Type,
             Content = note.Content,
-            Color = note.Color,
-            ChecklistItems = note.ChecklistItems
-                .Select(i => new StickyNoteChecklistItemDto { Text = i.Text, IsChecked = i.IsChecked })
-                .ToList()
+            Color = note.Color
         };
-        if (_noteDraft.Type == "Checklist" && _noteDraft.ChecklistItems.Count == 0)
-            _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
         _showNoteModal = true;
         _noteOpenSnapshot = SerializeNoteDraft();
     }
@@ -1007,11 +967,56 @@
         _showNoteDiscardConfirm = false;
     }
 
-    private void AddChecklistItem() => _noteDraft.ChecklistItems.Add(new StickyNoteChecklistItemDto());
-
-    private void RemoveChecklistItem(int index)
+    // Reads the textarea's current selection, then toggles `marker` ("- " or
+    // "- [ ] ") on every line the selection touches — if every affected line
+    // already starts with exactly that marker, it's stripped (toggle off);
+    // otherwise any existing bullet/checklist prefix is replaced with it.
+    private async Task ToggleLineFormatAsync(string marker)
     {
-        if (_noteDraft.ChecklistItems.Count > 1) _noteDraft.ChecklistItems.RemoveAt(index);
+        var selection = await JS.InvokeAsync<TextareaSelection>("feedInterop.getTextareaSelection", _noteContentTextareaId);
+
+        var content = _noteDraft.Content ?? string.Empty;
+        var lines = content.Replace("\r\n", "\n").Split('\n');
+
+        // Map the character-offset selection onto line indices.
+        int offset = 0, startLine = 0, endLine = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var lineEnd = offset + lines[i].Length;
+            if (selection.Start >= offset && selection.Start <= lineEnd) startLine = i;
+            if (selection.End >= offset && selection.End <= lineEnd) endLine = i;
+            offset = lineEnd + 1; // +1 for the '\n' consumed by Split
+        }
+        if (endLine < startLine) endLine = startLine;
+
+        bool AlreadyMarked(string line) => line.StartsWith(marker, StringComparison.Ordinal);
+        bool allAlreadyMarked = true;
+        for (int i = startLine; i <= endLine; i++)
+        {
+            if (lines[i].Length == 0) continue;
+            if (!AlreadyMarked(lines[i])) { allAlreadyMarked = false; break; }
+        }
+
+        for (int i = startLine; i <= endLine; i++)
+        {
+            if (lines[i].Length == 0) continue;
+
+            var stripped = ChecklistLineRegex.IsMatch(lines[i])
+                ? ChecklistLineRegex.Match(lines[i]).Groups[2].Value
+                : lines[i].StartsWith("- ", StringComparison.Ordinal)
+                    ? lines[i][2..]
+                    : lines[i];
+
+            lines[i] = allAlreadyMarked ? stripped : marker + stripped;
+        }
+
+        _noteDraft.Content = string.Join('\n', lines);
+    }
+
+    private class TextareaSelection
+    {
+        public int Start { get; set; }
+        public int End { get; set; }
     }
 
     private async Task SaveNoteAsync()
@@ -1020,13 +1025,6 @@
         {
             toast.ShowError("Title is required.");
             return;
-        }
-
-        if (_noteDraft.Type == "Checklist")
-        {
-            _noteDraft.ChecklistItems = _noteDraft.ChecklistItems
-                .Where(i => !string.IsNullOrWhiteSpace(i.Text))
-                .ToList();
         }
 
         _isSavingNote = true;
@@ -1052,9 +1050,6 @@
         }
     }
 
-    private void OpenViewNote(StickyNoteDto note) => _viewNote = note;
-    private void CloseViewNote() => _viewNote = null;
-
     private void AskDeleteNote(Guid id) => _confirmDeleteNoteId = id;
     private void CancelDeleteNote() => _confirmDeleteNoteId = null;
 
@@ -1065,21 +1060,37 @@
         _confirmDeleteNoteId = null;
     }
 
-    private async Task ToggleChecklistItemAsync(StickyNoteDto note, int itemIndex)
+    private async Task ToggleContentChecklistLineAsync(StickyNoteDto note, int lineIndex)
     {
-        note.ChecklistItems[itemIndex].IsChecked = !note.ChecklistItems[itemIndex].IsChecked;
+        var lines = (note.Content ?? string.Empty).Replace("\r\n", "\n").Split('\n');
+        if (lineIndex < 0 || lineIndex >= lines.Length) return;
+
+        var match = ChecklistLineRegex.Match(lines[lineIndex]);
+        if (!match.Success) return;
+
+        var nowChecked = !match.Groups[1].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+        lines[lineIndex] = $"- [{(nowChecked ? "x" : " ")}] {match.Groups[2].Value}";
+        var updatedContent = string.Join('\n', lines);
+
+        // Optimistic local update so the checkbox flips instantly — reverted
+        // if the save turns out to fail.
+        var previousContent = note.Content;
+        note.Content = updatedContent;
         StateHasChanged();
 
-        var dto = new StickyNoteUpsertDto
+        var dto = new StickyNoteUpsertDto { Id = note.Id, Title = note.Title, Content = updatedContent, Color = note.Color };
+        var (success, updated, error) = await StickyNotes.UpsertAsync(dto);
+        if (success && updated is not null)
         {
-            Id = note.Id,
-            Title = note.Title,
-            Type = note.Type,
-            Content = note.Content,
-            Color = note.Color,
-            ChecklistItems = note.ChecklistItems
-        };
-        await StickyNotes.UpsertAsync(dto);
+            var idx = _notes.FindIndex(n => n.Id == note.Id);
+            if (idx >= 0) _notes[idx] = updated;
+        }
+        else
+        {
+            note.Content = previousContent;
+            toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to update checklist item." : error);
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnInitializedAsync()

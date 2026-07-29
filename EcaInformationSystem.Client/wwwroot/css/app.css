@@ -1291,39 +1291,6 @@
 }
 .notes-add-btn:hover { background: #dbeafe; }
 
-.notes-add-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 19; /* below the menu (20) but above everything else — closes it on any outside click */
-}
-
-.notes-add-menu {
-    position: absolute;
-    top: 32px;
-    right: 0;
-    background: #fff;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.14);
-    z-index: 20;
-    overflow: hidden;
-    min-width: 140px;
-}
-.notes-add-menu button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    border: none;
-    background: none;
-    text-align: left;
-    padding: 9px 12px;
-    font-size: 12.5px;
-    color: #374151;
-}
-.notes-add-menu button:hover { background: #f8f9fa; }
-.notes-add-menu button i { color: #6b7280; width: 14px; }
-
 .notes-widget-filters {
     display: flex;
     gap: 8px;
@@ -1377,6 +1344,7 @@
     border: 1px solid transparent;
     transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
+.sticky-note-card--clickable { cursor: pointer; }
 .sticky-note-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 10px rgba(0,0,0,0.12);
@@ -1425,24 +1393,39 @@
 .sticky-note-icon-btn:hover { background: #fff; color: #1f2937; }
 .sticky-note-icon-btn--danger:hover { color: #d93025; }
 
-.sticky-note-content {
-    margin: 6px 0 0;
-    font-size: 12px;
-    color: #374151;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 4;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    white-space: pre-wrap;
-}
-
-.sticky-note-checklist {
+/* ── Note body — a mix of plain lines, bullets, and checklist items, parsed
+   from the note's plain-text Content (no separate "Checklist" note type). ── */
+.sticky-note-lines {
     margin-top: 6px;
     display: flex;
     flex-direction: column;
     gap: 3px;
 }
+
+.sticky-note-content-line {
+    margin: 0;
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.sticky-note-bullet-item {
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.4;
+    word-break: break-word;
+    padding-left: 14px;
+    position: relative;
+}
+.sticky-note-bullet-item::before {
+    content: "•";
+    position: absolute;
+    left: 2px;
+    color: #9ca3af;
+}
+
 .sticky-note-checklist-item {
     display: flex;
     align-items: flex-start;
@@ -1461,11 +1444,6 @@
     text-decoration: line-through;
     color: #9ca3af;
 }
-.sticky-note-more {
-    font-size: 11px;
-    color: #6b7280;
-    margin-top: 2px;
-}
 
 .sticky-note-time {
     margin-top: 8px;
@@ -1473,8 +1451,31 @@
     color: rgba(0,0,0,0.4);
 }
 
-/* ── Note create/edit color picker ───────────────────────────────────── */
-.note-checklist-editor { max-height: 220px; overflow-y: auto; padding-right: 2px; }
+/* ── Note editor — bullet/checklist formatting toolbar above the textarea ── */
+.note-format-toolbar {
+    display: flex;
+    gap: 4px;
+}
+.note-format-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #4b5563;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+}
+.note-format-btn:hover { background: #eff6ff; color: #1a73e8; border-color: #bfdbfe; }
+
+.note-format-hint {
+    font-size: 10.5px;
+    color: #9ca3af;
+    margin-top: 4px;
+}
 
 .note-color-swatches { display: flex; gap: 8px; }
 .note-color-swatch {
@@ -2284,6 +2285,14 @@
     word-break: break-all;
 }
 
+.chat-mention-tag {
+    color: #0d6efd;
+    font-weight: 700;
+    background: rgba(13,110,253,.1);
+    border-radius: 4px;
+    padding: 0 3px;
+}
+
 .chat-reply-quote {
     background: rgba(0,0,0,0.05);
     border-left: 3px solid #0d6efd;
@@ -2489,6 +2498,44 @@
     border: none;
     font-size: 16px;
     color: var(--bs-primary, #0d6efd);
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .12s ease;
+}
+
+/* "Jump to mentions" — neutral outline, the count badge is what draws the eye. */
+.btn-mentions {
+    color: #495057;
+}
+.btn-mentions:hover { background: #f1f3f5; }
+
+/* "Compose new message" — filled and colored so it visibly reads as THE
+   action button, distinct from "jump to mentions" beside it. */
+.btn-compose {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+}
+.btn-compose:hover { background: #0b5ed7; }
+
+.btn-icon-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #dc3545;
+    color: #fff;
+    border-radius: 9px;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 5px;
+    min-width: 16px;
+    text-align: center;
+    border: 1.5px solid #fff;
 }
 
 .chat-user-picker-list {
@@ -2784,6 +2831,59 @@
     padding: 0 4px;
 }
 
+/* Conversation header avatar (Direct chats only) — sits between the back
+   arrow and the name/presence block, links to the other person's profile. */
+.chat-header-avatar-link {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+.chat-header-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.chat-header-avatar-fallback {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ── Avatar hover preview — reused on the room list, message sender, and
+   conversation header avatars. A larger copy of the same photo, hidden until
+   the small avatar is hovered, gone the moment the mouse leaves. ── */
+.avatar-preview-trigger {
+    position: relative;
+    display: inline-flex;
+}
+.avatar-preview-popup {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%) scale(0.85);
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 3px solid #fff;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    background: #f1f3f4;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+    z-index: 50;
+}
+.avatar-preview-trigger:hover .avatar-preview-popup {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+}
+
 .chat-room-list {
     flex: 1;
     overflow-y: auto;
@@ -2855,6 +2955,29 @@
     background: #198754;
 }
 
+/* Direct-message rooms show the other person's real avatar photo instead of
+   the generic person icon — falls back to their initials if the photo
+   404s, same pattern used for avatars elsewhere in the app. */
+.chat-room-icon--avatar {
+    background: #dbeafe;
+    overflow: hidden;
+}
+.chat-room-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+.chat-room-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a73e8;
+}
+
 .chat-room-info {
     flex: 1;
     min-width: 0;
@@ -2911,10 +3034,16 @@
     gap: 5px;
 }
 
-.chat-avatar-link {
-    display: inline-flex;
-    flex-shrink: 0;
+/* The whole sender row (avatar + name) is now one link to their profile —
+   keep it looking like plain sender text, not a typical blue underlined link. */
+.chat-sender-link {
     text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+.chat-sender-link:hover {
+    text-decoration: underline;
+    color: #1a73e8;
 }
 
 .chat-message-avatar {
@@ -3018,6 +3147,42 @@
 
     .chat-mention-item:hover {
         background: #f0f0f0;
+    }
+
+/* Confirmed mentions strip — sits above the input row; a plain <textarea>
+   can't bold text mid-string, so this is the closest equivalent. */
+.chat-mention-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 8px 6px;
+}
+
+.chat-mention-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #eff6ff;
+    color: #0d6efd;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    padding: 2px 4px 2px 10px;
+    font-size: 12px;
+}
+
+    .chat-mention-chip button {
+        background: none;
+        border: none;
+        color: #6b93c9;
+        display: flex;
+        align-items: center;
+        padding: 2px;
+        border-radius: 50%;
+        font-size: 12px;
+    }
+    .chat-mention-chip button:hover {
+        background: #dbeafe;
+        color: #0d6efd;
     }
 
 .chat-attachment-preview {

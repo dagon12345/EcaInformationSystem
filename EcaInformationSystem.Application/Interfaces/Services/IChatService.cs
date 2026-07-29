@@ -18,6 +18,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
 
         Task<List<ChatMemberSuggestionDto>> GetMentionSuggestionsAsync(Guid roomId, string? searchTerm);
         Task<List<ChatMentionJumpDto>> GetMyMentionJumpListAsync(Guid currentUserId);
+        Task<int> GetUnreadMentionCountAsync(Guid currentUserId);
 
         // ── SuperAdmin oversight ──────────────────────────────────────────
         Task<List<ChatMessageDto>> GetDirectRoomHistoryForOversightAsync(

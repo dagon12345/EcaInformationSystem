@@ -23,6 +23,27 @@ namespace EcaInformationSystem.Application.Services
         public async Task<List<StickyNoteDto>> GetMineAsync(Guid userId)
         {
             var notes = await _repo.GetByUserAsync(userId);
+
+            // ✅ One-time, self-healing migration — the "Checklist" note type
+            // (a separate ChecklistItemsJson column) was retired in favor of
+            // plain "- [ ] "/"- [x] " lines inside Content, rendered/toggled
+            // client-side. Any legacy checklist note still carrying the old
+            // Type gets its items folded into Content here, the first time
+            // it's fetched after the change, and persisted so it only ever
+            // happens once per note.
+            var legacyNotes = notes.Where(n => n.Type == "Checklist").ToList();
+            if (legacyNotes.Count > 0)
+            {
+                foreach (var note in legacyNotes)
+                {
+                    note.Content = ConvertLegacyChecklistToContent(note.ChecklistItemsJson);
+                    note.Type = "Note";
+                    note.ChecklistItemsJson = null;
+                }
+
+                await _repo.SaveChangesAsync();
+            }
+
             return notes.Select(ToDto).ToList();
         }
 
@@ -31,7 +52,6 @@ namespace EcaInformationSystem.Application.Services
             if (string.IsNullOrWhiteSpace(dto.Title))
                 throw new InvalidOperationException("Title is required.");
 
-            var type = dto.Type == "Checklist" ? "Checklist" : "Note";
             var color = AllowedColors.Contains(dto.Color) ? dto.Color.ToLowerInvariant() : "yellow";
 
             StickyNote note;
@@ -53,19 +73,10 @@ namespace EcaInformationSystem.Application.Services
             }
 
             note.Title = dto.Title.Trim();
-            note.Type = type;
+            note.Type = "Note";
             note.Color = color;
-
-            if (type == "Checklist")
-            {
-                note.Content = null;
-                note.ChecklistItemsJson = JsonSerializer.Serialize(dto.ChecklistItems ?? new());
-            }
-            else
-            {
-                note.Content = dto.Content?.Trim();
-                note.ChecklistItemsJson = null;
-            }
+            note.Content = dto.Content?.Trim();
+            note.ChecklistItemsJson = null;
 
             await _repo.SaveChangesAsync();
             return ToDto(note);
@@ -80,15 +91,38 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
         }
 
+        private static string ConvertLegacyChecklistToContent(string? checklistItemsJson)
+        {
+            if (string.IsNullOrWhiteSpace(checklistItemsJson))
+                return string.Empty;
+
+            List<LegacyChecklistItem>? items;
+            try
+            {
+                items = JsonSerializer.Deserialize<List<LegacyChecklistItem>>(checklistItemsJson);
+            }
+            catch (JsonException)
+            {
+                return string.Empty; // corrupt legacy data — nothing sensible to recover
+            }
+
+            if (items is null || items.Count == 0) return string.Empty;
+
+            return string.Join('\n', items.Select(i =>
+                $"- [{(i.IsChecked ? "x" : " ")}] {i.Text}"));
+        }
+
+        private class LegacyChecklistItem
+        {
+            public string Text { get; set; } = string.Empty;
+            public bool IsChecked { get; set; }
+        }
+
         private static StickyNoteDto ToDto(StickyNote n) => new()
         {
             Id = n.Id,
             Title = n.Title,
-            Type = n.Type,
             Content = n.Content,
-            ChecklistItems = string.IsNullOrWhiteSpace(n.ChecklistItemsJson)
-                ? new List<StickyNoteChecklistItemDto>()
-                : JsonSerializer.Deserialize<List<StickyNoteChecklistItemDto>>(n.ChecklistItemsJson) ?? new(),
             Color = n.Color,
             CreatedAt = n.CreatedAt,
             UpdatedAt = n.UpdatedAt

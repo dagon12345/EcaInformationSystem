@@ -461,6 +461,33 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 SentAt = x.m.SentAt
             }).ToList();
         }
+
+        public async Task<int> GetUnreadMentionCountAsync(Guid userId)
+        {
+            var directMentions = _context.ChatMentions
+                .Where(mn => mn.MentionedUserId == userId)
+                .Select(mn => mn.ChatMessageId);
+
+            var mentionMessages = await _context.ChatMessages
+                .AsNoTracking()
+                .Where(m => !m.IsDeleted && directMentions.Contains(m.Id))
+                .Select(m => new { m.RoomId, m.SentAt })
+                .ToListAsync();
+
+            if (mentionMessages.Count == 0) return 0;
+
+            var roomIds = mentionMessages.Select(m => m.RoomId).Distinct().ToList();
+            var lastReadByRoom = await _context.ChatReadStatuses
+                .AsNoTracking()
+                .Where(rs => rs.UserId == userId && roomIds.Contains(rs.RoomId))
+                .ToDictionaryAsync(rs => rs.RoomId, rs => rs.LastReadAt);
+
+            // Never-read room = no ChatReadStatus row at all, so every mention
+            // there counts as unread.
+            return mentionMessages.Count(m =>
+                !lastReadByRoom.TryGetValue(m.RoomId, out var lastReadAt) || m.SentAt > lastReadAt);
+        }
+
         public async Task<bool> LinkAttachmentToMessageAsync(Guid attachmentId, Guid messageId)
         {
             var attachment = await _context.ChatAttachments.FirstOrDefaultAsync(a => a.Id == attachmentId);

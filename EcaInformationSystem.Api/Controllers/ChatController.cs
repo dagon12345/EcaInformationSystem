@@ -148,6 +148,14 @@ namespace EcaInformationSystem.API.Controllers
             return Ok(list);
         }
 
+        [HttpGet("mentions/unread-count")]
+        public async Task<IActionResult> GetUnreadMentionCount()
+        {
+            var (userId, _, _) = GetCurrentUser();
+            var count = await _chatService.GetUnreadMentionCountAsync(userId);
+            return Ok(count);
+        }
+
         private (Guid userId, string role, int? region) GetCurrentUser()
         {
             var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value

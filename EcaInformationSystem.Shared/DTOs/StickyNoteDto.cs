@@ -1,20 +1,14 @@
 namespace EcaInformationSystem.Shared.DTOs
 {
-    public class StickyNoteChecklistItemDto
-    {
-        public string Text { get; set; } = string.Empty;
-        public bool IsChecked { get; set; }
-    }
-
+    // Free-text notes only — no separate "Checklist" type. Bullet ("- ") and
+    // checklist ("- [ ] " / "- [x] ") lines are just plain markdown-style
+    // prefixes inside Content, parsed/rendered client-side, the same way a
+    // paper notepad lets you draw a checkbox next to any line you want.
     public class StickyNoteDto
     {
         public Guid Id { get; set; }
         public string Title { get; set; } = string.Empty;
-
-        // "Note" or "Checklist"
-        public string Type { get; set; } = "Note";
         public string? Content { get; set; }
-        public List<StickyNoteChecklistItemDto> ChecklistItems { get; set; } = new();
         public string Color { get; set; } = "yellow";
 
         public DateTime CreatedAt { get; set; }
@@ -27,9 +21,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public Guid? Id { get; set; }
 
         public string Title { get; set; } = string.Empty;
-        public string Type { get; set; } = "Note";
         public string? Content { get; set; }
-        public List<StickyNoteChecklistItemDto> ChecklistItems { get; set; } = new();
         public string Color { get; set; } = "yellow";
     }
 }

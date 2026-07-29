@@ -202,7 +202,7 @@
                     <span class="annexa-doc-field-label">C.14 ETHNICITY</span><br />
                     <span class="annexa-doc-field-note">Are you a member of the Indigenous Peoples (IP)?</span>
                     <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsIndigenousPeople == true ? "checked" : "")"></span>Yes</span>
-                    <span class="annexa-doc-checkbox"><span class="box @(!Beneficiary.IsIndigenousPeople == false? "checked" : "")"></span>No</span>
+                    <span class="annexa-doc-checkbox"><span class="box @(Beneficiary.IsIndigenousPeople == false ? "checked" : "")"></span>No</span>
                     <span class="annexa-doc-field-note">If yes, indicate the name:</span>
                     <span class="annexa-doc-underline-value">@(Beneficiary.IsIndigenousPeople == null ? (Beneficiary.EthnicityName ?? "—") : "")</span>
                 </div>

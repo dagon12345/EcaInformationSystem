@@ -36,6 +36,11 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
 
         // ── Mentions ─────────────────────────────────────────────────────
         Task<List<ChatMentionJumpDto>> GetMentionJumpListAsync(Guid userId, int maxResults = 50);
+        // "Unread" = the mentioning message's SentAt is newer than the user's
+        // ChatReadStatus.LastReadAt for that mention's room (or the room's
+        // never been read at all) — reuses the existing per-room read
+        // watermark rather than a separate per-mention read flag.
+        Task<int> GetUnreadMentionCountAsync(Guid userId);
 
         // ── Member lookup (for @mention autocomplete + display names) ─────
         Task<List<PendingUserRegistration>> GetUsersByRegionAsync(int regionCode);

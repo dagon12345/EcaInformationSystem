@@ -49,10 +49,15 @@
         </div>
     }
 
-    @if (_showMentionDropdown && _mentionSuggestions.Any())
+    @{ var showEveryoneOption = _canMentionEveryone && "everyone".StartsWith(_mentionSearchTerm, StringComparison.OrdinalIgnoreCase); }
+    @* ✅ FIXED — used to require _mentionSuggestions.Any() to show the dropdown
+       AT ALL, which hid "@everyone" too the moment no real member's name
+       matched anymore (e.g. typing past the point any name contains that
+       substring) even though "@everyone" itself was still a valid match. *@
+    @if (_showMentionDropdown && (_mentionSuggestions.Any() || showEveryoneOption))
     {
         <div class="chat-mention-dropdown">
-            @if (_canMentionEveryone && "everyone".StartsWith(_mentionSearchTerm, StringComparison.OrdinalIgnoreCase))
+            @if (showEveryoneOption)
             {
                 <div class="chat-mention-item" @onclick="() => SelectEveryoneMention()">
                     <i class="bi bi-people-fill me-2"></i><strong>@@everyone</strong>
@@ -62,9 +67,32 @@
             {
                 <div class="chat-mention-item" @onclick="() => SelectMention(user)">
                     <i class="bi bi-person-circle me-2"></i>
-                    <span>@user.DisplayName</span>
+                    <strong>@user.DisplayName</strong>
                     <small class="text-muted ms-1">(@user.Role)</small>
                 </div>
+            }
+        </div>
+    }
+
+    @* A plain <textarea> can't render bold text mid-string, so confirmed
+       mentions show as a small bold chip strip above it instead — the closest
+       equivalent to "bold in the composer" without a full rich-text editor. *@
+    @if (_mentionEveryoneSelected || _selectedMentions.Any())
+    {
+        <div class="chat-mention-chip-row">
+            @if (_mentionEveryoneSelected)
+            {
+                <span class="chat-mention-chip">
+                    <strong>@@everyone</strong>
+                    <button type="button" @onclick="RemoveEveryoneMention" title="Remove"><i class="bi bi-x"></i></button>
+                </span>
+            }
+            @foreach (var mention in _selectedMentions)
+            {
+                <span class="chat-mention-chip">
+                    <strong>@@@mention.Name</strong>
+                    <button type="button" @onclick="() => RemoveSelectedMention(mention.Id)" title="Remove"><i class="bi bi-x"></i></button>
+                </span>
             }
         </div>
     }
@@ -150,10 +178,19 @@
         try
         {
             await Task.Delay(200, token); // debounce fast typing
-            _mentionSuggestions = await ChatState.GetMentionSuggestionsAsync(_mentionSearchTerm);
-            StateHasChanged();
+            var result = await ChatState.GetMentionSuggestionsAsync(_mentionSearchTerm, token);
+
+            // Belt-and-suspenders — even though the fetch itself is now
+            // cancellable, only apply the result if no newer keystroke has
+            // since started its own debounce cycle (guards against any
+            // response that still slips through out of order).
+            if (token == _mentionDebounceCts?.Token)
+            {
+                _mentionSuggestions = result;
+                StateHasChanged();
+            }
         }
-        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
     }
     protected override void OnInitialized()
     {
@@ -197,6 +234,28 @@
         _mentionEveryoneSelected = true;
         _showMentionDropdown = false;
         StateHasChanged();
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex MentionEveryoneTextRegex =
+        new(@"@everyone\s?", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private void RemoveEveryoneMention()
+    {
+        _draftText = MentionEveryoneTextRegex.Replace(_draftText, "");
+        _mentionEveryoneSelected = false;
+    }
+
+    private void RemoveSelectedMention(Guid userId)
+    {
+        var match = _selectedMentions.FirstOrDefault(m => m.Id == userId);
+        if (match.Name is not null)
+        {
+            var pattern = "@" + System.Text.RegularExpressions.Regex.Escape(match.Name) + @"\s?";
+            _draftText = System.Text.RegularExpressions.Regex.Replace(
+                _draftText, pattern, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
+        _selectedMentions.RemoveAll(m => m.Id == userId);
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)

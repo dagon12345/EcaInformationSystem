@@ -602,6 +602,11 @@ namespace EcaInformationSystem.Application.Services
             return await _repo.GetMentionJumpListAsync(currentUserId);
         }
 
+        public async Task<int> GetUnreadMentionCountAsync(Guid currentUserId)
+        {
+            return await _repo.GetUnreadMentionCountAsync(currentUserId);
+        }
+
         // ── SuperAdmin oversight ─────────────────────────────────────────
 
         // ChatService.cs

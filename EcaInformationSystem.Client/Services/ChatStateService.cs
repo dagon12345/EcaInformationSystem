@@ -21,6 +21,7 @@ namespace EcaInformationSystem.Client.Services
         public bool IsLoadingMessages { get; private set; }
         public bool HasMoreHistory { get; private set; } = true;
         public int TotalUnreadCount => Rooms.Sum(r => r.UnreadCount);
+        public int UnreadMentionCount { get; private set; }
         // ✅ NEW — set once by ChatWidget after resolving the user's own ID from
         // the JWT, so this service can tell "did I send this" without re-parsing
         // the token itself.
@@ -557,6 +558,23 @@ namespace EcaInformationSystem.Client.Services
                 room.UnreadCount = 0;
                 OnChange?.Invoke();
             }
+
+            // Reading a room can clear mentions that were waiting in it too —
+            // re-check the accurate server-side count rather than guessing.
+            await RefreshUnreadMentionCountAsync();
+        }
+
+        public async Task RefreshUnreadMentionCountAsync()
+        {
+            try
+            {
+                UnreadMentionCount = await _http.GetFromJsonAsync<int>("api/chat/mentions/unread-count");
+                OnChange?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CHAT DEBUG] RefreshUnreadMentionCountAsync failed: {ex.Message}");
+            }
         }
 
         public async Task<ChatRoomDto> StartDirectConversationAsync(Guid otherUserId)
@@ -574,7 +592,7 @@ namespace EcaInformationSystem.Client.Services
 
         // ── Mention suggestions (autocomplete) ──────────────────────────
 
-        public async Task<List<ChatMemberSuggestionDto>> GetMentionSuggestionsAsync(string? search)
+        public async Task<List<ChatMemberSuggestionDto>> GetMentionSuggestionsAsync(string? search, CancellationToken cancellationToken = default)
         {
             if (ActiveRoom == null) return new();
 
@@ -584,8 +602,16 @@ namespace EcaInformationSystem.Client.Services
                 if (!string.IsNullOrWhiteSpace(search))
                     url += $"?search={Uri.EscapeDataString(search)}";
 
-                var suggestions = await _http.GetFromJsonAsync<List<ChatMemberSuggestionDto>>(url);
+                var suggestions = await _http.GetFromJsonAsync<List<ChatMemberSuggestionDto>>(url, cancellationToken);
                 return suggestions ?? new();
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer keystroke superseded this request — rethrow so the
+                // caller's own cancellation handling discards it, instead of
+                // letting it fall through to "no matches" and blank the
+                // dropdown out from under whatever the user is now typing.
+                throw;
             }
             catch
             {
@@ -678,9 +704,11 @@ namespace EcaInformationSystem.Client.Services
 
         private void HandleMentioned(ChatMentionJumpDto mention)
         {
-            // No badge per the spec — this hook exists so a future "jump to
-            // mentions" panel can react live if it's open, but otherwise
-            // intentionally does nothing visible right now.
+            // Optimistic bump — a brand-new mention always increases the
+            // count, no need to round-trip the server just to display it.
+            // MarkActiveRoomAsReadAsync() reconciles against the real
+            // server-side count as soon as the user reads that room.
+            UnreadMentionCount++;
             OnChange?.Invoke();
         }
 

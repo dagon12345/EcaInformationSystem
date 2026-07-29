@@ -6,7 +6,7 @@
 @inject IJSRuntime JS
 
 <div class="sf-wrap">
-    <div class="sf-card">
+    <div class="sf-card" @onkeydown="OnFilterKeyDown">
 
         @* ── HEADER — static, no longer the collapse trigger ── *@
         <div class="sf-header sf-header--static">
@@ -953,6 +953,12 @@
         State.Filter.DateEndorsedFrom = null;
         State.Filter.DateEndorsedTo = null;
         StateHasChanged();
+    }
+
+    private async Task OnFilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await ApplyFiltersAsync();
     }
 
     private async Task ApplyFiltersAsync()
