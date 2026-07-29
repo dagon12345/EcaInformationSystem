@@ -2960,7 +2960,6 @@
    404s, same pattern used for avatars elsewhere in the app. */
 .chat-room-icon--avatar {
     background: #dbeafe;
-    overflow: hidden;
 }
 .chat-room-avatar-img {
     width: 100%;
