@@ -1,7 +1,6 @@
 $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
-$markerFile = Join-Path $root ".last-deploy-api"
 
 # --- FTP connection settings ---
 $apiFtpHost = "site76298.siteasp.net"
@@ -17,54 +16,6 @@ $apiProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
     Where-Object { $_.Name -match "Api" } | Select-Object -First 1
 
 if (-not $apiProject) { throw "Could not find Api .csproj under $root" }
-
-# --- Determine which folders count as "API layer" for change detection ---
-# Adjust this list if other shared projects should also trigger an API deploy.
-$apiRelevantPaths = @(
-    "EcaInformationSystem.Api",
-    "EcaInformationSystem.Application",
-    "EcaInformationSystem.Domain",
-    "EcaInformationSystem.Infrastructure",
-    "EcaInformationSystem.Common",
-    "EcaInformationSystem.Shared"
-)
-
-$currentCommit = (git -C $root rev-parse HEAD).Trim()
-
-$shouldDeploy = $true
-
-if (Test-Path $markerFile) {
-    $lastCommit = (Get-Content $markerFile -Raw).Trim()
-
-    if ($lastCommit -eq $currentCommit) {
-        Write-Host "No new commits since last API deploy ($lastCommit). Skipping." -ForegroundColor Yellow
-        $shouldDeploy = $false
-    }
-    else {
-        $changedFiles = git -C $root diff --name-only $lastCommit $currentCommit
-
-        $touchesApi = $false
-        foreach ($file in $changedFiles) {
-            foreach ($path in $apiRelevantPaths) {
-                if ($file -like "$path/*") {
-                    $touchesApi = $true
-                    break
-                }
-            }
-            if ($touchesApi) { break }
-        }
-
-        if (-not $touchesApi) {
-            Write-Host "Commits since last API deploy don't touch API-relevant folders. Skipping." -ForegroundColor Yellow
-            $shouldDeploy = $false
-        }
-    }
-}
-
-if (-not $shouldDeploy) {
-    Write-Host "Nothing to deploy for API." -ForegroundColor Green
-    exit 0
-}
 
 # --- Upload an entire folder in ONE persistent FTP session using lftp ---
 function Upload-ToFtp {
@@ -136,5 +87,4 @@ finally {
     Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $false
 }
 
-$currentCommit | Out-File -FilePath $markerFile -Encoding utf8 -NoNewline
-Write-Host "Done. API deployed via FTP. Marker updated to $currentCommit." -ForegroundColor Green
+Write-Host "Done. API deployed via FTP." -ForegroundColor Green
