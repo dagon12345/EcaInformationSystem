@@ -117,6 +117,8 @@ namespace EcaInformationSystem.Domain.Common.Enum
         public const string NoShow = "No show";
         public const string DoubleApplicationWithDifferentSurnameUsed = "Double Application with Different Surename used";
         public const string ForCGDIslandMunicipality = "For CGD Island Municipality";
+        public const string Others = "Others";
+        public const string TransferToOtherRegion = "Transfer to other Region";
         //Fonts
         public const string Arial = "Arial";
         public const string TimesNewRoman = "Times New Roman";

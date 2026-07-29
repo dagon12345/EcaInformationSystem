@@ -180,6 +180,11 @@
     padding: 5px 8px;
     font-size: 13px;
     background: #fff;
+    /* Whole Annex A form (this section + every child: Family, Bank Account,
+       Abroad Address, Claimant, Verification Checklist) renders in caps —
+       matches the printed form's all-caps convention. Visual only; the
+       value bound in the model keeps whatever case was actually typed. */
+    text-transform: uppercase;
 }
 
 .annexa-input:focus,

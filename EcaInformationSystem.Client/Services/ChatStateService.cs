@@ -633,14 +633,22 @@ namespace EcaInformationSystem.Client.Services
                 room.LastMessagePreview = message.Content ?? "[Attachment]";
                 room.LastMessageAt = message.SentAt;
 
+                // SignalR broadcasts a sent message back to the sender's own
+                // connection too — without this check, the sender would see
+                // their own message increment their unread badge, which never
+                // makes sense (they obviously already "read" what they just typed).
+                // Only the recipients — anyone who isn't the sender — should ever
+                // have this count go up.
                 var isCurrentlyViewing = ActiveRoom != null && ActiveRoom.Id == message.RoomId && IsWidgetOpen;
-                if (!isCurrentlyViewing)
-                {
-                    room.UnreadCount++;
-                }
-                else
+                var isOwnMessage = message.SenderId == CurrentUserId;
+
+                if (isCurrentlyViewing)
                 {
                     _ = MarkActiveRoomAsReadAsync();
+                }
+                else if (!isOwnMessage)
+                {
+                    room.UnreadCount++;
                 }
             }
 

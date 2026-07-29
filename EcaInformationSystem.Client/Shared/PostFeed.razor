@@ -1,4 +1,5 @@
 ﻿@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Shared.DTOs
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Web
@@ -15,12 +16,18 @@
 @inject ToastService toast
 
 <div class="feed-page-layout">
+@if (_isAuthenticated)
+{
+    <aside class="feed-chat-sidebar">
+        <ChatWidget Inline="true" />
+    </aside>
+}
 <div class="feed-container">
 
     <div class="feed-header">
         <div class="feed-header-icon"><i class="bi bi-heart-fill"></i></div>
         <div>
-            <div class="feed-header-title">News Feed</div>
+            <div class="feed-header-title">Feed and Messages</div>
             <div class="feed-header-subtitle">Updates from NCSC Caraga Region</div>
         </div>
     </div>
@@ -398,178 +405,190 @@
     <aside class="feed-birthday-sidebar">
         <div class="birthday-widget">
 
-            @if (!_upcomingBirthdays.Any())
-            {
-                <div class="birthday-widget-header">
-                    <i class="bi bi-gift-fill"></i>
-                    <span>Upcoming Birthdays</span>
-                </div>
-                <div class="birthday-widget-empty">
-                    <i class="bi bi-calendar-heart"></i>
-                    <p>No upcoming birthdays this week.</p>
-                </div>
-            }
+            @* Single persistent header — clickable to collapse/expand once the
+               feed layout stacks into one column (narrow window/mobile); a
+               plain header on wide desktop layouts, same as before. *@
+            <div class="birthday-widget-header birthday-widget-header--clickable" @onclick="() => _birthdayExpanded = !_birthdayExpanded">
+                <i class="bi bi-gift-fill"></i>
+                <span class="flex-grow-1">Upcoming Birthdays</span>
+                @if (TodaysBirthdays.Any())
+                {
+                    <span class="birthday-widget-today-badge">@TodaysBirthdays.Count() today</span>
+                }
+                <i class="bi @(_birthdayExpanded ? "bi-chevron-up" : "bi-chevron-down") birthday-widget-chevron"></i>
+            </div>
 
-            @{ var todays = TodaysBirthdays.ToList(); }
-            @if (todays.Any())
-            {
-                <div class="birthday-hero">
-                    <div class="birthday-hero-confetti">🎉 🎈 🎂 🎈 🎉</div>
-                    <div class="birthday-hero-title">
-                        Happy Birthday@(todays.Count == 1 ? "" : "s")!
+            <div class="birthday-widget-body @(_birthdayExpanded ? "" : "birthday-widget-body--collapsed")">
+                @if (!_upcomingBirthdays.Any())
+                {
+                    <div class="birthday-widget-empty">
+                        <i class="bi bi-calendar-heart"></i>
+                        <p>No upcoming birthdays this week.</p>
                     </div>
-                    @foreach (var b in todays)
-                    {
-                        <a href="@($"/profile/{b.UserId}")" class="birthday-hero-person" title="View profile">
-                            <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-hero-avatar avatar-img"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="birthday-hero-avatar birthday-hero-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
-                            <div class="birthday-hero-name">@b.FullName</div>
-                            @if (!string.IsNullOrWhiteSpace(b.Position))
-                            {
-                                <div class="birthday-hero-position">@b.Position</div>
-                            }
-                            <div class="birthday-hero-age">Turning @b.TurningAge today 🎂</div>
-                        </a>
-                    }
-                </div>
-            }
+                }
 
-            @{ var later = LaterBirthdays.OrderBy(b => b.DaysUntil).ToList(); }
-            @if (later.Any())
-            {
-                <div class="birthday-widget-header">
-                    <i class="bi bi-gift-fill"></i>
-                    <span>Upcoming Birthdays</span>
-                </div>
-                <div class="birthday-widget-list">
-                    @foreach (var b in later)
-                    {
-                        <a href="@($"/profile/{b.UserId}")" class="birthday-card" title="View profile">
-                            <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-avatar avatar-img"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
-                            <div class="birthday-info">
-                                <div class="birthday-name">@b.FullName</div>
-                                @if (!string.IsNullOrWhiteSpace(b.Position) || !string.IsNullOrWhiteSpace(b.RegionName))
+                @{ var todays = TodaysBirthdays.ToList(); }
+                @if (todays.Any())
+                {
+                    <div class="birthday-hero">
+                        <div class="birthday-hero-confetti">🎉 🎈 🎂 🎈 🎉</div>
+                        <div class="birthday-hero-title">
+                            Happy Birthday@(todays.Count == 1 ? "" : "s")!
+                        </div>
+                        @foreach (var b in todays)
+                        {
+                            <a href="@($"/profile/{b.UserId}")" class="birthday-hero-person" title="View profile">
+                                <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-hero-avatar avatar-img"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="birthday-hero-avatar birthday-hero-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
+                                <div class="birthday-hero-name">@b.FullName</div>
+                                @if (!string.IsNullOrWhiteSpace(b.Position))
                                 {
-                                    <div class="birthday-meta">
-                                        @b.Position
-                                        @if (!string.IsNullOrWhiteSpace(b.Position) && !string.IsNullOrWhiteSpace(b.RegionName))
-                                        {
-                                            <span> · </span>
-                                        }
-                                        @b.RegionName
-                                    </div>
+                                    <div class="birthday-hero-position">@b.Position</div>
                                 }
-                            </div>
-                            <div class="birthday-badge">
-                                @b.BirthDate.ToString("MMM dd")<br />
-                                <span class="birthday-badge-days">in @b.DaysUntil day@(b.DaysUntil == 1 ? "" : "s")</span>
-                            </div>
-                        </a>
-                    }
-                </div>
-            }
+                                <div class="birthday-hero-age">Turning @b.TurningAge today 🎂</div>
+                            </a>
+                        }
+                    </div>
+                }
+
+                @{ var later = LaterBirthdays.OrderBy(b => b.DaysUntil).ToList(); }
+                @if (later.Any())
+                {
+                    <div class="birthday-widget-list">
+                        @foreach (var b in later)
+                        {
+                            <a href="@($"/profile/{b.UserId}")" class="birthday-card" title="View profile">
+                                <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-avatar avatar-img"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
+                                <div class="birthday-info">
+                                    <div class="birthday-name">@b.FullName</div>
+                                    @if (!string.IsNullOrWhiteSpace(b.Position) || !string.IsNullOrWhiteSpace(b.RegionName))
+                                    {
+                                        <div class="birthday-meta">
+                                            @b.Position
+                                            @if (!string.IsNullOrWhiteSpace(b.Position) && !string.IsNullOrWhiteSpace(b.RegionName))
+                                            {
+                                                <span> · </span>
+                                            }
+                                            @b.RegionName
+                                        </div>
+                                    }
+                                </div>
+                                <div class="birthday-badge">
+                                    @b.BirthDate.ToString("MMM dd")<br />
+                                    <span class="birthday-badge-days">in @b.DaysUntil day@(b.DaysUntil == 1 ? "" : "s")</span>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
         </div>
 
         <div class="sticky-notes-widget" @onclick:stopPropagation="true">
-            <div class="notes-widget-header">
+            <div class="notes-widget-header notes-widget-header--clickable" @onclick="() => _notesExpanded = !_notesExpanded">
                 <div class="notes-widget-title"><i class="bi bi-stickies-fill"></i><span>My Sticky Notes</span></div>
-                <div class="notes-widget-add-wrap">
-                    <button class="notes-add-btn" @onclick="() => _showAddMenu = !_showAddMenu" title="New note">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
-                    @if (_showAddMenu)
-                    {
-                        <div class="notes-add-backdrop" @onclick="() => _showAddMenu = false"></div>
-                        <div class="notes-add-menu">
-                            <button @onclick='() => OpenCreateNote("Note")'><i class="bi bi-file-earmark-text"></i> Note</button>
-                            <button @onclick='() => OpenCreateNote("Checklist")'><i class="bi bi-check2-square"></i> Checklist</button>
-                        </div>
-                    }
+                <div class="notes-widget-header-actions">
+                    <div class="notes-widget-add-wrap" @onclick:stopPropagation="true">
+                        <button class="notes-add-btn" @onclick="() => _showAddMenu = !_showAddMenu" title="New note">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        @if (_showAddMenu)
+                        {
+                            <div class="notes-add-backdrop" @onclick="() => _showAddMenu = false"></div>
+                            <div class="notes-add-menu">
+                                <button @onclick='() => OpenCreateNote("Note")'><i class="bi bi-file-earmark-text"></i> Note</button>
+                                <button @onclick='() => OpenCreateNote("Checklist")'><i class="bi bi-check2-square"></i> Checklist</button>
+                            </div>
+                        }
+                    </div>
+                    <i class="bi @(_notesExpanded ? "bi-chevron-up" : "bi-chevron-down") notes-widget-chevron"></i>
                 </div>
             </div>
 
-            <div class="notes-widget-filters">
-                <input type="text" class="notes-search-input" placeholder="Search notes..."
-                       value="@_notesSearchTerm" @oninput="e => _notesSearchTerm = e.Value?.ToString() ?? string.Empty" />
-                <select class="notes-filter-select" @bind="_notesFilterType">
-                    <option value="All">All</option>
-                    <option value="Note">Notes</option>
-                    <option value="Checklist">Checklists</option>
-                </select>
-            </div>
+            <div class="notes-widget-body @(_notesExpanded ? "" : "notes-widget-body--collapsed")">
+                <div class="notes-widget-filters">
+                    <input type="text" class="notes-search-input" placeholder="Search notes..."
+                           value="@_notesSearchTerm" @oninput="e => _notesSearchTerm = e.Value?.ToString() ?? string.Empty" />
+                    <select class="notes-filter-select" @bind="_notesFilterType">
+                        <option value="All">All</option>
+                        <option value="Note">Notes</option>
+                        <option value="Checklist">Checklists</option>
+                    </select>
+                </div>
 
-            <div class="notes-widget-list">
-                @if (_notesLoading)
-                {
-                    <div class="notes-widget-empty"><span class="spinner-border spinner-border-sm"></span></div>
-                }
-                else if (!FilteredNotes.Any())
-                {
-                    <div class="notes-widget-empty">
-                        <i class="bi bi-journal-plus"></i>
-                        <p>@(_notes.Any() ? "No notes match your filter." : "No notes yet — click + to add one.")</p>
-                    </div>
-                }
-                else
-                {
-                    @foreach (var note in FilteredNotes)
+                <div class="notes-widget-list">
+                    @if (_notesLoading)
                     {
-                            <div class="sticky-note-card sticky-note--@note.Color">
-                                <div class="sticky-note-top">
-                                    <div class="sticky-note-title text-truncate" title="@note.Title">@note.Title</div>
-                                    <div class="sticky-note-actions">
-                                        <button class="sticky-note-icon-btn" title="View full details" @onclick="() => OpenViewNote(note)">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                        <button class="sticky-note-icon-btn" title="Edit" @onclick="() => OpenEditNote(note)">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        @if (_confirmDeleteNoteId == note.Id)
-                                        {
-                                            <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Confirm delete" @onclick="() => ConfirmDeleteNoteAsync(note.Id)">
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                            <button class="sticky-note-icon-btn" title="Cancel" @onclick="CancelDeleteNote">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Delete" @onclick="() => AskDeleteNote(note.Id)">
-                                                <i class="bi bi-trash3"></i>
-                                            </button>
-                                        }
-                                    </div>
-                                </div>
-
-                                @if (note.Type == "Checklist")
-                                {
-                                    <div class="sticky-note-checklist">
-                                        @foreach (var (item, idx) in note.ChecklistItems.Select((it, i) => (it, i)).Take(6))
-                                        {
-                                            <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
-                                                <input type="checkbox" checked="@item.IsChecked" @onchange="() => ToggleChecklistItemAsync(note, idx)" />
-                                                <span>@item.Text</span>
-                                            </label>
-                                        }
-                                        @if (note.ChecklistItems.Count > 6)
-                                        {
-                                            <div class="sticky-note-more">+@(note.ChecklistItems.Count - 6) more</div>
-                                        }
-                                    </div>
-                                }
-                                else if (!string.IsNullOrWhiteSpace(note.Content))
-                                {
-                                    <p class="sticky-note-content">@note.Content</p>
-                                }
-
-                                <div class="sticky-note-time">@GetRelativeNoteTime(note)</div>
-                            </div>
-                        }
+                        <div class="notes-widget-empty"><span class="spinner-border spinner-border-sm"></span></div>
                     }
+                    else if (!FilteredNotes.Any())
+                    {
+                        <div class="notes-widget-empty">
+                            <i class="bi bi-journal-plus"></i>
+                            <p>@(_notes.Any() ? "No notes match your filter." : "No notes yet — click + to add one.")</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var note in FilteredNotes)
+                        {
+                                <div class="sticky-note-card sticky-note--@note.Color">
+                                    <div class="sticky-note-top">
+                                        <div class="sticky-note-title text-truncate" title="@note.Title">@note.Title</div>
+                                        <div class="sticky-note-actions">
+                                            <button class="sticky-note-icon-btn" title="View full details" @onclick="() => OpenViewNote(note)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="sticky-note-icon-btn" title="Edit" @onclick="() => OpenEditNote(note)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @if (_confirmDeleteNoteId == note.Id)
+                                            {
+                                                <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Confirm delete" @onclick="() => ConfirmDeleteNoteAsync(note.Id)">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                                <button class="sticky-note-icon-btn" title="Cancel" @onclick="CancelDeleteNote">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Delete" @onclick="() => AskDeleteNote(note.Id)">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    @if (note.Type == "Checklist")
+                                    {
+                                        <div class="sticky-note-checklist">
+                                            @foreach (var (item, idx) in note.ChecklistItems.Select((it, i) => (it, i)).Take(6))
+                                            {
+                                                <label class="sticky-note-checklist-item @(item.IsChecked ? "sticky-note-checklist-item--done" : "")">
+                                                    <input type="checkbox" checked="@item.IsChecked" @onchange="() => ToggleChecklistItemAsync(note, idx)" />
+                                                    <span>@item.Text</span>
+                                                </label>
+                                            }
+                                            @if (note.ChecklistItems.Count > 6)
+                                            {
+                                                <div class="sticky-note-more">+@(note.ChecklistItems.Count - 6) more</div>
+                                            }
+                                        </div>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(note.Content))
+                                    {
+                                        <p class="sticky-note-content">@note.Content</p>
+                                    }
+
+                                    <div class="sticky-note-time">@GetRelativeNoteTime(note)</div>
+                                </div>
+                            }
+                        }
+                </div>
             </div>
         </div>
     </aside>
@@ -890,6 +909,12 @@
 
     // ── Sticky notes widget — strictly private to the logged-in user ───────
     private static readonly string[] NoteColors = { "yellow", "pink", "blue", "green", "purple", "orange" };
+
+    // Collapsed by default — only matters once the feed layout stacks into a
+    // single column (narrow window/mobile); CSS keeps both widgets always
+    // expanded on wide desktop layouts regardless of these flags.
+    private bool _birthdayExpanded;
+    private bool _notesExpanded;
 
     private List<StickyNoteDto> _notes = new();
     private bool _notesLoading;

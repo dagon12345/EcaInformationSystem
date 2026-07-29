@@ -5512,6 +5512,8 @@ namespace EcaInformationSystem.Application.Services
             11 => CommonConstants.NoShow,
             12 => CommonConstants.DoubleApplicationWithDifferentSurnameUsed,
             13 => CommonConstants.ForCGDIslandMunicipality,
+            14 => CommonConstants.Others,
+            15 => CommonConstants.TransferToOtherRegion,
             _ => CommonConstants.None
         };
 

@@ -18,13 +18,15 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? OscaIdDateIssued { get; set; }
         [Required(ErrorMessage = "NCSC Registration Reference Number is required.")]
         public int? NcscRrn { get; set; }
+        // Includes Ñ/ñ — a standard letter in Philippine names (e.g. "Ñoño",
+        // "Piñero") that plain [A-Za-z] excludes.
         [Required(ErrorMessage = "Last Name is required.")]
-        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "Last Name can only contain letters, spaces, and dashes.")]
+        [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "Last Name can only contain letters, spaces, and dashes.")]
         public string? LastName { get; set; }
         [Required(ErrorMessage = "First Name is required.")]
-        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "First Name can only contain letters, spaces, and dashes.")]
+        [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "First Name can only contain letters, spaces, and dashes.")]
         public string FirstName { get; set; } = string.Empty;
-        [RegularExpression(@"^[A-Za-z\s\-]*$", ErrorMessage = "Middle Name can only contain letters, spaces, and dashes.")]
+        [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "Middle Name can only contain letters, spaces, and dashes.")]
         public string? MiddleName { get; set; }
         public string? Extension { get; set; }
         [Required(ErrorMessage = "Birth Date is required.")]

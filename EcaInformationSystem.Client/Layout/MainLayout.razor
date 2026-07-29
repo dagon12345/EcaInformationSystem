@@ -126,7 +126,6 @@
                 </article>
             </div>
         </div>
-        <ChatWidget />
 
         @* ── Logout confirmation — reached via the profile dropdown above ── *@
         @if (_showLogoutConfirm)
@@ -185,8 +184,8 @@
 
     private static readonly Dictionary<string, string> PageNames = new()
     {
-        { "", "Feed"    },
-        { "dashboard", "Feed"    },
+        { "", "Feed and Messages"    },
+        { "dashboard", "Feed and Messages"    },
         { "calendar", "Calendar" }, // ← new
         { "statistics", "Statistics"  },
         { "beneficiary-create", "Create Record"},

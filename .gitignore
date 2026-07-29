@@ -368,3 +368,5 @@ FodyWeavers.xsd
 appsettings*.json
 /EcaInformationSystem.BlazorServer/appsettings.json
 /EcaInformationSystem.BlazorServer/appsettings.json
+.last-deploy-api
+.last-deploy-client

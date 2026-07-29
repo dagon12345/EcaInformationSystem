@@ -10,19 +10,51 @@
 @implements IDisposable
 
 
-<div class="chat-widget-container" id="@_widgetContainerId">
-    <button class="chat-toggle-btn @(ChatState.TotalUnreadCount > 0 && !ChatState.IsWidgetOpen ? "chat-toggle-btn--attention" : "")" @onclick="ChatState.ToggleWidget">
-        <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
-        <span class="chat-toggle-btn-label">@(ChatState.IsWidgetOpen ? "Close" : "Messages")</span>
-        @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
-        {
-            <span class="chat-unread-badge">@(ChatState.TotalUnreadCount > 99 ? "99+" : ChatState.TotalUnreadCount.ToString())</span>
-        }
-    </button>
-
-    @if (ChatState.IsWidgetOpen)
+<div class="chat-widget-container @(Inline ? "chat-widget-container--inline" : "")" id="@_widgetContainerId">
+    @* Always-visible attention marker for the inline panel (no toggle button
+       to carry the usual unread badge) — a pulsing count badge in the corner,
+       regardless of which internal view (room list / conversation / picker)
+       is currently showing, so unread messages stay noticeable no matter
+       where the user left the widget. Disappears the moment TotalUnreadCount
+       hits zero. *@
+    @if (Inline && ChatState.TotalUnreadCount > 0)
     {
-        <div class="chat-widget-panel">
+        <div class="chat-inline-unread-count" title="@ChatState.TotalUnreadCount unread message(s)">
+            @(ChatState.TotalUnreadCount > 99 ? "99+" : ChatState.TotalUnreadCount.ToString())
+        </div>
+    }
+    @if (!Inline)
+    {
+        <button class="chat-toggle-btn @(ChatState.TotalUnreadCount > 0 && !ChatState.IsWidgetOpen ? "chat-toggle-btn--attention" : "")" @onclick="ChatState.ToggleWidget">
+            <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
+            <span class="chat-toggle-btn-label">@(ChatState.IsWidgetOpen ? "Close" : "Messages")</span>
+            @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
+            {
+                <span class="chat-unread-badge">@(ChatState.TotalUnreadCount > 99 ? "99+" : ChatState.TotalUnreadCount.ToString())</span>
+            }
+        </button>
+    }
+
+    @* Compact collapsed header — only shown/visible via CSS once the feed
+       columns stack (narrow window / mobile), where the full-height inline
+       panel would otherwise dump a wall of chat above the actual feed posts.
+       On wide desktop layouts this stays hidden and the panel is always
+       expanded, same as before. *@
+    @if (Inline)
+    {
+        <button type="button" class="chat-inline-collapsed-bar" @onclick="() => _inlineExpanded = !_inlineExpanded">
+            <i class="bi bi-chat-dots-fill"></i>
+            <strong class="flex-grow-1">Messages</strong>
+            <i class="bi @(_inlineExpanded ? "bi-chevron-up" : "bi-chevron-down")"></i>
+        </button>
+    }
+
+    @* Inline mode (Feed left sidebar) always shows the panel — no toggle to
+       open/close it, same as the birthday/sticky-notes cards beside it. The
+       floating navbar instance keeps its own independent open/close state. *@
+    @if (Inline || ChatState.IsWidgetOpen)
+    {
+        <div class="chat-widget-panel @(Inline ? "chat-widget-panel--inline" : "") @(Inline && !_inlineExpanded ? "chat-widget-panel--inline-collapsed" : "")">
             @if (_showUserPicker)
             {
                 @* ── VIEW 1: New conversation user picker ────────────────── *@
@@ -210,6 +242,18 @@
     </FooterTemplate>
 </HxModal>
 @code {
+    // True on the Feed page's left-column instance — renders as an always-
+    // visible panel (no floating toggle button) instead of the navbar's
+    // click-to-open dropdown. Both instances share the same ChatState
+    // (active room, unread counts), so selecting a conversation in one
+    // reflects in the other.
+    [Parameter] public bool Inline { get; set; }
+
+    // Collapsed by default — only matters once the feed layout stacks into a
+    // single column (narrow window/mobile); CSS keeps the panel always
+    // expanded on wide desktop layouts regardless of this flag.
+    private bool _inlineExpanded;
+
     private DateTime? _activeRoomLastSeen;
     private Guid _currentUserId;
 

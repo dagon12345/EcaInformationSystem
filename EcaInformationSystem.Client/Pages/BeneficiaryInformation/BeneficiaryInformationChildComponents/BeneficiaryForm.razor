@@ -578,6 +578,8 @@
                                 <option value="11">No show</option>
                                 <option value="12">Double Application with Different Surname used</option>
                                 <option value="13">For CGD Island Municipality</option>
+                                <option value="14">Others</option>
+                                <option value="15">Transfer to other Region</option>
                             </InputSelect>
                         </div>
                         <div class="ff" style="grid-column: 1 / -1;">
@@ -1120,6 +1122,11 @@
     private bool _isAdmin;
     private bool _isPdo;
     private bool _roleLoaded;
+    // Cached once in OnAfterRenderAsync so ResetForm() (called after every
+    // successful save) can re-stamp it without needing to be async itself —
+    // the "Verified By" field always reflects whoever is logged in, not a
+    // value that gets wiped back to blank after each save.
+    private string? _loggedInFullName;
 
     private bool IsLoading;
     private string pendingAction = string.Empty;
@@ -1194,14 +1201,12 @@
         // Default the "Verified By" field to the logged-in user's own name —
         // only when it's still blank, so an already-recorded verifier (from a
         // different admin/PDO) is never silently overwritten.
-        if (string.IsNullOrWhiteSpace(model.Validator))
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _loggedInFullName = authState.User.FindFirst("FullName")?.Value;
+
+        if (string.IsNullOrWhiteSpace(model.Validator) && !string.IsNullOrWhiteSpace(_loggedInFullName))
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var fullName = authState.User.FindFirst("FullName")?.Value;
-            if (!string.IsNullOrWhiteSpace(fullName))
-            {
-                model.Validator = fullName;
-            }
+            model.Validator = _loggedInFullName;
         }
 
         StateHasChanged();
@@ -1692,6 +1697,9 @@
             BirthDate = DateTime.UtcNow.AddYears(-80),
             ValidationDate = DateTime.UtcNow,
             PhoneNumbers = new() { new BeneficiaryPhoneNumberDto() },
+            // Keep reflecting the logged-in user — don't leave this blank
+            // after a save just because a fresh model was created.
+            Validator = _loggedInFullName ?? string.Empty,
         };
         _formProvinces = new();
         _formMunicipalities = new();

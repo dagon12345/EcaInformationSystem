@@ -116,6 +116,63 @@
         @* ── Statistical Report — Applications & Validations by LGU ──────── *@
         @if (_report.LguValidationBreakdown.Any())
         {
+            @* ── Summary cards ─────────────────────────────────────────── *@
+            <div class="dash-stat-grid mb-3">
+                <div class="dash-stat-card dash-stat-card--navy">
+                    <div class="dash-stat-icon"><i class="bi bi-send-check-fill"></i></div>
+                    <div class="dash-stat-value">@TotalEndorsedAll.ToString("N0")</div>
+                    <div class="dash-stat-label">Total Endorsed</div>
+                </div>
+                <div class="dash-stat-card dash-stat-card--green">
+                    <div class="dash-stat-icon"><i class="bi bi-patch-check-fill"></i></div>
+                    <div class="dash-stat-value">@TotalValidatedAll.ToString("N0")</div>
+                    <div class="dash-stat-label">Total Validated</div>
+                </div>
+                <div class="dash-stat-card dash-stat-card--amber">
+                    <div class="dash-stat-icon"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="dash-stat-value">@TotalVarianceAll.ToString("N0")</div>
+                    <div class="dash-stat-label">Awaiting Validation</div>
+                </div>
+                <div class="dash-stat-card" style="background:#0dcaf0;">
+                    <div class="dash-stat-icon"><i class="bi bi-graph-up"></i></div>
+                    <div class="dash-stat-value">@ValidationRateAll.ToString("F1")%</div>
+                    <div class="dash-stat-label">Validation Rate</div>
+                </div>
+            </div>
+
+            @* ── Per-province validation-progress chart ──────────────────── *@
+            <div class="sys-card mb-3">
+                <div class="sys-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-bar-chart-steps me-2"></i>Validation Progress by Province</span>
+                    <span class="badge bg-light text-dark">@ProvinceChartRows.Count provinces</span>
+                </div>
+                <div class="sys-card-body">
+                    <div class="lgu-chart-legend">
+                        <span><span class="lgu-chart-legend-swatch" style="background:#15803d;"></span>Validated</span>
+                        <span><span class="lgu-chart-legend-swatch" style="background:#f59e0b;"></span>Awaiting Validation (Variance)</span>
+                    </div>
+                    <div class="lgu-province-chart">
+                        @foreach (var p in ProvinceChartRows)
+                        {
+                            var validatedPct = p.Endorsed == 0 ? 0 : (double)p.Validated / MaxProvinceEndorsed * 100;
+                            var variancePct = p.Endorsed == 0 ? 0 : (double)p.Variance / MaxProvinceEndorsed * 100;
+                            <div class="lgu-province-chart-row">
+                                <span class="lgu-province-chart-label" title="@p.ProvinceName">@p.ProvinceName</span>
+                                <div class="lgu-province-chart-track">
+                                    <div class="lgu-province-chart-fill lgu-province-chart-fill--validated"
+                                         style="width:@(validatedPct.ToString("F2"))%;"
+                                         title="@p.ProvinceName — Validated: @p.Validated"></div>
+                                    <div class="lgu-province-chart-fill lgu-province-chart-fill--variance"
+                                         style="width:@(variancePct.ToString("F2"))%;"
+                                         title="@p.ProvinceName — Awaiting Validation: @p.Variance"></div>
+                                </div>
+                                <span class="lgu-province-chart-count">@p.Validated / @p.Endorsed</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
             <div class="sys-card mt-3">
                 <div class="sys-card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-clipboard2-check-fill me-2"></i>Statistical Report — Applications and Validations</span>
@@ -127,15 +184,24 @@
                     Compliant in the Verification Checklist. <strong>Variance</strong> is endorsed grantees not yet
                     validated.
                 </p>
+                <p class="text-muted small px-3 pt-2 pb-2 mb-0">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    A row showing <strong>0</strong> across the board means that LGU has <strong>not endorsed any
+                    grantees</strong> — either it genuinely has none endorsed yet, or none fall within the Date
+                    Added / Date Endorsed / Milestone Year filters currently applied above. It's still listed (rather
+                    than hidden) because it's a known LGU with grantees on record, so it can be tracked for
+                    follow-up.
+                </p>
                 <div class="sys-card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover table-sm mb-0 stat-table lgu-report-table">
-                            <thead class="table-dark">
+                            <thead>
                                 <tr>
                                     <th rowspan="2" class="align-middle">Name of LGU</th>
                                     <th colspan="2" class="text-center lgu-group-start">Endorsed by the LGU</th>
                                     <th colspan="2" class="text-center lgu-group-start">Validated Grantees</th>
                                     <th colspan="2" class="text-center lgu-group-start">Variance</th>
+                                    <th rowspan="2" class="text-center align-middle lgu-group-start">Progress</th>
                                 </tr>
                                 <tr>
                                     <th class="text-center lgu-group-start">Octo/Nona</th>
@@ -150,10 +216,15 @@
                                 @foreach (var provinceGroup in _report.LguValidationBreakdown.GroupBy(x => x.ProvinceName))
                                 {
                                     <tr class="lgu-province-header">
-                                        <td colspan="7"><i class="bi bi-map me-1"></i>@provinceGroup.Key</td>
+                                        <td colspan="8"><i class="bi bi-map me-1"></i>@provinceGroup.Key</td>
                                     </tr>
                                     @foreach (var lgu in provinceGroup)
                                     {
+                                        var lguEndorsed = lgu.EndorsedOctoNona + lgu.EndorsedCente;
+                                        var lguValidated = lgu.ValidatedOctoNona + lgu.ValidatedCente;
+                                        var lguVariance = lgu.VarianceOctoNona + lgu.VarianceCente;
+                                        var lguValidatedPct = lguEndorsed == 0 ? 0 : (double)lguValidated / lguEndorsed * 100;
+                                        var lguVariancePct = lguEndorsed == 0 ? 0 : (double)lguVariance / lguEndorsed * 100;
                                         <tr>
                                             <td class="ps-4">@lgu.MunicipalityName</td>
                                             <td class="text-center lgu-group-start">@lgu.EndorsedOctoNona</td>
@@ -162,6 +233,19 @@
                                             <td class="text-center">@lgu.ValidatedCente</td>
                                             <td class="text-center lgu-group-start @(lgu.VarianceOctoNona > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceOctoNona</td>
                                             <td class="text-center @(lgu.VarianceCente > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceCente</td>
+                                            <td class="text-center lgu-group-start">
+                                                @if (lguEndorsed == 0)
+                                                {
+                                                    <span class="text-muted small">—</span>
+                                                }
+                                                else
+                                                {
+                                                    <div class="lgu-mini-bar-track" title="@lgu.MunicipalityName — Validated @lguValidated / @lguEndorsed">
+                                                        <div class="lgu-mini-bar-fill--validated" style="width:@(lguValidatedPct.ToString("F2"))%;"></div>
+                                                        <div class="lgu-mini-bar-fill--variance" style="width:@(lguVariancePct.ToString("F2"))%;"></div>
+                                                    </div>
+                                                }
+                                            </td>
                                         </tr>
                                     }
                                     <tr class="lgu-province-subtotal">
@@ -172,6 +256,7 @@
                                         <td class="text-center">@provinceGroup.Sum(x => x.ValidatedCente)</td>
                                         <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.VarianceOctoNona)</td>
                                         <td class="text-center">@provinceGroup.Sum(x => x.VarianceCente)</td>
+                                        <td class="text-center lgu-group-start"></td>
                                     </tr>
                                 }
                             </tbody>
@@ -184,6 +269,7 @@
                                     <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.ValidatedCente)</td>
                                     <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.VarianceOctoNona)</td>
                                     <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.VarianceCente)</td>
+                                    <td class="text-center lgu-group-start">@ValidationRateAll.ToString("F1")%</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -212,6 +298,35 @@
     private DateTime? _dateAddedFrom;
     private DateTime? _dateAddedTo;
     private int _selectedMilestoneYear;
+
+    // ── Summary cards ────────────────────────────────────────────────
+    private int TotalEndorsedAll => _report.LguValidationBreakdown.Sum(x => x.EndorsedOctoNona + x.EndorsedCente);
+    private int TotalValidatedAll => _report.LguValidationBreakdown.Sum(x => x.ValidatedOctoNona + x.ValidatedCente);
+    private int TotalVarianceAll => TotalEndorsedAll - TotalValidatedAll;
+    private double ValidationRateAll => TotalEndorsedAll == 0 ? 0 : Math.Round((double)TotalValidatedAll / TotalEndorsedAll * 100, 1);
+
+    // ── Per-province chart ───────────────────────────────────────────
+    // Octo/Nona and Cente combined into one figure per province — the table
+    // below already keeps them split out, the chart is a bigger-picture view.
+    private record ProvinceChartRow(string ProvinceName, int Endorsed, int Validated, int Variance);
+
+    private List<ProvinceChartRow> ProvinceChartRows =>
+        _report.LguValidationBreakdown
+            .GroupBy(x => x.ProvinceName)
+            .Select(g => new ProvinceChartRow(
+                g.Key,
+                g.Sum(x => x.EndorsedOctoNona + x.EndorsedCente),
+                g.Sum(x => x.ValidatedOctoNona + x.ValidatedCente),
+                g.Sum(x => x.VarianceOctoNona + x.VarianceCente)))
+            .OrderByDescending(p => p.Endorsed)
+            .ToList();
+
+    // Bar widths are scaled against the largest province's Endorsed total, not
+    // 100% each, so the chart still reads as a magnitude comparison across
+    // provinces rather than every bar looking equally "full".
+    private int MaxProvinceEndorsed => ProvinceChartRows.Count > 0
+        ? Math.Max(1, ProvinceChartRows.Max(p => p.Endorsed))
+        : 1;
 
     protected override async Task OnInitializedAsync() => await LoadReportAsync();
 
