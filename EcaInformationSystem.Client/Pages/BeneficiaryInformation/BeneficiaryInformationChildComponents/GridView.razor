@@ -323,6 +323,17 @@
                                     disabled="@(State.Filter.PageNumber >= State.TotalPages || State.IsLoading)">
                                 Next →
                             </button>
+                            @if (State.TotalPages > 1)
+                            {
+                                <div class="pag-jump">
+                                    <label for="pag-jump-input">Go to</label>
+                                    <input id="pag-jump-input" type="number" class="pag-jump-input" min="1" max="@State.TotalPages"
+                                           @bind="_jumpToPage" @bind:event="oninput"
+                                           @onkeydown="@(async e => { if (e.Key == "Enter") await GoToPageAsync(); })"
+                                           disabled="@State.IsLoading" placeholder="@State.Filter.PageNumber.ToString()" />
+                                    <button class="pag-btn" @onclick="GoToPageAsync" disabled="@State.IsLoading">Go</button>
+                                </div>
+                            }
                             <select class="form-select form-select-sm w-auto" @bind="State.Filter.PageSize"
                                     @bind:after="OnPageSizeChangedAsync">
                                 <option value="10">10 / page</option>
@@ -3328,6 +3339,25 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
     {
         if (State.Filter.PageNumber <= 1) return;
         State.Filter.PageNumber--;
+        await State.LoadAsync();
+    }
+
+    // Backs the "Go to page" jump box next to Prev/Next — lets someone land
+    // directly on e.g. page 47 instead of clicking Next 46 times. Out-of-range
+    // input is clamped rather than rejected, since typing "999" on a 50-page
+    // result set almost always means "take me to the last page".
+    private int? _jumpToPage;
+
+    private async Task GoToPageAsync()
+    {
+        if (_jumpToPage is not int target) return;
+
+        var clamped = Math.Clamp(target, 1, Math.Max(1, State.TotalPages));
+        _jumpToPage = null;
+
+        if (clamped == State.Filter.PageNumber) return;
+
+        State.Filter.PageNumber = clamped;
         await State.LoadAsync();
     }
 

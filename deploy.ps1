@@ -1,18 +1,103 @@
 $ErrorActionPreference = "Stop"
 
-$msdeploy = "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe"
 $root = $PSScriptRoot
 
-Write-Host "Publishing API..." -ForegroundColor Cyan
-dotnet publish "$root\EcaInformationSystem.API\EcaInformationSystem.API.csproj" -c Release -o "$root\publish\api"
+# --- FTP connection settings ---
+$apiFtpHost   = "site76298.siteasp.net"
+$apiFtpUser   = "site76298"
+$apiFtpPass   = $env:MONSTERASP_API_FTP_PASS
 
-Write-Host "Deploying API to MonsterASP..." -ForegroundColor Cyan
-& $msdeploy -verb:sync -source:contentPath="$root\publish\api" -dest:contentPath=site76298,ComputerName="https://site76298.siteasp.net:8172/msdeploy.axd?site=site76298",UserName=site76298,Password=REDACTED,AuthType=Basic -allowUntrusted -enableRule:AppOffline
+$clientFtpHost = "site76299.siteasp.net"
+$clientFtpUser = "site76299"
+$clientFtpPass = $env:MONSTERASP_CLIENT_FTP_PASS
+
+if ([string]::IsNullOrWhiteSpace($apiFtpPass) -or [string]::IsNullOrWhiteSpace($clientFtpPass)) {
+    throw "Missing FTP passwords. Set MONSTERASP_API_FTP_PASS and MONSTERASP_CLIENT_FTP_PASS before running."
+}
+
+# --- Auto-locate the actual .csproj files ---
+$apiProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
+    Where-Object { $_.Name -match "Api" } | Select-Object -First 1
+$clientProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
+    Where-Object { $_.Name -match "Client" } | Select-Object -First 1
+
+if (-not $apiProject) { throw "Could not find Api .csproj under $root" }
+if (-not $clientProject) { throw "Could not find Client .csproj under $root" }
+
+# --- Upload an entire folder in ONE persistent FTP session using lftp ---
+function Upload-ToFtp {
+    param(
+        [string]$LocalFolder,
+        [string]$FtpHostName,
+        [string]$FtpUser,
+        [string]$FtpPass
+    )
+
+    $lftpScript = @"
+set ftp:ssl-allow no
+set net:max-retries 3
+set net:reconnect-interval-base 3
+set net:timeout 30
+open -u $FtpUser,$FtpPass ftp://$FtpHostName
+mirror -R --parallel=4 --verbose --no-perms "$LocalFolder" /wwwroot
+bye
+"@
+
+    $tempScriptFile = New-TemporaryFile
+    $lftpScript | Out-File -FilePath $tempScriptFile -Encoding utf8
+
+    lftp -f $tempScriptFile
+    $exitCode = $LASTEXITCODE
+
+    Remove-Item $tempScriptFile -ErrorAction SilentlyContinue
+
+    if ($exitCode -ne 0) {
+        throw "lftp mirror upload failed for $LocalFolder (exit code $exitCode)"
+    }
+}
+
+# --- Toggle app_offline.htm to release/re-lock IIS file handles ---
+function Set-AppOffline {
+    param(
+        [string]$FtpHostName,
+        [string]$FtpUser,
+        [string]$FtpPass,
+        [bool]$Enable
+    )
+
+    if ($Enable) {
+        $tempFile = New-TemporaryFile
+        "App is being deployed, please check back shortly." | Out-File -FilePath $tempFile -Encoding utf8 -NoNewline
+        $remoteUrl = "ftp://$FtpHostName/wwwroot/app_offline.htm"
+        curl --ftp-create-dirs -T "$tempFile" "$remoteUrl" --user "${FtpUser}:${FtpPass}" --disable-epsv --retry 3 --retry-delay 3 --silent --show-error
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload app_offline.htm (curl exit code $LASTEXITCODE)" }
+        Remove-Item $tempFile -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+    }
+    else {
+        curl -Q "-DELE /wwwroot/app_offline.htm" "ftp://$FtpHostName/wwwroot/" --user "${FtpUser}:${FtpPass}" --disable-epsv --silent --show-error --output /dev/null
+    }
+}
+
+try {
+    Write-Host "Publishing API..." -ForegroundColor Cyan
+    dotnet publish "$($apiProject.FullName)" -c Release -o "$root/publish/api"
+
+    Write-Host "Taking API offline for deployment..." -ForegroundColor Yellow
+    Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $true
+
+    Write-Host "Uploading API via FTP..." -ForegroundColor Cyan
+    Upload-ToFtp -LocalFolder "$root/publish/api" -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass
+}
+finally {
+    Write-Host "Bringing API back online..." -ForegroundColor Yellow
+    Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $false
+}
 
 Write-Host "Publishing Client..." -ForegroundColor Cyan
-dotnet publish "$root\EcaInformationSystem.Client\EcaInformationSystem.Client.csproj" -c Release -o "$root\publish\client"
+dotnet publish "$($clientProject.FullName)" -c Release -o "$root/publish/client"
 
-Write-Host "Deploying Client to MonsterASP..." -ForegroundColor Cyan
-& $msdeploy -verb:sync -source:contentPath="$root\publish\client" -dest:contentPath=site76299,ComputerName="https://site76299.siteasp.net:8172/msdeploy.axd?site=site76299",UserName=site76299,Password=REDACTED,AuthType=Basic -allowUntrusted
+Write-Host "Uploading Client via FTP..." -ForegroundColor Cyan
+Upload-ToFtp -LocalFolder "$root/publish/client" -FtpHostName $clientFtpHost -FtpUser $clientFtpUser -FtpPass $clientFtpPass
 
-Write-Host "Done. Both API and Client deployed." -ForegroundColor Green
+Write-Host "Done. Both API and Client deployed via FTP." -ForegroundColor Green

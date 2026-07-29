@@ -1,0 +1,308 @@
+@* StatisticsApplicationsValidations.razor — "Statistical Report — Applications and Validations",
+   split out of Statistics.razor into its own page. It's still a branch of Statistics (same nav
+   group, same audience), but it has its own filter set — Date Added, Date Endorsed, and Milestone
+   Year only — and does NOT share or inherit Statistics.razor's filter state, so opening this page
+   never applies Statistics' Region/Province/Municipality/Payment/Quarter/Fiscal-Year filters here. *@
+@page "/statistics/applications-validations"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Applications & Validations Report</PageTitle>
+
+<div class="content-area">
+    @* ── Page Header ───────────────────────────────────────────────── *@
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-clipboard2-check-fill"></i>
+        </div>
+        <div>
+            <div class="page-header-title">Statistical Report — Applications and Validations</div>
+            <div class="page-header-sub">Generated: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</div>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+            <button class="sys-btn sys-btn-outline" @onclick="RefreshAsync">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Loading report...</p>
+        </div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>@_loadError
+            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RefreshAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        @* ── Filter Panel — Date Added / Date Endorsed only ──────────── *@
+        <div class="sf-card">
+            <div class="sf-header" @onclick="ToggleFilter">
+                <div class="sf-header-left">
+                    <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
+                    <div>
+                        <div class="sf-header-title">Filters</div>
+                        <div class="sf-header-sub">Date Added, Date Endorsed, and Milestone Year</div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
+            </div>
+            @if (_filterExpanded)
+            {
+                <div class="sf-body">
+                    <div class="sf-date-ranges">
+                        <div>
+                            <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
+                            <div class="sf-grid">
+                                <div class="sf-field">
+                                    <label>From</label>
+                                    <input type="date" class="ff-input" @bind="_dateAddedFrom" />
+                                </div>
+                                <div class="sf-field">
+                                    <label>To</label>
+                                    <input type="date" class="ff-input" @bind="_dateAddedTo" />
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
+                            <div class="sf-grid">
+                                <div class="sf-field">
+                                    <label>From</label>
+                                    <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
+                                </div>
+                                <div class="sf-field">
+                                    <label>To</label>
+                                    <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sf-group">
+                        <div class="sf-section-label"><i class="bi bi-calendar-event me-1"></i>Milestone Year</div>
+                        <div class="sf-grid">
+                            <div class="sf-field">
+                                <label>Milestone Year</label>
+                                <select class="ff-input" @bind="_selectedMilestoneYear">
+                                    <option value="0">All Milestone Years</option>
+                                    @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sf-actions">
+                        <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
+                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync">
+                            <i class="bi bi-check2"></i> Apply
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Statistical Report — Applications & Validations by LGU ──────── *@
+        @if (_report.LguValidationBreakdown.Any())
+        {
+            <div class="sys-card mt-3">
+                <div class="sys-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-clipboard2-check-fill me-2"></i>Statistical Report — Applications and Validations</span>
+                    <span class="badge bg-light text-dark">@_report.LguValidationBreakdown.Count LGUs</span>
+                </div>
+                <p class="text-muted small px-3 pt-2 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Endorsed</strong> = has a Date Endorsed on record. <strong>Validated</strong> = marked
+                    Compliant in the Verification Checklist. <strong>Variance</strong> is endorsed grantees not yet
+                    validated.
+                </p>
+                <div class="sys-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0 stat-table lgu-report-table">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th rowspan="2" class="align-middle">Name of LGU</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Endorsed by the LGU</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Validated Grantees</th>
+                                    <th colspan="2" class="text-center lgu-group-start">Variance</th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                    <th class="text-center lgu-group-start">Octo/Nona</th>
+                                    <th class="text-center">Cente</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var provinceGroup in _report.LguValidationBreakdown.GroupBy(x => x.ProvinceName))
+                                {
+                                    <tr class="lgu-province-header">
+                                        <td colspan="7"><i class="bi bi-map me-1"></i>@provinceGroup.Key</td>
+                                    </tr>
+                                    @foreach (var lgu in provinceGroup)
+                                    {
+                                        <tr>
+                                            <td class="ps-4">@lgu.MunicipalityName</td>
+                                            <td class="text-center lgu-group-start">@lgu.EndorsedOctoNona</td>
+                                            <td class="text-center">@lgu.EndorsedCente</td>
+                                            <td class="text-center lgu-group-start">@lgu.ValidatedOctoNona</td>
+                                            <td class="text-center">@lgu.ValidatedCente</td>
+                                            <td class="text-center lgu-group-start @(lgu.VarianceOctoNona > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceOctoNona</td>
+                                            <td class="text-center @(lgu.VarianceCente > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceCente</td>
+                                        </tr>
+                                    }
+                                    <tr class="lgu-province-subtotal">
+                                        <td class="ps-4 fst-italic">Subtotal — @provinceGroup.Key</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.EndorsedOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.EndorsedCente)</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.ValidatedOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.ValidatedCente)</td>
+                                        <td class="text-center lgu-group-start">@provinceGroup.Sum(x => x.VarianceOctoNona)</td>
+                                        <td class="text-center">@provinceGroup.Sum(x => x.VarianceCente)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="table-secondary fw-bold">
+                                <tr>
+                                    <td>TOTAL</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.EndorsedOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.EndorsedCente)</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.ValidatedOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.ValidatedCente)</td>
+                                    <td class="text-center lgu-group-start">@_report.LguValidationBreakdown.Sum(x => x.VarianceOctoNona)</td>
+                                    <td class="text-center">@_report.LguValidationBreakdown.Sum(x => x.VarianceCente)</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-secondary mt-3">
+                <i class="bi bi-info-circle me-1"></i>No endorsed applications found for the selected date range.
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private string? _loadError;
+    private bool _filterExpanded = true;
+
+    private LguValidationReportDto _report = new();
+
+    private DateTime? _dateEndorsedFrom;
+    private DateTime? _dateEndorsedTo;
+    private DateTime? _dateAddedFrom;
+    private DateTime? _dateAddedTo;
+    private int _selectedMilestoneYear;
+
+    protected override async Task OnInitializedAsync() => await LoadReportAsync();
+
+    private async Task LoadReportAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+
+        try
+        {
+            // Everything except Date Added / Date Endorsed / Milestone Year is left
+            // at its "no filter" default (0 / null, PaymentStatus -1) — the shared
+            // report endpoint treats those as "don't narrow by this", so this page
+            // never applies Statistics.razor's Region/Province/Municipality/Payment/
+            // Quarter/Fiscal-Year filters, since those live entirely on that page.
+            var request = new ApplicationsValidationsRequestDto
+            {
+                DateEndorsedFrom = _dateEndorsedFrom,
+                DateEndorsedTo = _dateEndorsedTo,
+                DateAddedFrom = _dateAddedFrom,
+                DateAddedTo = _dateAddedTo,
+                MilestoneYear = _selectedMilestoneYear
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _report = await response.Content.ReadFromJsonAsync<LguValidationReportDto>() ?? new();
+            }
+            else
+            {
+                _loadError = "Failed to load the report. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleFilter() => _filterExpanded = !_filterExpanded;
+
+    private void ClearFilters()
+    {
+        _dateEndorsedFrom = null;
+        _dateEndorsedTo = null;
+        _dateAddedFrom = null;
+        _dateAddedTo = null;
+        _selectedMilestoneYear = 0;
+    }
+
+    private async Task ApplyFiltersAsync() => await LoadReportAsync();
+    private async Task RefreshAsync() => await LoadReportAsync();
+
+    // ── DTOs ──────────────────────────────────────────────────────────
+    // Only the fields this page actually sends/reads — the shared endpoint's
+    // full request/response shapes have many more fields (Region, Province,
+    // Milestone, Payment, etc.); System.Text.Json ignores whatever's on the
+    // wire that isn't declared here, so this page stays self-contained
+    // without pulling in Statistics.razor's whole filter model.
+    public class ApplicationsValidationsRequestDto
+    {
+        public int PaymentStatus { get; set; } = -1;
+        public int MilestoneYear { get; set; }
+        public DateTime? DateEndorsedFrom { get; set; }
+        public DateTime? DateEndorsedTo { get; set; }
+        public DateTime? DateAddedFrom { get; set; }
+        public DateTime? DateAddedTo { get; set; }
+    }
+
+    public class LguValidationReportDto
+    {
+        public List<LguValidationStatisticsDto> LguValidationBreakdown { get; set; } = new();
+    }
+
+    public class LguValidationStatisticsDto
+    {
+        public string ProvinceName { get; set; } = string.Empty;
+        public string MunicipalityName { get; set; } = string.Empty;
+        public int EndorsedOctoNona { get; set; }
+        public int EndorsedCente { get; set; }
+        public int ValidatedOctoNona { get; set; }
+        public int ValidatedCente { get; set; }
+        public int VarianceOctoNona { get; set; }
+        public int VarianceCente { get; set; }
+        public string ReasonsOctoNona { get; set; } = "-";
+        public string ReasonsCente { get; set; } = "-";
+    }
+}

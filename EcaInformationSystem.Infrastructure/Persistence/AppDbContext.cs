@@ -49,6 +49,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryVerificationChecklist> BeneficiaryVerificationChecklists => Set<BeneficiaryVerificationChecklist>();
             public DbSet<BeneficiaryClaimantBankAccount> BeneficiaryClaimantBankAccounts => Set<BeneficiaryClaimantBankAccount>();
             public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
+            public DbSet<WfpEcaEntry> WfpEcaEntries => Set<WfpEcaEntry>();
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
             public DbSet<StickyNote> StickyNotes => Set<StickyNote>();
@@ -863,6 +864,29 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         .IsUnique()
                         .HasDatabaseName("UQ_AnnualGranteeTarget_Region_FiscalYear");
 
+                        entity.Property(x => x.SetBy).HasMaxLength(256);
+                        entity.Property(x => x.ModifiedBy).HasMaxLength(256);
+                        entity.Property(x => x.RowVersion).IsRowVersion();
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // WFP-ECA (Work Financial Plan — per-region UACS line items)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<WfpEcaEntry>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        // One row per region per fiscal year per UACS line item — Upsert
+                        // relies on this for its "does one already exist" lookup.
+                        entity.HasIndex(x => new { x.RegionCode, x.FiscalYear, x.UacsCode })
+                        .IsUnique()
+                        .HasDatabaseName("UQ_WfpEcaEntry_Region_FiscalYear_UacsCode");
+
+                        entity.Property(x => x.UacsCode).HasMaxLength(20);
+                        entity.Property(x => x.UacsName).HasMaxLength(300);
+                        entity.Property(x => x.Remarks).HasMaxLength(500);
+                        entity.Property(x => x.Allotment).HasColumnType("decimal(18,2)");
+                        entity.Property(x => x.Obligation).HasColumnType("decimal(18,2)");
                         entity.Property(x => x.SetBy).HasMaxLength(256);
                         entity.Property(x => x.ModifiedBy).HasMaxLength(256);
                         entity.Property(x => x.RowVersion).IsRowVersion();

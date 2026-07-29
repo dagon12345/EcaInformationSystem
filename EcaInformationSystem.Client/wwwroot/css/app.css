@@ -6090,6 +6090,51 @@
             opacity: .4;
             cursor: not-allowed;
         }
+
+    /* ── Jump-to-page — sits next to Prev/Next in .pag-controls ── */
+    .pag-jump {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding-left: 6px;
+        margin-left: 2px;
+        border-left: 1px solid var(--border);
+    }
+
+        .pag-jump label {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+    .pag-jump-input {
+        width: 56px;
+        padding: 3px 6px;
+        font-size: 12px;
+        border: 1.5px solid var(--border);
+        border-radius: 6px;
+        text-align: center;
+        color: var(--text-main);
+        background: white;
+    }
+
+        .pag-jump-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+        }
+
+        /* hide the number spinner arrows — this is a page index, not a counter */
+        .pag-jump-input::-webkit-outer-spin-button,
+        .pag-jump-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .pag-jump-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
     /* ── Table container ───────────────────────────────────── */
     .tbl-container {
         position: relative;
@@ -6640,6 +6685,65 @@
             opacity: .5;
             cursor: not-allowed;
         }
+
+    /* ── Quick search bar — always visible above the collapsible advanced filters ── */
+    .sf-header--static {
+        cursor: default;
+    }
+
+    .sf-quickbar {
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .sf-quickbar-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .sf-btn-advanced {
+        background: white;
+        border-color: var(--border);
+        color: var(--navy);
+    }
+
+        .sf-btn-advanced:hover {
+            border-color: var(--navy);
+            background: var(--navy-pale);
+        }
+
+        .sf-btn-advanced .sf-chevron {
+            color: var(--navy);
+        }
+
+    /* ── Outlined group boxes — Location, Payment, Age & Birthday, etc. ── */
+    .sf-group {
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 14px 10px;
+    }
+
+    /* Overrides the plain bottom-border .sf-section-label defined above —
+       a filled badge reads faster at a glance than a thin underline once
+       there are several outlined group boxes stacked on the page. */
+    .sf-group .sf-section-label {
+        display: inline-flex;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: .3px;
+        text-transform: none;
+        color: var(--navy);
+        background: var(--navy-pale);
+        border: none;
+        border-radius: 6px;
+        padding: 5px 12px;
+        margin-bottom: 10px;
+    }
 
 
 html {

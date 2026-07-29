@@ -31,11 +31,21 @@
         <span class="nav-label">Calendar</span>
     </NavLink>
 
+    <div class="nav-section-label">Reports</div>
+
     @* ── Statistics — Admin + PDO + Viewer ── *@
     <NavLink class="nav-item" href="statistics">
         <span class="nav-icon"><i class="bi bi-bar-chart-fill"></i></span>
         <span class="nav-label">Statistics</span>
     </NavLink>
+
+    @* ── Applications & Validations — branch of Statistics, own filters (Date Added / Date Endorsed only) — Admin + PDO + Viewer ── *@
+    <NavLink class="nav-item" href="statistics/applications-validations">
+        <span class="nav-icon"><i class="bi bi-clipboard2-check-fill"></i></span>
+        <span class="nav-label">Applications & Validations</span>
+    </NavLink>
+
+    <div class="nav-section-label">Records</div>
 
     @* ── Create Record — Admin + PDO only ── *@
     @if (_isAdmin || _isPdo)
@@ -58,12 +68,17 @@
     </NavLink>
 
 
-    @* ── Liquidation — Admin only ── *@
+    @* ── Financial section — Admin only ── *@
     @if (_isAdmin)
     {
+        <div class="nav-section-label">Financial</div>
         <NavLink class="nav-item" href="liquidation">
             <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
             <span class="nav-label">Liquidation</span>
+        </NavLink>
+        <NavLink class="nav-item" href="wfp-eca">
+            <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
+            <span class="nav-label">WFP-ECA</span>
         </NavLink>
     }
 

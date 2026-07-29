@@ -1,0 +1,429 @@
+@* WfpEca.razor — Work Financial Plan (ECA), the per-region UACS allotment/obligation/balance
+   table shown on the Financial nav. There's no fixed UACS catalog — each region's Admin/
+   SuperAdmin builds the list from scratch, one line item at a time, the same way phone
+   numbers are added in BeneficiaryForm.razor: an inline "+" adds a row, each row has its
+   own Edit/Delete icons instead of one page-level edit toggle. Every add/edit/delete saves
+   immediately (via the existing bulk upsert endpoint, resubmitting the current full list).
+   Balance and the running total/percentage are always derived, never stored. *@
+@page "/wfp-eca"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject ToastService Toast
+
+<PageTitle>WFP-ECA</PageTitle>
+
+@if (!_initialized)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+        <span class="ms-2 text-muted">Checking access...</span>
+    </div>
+}
+else if (!_authorized)
+{
+    <div class="alert alert-danger d-flex align-items-center gap-2 m-3">
+        <i class="bi bi-shield-lock fs-5"></i>
+        <div>
+            <strong>Access Denied</strong>
+            <p class="mb-0 small">This page is restricted to Administrators only.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="sys-card m-3">
+        <div class="sys-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span><i class="bi bi-cash-stack me-2"></i>Work Financial Plan — ECA@(_data?.RegionName is { } rn ? $" ({rn})" : "")</span>
+            <select class="form-select form-select-sm" style="width:auto;" @bind="SelectedFiscalYear">
+                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+        </div>
+
+        <div class="sys-card-body">
+            @if (_isLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <span class="ms-2 text-muted">Loading...</span>
+                </div>
+            }
+            else if (_loadError is not null)
+            {
+                <div class="alert alert-danger py-2 mb-0">@_loadError</div>
+            }
+            else if (_data is not null)
+            {
+                @if (_data.DateSet is not null)
+                {
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-person-check me-1"></i>
+                        Set by <strong>@_data.SetBy</strong> on @_data.DateSet.Value.ToLocalTime().ToString("MMMM dd, yyyy")
+                        @if (_data.DateModified is not null)
+                        {
+                            <span>&nbsp;— last updated by <strong>@_data.ModifiedBy</strong> on @_data.DateModified.Value.ToLocalTime().ToString("MMMM dd, yyyy")</span>
+                        }
+                    </p>
+                }
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover mb-0 align-middle">
+                        <thead>
+                            <tr class="table-primary">
+                                <th colspan="2">REGION @_data.RegionName</th>
+                                <th class="text-center" style="background:#ffe600;">ECA</th>
+                                <th class="text-end" style="background:#ffe600;" colspan="4">@RunningTotalAllotment.ToString("N2")</th>
+                            </tr>
+                            <tr class="table-dark">
+                                <th>UACS Name</th>
+                                <th>UACS CODE</th>
+                                <th class="text-end">ALLOTMENT</th>
+                                <th class="text-end">OBLIGATION</th>
+                                <th class="text-end">BALANCE</th>
+                                <th>REMARKS</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_lines.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-3">
+                                        No line items yet. Click <strong>Add Line Item</strong> below to start building this plan.
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var line in _lines)
+                            {
+                                <tr @key="line">
+                                    @if (_editingLine == line)
+                                    {
+                                        <td style="min-width:220px;">
+                                            <input type="text" class="form-control form-control-sm" placeholder="UACS Name" @bind="_draft.UacsName" />
+                                        </td>
+                                        <td style="min-width:140px;">
+                                            <input type="text" class="form-control form-control-sm" placeholder="UACS Code" @bind="_draft.UacsCode" />
+                                        </td>
+                                        <td style="max-width:140px;">
+                                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end"
+                                                   @bind="_draft.Allotment" />
+                                        </td>
+                                        <td style="max-width:140px;">
+                                            <input type="number" min="0" step="0.01" class="form-control form-control-sm text-end"
+                                                   @bind="_draft.Obligation" />
+                                        </td>
+                                        <td class="text-end fw-semibold">@((_draft.Allotment - _draft.Obligation).ToString("N2"))</td>
+                                        <td style="min-width:160px;">
+                                            <input type="text" class="form-control form-control-sm" @bind="_draft.Remarks" />
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="d-flex gap-1 justify-content-center">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Save" disabled="@_isSaving" @onclick="SaveEditAsync">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel" disabled="@_isSaving" @onclick="CancelEdit">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    }
+                                    else if (_confirmingDeleteLine == line)
+                                    {
+                                        <td colspan="6">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                                                <span>Delete <strong>@(string.IsNullOrWhiteSpace(line.UacsName) ? line.UacsCode : line.UacsName)</strong>?</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="d-flex gap-1 justify-content-center">
+                                                <button type="button" class="btn btn-sm btn-danger" title="Confirm delete" disabled="@_isSaving" @onclick="ConfirmDeleteAsync">
+                                                    @(_isSaving ? "..." : "Delete")
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel" disabled="@_isSaving" @onclick="CancelDelete">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </td>
+                                    }
+                                    else
+                                    {
+                                        <td>@line.UacsName</td>
+                                        <td>@line.UacsCode</td>
+                                        <td class="text-end">@line.Allotment.ToString("N2")</td>
+                                        <td class="text-end">@line.Obligation.ToString("N2")</td>
+                                        <td class="text-end">@line.Balance.ToString("N2")</td>
+                                        <td>@line.Remarks</td>
+                                        <td class="text-center">
+                                            <div class="d-flex gap-1 justify-content-center">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                                                        disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == 0)" @onclick="() => MoveUpAsync(line)">
+                                                    <i class="bi bi-arrow-up"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                                                        disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == _lines.Count - 1)" @onclick="() => MoveDownAsync(line)">
+                                                    <i class="bi bi-arrow-down"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Edit"
+                                                        disabled="@(_editingLine is not null)" @onclick="() => StartEdit(line)">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" title="Delete"
+                                                        disabled="@(_editingLine is not null)" @onclick="() => RequestDelete(line)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="2">TOTAL</td>
+                                <td class="text-end">@RunningTotalAllotment.ToString("N2")</td>
+                                <td class="text-end">@RunningTotalObligation.ToString("N2")</td>
+                                <td class="text-end">@RunningTotalBalance.ToString("N2")</td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td colspan="5"></td>
+                                <td class="text-end fw-bold">@RunningPercentage.ToString("N2")%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <button type="button" class="btn btn-sm btn-outline-success mt-2" title="Add line item"
+                        disabled="@(_editingLine is not null || _isSaving)" @onclick="AddRow">
+                    <i class="bi bi-plus-lg me-1"></i>Add Line Item
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _initialized;
+    private bool _authorized;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _loadError;
+    private int _fiscalYear = DateTime.Now.Year;
+
+    private WfpEcaDto? _data;
+    private List<WfpEcaLineDto> _lines = new();
+
+    // Only one row can be in edit (or delete-confirm) state at a time — edits
+    // happen on _draft, a working copy, so a row's displayed values don't
+    // change until Save actually succeeds; Cancel just throws the draft away.
+    private WfpEcaLineDto? _editingLine;
+    private WfpEcaLineDto _draft = new();
+    private WfpEcaLineDto? _confirmingDeleteLine;
+
+    private decimal RunningTotalAllotment => _lines.Sum(l => l.Allotment);
+    private decimal RunningTotalObligation => _lines.Sum(l => l.Obligation);
+    private decimal RunningTotalBalance => RunningTotalAllotment - RunningTotalObligation;
+    private decimal RunningPercentage => RunningTotalAllotment == 0 ? 0 : Math.Round(RunningTotalObligation / RunningTotalAllotment * 100, 2);
+
+    private int SelectedFiscalYear
+    {
+        get => _fiscalYear;
+        set
+        {
+            if (_fiscalYear == value) return;
+            _fiscalYear = value;
+            _editingLine = null;
+            _confirmingDeleteLine = null;
+            _ = LoadAsync();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _authorized = AuthService.IsAdmin();
+        _initialized = true;
+
+        if (_authorized)
+            await LoadAsync();
+        else
+            _isLoading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        try
+        {
+            _data = await Http.GetFromJsonAsync<WfpEcaDto>($"api/WfpEca/{_fiscalYear}");
+            _lines = _data?.Lines ?? new();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load the Work Financial Plan: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StartEdit(WfpEcaLineDto line)
+    {
+        _confirmingDeleteLine = null;
+        _editingLine = line;
+        _draft = new WfpEcaLineDto
+        {
+            Id = line.Id,
+            UacsCode = line.UacsCode,
+            UacsName = line.UacsName,
+            Allotment = line.Allotment,
+            Obligation = line.Obligation,
+            Remarks = line.Remarks
+        };
+    }
+
+    private void CancelEdit()
+    {
+        // A brand-new row (never saved) just gets discarded outright; an
+        // existing row simply reverts to its last-saved display values,
+        // which were never touched since edits only ever applied to _draft.
+        if (_editingLine is not null && _editingLine.Id is null)
+            _lines.Remove(_editingLine);
+        _editingLine = null;
+    }
+
+    private void AddRow()
+    {
+        var line = new WfpEcaLineDto
+        {
+            Id = null,
+            UacsCode = string.Empty,
+            UacsName = string.Empty,
+            Allotment = 0m,
+            Obligation = 0m,
+            Remarks = null
+        };
+        _lines.Add(line);
+        StartEdit(line);
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (_editingLine is null) return;
+
+        if (string.IsNullOrWhiteSpace(_draft.UacsCode) || string.IsNullOrWhiteSpace(_draft.UacsName))
+        {
+            Toast.ShowError("UACS Code and UACS Name are required.");
+            return;
+        }
+
+        _editingLine.UacsCode = _draft.UacsCode.Trim();
+        _editingLine.UacsName = _draft.UacsName.Trim();
+        _editingLine.Allotment = _draft.Allotment;
+        _editingLine.Obligation = _draft.Obligation;
+        _editingLine.Remarks = _draft.Remarks;
+
+        if (await PersistAsync())
+        {
+            _editingLine = null;
+            Toast.ShowSuccess("Line item saved.");
+        }
+    }
+
+    // Swaps the row with its neighbor and saves immediately — order is
+    // persisted via SortOrder, which the server just reassigns to whatever
+    // position each row holds in the submitted list, so a normal save is
+    // enough to make the new order stick.
+    private async Task MoveUpAsync(WfpEcaLineDto line)
+    {
+        var index = _lines.IndexOf(line);
+        if (index <= 0) return;
+        (_lines[index - 1], _lines[index]) = (_lines[index], _lines[index - 1]);
+        await PersistAsync();
+    }
+
+    private async Task MoveDownAsync(WfpEcaLineDto line)
+    {
+        var index = _lines.IndexOf(line);
+        if (index < 0 || index >= _lines.Count - 1) return;
+        (_lines[index + 1], _lines[index]) = (_lines[index], _lines[index + 1]);
+        await PersistAsync();
+    }
+
+    private void RequestDelete(WfpEcaLineDto line)
+    {
+        _editingLine = null;
+        _confirmingDeleteLine = line;
+    }
+
+    private void CancelDelete() => _confirmingDeleteLine = null;
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_confirmingDeleteLine is null) return;
+
+        _lines.Remove(_confirmingDeleteLine);
+        _confirmingDeleteLine = null;
+
+        if (await PersistAsync())
+            Toast.ShowSuccess("Line item removed.");
+    }
+
+    // Backs every add/edit/delete — there's no separate per-row API, so each
+    // action just resubmits the current full line list to the existing bulk
+    // upsert endpoint (which diffs by Id: missing rows are deleted, Id-less
+    // rows are created, matched rows are updated) and reloads from the result.
+    private async Task<bool> PersistAsync()
+    {
+        _isSaving = true;
+        try
+        {
+            var dto = new UpsertWfpEcaDto
+            {
+                FiscalYear = _fiscalYear,
+                Lines = _lines.Select(l => new UpsertWfpEcaLineDto
+                {
+                    Id = l.Id,
+                    UacsCode = l.UacsCode,
+                    UacsName = l.UacsName,
+                    Allotment = l.Allotment,
+                    Obligation = l.Obligation,
+                    Remarks = l.Remarks
+                }).ToList()
+            };
+
+            var response = await Http.PutAsJsonAsync("api/WfpEca", dto);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save the Work Financial Plan." : error);
+                return false;
+            }
+
+            _data = await response.Content.ReadFromJsonAsync<WfpEcaDto>();
+            _lines = _data?.Lines ?? new();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

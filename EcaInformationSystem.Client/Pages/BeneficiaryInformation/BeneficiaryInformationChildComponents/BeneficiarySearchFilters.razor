@@ -8,27 +8,73 @@
 <div class="sf-wrap">
     <div class="sf-card">
 
-        @* ── HEADER (clickable to collapse) ── *@
-        <div class="sf-header" @onclick="ToggleCollapse">
+        @* ── HEADER — static, no longer the collapse trigger ── *@
+        <div class="sf-header sf-header--static">
             <div class="sf-header-left">
                 <div class="sf-header-icon">
                     <i class="bi bi-funnel-fill"></i>
                 </div>
                 <div>
                     <p class="sf-header-title">Filter Grantees</p>
-                    <p class="sf-header-sub">Search and narrow down records</p>
+                    <p class="sf-header-sub">Search by name — or expand for Region, Payment, Age and more</p>
                 </div>
             </div>
-            <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
         </div>
 
-        @* ── BODY ── *@
+        @* ── QUICK SEARCH — always visible, this is the default filter ── *@
+        <div class="sf-general-search sf-quickbar">
+            <div class="sf-search-wrap">
+                <i class="bi bi-search sf-search-icon"></i>
+                <input type="text" class="sf-search-input"
+                       placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
+                       @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
+                @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+                {
+                    <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
+            {
+                <small class="text-muted mt-1 d-block">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Searching all columns for
+                    <strong>"@State.Filter.GeneralSearch"</strong>
+                </small>
+            }
+            <div class="sf-quickbar-actions">
+                <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+                <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync"
+                        disabled="@(IsApplyingFilters || IsLoading)">
+                    @if (IsApplyingFilters)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                        <span>Applying...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search"></i>
+                        <span>Apply</span>
+                    }
+                </button>
+                <button class="sf-btn sf-btn-advanced" @onclick="ToggleCollapse">
+                    <i class="bi bi-sliders"></i>
+                    <span>@(_collapsed ? "More Filters" : "Hide Filters")</span>
+                    <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
+                </button>
+            </div>
+        </div>
+
+        @* ── ADVANCED FILTERS — collapsed by default ── *@
         @if (!_collapsed)
         {
             <div class="sf-body">
 
                 @* LOCATION *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-geo-alt me-1"></i>Location</div>
                     <div class="sf-grid">
 
@@ -104,7 +150,7 @@
                 </div>
 
                 @* DATE ADDED *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
                     <div class="sf-grid">
                         <div class="sf-field">
@@ -150,7 +196,7 @@
                 </div>
 
                 @* DATE ENDORSED *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
                     <div class="sf-grid">
                         <div class="sf-field">
@@ -196,7 +242,7 @@
                 </div>
 
                 @* PAYMENT *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-credit-card me-1"></i>Payment</div>
                     <div class="sf-grid">
                         <div class="sf-field">
@@ -278,7 +324,7 @@
                 </div>
 
                 @* AGE & BIRTHDAY *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-calendar3 me-1"></i>Age & Birthday</div>
                     <div class="sf-grid">
                         <div class="sf-field">
@@ -381,7 +427,7 @@
                     </div>
                 </div>
                 @* REFERENCE NUMBER *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label">
                         <i class="bi bi-hash me-1"></i>Reference Number
                     </div>
@@ -431,7 +477,7 @@
                     </div>
                 </div>
                 @* PERSONAL *@
-                <div>
+                <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-person me-1"></i>Personal</div>
                     <div class="sf-grid">
                         <div class="sf-field">
@@ -505,35 +551,7 @@
                         </div>
                     </div>
                 </div>
-                @* ── GENERAL SEARCH ── *@
-                <div>
-                    <div class="sf-section-label"><i class="bi bi-globe me-1"></i>General Search</div>
-                    <div class="sf-general-search mb-3">
-                        <div class="sf-search-wrap">
-                            <i class="bi bi-search sf-search-icon"></i>
-                            <input type="text" class="sf-search-input"
-                                   placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
-                                   @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
-                            @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
-                            {
-                                <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            }
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
-                        {
-                            <small class="text-muted mt-1 d-block">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Searching all columns for
-                                <strong>"@State.Filter.GeneralSearch"</strong>
-                            </small>
-                        }
-                    </div>
-                </div>
-
-              
-                @* ACTIONS *@
+                @* ACTIONS — General Search now lives in the always-visible quick bar above *@
                 <div class="sf-actions">
                     <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
                         <i class="bi bi-x-circle"></i> Clear
@@ -634,7 +652,10 @@
     private bool IsFilterMunicipalityLoading = false;
     private bool IsFilterBarangayLoading = false;
     private bool IsApplyingFilters = false;
-    private bool _collapsed = false; // starts expanded
+    // Advanced filters (Location, Dates, Payment, Age & Birthday, Reference
+    // Number, Personal) start collapsed — General Search in the quick bar
+    // above is the default filter; everything else is opt-in via "More Filters".
+    private bool _collapsed = true;
 
     private Dictionary<int, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<int, List<BarangayLookupDto>> filterBarangayCache = new();

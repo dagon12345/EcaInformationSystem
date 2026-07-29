@@ -961,19 +961,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 return reasons.Count > 0 ? string.Join("; ", reasons) : "-";
             }
 
-            report.LguValidationBreakdown = allData
-                .GroupBy(b => new { b.Province, b.Municipality })
-                .Select(g =>
+            var lguComputed = allData
+                .GroupBy(b => (b.Province, b.Municipality))
+                .ToDictionary(g => g.Key, g =>
                 {
-                    var provinceName = _psgcNameCache.GetProvinceName(g.Key.Province) ?? g.Key.Province.ToString();
-                    var municipalityName = _psgcNameCache.GetMunicipalityName(g.Key.Municipality) ?? g.Key.Municipality.ToString();
                     var endorsedOctoNona = g.Where(b => b.DateEndorsed.HasValue && IsOctoNona(b)).ToList();
                     var endorsedCente = g.Where(b => b.DateEndorsed.HasValue && IsCente(b)).ToList();
 
                     return new LguValidationStatisticsDto
                     {
-                        ProvinceName = provinceName,
-                        MunicipalityName = municipalityName,
+                        ProvinceName = _psgcNameCache.GetProvinceName(g.Key.Province) ?? g.Key.Province.ToString(),
+                        MunicipalityName = _psgcNameCache.GetMunicipalityName(g.Key.Municipality) ?? g.Key.Municipality.ToString(),
                         EndorsedOctoNona = endorsedOctoNona.Count,
                         EndorsedCente = endorsedCente.Count,
                         ValidatedOctoNona = endorsedOctoNona.Count(b => b.IsCompliant),
@@ -981,8 +979,42 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         ReasonsOctoNona = BuildVarianceReasons(endorsedOctoNona.Where(b => !b.IsCompliant)),
                         ReasonsCente = BuildVarianceReasons(endorsedCente.Where(b => !b.IsCompliant))
                     };
-                })
-                .Where(x => x.EndorsedOctoNona > 0 || x.EndorsedCente > 0)
+                });
+
+            // ✅ FIXED — previously this list only ever contained municipalities that
+            // (a) had at least one beneficiary matching the Date Added/Date Endorsed/
+            // Milestone filters above AND (b) had at least one ENDORSED grantee, via
+            // a `.Where(EndorsedOctoNona > 0 || EndorsedCente > 0)` clause. Any other
+            // municipality in the same province — including ones with grantees but
+            // zero endorsed in the selected window — silently vanished from the
+            // report instead of showing as a zero row. "The universe" here is every
+            // Province/Municipality combination with ANY non-deleted grantee on
+            // record, independent of this request's date/milestone filters, scoped
+            // by the same Region/Province/Municipality location filters as the rest
+            // of the report — so it lists every LGU this program actually has
+            // grantees in, not every PSGC municipality nationwide.
+            var universeQuery = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
+            if (request.Region.HasValue && request.Region.Value > 0)
+                universeQuery = universeQuery.Where(b => b.Region == request.Region.Value);
+            if (request.Province.HasValue && request.Province.Value > 0)
+                universeQuery = universeQuery.Where(b => b.Province == request.Province.Value);
+            if (request.Municipality.HasValue && request.Municipality.Value > 0)
+                universeQuery = universeQuery.Where(b => b.Municipality == request.Municipality.Value);
+
+            var lguUniverse = await universeQuery
+                .Select(b => new { b.Province, b.Municipality })
+                .Distinct()
+                .ToListAsync();
+
+            report.LguValidationBreakdown = lguUniverse
+                .Select(key => lguComputed.TryGetValue((key.Province, key.Municipality), out var existing)
+                    ? existing
+                    : new LguValidationStatisticsDto
+                    {
+                        ProvinceName = _psgcNameCache.GetProvinceName(key.Province) ?? key.Province.ToString(),
+                        MunicipalityName = _psgcNameCache.GetMunicipalityName(key.Municipality) ?? key.Municipality.ToString()
+                        // Endorsed/Validated all default to 0, Reasons default to "-"
+                    })
                 .OrderBy(x => x.ProvinceName).ThenBy(x => x.MunicipalityName)
                 .ToList();
 
