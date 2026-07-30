@@ -47,4 +47,5 @@ builder.Services.AddScoped<StickyNoteClientService>();
 builder.Services.AddScoped<PostsClientService>();
 builder.Services.AddScoped<ActivityClientService>();
 builder.Services.AddScoped<DocumentTrackingClientService>();
+builder.Services.AddScoped<SystemUpdateClientService>();
 await builder.Build().RunAsync();

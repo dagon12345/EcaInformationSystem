@@ -1,15 +1,29 @@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.Activity
+@using EcaInformationSystem.Shared.DTOs.SystemUpdate
 @using EcaInformationSystem.Common.Enums
 @using EcaInformationSystem.Client.Services
+@using System.Net.Http.Json
 @inject BeneficiaryStateService State
 @inject ActivityClientService ActivityClient
 @inject DocumentUploadQueueService UploadQueue
 @inject DocumentTrackingClientService DocTracking
+@inject SystemUpdateClientService SystemUpdateClient
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject AuthService AuthService
+@inject HttpClient Http
+@inject IJSRuntime JS
 @implements IAsyncDisposable
+
+@* ── Invisible full-screen catcher — sits behind the dropdown (z-index just
+     under its 1400) and in front of everything else, so a click ANYWHERE
+     outside the bell/dropdown closes it. The bell's own wrapper below stops
+     propagation, so clicks inside never reach this. ── *@
+@if (_showDropdown)
+{
+    <div class="notif-bell-backdrop" @onclick="CloseDropdown"></div>
+}
 
 @* ── Single bell — replaces the old separate Duplicate / Calendar / Upload icons.
      One trigger, one dropdown, tabs inside instead of three icons in the navbar. ── *@
@@ -59,6 +73,12 @@
                     <i class="bi bi-truck"></i>
                     <span>Documents</span>
                     @if (DocTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@DocTracking.PendingForMeCount</span> }
+                </button>
+                <button class="notif-bell-tab @(_activeTab == NotifTab.Updates ? "notif-bell-tab--active" : "")"
+                        @onclick="() => _activeTab = NotifTab.Updates">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>Updates</span>
+                    @if (_hasUnseenUpdate) { <span class="notif-bell-tab-badge">1</span> }
                 </button>
             </div>
 
@@ -310,6 +330,67 @@
                     </button>
                 </div>
             }
+            else if (_activeTab == NotifTab.Updates)
+            {
+                <div class="duplicate-dropdown-header">
+                    <span class="fw-bold">System Updates</span>
+                    @if (_hasUnseenUpdate)
+                    {
+                        <span class="badge bg-danger">New</span>
+                    }
+                </div>
+
+                <div class="duplicate-dropdown-scroll">
+                    @if (_loadingUpdates)
+                    {
+                        <div class="duplicate-dropdown-item text-center">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </div>
+                    }
+                    else if (!_updateNotices.Any())
+                    {
+                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                            <i class="bi bi-info-circle me-2"></i>
+                            No updates published yet
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var notice in _updateNotices)
+                        {
+                            var isUnseen = _hasUnseenUpdate && notice == _updateNotices.First();
+
+                            <div class="duplicate-dropdown-item @(isUnseen ? "duplicate-dropdown-has-matches" : "")">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start w-100">
+                                        <span class="fw-semibold" style="font-size:13px;">@notice.Title</span>
+                                        <span class="text-muted small ms-1">v@(notice.Version)</span>
+                                    </div>
+                                    @foreach (var line in notice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                    {
+                                        <div class="duplicate-dropdown-filter">• @line</div>
+                                    }
+                                    <div class="duplicate-dropdown-time">
+                                        <i class="bi bi-clock me-1"></i>
+                                        @notice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                        · @notice.PublishedByName
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                @if (_hasUnseenUpdate)
+                {
+                    <div class="duplicate-dropdown-footer">
+                        <button class="duplicate-scan-btn-small" disabled="@_refreshingFromBell" @onclick="RefreshForLatestUpdate">
+                            <i class="bi bi-arrow-clockwise me-1 @(_refreshingFromBell ? "spin" : "")"></i>
+                            @(_refreshingFromBell ? "Refreshing..." : "Refresh Now to Apply")
+                        </button>
+                    </div>
+                }
+            }
         </div>
     }
 </div>
@@ -553,7 +634,7 @@
 }
 
 @code {
-    private enum NotifTab { Duplicates, Calendar, Uploads, Documents }
+    private enum NotifTab { Duplicates, Calendar, Uploads, Documents, Updates }
     private NotifTab _activeTab = NotifTab.Duplicates;
     private bool _showDropdown;
 
@@ -579,7 +660,14 @@
     private List<DocumentUploadJobDto> _uploadJobs = new();
     private int _uploadActiveCount;
 
-    private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount + DocTracking.PendingForMeCount;
+    // ── System Updates (SystemUpdateClientService-backed) ───────────────────
+    private List<SystemUpdateNoticeDto> _updateNotices = new();
+    private bool _loadingUpdates = true;
+    private bool _hasUnseenUpdate;
+    private bool _refreshingFromBell;
+
+    private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount +
+        DocTracking.PendingForMeCount + (_hasUnseenUpdate ? 1 : 0);
 
     protected override async Task OnInitializedAsync()
     {
@@ -602,6 +690,9 @@
 
         DocTracking.OnChange += HandleDocTrackingChange;
         await DocTracking.RefreshPendingCountAsync();
+
+        SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
+        await LoadUpdateNoticesAsync();
     }
 
     private void HandleDocTrackingChange() => InvokeAsync(StateHasChanged);
@@ -860,6 +951,54 @@
     };
     #endregion
 
+    #region System Updates
+    private async Task LoadUpdateNoticesAsync()
+    {
+        _loadingUpdates = true;
+        try
+        {
+            _updateNotices = await Http.GetFromJsonAsync<List<SystemUpdateNoticeDto>>("api/system-updates") ?? new();
+        }
+        catch
+        {
+            _updateNotices = new();
+        }
+        finally
+        {
+            _loadingUpdates = false;
+        }
+
+        // Also settles _hasUnseenUpdate on first load (e.g. a notice was
+        // published while this user wasn't connected) — the live event below
+        // only fires for broadcasts that happen while the app is open.
+        await SystemUpdateClient.CheckForUnseenLatestAsync();
+    }
+
+    private void OnUnseenSystemUpdate(SystemUpdateNoticeDto notice)
+    {
+        _hasUnseenUpdate = true;
+
+        if (!_updateNotices.Any(n => n.Version == notice.Version))
+            _updateNotices.Insert(0, notice);
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshForLatestUpdate()
+    {
+        if (_refreshingFromBell) return;
+        _refreshingFromBell = true;
+        StateHasChanged();
+
+        var latest = _updateNotices.FirstOrDefault();
+        if (latest != null)
+            await SystemUpdateClient.AcknowledgeAsync(latest.Version);
+
+        await Task.Delay(350);
+        await JS.InvokeVoidAsync("location.reload");
+    }
+    #endregion
+
     public async ValueTask DisposeAsync()
     {
         State.OnChange -= HandleDuplicatesChange;
@@ -872,6 +1011,8 @@
         UploadQueue.OnChanged -= OnUploadQueueChanged;
 
         DocTracking.OnChange -= HandleDocTrackingChange;
+
+        SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
 
         await Task.CompletedTask;
     }

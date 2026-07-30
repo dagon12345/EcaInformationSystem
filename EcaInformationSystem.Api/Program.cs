@@ -240,6 +240,7 @@ app.MapHub<PostsHub>("/postsHub");
 app.MapHub<ActivityHub>("/activityHub");
 app.MapHub<PublicActivityHub>("/publicActivityHub");
 app.MapHub<DocumentTrackingHub>("/documentTrackingHub");
+app.MapHub<SystemUpdateHub>("/systemUpdateHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),

@@ -56,6 +56,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<DocumentBatch> DocumentBatches => Set<DocumentBatch>();
             public DbSet<DocumentGranteeRow> DocumentGranteeRows => Set<DocumentGranteeRow>();
             public DbSet<DocumentTransfer> DocumentTransfers => Set<DocumentTransfer>();
+            public DbSet<SystemUpdateNotice> SystemUpdateNotices => Set<SystemUpdateNotice>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -915,6 +916,19 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                               .OnDelete(DeleteBehavior.Cascade);
 
                         entity.HasIndex(x => new { x.PsgcCodeProvince, x.PsgcCodeMunicipality, x.MilestoneYear });
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // SYSTEM UPDATE NOTICES
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<SystemUpdateNotice>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.Version).HasMaxLength(50);
+                        entity.Property(x => x.Title).HasMaxLength(200);
+                        entity.Property(x => x.Changes).HasMaxLength(4000);
+                        entity.Property(x => x.PublishedByName).HasMaxLength(200);
+                        entity.HasIndex(x => x.PublishedAt);
                   });
 
                   modelBuilder.Entity<DocumentGranteeRow>(entity =>

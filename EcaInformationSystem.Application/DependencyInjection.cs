@@ -40,6 +40,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IStickyNoteService, StickyNoteService>();
             services.AddScoped<IWfpEcaService, WfpEcaService>();
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
+            services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();
             return services;
         }
     }

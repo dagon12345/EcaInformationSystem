@@ -80,6 +80,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IStickyNoteRepository, StickyNoteRepository>();
             services.AddScoped<IWfpEcaRepository, WfpEcaRepository>();
             services.AddScoped<IDocumentTrackingRepository, DocumentTrackingRepository>();
+            services.AddScoped<ISystemUpdateNoticeRepository, SystemUpdateNoticeRepository>();
             return services;
         }
     }

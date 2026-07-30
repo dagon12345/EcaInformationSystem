@@ -1,0 +1,177 @@
+@page "/system-updates"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.SystemUpdate
+@using System.Net.Http.Json
+@inject AuthService AuthService
+@inject HttpClient Http
+@inject ToastService Toast
+
+<PageTitle>System Updates</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-arrow-repeat"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">System Updates</h5>
+            <span class="page-header-sub">
+                Publish a release note — it's pushed live to everyone currently in the app.
+            </span>
+        </div>
+    </div>
+
+    @if (!_authorized)
+    {
+        <div class="alert alert-danger d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock fs-5"></i>
+            <div>
+                <strong>Access Denied</strong>
+                <p class="mb-0 small">This page is restricted to Super Administrators.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <div class="col-md-5">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-light"><strong>Publish New Update</strong></div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label small">Version</label>
+                            <input class="form-control form-control-sm" placeholder="e.g. 1.4.0" @bind="_version" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Title</label>
+                            <input class="form-control form-control-sm" placeholder="e.g. Document Tracking improvements" @bind="_title" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Changes (one per line)</label>
+                            <textarea class="form-control form-control-sm" rows="6" placeholder="Fixed X&#10;Added Y&#10;Improved Z" @bind="_changes"></textarea>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_error))
+                        {
+                            <div class="alert alert-danger py-1 small">@_error</div>
+                        }
+                        <button class="btn btn-primary btn-sm" disabled="@_publishing" @onclick="Publish">
+                            @if (_publishing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Publish &amp; Notify Everyone
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-light"><strong>Update History</strong></div>
+                    <div class="list-group list-group-flush" style="max-height:500px; overflow-y:auto;">
+                        @if (_history is null)
+                        {
+                            <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                        }
+                        else if (_history.Count == 0)
+                        {
+                            <div class="p-3 text-muted small">No updates published yet.</div>
+                        }
+                        else
+                        {
+                            @foreach (var notice in _history)
+                            {
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <strong>@notice.Title</strong>
+                                        <span class="badge bg-secondary">v@(notice.Version)</span>
+                                    </div>
+                                    <div class="small text-muted mb-1">
+                                        @notice.PublishedByName · @notice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                    </div>
+                                    @foreach (var line in notice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                    {
+                                        <div class="small">• @line</div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _authorized;
+    private bool _publishing;
+    private string? _error;
+    private string _version = string.Empty;
+    private string _title = string.Empty;
+    private string _changes = string.Empty;
+    private List<SystemUpdateNoticeDto>? _history;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _authorized = AuthService.IsSuperAdmin();
+
+        if (_authorized)
+            await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        try
+        {
+            _history = await Http.GetFromJsonAsync<List<SystemUpdateNoticeDto>>("api/system-updates") ?? new();
+        }
+        catch
+        {
+            _history = new();
+        }
+    }
+
+    private async Task Publish()
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_version) || string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "Version and title are required.";
+            return;
+        }
+
+        _publishing = true;
+        try
+        {
+            var dto = new CreateSystemUpdateNoticeDto
+            {
+                Version = _version.Trim(),
+                Title = _title.Trim(),
+                Changes = _changes.Trim()
+            };
+
+            var response = await Http.PostAsJsonAsync("api/system-updates", dto);
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = await response.Content.ReadAsStringAsync();
+                return;
+            }
+
+            Toast.ShowSuccess("Update published and broadcast to all connected users.", "System Update");
+            _version = string.Empty;
+            _title = string.Empty;
+            _changes = string.Empty;
+            await LoadHistoryAsync();
+        }
+        finally
+        {
+            _publishing = false;
+        }
+    }
+}

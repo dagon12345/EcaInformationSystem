@@ -12,12 +12,14 @@
 @inject IConfiguration Configuration
 @inject ChatClientService ChatClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
+@inject SystemUpdateClientService SystemUpdateClientService
 @inject ToastService Toast
 @inject IJSRuntime JS
 @implements IDisposable
 
 <AuthorizeView>
     <Authorized>
+        <SystemUpdateBanner />
         <div class="app-shell">
             <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
 
@@ -259,6 +261,20 @@
                 catch
                 {
                     // Non-fatal — badge just won't live-update this session
+                }
+            }
+
+            if (!SystemUpdateClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "systemUpdateHub").ToString();
+                    await SystemUpdateClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — the update banner just won't show live this session
                 }
             }
 

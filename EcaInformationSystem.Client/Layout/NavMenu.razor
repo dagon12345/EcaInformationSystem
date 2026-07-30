@@ -111,6 +111,10 @@
             <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
             <span class="nav-label">Conversation Oversight</span>
         </NavLink>
+        <NavLink class="nav-item" href="system-updates">
+            <span class="nav-icon"><i class="bi bi-arrow-repeat"></i></span>
+            <span class="nav-label">System Updates</span>
+        </NavLink>
     }
 
     <div class="nav-section-label mt-2">System</div>
@@ -382,6 +386,7 @@
             ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
             ("Log a Document Batch (Document Tracking)", _isViewer || _isAdmin),
             ("Act on a Document Batch tagged to you", true), // any role, once it's actually tagged to them
+            ("Publish System Updates", _isSuperAdmin), // SuperAdmin only — broadcasts the refresh banner
         };
 
     private string GetInitials(string name)
