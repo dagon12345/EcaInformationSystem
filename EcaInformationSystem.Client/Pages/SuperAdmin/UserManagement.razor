@@ -489,6 +489,7 @@
                 <select class="form-select" @bind="_approveRole">
                     <option value="Viewer">Viewer — view and upload only</option>
                     <option value="PDO">PDO — Project Development Officer</option>
+                    <option value="Finance">Finance — WFP-ECA and document findings</option>
                     <option value="Admin">Admin — full operational access</option>
                     <option value="SuperAdmin">Super Admin — user management</option>
                 </select>
@@ -1346,6 +1347,7 @@
         "SuperAdmin" => "bg-dark",
         "Admin" => "bg-danger",
         "PDO" => "bg-primary",
+        "Finance" => "bg-success",
         "Viewer" => "bg-secondary",
         _ => "bg-secondary"
     };
@@ -1374,6 +1376,8 @@
             "Full operational access: create, edit, delete, bulk operations, payroll.",
         "PDO" =>
             "Project Development Officer: create/import records within assigned municipalities only.",
+        "Finance" =>
+            "Finance: manages the Work Financial Plan (WFP-ECA) and handles document findings in Document Tracking.",
         "Viewer" =>
             "Read-only: view records, export Excel, upload documents.",
         _ => string.Empty

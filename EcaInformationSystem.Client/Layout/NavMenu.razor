@@ -68,19 +68,34 @@
     </NavLink>
 
 
-    @* ── Financial section — Admin only ── *@
-    @if (_isAdmin)
+    @* ── Financial section — Liquidation is Admin only; WFP-ECA is viewable by
+       Admin/Finance/SuperAdmin, but only Finance/SuperAdmin can edit it (enforced
+       inside the page itself). ── *@
+    @if (_isAdmin || _isFinance)
     {
         <div class="nav-section-label">Financial</div>
-        <NavLink class="nav-item" href="liquidation">
-            <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
-            <span class="nav-label">Liquidation</span>
-        </NavLink>
-        <NavLink class="nav-item" href="wfp-eca">
-            <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
-            <span class="nav-label">WFP-ECA</span>
-        </NavLink>
+        @if (_isAdmin)
+        {
+            <NavLink class="nav-item" href="liquidation">
+                <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
+                <span class="nav-label">Liquidation</span>
+            </NavLink>
+        }
+        @if (_isFinance || _isAdmin)
+        {
+            <NavLink class="nav-item" href="wfp-eca">
+                <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
+                <span class="nav-label">WFP-ECA</span>
+            </NavLink>
+        }
     }
+
+    @* ── Document Tracking — visible to everyone; actions are gated inside the page ── *@
+    <div class="nav-section-label">Document Tracking</div>
+    <NavLink class="nav-item" href="document-tracking">
+        <span class="nav-icon"><i class="bi bi-truck"></i></span>
+        <span class="nav-label">Document Tracking</span>
+    </NavLink>
 
     @* ── Administration section — SuperAdmin only ── *@
     @* ── Administration section — SuperAdmin only ── *@
@@ -245,6 +260,7 @@
     private bool _isAdmin;
     private bool _isPdo;
     private bool _isViewer;
+    private bool _isFinance;
     private bool _roleLoaded;
     private string _role = string.Empty;
     private List<int> _jurisdictions = new();
@@ -260,6 +276,7 @@
         _isAdmin = AuthService.IsAdmin();
         _isPdo = AuthService.IsPDO();
         _isViewer = AuthService.IsViewer();
+        _isFinance = AuthService.IsFinance();
         _role = AuthService.GetRole() ?? string.Empty;
         _roleLoaded = true;
 
@@ -361,6 +378,10 @@
             ("Generate Payroll",_isAdmin),
             ("Generate COE", _isAdmin || _isPdo),
             ("View Activity Logs", _isAdmin),
+            ("View WFP-ECA", _isFinance || _isAdmin), // Admin views only; edit is Finance/SuperAdmin
+            ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
+            ("Log a Document Batch (Document Tracking)", _isViewer || _isAdmin),
+            ("Act on a Document Batch tagged to you", true), // any role, once it's actually tagged to them
         };
 
     private string GetInitials(string name)
@@ -376,6 +397,7 @@
         "SuperAdmin" => "legend-role-badge--superadmin",
         "Admin" => "legend-role-badge--admin",
         "PDO" => "legend-role-badge--pdo",
+        "Finance" => "legend-role-badge--finance",
         "Viewer" => "legend-role-badge--viewer",
         _ => "legend-role-badge--viewer"
     };
@@ -385,6 +407,7 @@
         "SuperAdmin" => "bi-shield-fill-exclamation",
         "Admin" => "bi-shield-fill-check",
         "PDO" => "bi-person-badge-fill",
+        "Finance" => "bi-cash-stack",
         "Viewer" => "bi-eye-fill",
         _ => "bi-person-fill"
     };
@@ -394,6 +417,7 @@
         "SuperAdmin" => "Super Administrator",
         "Admin" => "Administrator",
         "PDO" => "Project Development Officer",
+        "Finance" => "Finance",
         "Viewer" => "Viewer",
         _ => role
     };

@@ -1,0 +1,1428 @@
+@* DocumentTracking.razor — tracks physical documents as they move between the
+   Viewer who logs their arrival, a tagged recipient, a PDO, and Finance, ending
+   back at the Viewer for scanning. Every batch (one Province/Municipality/
+   Milestone Year/Date Received arrival) is its own card; only the user currently
+   tagged as CurrentHolder can accept it and relay it onward. *@
+@page "/document-tracking"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.DocumentTracking
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ToastService Toast
+@inject DocumentTrackingClientService DocTracking
+@implements IDisposable
+
+<PageTitle>Document Tracking</PageTitle>
+
+<div class="dt-wrap">
+    <div class="dt-header">
+        <div>
+            <h4 class="dt-title"><i class="bi bi-truck me-2"></i>Document Tracking</h4>
+            <p class="dt-sub">Track where grantee documents are right now — who has them, and who they're going to next.</p>
+        </div>
+        @if (_canCreate)
+        {
+            <button class="dt-btn dt-btn-primary" @onclick="OpenCreateModal">
+                <i class="bi bi-plus-lg"></i> New Document Batch
+            </button>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center text-muted py-5">
+            <span class="spinner-border spinner-border-sm me-2"></span> Loading document batches...
+        </div>
+    }
+    else if (!_batches.Any())
+    {
+        <div class="dt-empty">
+            <i class="bi bi-inbox"></i>
+            <p>No document batches logged yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="dt-filter-bar">
+            <input type="text" class="dt-filter-input" placeholder="Search province, municipality, name, or holder..."
+                   @bind="_searchTerm" @bind:event="oninput" />
+            <select class="dt-filter-select" @bind="_statusFilter">
+                <option value="">All Statuses</option>
+                @foreach (var s in _statusOptions)
+                {
+                    <option value="@s.Key">@s.Value</option>
+                }
+            </select>
+        </div>
+
+        <div class="dt-card-list">
+            @foreach (var batch in FilteredBatches())
+            {
+                var expanded = _expandedIds.Contains(batch.Id);
+                var isMine = batch.CurrentHolderUserId == _currentUserId;
+
+                <div class="dt-card @(batch.CurrentStatus == 6 ? "dt-card-completed" : "")">
+                    <div class="dt-card-header" @onclick="() => ToggleExpand(batch.Id)">
+                        <div class="dt-card-header-main">
+                            <div class="dt-card-title">
+                                <i class="bi bi-geo-alt-fill me-1 text-muted"></i>
+                                @batch.ProvinceName <span class="dt-chevron-sep">›</span> @batch.MunicipalityName
+                            </div>
+                            <div class="dt-card-meta">
+                                <span class="dt-pill dt-pill-neutral">Milestone @batch.MilestoneYear</span>
+                                <span class="dt-pill dt-pill-neutral">Received @batch.DateReceived.ToString("MMM dd, yyyy")</span>
+                                <span class="dt-pill dt-pill-neutral"><i class="bi bi-people-fill me-1"></i>@batch.RowCount grantee(s)</span>
+                                @if (batch.FindingCount > 0)
+                                {
+                                    <span class="dt-pill dt-pill-finding"><i class="bi bi-flag-fill me-1"></i>@batch.FindingCount finding(s)</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="dt-card-header-side">
+                            @if (_isSuperAdmin)
+                            {
+                                <div class="dt-superadmin-actions" @onclick:stopPropagation="true">
+                                    <button class="dt-icon-btn" title="Edit batch" @onclick="() => OpenEditModal(batch.Id)">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </button>
+                                    <button class="dt-icon-btn dt-icon-btn-danger" title="Delete batch" @onclick="() => OpenDeleteConfirm(batch.Id)">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                </div>
+                            }
+                            <span class="dt-status-pill @StatusPillClass(batch.CurrentStatus)">
+                                @if (batch.CurrentStatus == 6)
+                                {
+                                    <i class="bi bi-check-circle-fill me-1"></i>
+                                }
+                                @batch.CurrentStatusLabel
+                            </span>
+                            <div class="dt-holder-line">
+                                @if (batch.CurrentStatus != 6)
+                                {
+                                    <span>
+                                        With <strong>@batch.CurrentHolderName</strong>
+                                        @(batch.CurrentLegAcceptedAt.HasValue ? "(accepted)" : "(pending acceptance)")
+                                        @if (isMine)
+                                        {
+                                            <span class="dt-you-badge">You</span>
+                                        }
+                                        @if (_isAdmin)
+                                        {
+                                            <button class="dt-link-btn" title="Wrong recipient? Change who this is tagged to."
+                                                    @onclick:stopPropagation="true" @onclick="() => OpenReassignModal(batch.Id)">
+                                                Change
+                                            </button>
+                                        }
+                                    </span>
+                                }
+                            </div>
+                            <i class="bi @(expanded ? "bi-chevron-up" : "bi-chevron-down") ms-2"></i>
+                        </div>
+                    </div>
+
+                    @if (expanded)
+                    {
+                        <div class="dt-card-body" @onclick:stopPropagation="true">
+
+                            <div class="dt-rows-table-wrap">
+                                <table class="dt-rows-table">
+                                    <thead>
+                                        <tr>
+                                            <th>First Name</th>
+                                            <th>Middle Name</th>
+                                            <th>Last Name</th>
+                                            <th>Ext</th>
+                                            <th>Finding</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in batch.Rows)
+                                        {
+                                            <tr class="@(row.HasFinding ? "dt-row-flagged" : "")">
+                                                <td>@row.FirstName</td>
+                                                <td>@(row.MiddleName ?? "—")</td>
+                                                <td>@row.LastName</td>
+                                                <td>@(row.Extension ?? "—")</td>
+                                                <td>
+                                                    @if (row.HasFinding)
+                                                    {
+                                                        <span class="dt-finding-badge" title="@row.FindingNote">
+                                                            <i class="bi bi-flag-fill"></i> Finding
+                                                            @if (!string.IsNullOrWhiteSpace(row.FindingSetByName))
+                                                            {
+                                                                <small class="d-block text-muted">by @row.FindingSetByName</small>
+                                                            }
+                                                        </span>
+                                                        @if (isMine || _isSuperAdmin)
+                                                        {
+                                                            <button class="dt-link-btn" @onclick="() => ResolveFindingAsync(batch.Id, row.Id)">Resolve</button>
+                                                        }
+                                                    }
+                                                    else if (row.FindingResolvedAt.HasValue)
+                                                    {
+                                                        <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Resolved</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">—</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="dt-transfer-log">
+                                <div class="dt-transfer-log-title">Relay History</div>
+                                @foreach (var t in batch.Transfers)
+                                {
+                                    <div class="dt-transfer-entry">
+                                        <span class="dt-status-pill @StatusPillClass(t.Status) dt-status-pill-sm">@t.StatusLabel</span>
+                                        <span class="dt-transfer-text">
+                                            @t.FromUserName → @t.ToUserName
+                                            <small class="text-muted ms-1">@t.RelayedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</small>
+                                            @if (t.AcceptedAt.HasValue)
+                                            {
+                                                <small class="text-success ms-1"><i class="bi bi-check-circle-fill"></i> accepted @t.AcceptedAt.Value.ToLocalTime().ToString("MMM dd, h:mm tt")</small>
+                                            }
+                                        </span>
+                                        @if (!string.IsNullOrWhiteSpace(t.Note))
+                                        {
+                                            <div class="dt-transfer-note">"@t.Note"</div>
+                                        }
+                                    </div>
+                                }
+                                <div class="dt-transfer-entry">
+                                    <span class="text-muted small">Created by @batch.CreatedByName on @batch.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</span>
+                                </div>
+                            </div>
+
+                            @if (isMine && batch.CurrentStatus != 6)
+                            {
+                                <div class="dt-actions">
+                                    @if (!batch.CurrentLegAcceptedAt.HasValue)
+                                    {
+                                        <button class="dt-btn dt-btn-primary" @onclick="() => AcceptAsync(batch.Id)" disabled="@_busy">
+                                            <i class="bi bi-check2-circle"></i> Accept
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        @switch (batch.CurrentStatus)
+                                        {
+                                            case 0: // EndorsedByViewer
+                                                <button class="dt-btn dt-btn-outline" @onclick="() => OpenActionModal(batch.Id, DtAction.ReturnToViewer)" disabled="@_busy">
+                                                    <i class="bi bi-arrow-return-left"></i> Return to Viewer
+                                                </button>
+                                                break;
+                                            case 1: // ReturnedToViewer
+                                                <button class="dt-btn dt-btn-outline" @onclick="() => OpenActionModal(batch.Id, DtAction.DistributeToPdo)" disabled="@_busy">
+                                                    <i class="bi bi-send"></i> Distribute to PDO
+                                                </button>
+                                                break;
+                                            case 2: // DistributedToPdo
+                                            case 4: // ReturnedToPdoForFindings
+                                                <button class="dt-btn dt-btn-outline" @onclick="() => OpenActionModal(batch.Id, DtAction.EndorseToFinance)" disabled="@_busy">
+                                                    <i class="bi bi-send"></i> Endorse to Finance
+                                                </button>
+                                                break;
+                                            case 3: // EndorsedToFinance
+                                                <button class="dt-btn dt-btn-warning" @onclick="() => OpenActionModal(batch.Id, DtAction.ReturnToPdoFindings)" disabled="@_busy">
+                                                    <i class="bi bi-flag-fill"></i> Return to PDO — Findings
+                                                </button>
+                                                <button class="dt-btn dt-btn-outline" @onclick="() => OpenActionModal(batch.Id, DtAction.ForwardToViewerScanning)" disabled="@_busy">
+                                                    <i class="bi bi-send"></i> Forward to Viewer — Scanning
+                                                </button>
+                                                break;
+                                            case 5: // ForwardedToViewerForScanning
+                                                <button class="dt-btn dt-btn-primary" @onclick="() => CompleteAsync(batch.Id)" disabled="@_busy">
+                                                    <i class="bi bi-check2-all"></i> Mark Completed / Scanned
+                                                </button>
+                                                break;
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Create Document Batch modal ───────────────────────────────────────── *@
+@if (_showCreateModal)
+{
+    <div class="dt-modal-backdrop" @onclick="RequestCloseCreateModal">
+        <div class="dt-modal dt-modal-lg" @onclick:stopPropagation="true">
+            <div class="dt-modal-header dt-modal-header-stacked">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-truck me-2"></i>New Document Batch</span>
+                    <button class="dt-modal-close" @onclick="RequestCloseCreateModal"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div class="dt-modal-region-tag">
+                    <i class="bi bi-geo-alt-fill me-1"></i>
+                    Logging for <strong>@_currentRegionLabel</strong>
+                    @if (!_isSuperAdmin)
+                    {
+                        <span class="text-muted"> — only provinces in this region are shown below</span>
+                    }
+                </div>
+            </div>
+            <div class="dt-modal-body" style="position: relative;">
+                @if (_showCreateDiscardConfirm)
+                {
+                    <div class="dt-discard-confirm-overlay" @onclick:stopPropagation="true">
+                        <div class="dt-discard-confirm-box">
+                            <div class="fw-semibold mb-1">Discard this document batch?</div>
+                            <p class="text-muted small mb-2">What you've entered hasn't been endorsed yet.</p>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="CancelCreateDiscard">Keep editing</button>
+                                <button class="btn btn-sm btn-danger" @onclick="ConfirmCreateDiscard">Discard</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (!_createReviewMode)
+                {
+                    <div class="dt-form-grid">
+                        <div class="dt-field">
+                            <label>Province</label>
+                            <select class="form-select" value="@_createProvinceCode" @onchange="OnCreateProvinceChanged">
+                                <option value="0">Select Province</option>
+                                @foreach (var p in _provinces)
+                                {
+                                    <option value="@p.PsgcCodeProvince">@p.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Municipality</label>
+                            <select class="form-select" @bind="_createMunicipalityCode" disabled="@(!_municipalities.Any())">
+                                <option value="0">Select Municipality</option>
+                                @foreach (var m in _municipalities)
+                                {
+                                    <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Milestone Year</label>
+                            <select class="form-select" @bind="_createMilestoneYear">
+                                <option value="0">-- Select --</option>
+                                @for (int y = DateTime.Now.Year; y >= 2024; y--)
+                                {
+                                    <option value="@y">@y</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Date Received</label>
+                            <input type="date" class="form-control" @bind="_createDateReceived" />
+                        </div>
+                    </div>
+
+                    <div class="dt-rows-editor">
+                        <div class="dt-rows-editor-header">
+                            <label>Grantees in this Batch</label>
+                            <button class="dt-link-btn" @onclick="AddCreateRow"><i class="bi bi-plus-lg"></i> Add Row</button>
+                        </div>
+                        @for (int i = 0; i < _createRows.Count; i++)
+                        {
+                            var idx = i;
+                            <div class="dt-row-editor-item">
+                                <input class="form-control form-control-sm" placeholder="First Name" @bind="_createRows[idx].FirstName" />
+                                <input class="form-control form-control-sm" placeholder="Middle Name" @bind="_createRows[idx].MiddleName" />
+                                <input class="form-control form-control-sm" placeholder="Last Name" @bind="_createRows[idx].LastName" />
+                                <input class="form-control form-control-sm dt-ext-input" placeholder="Ext" @bind="_createRows[idx].Extension" />
+                                @if (_createRows.Count > 1)
+                                {
+                                    <button class="dt-icon-btn dt-icon-btn-danger" @onclick="() => RemoveCreateRow(idx)" title="Remove row">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="dt-field mt-2">
+                        <label>Endorsed By (You) — Send To <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_createRecipientUserId">
+                            <option value="">Select recipient...</option>
+                            @foreach (var u in _users)
+                            {
+                                <option value="@u.Id">@u.FullName (@u.Role)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="dt-field">
+                        <label>Note (optional)</label>
+                        <textarea class="form-control" rows="2" @bind="_createNote"></textarea>
+                    </div>
+                }
+                else
+                {
+                    <div class="dt-review-banner">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Review carefully — once endorsed, you won't be able to modify this batch yourself. Only a
+                        Super Admin can edit or delete it afterward.
+                    </div>
+
+                    <div class="dt-review-grid">
+                        <div><span class="dt-review-label">Province</span><span>@ReviewProvinceName()</span></div>
+                        <div><span class="dt-review-label">Municipality</span><span>@ReviewMunicipalityName()</span></div>
+                        <div><span class="dt-review-label">Milestone Year</span><span>@_createMilestoneYear</span></div>
+                        <div><span class="dt-review-label">Date Received</span><span>@_createDateReceived.ToString("MMM dd, yyyy")</span></div>
+                    </div>
+
+                    <div class="dt-review-section-label">Grantees (@_createReviewRows.Count)</div>
+                    <div class="dt-rows-table-wrap">
+                        <table class="dt-rows-table">
+                            <thead>
+                                <tr>
+                                    <th>First Name</th>
+                                    <th>Middle Name</th>
+                                    <th>Last Name</th>
+                                    <th>Ext</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _createReviewRows)
+                                {
+                                    <tr>
+                                        <td>@row.FirstName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(row.MiddleName) ? "—" : row.MiddleName)</td>
+                                        <td>@row.LastName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(row.Extension) ? "—" : row.Extension)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="dt-review-grid mt-2">
+                        <div><span class="dt-review-label">Endorsed To</span><span>@ReviewRecipientLabel()</span></div>
+                        <div><span class="dt-review-label">Note</span><span>@(string.IsNullOrWhiteSpace(_createNote) ? "—" : _createNote)</span></div>
+                    </div>
+                }
+            </div>
+            <div class="dt-modal-footer">
+                @if (!_createReviewMode)
+                {
+                    <button class="dt-btn dt-btn-outline" @onclick="RequestCloseCreateModal">Cancel</button>
+                    <button class="dt-btn dt-btn-primary" @onclick="ReviewCreateAsync">
+                        Review Before Endorsing
+                    </button>
+                }
+                else
+                {
+                    <button class="dt-btn dt-btn-outline" @onclick="() => _createReviewMode = false" disabled="@_busy">
+                        <i class="bi bi-arrow-left"></i> Back to Edit
+                    </button>
+                    <button class="dt-btn dt-btn-primary" @onclick="SubmitCreateAsync" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        Confirm & Endorse
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Generic relay action modal (Distribute / Endorse / Findings / Forward) ── *@
+@if (_actionBatchId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseActionModal">
+        <div class="dt-modal" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span>@ActionModalTitle()</span>
+                <button class="dt-modal-close" @onclick="CloseActionModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                @if (_actionType == DtAction.ReturnToPdoFindings)
+                {
+                    var batch = _batches.FirstOrDefault(b => b.Id == _actionBatchId);
+                    <div class="dt-field">
+                        <label>Grantee(s) with a finding <span class="text-danger">*</span></label>
+                        <div class="dt-finding-checklist">
+                            @if (batch != null)
+                            {
+                                @foreach (var row in batch.Rows)
+                                {
+                                    <label class="dt-finding-checklist-item">
+                                        <input type="checkbox" checked="@_actionSelectedRowIds.Contains(row.Id)"
+                                               @onchange="e => ToggleActionRow(row.Id, (bool)(e.Value ?? false))" />
+                                        @row.FirstName @row.LastName
+                                    </label>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+                @if (_actionType == DtAction.ReturnToViewer)
+                {
+                    var batch = _batches.FirstOrDefault(b => b.Id == _actionBatchId);
+                    <div class="dt-field">
+                        <label>Returning To</label>
+                        <div class="text-muted small">
+                            <i class="bi bi-person-check me-1"></i>@(batch?.CreatedByName ?? "the Viewer who created this batch")
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="dt-field">
+                        <label>Tag Recipient <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_actionToUserId">
+                            <option value="">Select recipient...</option>
+                            @foreach (var u in _users)
+                            {
+                                <option value="@u.Id">@u.FullName (@u.Role)</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="dt-field">
+                    <label>Note @(_actionType == DtAction.ReturnToPdoFindings ? "(finding details)" : "(optional)")</label>
+                    <textarea class="form-control" rows="2" @bind="_actionNote"></textarea>
+                </div>
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseActionModal">Cancel</button>
+                <button class="dt-btn dt-btn-primary" @onclick="SubmitActionAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Admin/SuperAdmin: reassign a wrongly-tagged recipient ───────────────── *@
+@if (_reassignBatchId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseReassignModal">
+        <div class="dt-modal" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-person-check-fill me-2"></i>Change Recipient</span>
+                <button class="dt-modal-close" @onclick="CloseReassignModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                <p class="text-muted small">
+                    Use this if the Viewer tagged the wrong person. This only corrects who the
+                    document is currently tagged to — it does not change the workflow stage.
+                </p>
+                <div class="dt-field">
+                    <label>Correct Recipient <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_reassignToUserId">
+                        <option value="">Select recipient...</option>
+                        @foreach (var u in _users)
+                        {
+                            <option value="@u.Id">@u.FullName (@u.Role)</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseReassignModal">Cancel</button>
+                <button class="dt-btn dt-btn-primary" @onclick="ConfirmReassignAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── SuperAdmin: delete-batch confirmation ───────────────────────────────── *@
+@if (_deleteConfirmBatchId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseDeleteConfirm">
+        <div class="dt-modal" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Delete Document Batch</span>
+                <button class="dt-modal-close" @onclick="CloseDeleteConfirm"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                <p class="mb-0">
+                    This will <strong>permanently delete</strong> this document batch — all of its grantee rows
+                    and its entire relay history — for every user who can see it. <strong>This cannot be undone.</strong>
+                </p>
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseDeleteConfirm">Cancel</button>
+                <button class="dt-btn dt-btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Delete Permanently
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── SuperAdmin: edit batch (header + rows), bypasses holder/status gating ── *@
+@if (_editBatchId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseEditModal">
+        <div class="dt-modal dt-modal-lg" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-pencil-fill me-2"></i>Edit Document Batch</span>
+                <button class="dt-modal-close" @onclick="CloseEditModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                @if (_editBatch is null)
+                {
+                    <div class="text-center text-muted py-4">
+                        <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+                    </div>
+                }
+                else
+                {
+                    <div class="dt-form-grid">
+                        <div class="dt-field">
+                            <label>Province</label>
+                            <select class="form-select" value="@_editProvinceCode" @onchange="OnEditProvinceChanged">
+                                <option value="0">Select Province</option>
+                                @foreach (var p in _provinces)
+                                {
+                                    <option value="@p.PsgcCodeProvince">@p.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Municipality</label>
+                            <select class="form-select" @bind="_editMunicipalityCode" disabled="@(!_editMunicipalities.Any())">
+                                <option value="0">Select Municipality</option>
+                                @foreach (var m in _editMunicipalities)
+                                {
+                                    <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Milestone Year</label>
+                            <select class="form-select" @bind="_editMilestoneYear">
+                                <option value="0">-- Select --</option>
+                                @for (int y = DateTime.Now.Year; y >= 2024; y--)
+                                {
+                                    <option value="@y">@y</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dt-field">
+                            <label>Date Received</label>
+                            <input type="date" class="form-control" @bind="_editDateReceived" />
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mb-3">
+                        <button class="dt-btn dt-btn-outline" @onclick="SaveEditHeaderAsync" disabled="@_busy">
+                            <i class="bi bi-save"></i> Save Details
+                        </button>
+                    </div>
+
+                    <div class="dt-rows-editor">
+                        <div class="dt-rows-editor-header">
+                            <label>Grantees in this Batch</label>
+                        </div>
+                        @foreach (var row in _editBatch.Rows)
+                        {
+                            <div class="dt-row-editor-item">
+                                <input class="form-control form-control-sm" placeholder="First Name" @bind="row.FirstName" />
+                                <input class="form-control form-control-sm" placeholder="Middle Name" @bind="row.MiddleName" />
+                                <input class="form-control form-control-sm" placeholder="Last Name" @bind="row.LastName" />
+                                <input class="form-control form-control-sm dt-ext-input" placeholder="Ext" @bind="row.Extension" />
+                                <div class="d-flex gap-1">
+                                    <button class="dt-icon-btn" title="Save row" @onclick="() => SaveEditRowAsync(row)">
+                                        <i class="bi bi-check-lg text-success"></i>
+                                    </button>
+                                    <button class="dt-icon-btn dt-icon-btn-danger" title="Remove row" @onclick="() => DeleteEditRowAsync(row.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        <div class="dt-row-editor-item">
+                            <input class="form-control form-control-sm" placeholder="First Name" @bind="_editNewRow.FirstName" />
+                            <input class="form-control form-control-sm" placeholder="Middle Name" @bind="_editNewRow.MiddleName" />
+                            <input class="form-control form-control-sm" placeholder="Last Name" @bind="_editNewRow.LastName" />
+                            <input class="form-control form-control-sm dt-ext-input" placeholder="Ext" @bind="_editNewRow.Extension" />
+                            <button class="dt-icon-btn" title="Add row" @onclick="AddEditRowAsync">
+                                <i class="bi bi-plus-lg text-primary"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseEditModal">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum DtAction { ReturnToViewer, DistributeToPdo, EndorseToFinance, ReturnToPdoFindings, ForwardToViewerScanning }
+
+    private List<DocumentBatchDto> _batches = new();
+    private List<UserLookupDto> _users = new();
+    private List<ProvinceLookupDto> _provinces = new();
+    private List<MunicipalityLookupDto> _municipalities = new();
+    private HashSet<Guid> _expandedIds = new();
+
+    private bool _loading = true;
+    private bool _busy;
+    private bool _canCreate;
+    private bool _isSuperAdmin;
+    private bool _isAdmin;
+    private Guid? _currentUserId;
+
+    private string _searchTerm = string.Empty;
+    private string _statusFilter = string.Empty;
+    private readonly Dictionary<string, string> _statusOptions = new()
+    {
+        ["0"] = "Endorsed by Viewer",
+        ["1"] = "Returned to Viewer",
+        ["2"] = "Distributed to PDO",
+        ["3"] = "Endorsed to Finance",
+        ["4"] = "Returned to PDO — Findings",
+        ["5"] = "Forwarded to Viewer — Scanning",
+        ["6"] = "Completed"
+    };
+
+    // ── Create modal state ──────────────────────────────────────────────
+    private bool _showCreateModal;
+    private bool _showCreateDiscardConfirm;
+    private bool _createReviewMode;
+    private List<CreateDocumentGranteeRowDto> _createReviewRows = new();
+    private int _createProvinceCode;
+    private int _createMunicipalityCode;
+    private int _createMilestoneYear;
+    private DateTime _createDateReceived = DateTime.Today;
+    private List<CreateDocumentGranteeRowDto> _createRows = new();
+    private Guid _createRecipientUserId;
+    private string? _createNote;
+    private string _currentRegionLabel = string.Empty;
+
+    // ── Relay action modal state ────────────────────────────────────────
+    private Guid? _actionBatchId;
+    private DtAction _actionType;
+    private Guid _actionToUserId;
+    private string? _actionNote;
+    private HashSet<Guid> _actionSelectedRowIds = new();
+
+    // ── Admin/SuperAdmin: reassign a wrongly-tagged recipient ────────────
+    private Guid? _reassignBatchId;
+    private Guid _reassignToUserId;
+
+    // ── SuperAdmin: delete confirm + edit modal state ────────────────────
+    private Guid? _deleteConfirmBatchId;
+    private Guid? _editBatchId;
+    private DocumentBatchDto? _editBatch;
+    private int _editProvinceCode;
+    private int _editMunicipalityCode;
+    private int _editMilestoneYear;
+    private DateTime _editDateReceived = DateTime.Today;
+    private List<MunicipalityLookupDto> _editMunicipalities = new();
+    private CreateDocumentGranteeRowDto _editNewRow = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _canCreate = AuthService.IsViewer() || AuthService.IsAdmin();
+        _isSuperAdmin = AuthService.IsSuperAdmin();
+        _isAdmin = AuthService.IsAdmin(); // true for both Admin and SuperAdmin
+        _currentRegionLabel = _isSuperAdmin ? "All Regions" : (AuthService.GetRegionName() ?? "No region assigned");
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
+
+        await LoadBatchesAsync();
+        _users = await Http.GetFromJsonAsync<List<UserLookupDto>>("api/document-tracking/taggable-users") ?? new();
+
+        // Live-refresh on ANY batch change (accept/relay/resolve/edit/delete) by
+        // ANYONE — not just hand-offs to me — so this page never shows a stale
+        // status while it's open, regardless of who else is acting on it.
+        DocTracking.OnBatchChanged += HandleBatchChangedLive;
+        DocTracking.OnBatchDeleted += HandleBatchDeletedLive;
+    }
+
+    private async void HandleBatchChangedLive(Guid batchId)
+    {
+        // Skip while a modal is open (including edits made by this same tab,
+        // which also arrive here since the server broadcasts to everyone,
+        // sender included) — reloading _batches mid-edit serves no purpose and
+        // risks colliding with in-progress modal state. The modal's own close
+        // handler already reloads the list once editing is done.
+        if (_showCreateModal || _editBatchId.HasValue || _actionBatchId.HasValue) return;
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadBatchesAsync();
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+            // Never let an unhandled exception escape an async void SignalR
+            // callback — in Blazor WASM that can wedge the render loop for the
+            // rest of the session until a hard reload/navigation.
+        }
+    }
+
+    private async void HandleBatchDeletedLive(Guid batchId)
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                _expandedIds.Remove(batchId);
+                await LoadBatchesAsync();
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        DocTracking.OnBatchChanged -= HandleBatchChangedLive;
+        DocTracking.OnBatchDeleted -= HandleBatchDeletedLive;
+    }
+
+    private async Task LoadBatchesAsync()
+    {
+        _loading = true;
+        try
+        {
+            _batches = await Http.GetFromJsonAsync<List<DocumentBatchDto>>("api/document-tracking") ?? new();
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        // Keep the bell badge in sync with whatever this page just loaded —
+        // covers actions (accept, relay) that change MY pending count without
+        // a SignalR push (the push is only for the newly-tagged recipient).
+        await DocTracking.RefreshPendingCountAsync();
+    }
+
+    private IEnumerable<DocumentBatchDto> FilteredBatches()
+    {
+        var query = _batches.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_statusFilter) && int.TryParse(_statusFilter, out var statusVal))
+            query = query.Where(b => b.CurrentStatus == statusVal);
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim();
+            query = query.Where(b =>
+                b.ProvinceName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.MunicipalityName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.CurrentHolderName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                b.Rows.Any(r => $"{r.FirstName} {r.MiddleName} {r.LastName} {r.Extension}".Contains(term, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return query;
+    }
+
+    private void ToggleExpand(Guid batchId)
+    {
+        if (!_expandedIds.Add(batchId))
+            _expandedIds.Remove(batchId);
+    }
+
+    private static string StatusPillClass(int status) => status switch
+    {
+        0 => "dt-status-endorsed",
+        1 => "dt-status-viewer",
+        2 => "dt-status-pdo",
+        3 => "dt-status-finance",
+        4 => "dt-status-findings",
+        5 => "dt-status-scanning",
+        6 => "dt-status-completed",
+        _ => "dt-status-neutral"
+    };
+
+    // ── Create batch ─────────────────────────────────────────────────────
+    private void OpenCreateModal()
+    {
+        _createProvinceCode = 0;
+        _createMunicipalityCode = 0;
+        _createMilestoneYear = 0;
+        _createDateReceived = DateTime.Today;
+        _createRows = new() { new CreateDocumentGranteeRowDto() };
+        _createRecipientUserId = Guid.Empty;
+        _createNote = null;
+        _municipalities = new();
+        _createReviewMode = false;
+        _createReviewRows = new();
+        _showCreateModal = true;
+
+        _ = LoadProvincesAsync();
+    }
+
+    private void CloseCreateModal()
+    {
+        _showCreateModal = false;
+        _showCreateDiscardConfirm = false;
+        _createReviewMode = false;
+    }
+
+    private bool CreateFormIsDirty() =>
+        _createProvinceCode != 0 ||
+        _createMunicipalityCode != 0 ||
+        _createMilestoneYear != 0 ||
+        _createRecipientUserId != Guid.Empty ||
+        !string.IsNullOrWhiteSpace(_createNote) ||
+        _createRows.Any(r =>
+            !string.IsNullOrWhiteSpace(r.FirstName) ||
+            !string.IsNullOrWhiteSpace(r.MiddleName) ||
+            !string.IsNullOrWhiteSpace(r.LastName) ||
+            !string.IsNullOrWhiteSpace(r.Extension));
+
+    // Mirrors the Sticky Notes discard-guard in PostFeed.razor — an accidental
+    // click on the backdrop shouldn't silently throw away a half-filled batch.
+    private void RequestCloseCreateModal()
+    {
+        if (CreateFormIsDirty())
+            _showCreateDiscardConfirm = true;
+        else
+            CloseCreateModal();
+    }
+
+    private void CancelCreateDiscard() => _showCreateDiscardConfirm = false;
+
+    private void ConfirmCreateDiscard() => CloseCreateModal();
+
+    private async Task LoadProvincesAsync()
+    {
+        if (_provinces.Any()) return;
+
+        // Everyone except SuperAdmin only ever works within their own registered
+        // Region — restrict the picker to that region's provinces so they can't
+        // accidentally log a batch under a different region.
+        var regionCode = AuthService.GetRegionCode();
+        _provinces = _isSuperAdmin || regionCode is null
+            ? await Http.GetFromJsonAsync<List<ProvinceLookupDto>>("api/Province") ?? new()
+            : await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{regionCode}") ?? new();
+
+        StateHasChanged();
+    }
+
+    private async Task OnCreateProvinceChanged(ChangeEventArgs e)
+    {
+        _createProvinceCode = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _createMunicipalityCode = 0;
+        _municipalities = new();
+
+        if (_createProvinceCode > 0)
+        {
+            _municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{_createProvinceCode}") ?? new();
+        }
+    }
+
+    private void AddCreateRow() => _createRows.Add(new CreateDocumentGranteeRowDto());
+    private void RemoveCreateRow(int index) => _createRows.RemoveAt(index);
+
+    // Validates and, if everything checks out, freezes a snapshot of the valid
+    // rows for review — the Viewer gets one last read-only look (name, dates,
+    // grantees, recipient) before this becomes uneditable to them, matching the
+    // one-way nature of endorsing a batch.
+    private Task ReviewCreateAsync()
+    {
+        if (_createProvinceCode == 0 || _createMunicipalityCode == 0)
+        {
+            Toast.ShowError("Please select a Province and Municipality.");
+            return Task.CompletedTask;
+        }
+        if (_createMilestoneYear == 0)
+        {
+            Toast.ShowError("Please select a Milestone Year.");
+            return Task.CompletedTask;
+        }
+        if (_createRecipientUserId == Guid.Empty)
+        {
+            Toast.ShowError("Please tag who this batch is endorsed to.");
+            return Task.CompletedTask;
+        }
+        var validRows = _createRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.FirstName) && !string.IsNullOrWhiteSpace(r.LastName))
+            .ToList();
+        if (!validRows.Any())
+        {
+            Toast.ShowError("Add at least one grantee with a First and Last name.");
+            return Task.CompletedTask;
+        }
+
+        _createReviewRows = validRows;
+        _createReviewMode = true;
+        return Task.CompletedTask;
+    }
+
+    private string ReviewProvinceName() =>
+        _provinces.FirstOrDefault(p => p.PsgcCodeProvince == _createProvinceCode)?.Name ?? "—";
+
+    private string ReviewMunicipalityName() =>
+        _municipalities.FirstOrDefault(m => m.PsgcCodeMunicipality == _createMunicipalityCode)?.Name ?? "—";
+
+    private string ReviewRecipientLabel()
+    {
+        var user = _users.FirstOrDefault(u => u.Id == _createRecipientUserId);
+        return user is null ? "—" : $"{user.FullName} ({user.Role})";
+    }
+
+    private async Task SubmitCreateAsync()
+    {
+        var dto = new CreateDocumentBatchDto
+        {
+            PsgcCodeProvince = _createProvinceCode,
+            PsgcCodeMunicipality = _createMunicipalityCode,
+            MilestoneYear = _createMilestoneYear,
+            DateReceived = _createDateReceived,
+            Rows = _createReviewRows,
+            RecipientUserId = _createRecipientUserId,
+            Note = _createNote
+        };
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/document-tracking", dto);
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Document batch created and endorsed.");
+                _showCreateModal = false;
+                _createReviewMode = false;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Accept / simple relays ──────────────────────────────────────────
+    private async Task AcceptAsync(Guid batchId) => await PostSimpleAsync($"api/document-tracking/{batchId}/accept");
+
+    private async Task CompleteAsync(Guid batchId) =>
+        await PostSimpleAsync($"api/document-tracking/{batchId}/complete", new RelayNoteDto());
+
+    private async Task ResolveFindingAsync(Guid batchId, Guid rowId) =>
+        await PostSimpleAsync($"api/document-tracking/{batchId}/rows/{rowId}/resolve-finding");
+
+    private async Task PostSimpleAsync(string url, object? body = null)
+    {
+        // Guards against a double-click/double-fire slipping through before the
+        // "disabled" attribute's re-render lands — without this, two overlapping
+        // requests for the same batch can race and the loser comes back as a
+        // confusing EF concurrency error instead of just being a no-op.
+        if (_busy) return;
+
+        _busy = true;
+        try
+        {
+            var response = body is null
+                ? await Http.PostAsync(url, null)
+                : await Http.PostAsJsonAsync(url, body);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+                // The failure may mean this batch's real state has already moved
+                // on (e.g. another action won a race) — refresh so the UI reflects
+                // what's actually true instead of leaving stale buttons visible.
+                await LoadBatchesAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Generic tag-and-relay action modal ──────────────────────────────
+    private void OpenActionModal(Guid batchId, DtAction action)
+    {
+        _actionBatchId = batchId;
+        _actionType = action;
+        _actionToUserId = Guid.Empty;
+        _actionNote = null;
+        _actionSelectedRowIds = new();
+    }
+
+    private void CloseActionModal() => _actionBatchId = null;
+
+    private void ToggleActionRow(Guid rowId, bool isChecked)
+    {
+        if (isChecked) _actionSelectedRowIds.Add(rowId);
+        else _actionSelectedRowIds.Remove(rowId);
+    }
+
+    private string ActionModalTitle() => _actionType switch
+    {
+        DtAction.ReturnToViewer => "Return to Viewer",
+        DtAction.DistributeToPdo => "Distribute to PDO",
+        DtAction.EndorseToFinance => "Endorse to Finance",
+        DtAction.ReturnToPdoFindings => "Return to PDO — Findings",
+        DtAction.ForwardToViewerScanning => "Forward to Viewer — Scanning",
+        _ => "Relay Document"
+    };
+
+    private async Task SubmitActionAsync()
+    {
+        if (!_actionBatchId.HasValue) return;
+
+        if (_actionType != DtAction.ReturnToViewer && _actionToUserId == Guid.Empty)
+        {
+            Toast.ShowError("Please tag a recipient.");
+            return;
+        }
+
+        if (_actionType == DtAction.ReturnToPdoFindings && !_actionSelectedRowIds.Any())
+        {
+            Toast.ShowError("Select at least one grantee to tag with a finding.");
+            return;
+        }
+
+        var batchId = _actionBatchId.Value;
+        string url;
+        object body;
+
+        switch (_actionType)
+        {
+            case DtAction.ReturnToViewer:
+                url = $"api/document-tracking/{batchId}/return-to-viewer";
+                body = new RelayNoteDto { Note = _actionNote };
+                break;
+            case DtAction.DistributeToPdo:
+                url = $"api/document-tracking/{batchId}/distribute-to-pdo";
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                break;
+            case DtAction.EndorseToFinance:
+                url = $"api/document-tracking/{batchId}/endorse-to-finance";
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                break;
+            case DtAction.ForwardToViewerScanning:
+                url = $"api/document-tracking/{batchId}/forward-to-viewer-scanning";
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                break;
+            case DtAction.ReturnToPdoFindings:
+                url = $"api/document-tracking/{batchId}/return-to-pdo-findings";
+                body = new ReturnForFindingsDto { ToUserId = _actionToUserId, Note = _actionNote, GranteeRowIds = _actionSelectedRowIds.ToList() };
+                break;
+            default:
+                return;
+        }
+
+        if (_busy) return;
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync(url, body);
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Document relayed.");
+                _actionBatchId = null;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+                await LoadBatchesAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Admin/SuperAdmin: reassign a wrongly-tagged recipient ────────────
+    private void OpenReassignModal(Guid batchId)
+    {
+        _reassignBatchId = batchId;
+        _reassignToUserId = Guid.Empty;
+    }
+
+    private void CloseReassignModal() => _reassignBatchId = null;
+
+    private async Task ConfirmReassignAsync()
+    {
+        if (!_reassignBatchId.HasValue) return;
+
+        if (_reassignToUserId == Guid.Empty)
+        {
+            Toast.ShowError("Select who this document should be tagged to instead.");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                $"api/document-tracking/{_reassignBatchId.Value}/reassign-recipient",
+                new RelayDocumentDto { ToUserId = _reassignToUserId });
+
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Recipient corrected.");
+                _reassignBatchId = null;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── SuperAdmin: delete batch ─────────────────────────────────────────
+    private void OpenDeleteConfirm(Guid batchId) => _deleteConfirmBatchId = batchId;
+    private void CloseDeleteConfirm() => _deleteConfirmBatchId = null;
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (!_deleteConfirmBatchId.HasValue) return;
+
+        _busy = true;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/document-tracking/{_deleteConfirmBatchId.Value}");
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Document batch deleted.");
+                _expandedIds.Remove(_deleteConfirmBatchId.Value);
+                _deleteConfirmBatchId = null;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── SuperAdmin: edit batch (header + rows) ───────────────────────────
+    private async Task OpenEditModal(Guid batchId)
+    {
+        _editBatchId = batchId;
+        _editBatch = null;
+        _editNewRow = new();
+        _editMunicipalities = new();
+
+        await LoadProvincesAsync();
+
+        _editBatch = await Http.GetFromJsonAsync<DocumentBatchDto>($"api/document-tracking/{batchId}");
+        if (_editBatch is null) return;
+
+        _editProvinceCode = _editBatch.PsgcCodeProvince;
+        _editMunicipalityCode = _editBatch.PsgcCodeMunicipality;
+        _editMilestoneYear = _editBatch.MilestoneYear;
+        _editDateReceived = _editBatch.DateReceived;
+
+        _editMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+            $"api/Municipality/by-province/{_editProvinceCode}") ?? new();
+    }
+
+    private async Task CloseEditModal()
+    {
+        _editBatchId = null;
+        _editBatch = null;
+        // Must be awaited by the @onclick handler itself (not fire-and-forget) —
+        // otherwise the render pipeline that would pick up the eventual
+        // StateHasChanged() has already finished by the time this completes,
+        // and _loading gets stuck true visually with nothing left to redraw it
+        // false again until some unrelated event forces a re-render.
+        await LoadBatchesAsync();
+    }
+
+    private async Task OnEditProvinceChanged(ChangeEventArgs e)
+    {
+        _editProvinceCode = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _editMunicipalityCode = 0;
+        _editMunicipalities = new();
+
+        if (_editProvinceCode > 0)
+        {
+            _editMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                $"api/Municipality/by-province/{_editProvinceCode}") ?? new();
+        }
+    }
+
+    private async Task SaveEditHeaderAsync()
+    {
+        if (!_editBatchId.HasValue) return;
+
+        if (_editProvinceCode == 0 || _editMunicipalityCode == 0 || _editMilestoneYear == 0)
+        {
+            Toast.ShowError("Province, Municipality, and Milestone Year are all required.");
+            return;
+        }
+
+        var dto = new UpdateDocumentBatchHeaderDto
+        {
+            PsgcCodeProvince = _editProvinceCode,
+            PsgcCodeMunicipality = _editMunicipalityCode,
+            MilestoneYear = _editMilestoneYear,
+            DateReceived = _editDateReceived
+        };
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/document-tracking/{_editBatchId.Value}", dto);
+            if (response.IsSuccessStatusCode)
+            {
+                _editBatch = await response.Content.ReadFromJsonAsync<DocumentBatchDto>();
+                Toast.ShowSuccess("Document batch details updated.");
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveEditRowAsync(DocumentGranteeRowDto row)
+    {
+        if (!_editBatchId.HasValue) return;
+
+        if (string.IsNullOrWhiteSpace(row.FirstName) || string.IsNullOrWhiteSpace(row.LastName))
+        {
+            Toast.ShowError("First and Last name are required.");
+            return;
+        }
+
+        var dto = new CreateDocumentGranteeRowDto
+        {
+            FirstName = row.FirstName,
+            MiddleName = row.MiddleName,
+            LastName = row.LastName,
+            Extension = row.Extension
+        };
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/document-tracking/{_editBatchId.Value}/rows/{row.Id}", dto);
+            if (response.IsSuccessStatusCode)
+            {
+                _editBatch = await response.Content.ReadFromJsonAsync<DocumentBatchDto>();
+                Toast.ShowSuccess("Grantee row updated.");
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteEditRowAsync(Guid rowId)
+    {
+        if (!_editBatchId.HasValue) return;
+
+        _busy = true;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/document-tracking/{_editBatchId.Value}/rows/{rowId}");
+            if (response.IsSuccessStatusCode)
+            {
+                _editBatch = await response.Content.ReadFromJsonAsync<DocumentBatchDto>();
+                Toast.ShowSuccess("Grantee row removed.");
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AddEditRowAsync()
+    {
+        if (!_editBatchId.HasValue) return;
+
+        if (string.IsNullOrWhiteSpace(_editNewRow.FirstName) || string.IsNullOrWhiteSpace(_editNewRow.LastName))
+        {
+            Toast.ShowError("Add at least a First and Last name.");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/document-tracking/{_editBatchId.Value}/rows", _editNewRow);
+            if (response.IsSuccessStatusCode)
+            {
+                _editBatch = await response.Content.ReadFromJsonAsync<DocumentBatchDto>();
+                _editNewRow = new();
+                Toast.ShowSuccess("Grantee row added.");
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

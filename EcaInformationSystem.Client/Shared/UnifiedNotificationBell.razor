@@ -5,6 +5,7 @@
 @inject BeneficiaryStateService State
 @inject ActivityClientService ActivityClient
 @inject DocumentUploadQueueService UploadQueue
+@inject DocumentTrackingClientService DocTracking
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject AuthService AuthService
@@ -52,6 +53,12 @@
                     <i class="bi bi-cloud-upload"></i>
                     <span>Uploads</span>
                     @if (_uploadActiveCount > 0) { <span class="notif-bell-tab-badge">@_uploadActiveCount</span> }
+                </button>
+                <button class="notif-bell-tab @(_activeTab == NotifTab.Documents ? "notif-bell-tab--active" : "")"
+                        @onclick="() => _activeTab = NotifTab.Documents">
+                    <i class="bi bi-truck"></i>
+                    <span>Documents</span>
+                    @if (DocTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@DocTracking.PendingForMeCount</span> }
                 </button>
             </div>
 
@@ -224,7 +231,7 @@
                     </button>
                 </div>
             }
-            else
+            else if (_activeTab == NotifTab.Uploads)
             {
                 <div class="duplicate-dropdown-header">
                     <span class="fw-bold">Upload Queue</span>
@@ -267,6 +274,40 @@
                             </div>
                         }
                     }
+                </div>
+            }
+            else if (_activeTab == NotifTab.Documents)
+            {
+                <div class="duplicate-dropdown-header">
+                    <span class="fw-bold">Document Tracking</span>
+                    <span class="text-muted small">@DocTracking.PendingForMeCount waiting on you</span>
+                </div>
+
+                <div class="duplicate-dropdown-scroll">
+                    @if (DocTracking.PendingForMeCount == 0)
+                    {
+                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                            <i class="bi bi-check-circle me-2"></i>
+                            Nothing tagged to you right now
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="duplicate-dropdown-item" style="cursor:pointer;" @onclick="GoToDocumentTracking">
+                            <i class="bi bi-truck me-2 text-primary"></i>
+                            <span>
+                                You have <strong>@DocTracking.PendingForMeCount</strong>
+                                document@(DocTracking.PendingForMeCount == 1 ? "" : "s") to accept
+                            </span>
+                        </div>
+                    }
+                </div>
+
+                <div class="duplicate-dropdown-footer">
+                    <button class="duplicate-scan-btn-small" @onclick="GoToDocumentTracking">
+                        <i class="bi bi-arrow-right me-1"></i>
+                        Open Document Tracking
+                    </button>
                 </div>
             }
         </div>
@@ -512,7 +553,7 @@
 }
 
 @code {
-    private enum NotifTab { Duplicates, Calendar, Uploads }
+    private enum NotifTab { Duplicates, Calendar, Uploads, Documents }
     private NotifTab _activeTab = NotifTab.Duplicates;
     private bool _showDropdown;
 
@@ -538,7 +579,7 @@
     private List<DocumentUploadJobDto> _uploadJobs = new();
     private int _uploadActiveCount;
 
-    private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount;
+    private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount + DocTracking.PendingForMeCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -558,6 +599,17 @@
 
         UploadQueue.OnChanged += OnUploadQueueChanged;
         RefreshUploadState();
+
+        DocTracking.OnChange += HandleDocTrackingChange;
+        await DocTracking.RefreshPendingCountAsync();
+    }
+
+    private void HandleDocTrackingChange() => InvokeAsync(StateHasChanged);
+
+    private void GoToDocumentTracking()
+    {
+        _showDropdown = false;
+        Navigation.NavigateTo("/document-tracking");
     }
 
     private void HandleDuplicatesChange() => InvokeAsync(StateHasChanged);
@@ -818,6 +870,8 @@
         ActivityClient.ActivityDeleted -= OnActivityDeleted;
 
         UploadQueue.OnChanged -= OnUploadQueueChanged;
+
+        DocTracking.OnChange -= HandleDocTrackingChange;
 
         await Task.CompletedTask;
     }

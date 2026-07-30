@@ -44,7 +44,7 @@ namespace EcaInformationSystem.Application.Services
             var user = await _repo.GetByIdAsync(userId)
                 ?? throw new KeyNotFoundException("User not found.");
 
-            var validRoles = new[] { "SuperAdmin", "Admin", "PDO", "Viewer" };
+            var validRoles = new[] { "SuperAdmin", "Admin", "PDO", "Finance", "Viewer" };
             if (!validRoles.Contains(role))
                 throw new ArgumentException($"Invalid role: {role}");
 

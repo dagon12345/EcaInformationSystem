@@ -53,6 +53,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
             public DbSet<StickyNote> StickyNotes => Set<StickyNote>();
+            public DbSet<DocumentBatch> DocumentBatches => Set<DocumentBatch>();
+            public DbSet<DocumentGranteeRow> DocumentGranteeRows => Set<DocumentGranteeRow>();
+            public DbSet<DocumentTransfer> DocumentTransfers => Set<DocumentTransfer>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -890,6 +893,47 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.SetBy).HasMaxLength(256);
                         entity.Property(x => x.ModifiedBy).HasMaxLength(256);
                         entity.Property(x => x.RowVersion).IsRowVersion();
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // DOCUMENT TRACKING
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<DocumentBatch>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.CreatedByName).HasMaxLength(200);
+                        entity.Property(x => x.CurrentHolderName).HasMaxLength(200);
+
+                        entity.HasMany(x => x.Rows)
+                              .WithOne(x => x.DocumentBatch)
+                              .HasForeignKey(x => x.DocumentBatchId)
+                              .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasMany(x => x.Transfers)
+                              .WithOne(x => x.DocumentBatch)
+                              .HasForeignKey(x => x.DocumentBatchId)
+                              .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasIndex(x => new { x.PsgcCodeProvince, x.PsgcCodeMunicipality, x.MilestoneYear });
+                  });
+
+                  modelBuilder.Entity<DocumentGranteeRow>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.FirstName).HasMaxLength(150);
+                        entity.Property(x => x.MiddleName).HasMaxLength(150);
+                        entity.Property(x => x.LastName).HasMaxLength(150);
+                        entity.Property(x => x.Extension).HasMaxLength(20);
+                        entity.Property(x => x.FindingNote).HasMaxLength(1000);
+                        entity.Property(x => x.FindingSetByName).HasMaxLength(200);
+                  });
+
+                  modelBuilder.Entity<DocumentTransfer>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.FromUserName).HasMaxLength(200);
+                        entity.Property(x => x.ToUserName).HasMaxLength(200);
+                        entity.Property(x => x.Note).HasMaxLength(1000);
                   });
 
                   // ═══════════════════════════════════════════════════════════════════

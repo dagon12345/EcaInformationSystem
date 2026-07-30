@@ -29,7 +29,7 @@ else if (!_authorized)
         <i class="bi bi-shield-lock fs-5"></i>
         <div>
             <strong>Access Denied</strong>
-            <p class="mb-0 small">This page is restricted to Administrators only.</p>
+            <p class="mb-0 small">This page is restricted to Finance, Admin, and Super Admin accounts only.</p>
         </div>
     </div>
 }
@@ -161,24 +161,27 @@ else
                                         <td class="text-end">@line.Balance.ToString("N2")</td>
                                         <td>@line.Remarks</td>
                                         <td class="text-center">
-                                            <div class="d-flex gap-1 justify-content-center">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
-                                                        disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == 0)" @onclick="() => MoveUpAsync(line)">
-                                                    <i class="bi bi-arrow-up"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
-                                                        disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == _lines.Count - 1)" @onclick="() => MoveDownAsync(line)">
-                                                    <i class="bi bi-arrow-down"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Edit"
-                                                        disabled="@(_editingLine is not null)" @onclick="() => StartEdit(line)">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-danger" title="Delete"
-                                                        disabled="@(_editingLine is not null)" @onclick="() => RequestDelete(line)">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </div>
+                                            @if (_canEdit)
+                                            {
+                                                <div class="d-flex gap-1 justify-content-center">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move up"
+                                                            disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == 0)" @onclick="() => MoveUpAsync(line)">
+                                                        <i class="bi bi-arrow-up"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Move down"
+                                                            disabled="@(_editingLine is not null || _isSaving || _lines.IndexOf(line) == _lines.Count - 1)" @onclick="() => MoveDownAsync(line)">
+                                                        <i class="bi bi-arrow-down"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" title="Edit"
+                                                            disabled="@(_editingLine is not null)" @onclick="() => StartEdit(line)">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" title="Delete"
+                                                            disabled="@(_editingLine is not null)" @onclick="() => RequestDelete(line)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            }
                                         </td>
                                     }
                                 </tr>
@@ -202,10 +205,19 @@ else
                     </table>
                 </div>
 
-                <button type="button" class="btn btn-sm btn-outline-success mt-2" title="Add line item"
-                        disabled="@(_editingLine is not null || _isSaving)" @onclick="AddRow">
-                    <i class="bi bi-plus-lg me-1"></i>Add Line Item
-                </button>
+                @if (_canEdit)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-success mt-2" title="Add line item"
+                            disabled="@(_editingLine is not null || _isSaving)" @onclick="AddRow">
+                        <i class="bi bi-plus-lg me-1"></i>Add Line Item
+                    </button>
+                }
+                else
+                {
+                    <p class="text-muted small mb-0 mt-2">
+                        <i class="bi bi-eye me-1"></i>View only — only Finance and Super Admin can edit the Work Financial Plan.
+                    </p>
+                }
             }
         </div>
     </div>
@@ -214,6 +226,7 @@ else
 @code {
     private bool _initialized;
     private bool _authorized;
+    private bool _canEdit;
     private bool _isLoading = true;
     private bool _isSaving;
     private string? _loadError;
@@ -250,7 +263,8 @@ else
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
-        _authorized = AuthService.IsAdmin();
+        _canEdit = AuthService.IsFinance() || AuthService.IsSuperAdmin();
+        _authorized = _canEdit || AuthService.IsAdmin();
         _initialized = true;
 
         if (_authorized)
@@ -281,6 +295,7 @@ else
 
     private void StartEdit(WfpEcaLineDto line)
     {
+        if (!_canEdit) return;
         _confirmingDeleteLine = null;
         _editingLine = line;
         _draft = new WfpEcaLineDto
@@ -306,6 +321,7 @@ else
 
     private void AddRow()
     {
+        if (!_canEdit) return;
         var line = new WfpEcaLineDto
         {
             Id = null,
@@ -348,6 +364,7 @@ else
     // enough to make the new order stick.
     private async Task MoveUpAsync(WfpEcaLineDto line)
     {
+        if (!_canEdit) return;
         var index = _lines.IndexOf(line);
         if (index <= 0) return;
         (_lines[index - 1], _lines[index]) = (_lines[index], _lines[index - 1]);
@@ -356,6 +373,7 @@ else
 
     private async Task MoveDownAsync(WfpEcaLineDto line)
     {
+        if (!_canEdit) return;
         var index = _lines.IndexOf(line);
         if (index < 0 || index >= _lines.Count - 1) return;
         (_lines[index + 1], _lines[index]) = (_lines[index], _lines[index + 1]);
@@ -364,6 +382,7 @@ else
 
     private void RequestDelete(WfpEcaLineDto line)
     {
+        if (!_canEdit) return;
         _editingLine = null;
         _confirmingDeleteLine = line;
     }

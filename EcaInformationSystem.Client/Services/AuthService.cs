@@ -14,16 +14,19 @@ namespace EcaInformationSystem.Client.Services
         private readonly HttpClient _http;
         private readonly IJSRuntime _js;
         private readonly ChatClientService _chatClientService; // ✅ NEW
+        private readonly DocumentTrackingClientService _documentTrackingClientService;
         private readonly IConfiguration _config; // ✅ NEW
         // ── In-memory cache so sync helpers work after InitAsync ─────────────
         private string? _cachedRole;
         private int? _cachedRegionCode;
 
-        public AuthService(HttpClient http, IJSRuntime js, ChatClientService chatClientService, IConfiguration config)
+        public AuthService(HttpClient http, IJSRuntime js, ChatClientService chatClientService,
+            DocumentTrackingClientService documentTrackingClientService, IConfiguration config)
         {
             _http = http;
             _js = js;
             _chatClientService = chatClientService;
+            _documentTrackingClientService = documentTrackingClientService;
             _config = config; // ✅ NEW
         }
 
@@ -178,6 +181,18 @@ namespace EcaInformationSystem.Client.Services
                 await _chatClientService.ConnectAsync(hubUrl);
             }
             catch { }
+
+            try
+            {
+                var userId = ParseUserIdFromToken(result.Token);
+                if (userId.HasValue)
+                {
+                    var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "documentTrackingHub").ToString();
+                    await _documentTrackingClientService.ConnectAsync(hubUrl, userId.Value);
+                }
+            }
+            catch { }
         }
 
         public async Task<(bool success, string message)> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -214,6 +229,7 @@ namespace EcaInformationSystem.Client.Services
 
             // ✅ NEW — tear down the chat connection on logout
             await _chatClientService.DisconnectAsync();
+            await _documentTrackingClientService.DisconnectAsync();
         }
 
         public async Task<string?> GetTokenAsync()
@@ -228,6 +244,13 @@ namespace EcaInformationSystem.Client.Services
         {
             await _js.InvokeVoidAsync("localStorage.setItem", "authToken", newToken);
             _cachedRole = ParseRoleFromToken(newToken);
+            // InitAsync() reads localStorage["userRole"] before it ever re-parses the
+            // token — if this isn't kept in sync here too, a page refresh after a
+            // reissued token (e.g. role changed) re-caches the OLD role client-side
+            // even though the new token (the one actually sent to the API) already
+            // carries the correct one. That mismatch is exactly what lets a button
+            // show client-side while the server correctly 403s the request.
+            await _js.InvokeVoidAsync("localStorage.setItem", "userRole", _cachedRole ?? string.Empty);
             _cachedRegionCode = ParseRegionFromToken(newToken);
         }
 
@@ -354,6 +377,7 @@ namespace EcaInformationSystem.Client.Services
         public bool IsAdmin() => _cachedRole == "Admin" || _cachedRole == "SuperAdmin";
         public bool IsPDO() => _cachedRole == "PDO";
         public bool IsViewer() => _cachedRole == "Viewer";
+        public bool IsFinance() => _cachedRole == "Finance";
 
         // ── Private: parse role claim out of a JWT string ────────────────────
         private static string? ParseRoleFromToken(string? token)
@@ -372,6 +396,27 @@ namespace EcaInformationSystem.Client.Services
                     c.Type == "role" ||
                     c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")
                     ?.Value;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // ── Private: parse the "sub" (user id) claim out of a JWT string ─────
+        private static Guid? ParseUserIdFromToken(string? token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return null;
+
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (!handler.CanReadToken(token)) return null;
+
+                var jwt = handler.ReadJwtToken(token);
+                var sub = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+
+                return Guid.TryParse(sub, out var id) ? id : null;
             }
             catch
             {

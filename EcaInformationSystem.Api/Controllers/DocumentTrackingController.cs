@@ -1,0 +1,235 @@
+using EcaInformationSystem.Api.Hubs;
+using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Domain.Common.Enum;
+using EcaInformationSystem.Shared.DTOs.DocumentTracking;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+
+namespace EcaInformationSystem.Api.Controllers
+{
+    [ApiController]
+    [Route("api/document-tracking")]
+    [Authorize]
+    public class DocumentTrackingController : ControllerBase
+    {
+        private readonly IDocumentTrackingService _service;
+        private readonly IHubContext<DocumentTrackingHub> _hub;
+
+        public DocumentTrackingController(IDocumentTrackingService service, IHubContext<DocumentTrackingHub> hub)
+        {
+            _service = service;
+            _hub = hub;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAll() => Ok(await _service.GetAllAsync());
+
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id)
+        {
+            var result = await _service.GetByIdAsync(id);
+            return result is null ? NotFound() : Ok(result);
+        }
+
+        [HttpGet("taggable-users")]
+        public async Task<IActionResult> GetTaggableUsers() => Ok(await _service.GetTaggableUsersAsync());
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateDocumentBatchDto dto)
+        {
+            if (!User.IsInRole("Viewer") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+                return Forbid();
+
+            try
+            {
+                var result = await _service.CreateAsync(dto, RequireUserId(), GetFullName());
+                await NotifyIfHandedOffAsync(result);
+                await BroadcastChangedAsync(result.Id);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict("Something changed at the same moment this was submitted. Please try again.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
+        [HttpPost("{id:guid}/accept")]
+        public async Task<IActionResult> Accept(Guid id)
+            => await RunAsync(() => _service.AcceptAsync(id, RequireUserId(), GetFullName()));
+
+        [HttpPost("{id:guid}/return-to-viewer")]
+        public async Task<IActionResult> ReturnToViewer(Guid id, [FromBody] RelayNoteDto? dto)
+            => await RunAsync(() => _service.ReturnToViewerAsync(id, RequireUserId(), GetFullName(), dto?.Note), notifyOnHandoff: true);
+
+        [HttpPost("{id:guid}/distribute-to-pdo")]
+        public async Task<IActionResult> DistributeToPdo(Guid id, [FromBody] RelayDocumentDto dto)
+            => await RunAsync(() => _service.DistributeToPdoAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+
+        [HttpPost("{id:guid}/endorse-to-finance")]
+        public async Task<IActionResult> EndorseToFinance(Guid id, [FromBody] RelayDocumentDto dto)
+            => await RunAsync(() => _service.EndorseToFinanceAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+
+        [HttpPost("{id:guid}/return-to-pdo-findings")]
+        public async Task<IActionResult> ReturnToPdoForFindings(Guid id, [FromBody] ReturnForFindingsDto dto)
+            => await RunAsync(() => _service.ReturnToPdoForFindingsAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+
+        [HttpPost("{id:guid}/forward-to-viewer-scanning")]
+        public async Task<IActionResult> ForwardToViewerForScanning(Guid id, [FromBody] RelayDocumentDto dto)
+            => await RunAsync(() => _service.ForwardToViewerForScanningAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+
+        [HttpPost("{id:guid}/complete")]
+        public async Task<IActionResult> Complete(Guid id, [FromBody] RelayNoteDto? dto)
+            => await RunAsync(() => _service.CompleteAsync(id, RequireUserId(), GetFullName(), dto?.Note));
+
+        [HttpPost("{id:guid}/rows/{rowId:guid}/resolve-finding")]
+        public async Task<IActionResult> ResolveFinding(Guid id, Guid rowId)
+            => await RunAsync(() => _service.ResolveFindingAsync(id, rowId, RequireUserId(), GetFullName(), User.IsInRole("SuperAdmin")));
+
+        // Admin/SuperAdmin — correct a wrongly-tagged recipient (e.g. the Viewer
+        // fat-fingered the "send to" picker) without disturbing the batch's stage.
+        [HttpPost("{id:guid}/reassign-recipient")]
+        public async Task<IActionResult> ReassignRecipient(Guid id, [FromBody] RelayDocumentDto dto)
+        {
+            if (!User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+                return Forbid();
+
+            return await RunAsync(() => _service.ReassignRecipientAsync(id, dto.ToUserId, RequireUserId(), GetFullName()), notifyOnHandoff: true);
+        }
+
+        // ── SuperAdmin-only overrides — full CRUD regardless of who currently
+        // holds the batch or what stage the workflow is on. ────────────────
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            if (!User.IsInRole("SuperAdmin")) return Forbid();
+
+            try
+            {
+                await _service.DeleteAsync(id, GetFullName());
+                await _hub.Clients.All.SendAsync("DocumentBatchDeleted", id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict("This document batch was already changed or removed. Please refresh.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> UpdateHeader(Guid id, [FromBody] UpdateDocumentBatchHeaderDto dto)
+        {
+            if (!User.IsInRole("SuperAdmin")) return Forbid();
+            return await RunAsync(() => _service.UpdateHeaderAsync(id, dto, GetFullName()));
+        }
+
+        [HttpPost("{id:guid}/rows")]
+        public async Task<IActionResult> AddRow(Guid id, [FromBody] CreateDocumentGranteeRowDto dto)
+        {
+            if (!User.IsInRole("SuperAdmin")) return Forbid();
+            return await RunAsync(() => _service.AddRowAsync(id, dto, GetFullName()));
+        }
+
+        [HttpPut("{id:guid}/rows/{rowId:guid}")]
+        public async Task<IActionResult> UpdateRow(Guid id, Guid rowId, [FromBody] CreateDocumentGranteeRowDto dto)
+        {
+            if (!User.IsInRole("SuperAdmin")) return Forbid();
+            return await RunAsync(() => _service.UpdateRowAsync(id, rowId, dto, GetFullName()));
+        }
+
+        [HttpDelete("{id:guid}/rows/{rowId:guid}")]
+        public async Task<IActionResult> DeleteRow(Guid id, Guid rowId)
+        {
+            if (!User.IsInRole("SuperAdmin")) return Forbid();
+            return await RunAsync(() => _service.DeleteRowAsync(id, rowId, GetFullName()));
+        }
+
+        private async Task<IActionResult> RunAsync(Func<Task<DocumentBatchDto>> action, bool notifyOnHandoff = false)
+        {
+            try
+            {
+                var result = await action();
+                if (notifyOnHandoff)
+                    await NotifyIfHandedOffAsync(result);
+                await BroadcastChangedAsync(result.Id);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict("This document was already updated by another action — please refresh and try again.");
+            }
+            catch (Exception ex)
+            {
+                // Surface the real cause instead of an opaque, bodyless 500 —
+                // this is an internal admin tool, so it's safe to show the
+                // message (and the often-more-useful EF InnerException) here.
+                return StatusCode(500, ex.InnerException?.Message ?? ex.Message);
+            }
+        }
+
+        // Pushes a real-time "you have a document to accept" notification to
+        // whoever the batch is now tagged to — skipped when the caller tagged
+        // themselves (e.g. Complete) or the batch just reached its terminal state.
+        private async Task NotifyIfHandedOffAsync(DocumentBatchDto batch)
+        {
+            var callerId = RequireUserId();
+            if (batch.CurrentHolderUserId == callerId) return;
+            if (batch.CurrentStatus == (int)DocumentTrackingStatus.Completed) return;
+
+            await _hub.Clients.User(batch.CurrentHolderUserId.ToString()).SendAsync("DocumentTagged", new DocumentTaggedNotificationDto
+            {
+                BatchId = batch.Id,
+                ProvinceName = batch.ProvinceName,
+                MunicipalityName = batch.MunicipalityName,
+                MilestoneYear = batch.MilestoneYear,
+                StatusLabel = batch.CurrentStatusLabel,
+                TaggedByName = GetFullName(),
+                RelayedAt = DateTime.UtcNow
+            });
+        }
+
+        // Broadcast to EVERYONE (not just the newly-tagged recipient) so any open
+        // Document Tracking page reflects the change live — covers cases the
+        // targeted "DocumentTagged" notification doesn't, e.g. a PDO's own page
+        // staying stale after Finance relays the batch onward, or a SuperAdmin
+        // edit/delete that other viewers wouldn't otherwise hear about.
+        private async Task BroadcastChangedAsync(Guid batchId)
+        {
+            await _hub.Clients.All.SendAsync("DocumentBatchChanged", batchId);
+        }
+
+        private Guid RequireUserId()
+        {
+            var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            return Guid.TryParse(sub, out var id) ? id : throw new InvalidOperationException("Could not identify the current user.");
+        }
+
+        private string GetFullName() => User.FindFirst("FullName")?.Value
+            ?? User.FindFirst(ClaimTypes.Name)?.Value
+            ?? "Unknown";
+    }
+}

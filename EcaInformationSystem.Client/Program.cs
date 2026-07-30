@@ -46,4 +46,5 @@ builder.Services.AddScoped<FormFolderClientService>();
 builder.Services.AddScoped<StickyNoteClientService>();
 builder.Services.AddScoped<PostsClientService>();
 builder.Services.AddScoped<ActivityClientService>();
+builder.Services.AddScoped<DocumentTrackingClientService>();
 await builder.Build().RunAsync();

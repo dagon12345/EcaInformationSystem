@@ -20,11 +20,14 @@ namespace EcaInformationSystem.Api.Controllers
             _currentUser = currentUser;
         }
 
-        // Any authenticated user can view their own region's Work Financial
-        // Plan — only editing it is Admin/SuperAdmin-only, enforced in Upsert.
+        // Viewing the Work Financial Plan is open to Finance/Admin/SuperAdmin —
+        // editing it (Upsert, below) stays Finance/SuperAdmin only.
         [HttpGet("{fiscalYear:int}")]
         public async Task<IActionResult> Get(int fiscalYear)
         {
+            if (!User.IsInRole("Finance") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+                return Forbid();
+
             var regionCode = GetRegionCodeFromClaims();
             if (regionCode is null)
                 return BadRequest("No region is assigned to this account.");
@@ -36,7 +39,7 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpPut]
         public async Task<IActionResult> Upsert([FromBody] UpsertWfpEcaDto dto)
         {
-            if (!User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+            if (!User.IsInRole("Finance") && !User.IsInRole("SuperAdmin"))
                 return Forbid();
 
             var regionCode = GetRegionCodeFromClaims();

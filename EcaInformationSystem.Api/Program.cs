@@ -238,7 +238,8 @@ app.UseRateLimiter(); //Must come after CORS, before MapControllers
 
 app.MapHub<PostsHub>("/postsHub");
 app.MapHub<ActivityHub>("/activityHub");
-app.MapHub<PublicActivityHub>("/publicActivityHub"); 
+app.MapHub<PublicActivityHub>("/publicActivityHub");
+app.MapHub<DocumentTrackingHub>("/documentTrackingHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),
