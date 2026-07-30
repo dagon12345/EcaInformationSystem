@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
 
-# --- FTP connection settings ---
+# --- SFTP connection settings ---
 $clientFtpHost = "site76299.siteasp.net"
 $clientFtpUser = "site76299"
 $clientFtpPass = $env:MONSTERASP_CLIENT_FTP_PASS
@@ -17,8 +17,8 @@ $clientProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
 
 if (-not $clientProject) { throw "Could not find Client .csproj under $root" }
 
-# --- Upload an entire folder in ONE persistent FTP session using lftp ---
-function Upload-ToFtp {
+# --- Upload an entire folder in ONE persistent SFTP session using lftp ---
+function Upload-ToSftp {
     param(
         [string]$LocalFolder,
         [string]$FtpHostName,
@@ -27,11 +27,10 @@ function Upload-ToFtp {
     )
 
     $lftpScript = @"
-set ftp:ssl-allow no
 set net:max-retries 3
 set net:reconnect-interval-base 3
 set net:timeout 30
-open -u $FtpUser,$FtpPass ftp://$FtpHostName
+open -u $FtpUser,$FtpPass sftp://$FtpHostName
 mirror -R --parallel=4 --verbose --no-perms "$LocalFolder" /wwwroot
 bye
 "@
@@ -52,7 +51,7 @@ bye
 Write-Host "Publishing Client..." -ForegroundColor Cyan
 dotnet publish "$($clientProject.FullName)" -c Release -o "$root/publish/client"
 
-Write-Host "Uploading Client via FTP..." -ForegroundColor Cyan
-Upload-ToFtp -LocalFolder "$root/publish/client" -FtpHostName $clientFtpHost -FtpUser $clientFtpUser -FtpPass $clientFtpPass
+Write-Host "Uploading Client via SFTP..." -ForegroundColor Cyan
+Upload-ToSftp -LocalFolder "$root/publish/client" -FtpHostName $clientFtpHost -FtpUser $clientFtpUser -FtpPass $clientFtpPass
 
-Write-Host "Done. Client deployed via FTP." -ForegroundColor Green
+Write-Host "Done. Client deployed via SFTP." -ForegroundColor Green

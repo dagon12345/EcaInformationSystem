@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
 
-# --- FTP connection settings ---
+# --- SFTP connection settings ---
 $apiFtpHost = "site76298.siteasp.net"
 $apiFtpUser = "site76298"
 $apiFtpPass = $env:MONSTERASP_API_FTP_PASS
@@ -17,8 +17,8 @@ $apiProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
 
 if (-not $apiProject) { throw "Could not find Api .csproj under $root" }
 
-# --- Upload an entire folder in ONE persistent FTP session using lftp ---
-function Upload-ToFtp {
+# --- Upload an entire folder in ONE persistent SFTP session using lftp ---
+function Upload-ToSftp {
     param(
         [string]$LocalFolder,
         [string]$FtpHostName,
@@ -27,11 +27,10 @@ function Upload-ToFtp {
     )
 
     $lftpScript = @"
-set ftp:ssl-allow no
 set net:max-retries 3
 set net:reconnect-interval-base 3
 set net:timeout 30
-open -u $FtpUser,$FtpPass ftp://$FtpHostName
+open -u $FtpUser,$FtpPass sftp://$FtpHostName
 mirror -R --parallel=4 --verbose --no-perms "$LocalFolder" /wwwroot
 bye
 "@
@@ -61,14 +60,30 @@ function Set-AppOffline {
     if ($Enable) {
         $tempFile = New-TemporaryFile
         "App is being deployed, please check back shortly." | Out-File -FilePath $tempFile -Encoding utf8 -NoNewline
-        $remoteUrl = "ftp://$FtpHostName/wwwroot/app_offline.htm"
-        curl --ftp-create-dirs -T "$tempFile" "$remoteUrl" --user "${FtpUser}:${FtpPass}" --disable-epsv --retry 3 --retry-delay 3 --silent --show-error
-        if ($LASTEXITCODE -ne 0) { throw "Failed to upload app_offline.htm (curl exit code $LASTEXITCODE)" }
-        Remove-Item $tempFile -ErrorAction SilentlyContinue
+        $tempScript = New-TemporaryFile
+        @"
+set net:max-retries 3
+set net:timeout 30
+open -u $FtpUser,$FtpPass sftp://$FtpHostName
+put "$tempFile" -o /wwwroot/app_offline.htm
+bye
+"@ | Out-File -FilePath $tempScript -Encoding utf8
+        lftp -f $tempScript
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload app_offline.htm (lftp exit code $LASTEXITCODE)" }
+        Remove-Item $tempFile, $tempScript -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 3
     }
     else {
-        curl -Q "-DELE /wwwroot/app_offline.htm" "ftp://$FtpHostName/wwwroot/" --user "${FtpUser}:${FtpPass}" --disable-epsv --silent --show-error --output /dev/null
+        $tempScript = New-TemporaryFile
+        @"
+set net:max-retries 3
+set net:timeout 30
+open -u $FtpUser,$FtpPass sftp://$FtpHostName
+rm -f /wwwroot/app_offline.htm
+bye
+"@ | Out-File -FilePath $tempScript -Encoding utf8
+        lftp -f $tempScript
+        Remove-Item $tempScript -ErrorAction SilentlyContinue
     }
 }
 
@@ -79,12 +94,12 @@ try {
     Write-Host "Taking API offline for deployment..." -ForegroundColor Yellow
     Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $true
 
-    Write-Host "Uploading API via FTP..." -ForegroundColor Cyan
-    Upload-ToFtp -LocalFolder "$root/publish/api" -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass
+    Write-Host "Uploading API via SFTP..." -ForegroundColor Cyan
+    Upload-ToSftp -LocalFolder "$root/publish/api" -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass
 }
 finally {
     Write-Host "Bringing API back online..." -ForegroundColor Yellow
     Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $false
 }
 
-Write-Host "Done. API deployed via FTP." -ForegroundColor Green
+Write-Host "Done. API deployed via SFTP." -ForegroundColor Green
