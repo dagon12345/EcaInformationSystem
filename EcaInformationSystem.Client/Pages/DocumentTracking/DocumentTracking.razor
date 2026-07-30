@@ -34,6 +34,60 @@
         }
     </div>
 
+    <div class="dt-legend">
+        <button class="dt-legend-toggle" @onclick="() => _showLegend = !_showLegend">
+            <i class="bi bi-signpost-2-fill me-1"></i>
+            <span>How does this work?</span>
+            <i class="bi @(_showLegend ? "bi-chevron-up" : "bi-chevron-down") ms-1"></i>
+        </button>
+
+        @if (_showLegend)
+        {
+            <div class="dt-legend-body">
+                <div class="dt-legend-flow">
+                    <div class="dt-legend-step">
+                        <span class="dt-status-pill dt-status-endorsed">Endorsed by Viewer</span>
+                        <p>A Viewer, Admin, or SuperAdmin logs the batch (Province, Municipality, Milestone Year, Date Received, grantee names) and tags who should receive it.</p>
+                    </div>
+                    <i class="bi bi-arrow-right dt-legend-arrow"></i>
+                    <div class="dt-legend-step">
+                        <span class="dt-status-pill dt-status-viewer">Returned to Viewer</span>
+                        <p>The tagged person accepts it, then sends it back to the Viewer who created the batch.</p>
+                    </div>
+                    <i class="bi bi-arrow-right dt-legend-arrow"></i>
+                    <div class="dt-legend-step">
+                        <span class="dt-status-pill dt-status-pdo">Distributed to PDO</span>
+                        <p>The Viewer reviews it and tags the PDO responsible for that grantee's area.</p>
+                    </div>
+                    <i class="bi bi-arrow-right dt-legend-arrow"></i>
+                    <div class="dt-legend-step">
+                        <span class="dt-status-pill dt-status-finance">Endorsed to Finance</span>
+                        <p>The PDO accepts it and endorses it to Finance.</p>
+                    </div>
+                    <i class="bi bi-arrow-right dt-legend-arrow"></i>
+                    <div class="dt-legend-step dt-legend-step--branch">
+                        <span class="dt-status-pill dt-status-findings">Returned to PDO — Findings</span>
+                        <span class="dt-legend-or">or</span>
+                        <span class="dt-status-pill dt-status-scanning">Forwarded to Viewer — Scanning</span>
+                        <p>Finance either sends it back to the PDO with a finding to resolve — this can loop back and forth as many times as needed — or forwards it straight to the Viewer for scanning.</p>
+                    </div>
+                    <i class="bi bi-arrow-right dt-legend-arrow"></i>
+                    <div class="dt-legend-step">
+                        <span class="dt-status-pill dt-status-completed"><i class="bi bi-check-circle-fill me-1"></i>Completed</span>
+                        <p>The Viewer scans the document and marks the batch complete. Final step — nothing more to relay.</p>
+                    </div>
+                </div>
+
+                <div class="dt-legend-rules">
+                    <div><i class="bi bi-shield-check me-1"></i>Only whoever is currently tagged can <strong>Accept</strong> a batch, and only after accepting can they relay it onward.</div>
+                    <div><i class="bi bi-flag-fill me-1"></i>A finding tags the specific grantee row(s) involved — visible right in the grantee table, not just the batch status.</div>
+                    <div><i class="bi bi-person-check-fill me-1"></i>Admin/SuperAdmin can <strong>correct a wrongly-tagged recipient</strong> without changing the batch's stage.</div>
+                    <div><i class="bi bi-pencil-fill me-1"></i>SuperAdmin can edit, delete, or add grantee rows to any batch at any time, regardless of who currently holds it.</div>
+                </div>
+            </div>
+        }
+    </div>
+
     @if (_loading)
     {
         <div class="text-center text-muted py-5">
@@ -185,9 +239,9 @@
                                 @foreach (var t in batch.Transfers)
                                 {
                                     <div class="dt-transfer-entry">
-                                        <span class="dt-status-pill @StatusPillClass(t.Status) dt-status-pill-sm">@t.StatusLabel</span>
+                                        <span class="dt-status-pill @StatusPillClass(t.Status) dt-status-pill-sm">@t.StatusLabel (@t.FromUserName)</span>
                                         <span class="dt-transfer-text">
-                                            @t.FromUserName → @t.ToUserName
+                                            Sent to <strong>@t.ToUserName</strong>
                                             <small class="text-muted ms-1">@t.RelayedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</small>
                                             @if (t.AcceptedAt.HasValue)
                                             {
@@ -691,6 +745,7 @@
     private HashSet<Guid> _expandedIds = new();
 
     private bool _loading = true;
+    private bool _showLegend;
     private bool _busy;
     private bool _canCreate;
     private bool _isSuperAdmin;
