@@ -532,6 +532,7 @@
 .annexa-doc-field-value {
     font-size: 12px;
     min-height: 16px;
+    text-transform: uppercase;
 }
 
 .annexa-doc-checkbox {
@@ -667,4 +668,210 @@
         top: 0;
         border: none;
     }
+
+    /* CDR print isolation — triggered by printCdrOnly() in printInterop.js,
+       same marker-class mechanism as Annex B/Liveness above. */
+    body.printing-cdr .annexa-doc, body.printing-cdr .annexa-doc *,
+    body.printing-cdr .annexb-doc, body.printing-cdr .annexb-doc *,
+    body.printing-cdr .liveness-doc, body.printing-cdr .liveness-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-cdr .cdr-doc,
+    body.printing-cdr .cdr-doc * {
+        visibility: visible !important;
+    }
+    /* position:static here (not :fixed like Annex B/Liveness) — this only
+       works correctly because printInterop.js's printCdrOnly() physically
+       moves #cdr-print-target to be a direct child of <body> right before
+       calling window.print() (and moves it back afterward). At that point
+       it's no longer nested inside the modal's own layout flow, so there's
+       nothing above it to create blank space, and no scroll/overflow/
+       transform ancestor left to clip it to one page. See printInterop.js. */
+    body.printing-cdr .cdr-doc {
+        position: static;
+        border: none;
+    }
+
+    /* Each CDR page is its own physical A4 sheet — every page but the last
+       forces a page break right after it. The Excel export builds one
+       worksheet per page from the same RowsPerPage-driven chunks; this is
+       the HTML-preview equivalent. */
+    .cdr-doc-page {
+        page-break-after: always;
+        break-after: page;
+    }
+    .cdr-doc-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   CDR (Cash Disbursements Record) PRINT PREVIEW — same live
+   Scale/Font/Margin pattern as Annex B/Liveness above, but supports
+   MULTIPLE stacked .cdr-doc-page blocks (one per RowsPerPage-sized
+   chunk), each printing on its own A4 sheet (see @media print above).
+   ══════════════════════════════════════════════════════════ */
+.cdr-doc {
+    color: #000;
+    background: #fff;
+    font-family: "Times New Roman", Times, serif;
+
+    --cdr-scale: 1;
+    --cdr-font-scale: 1;
+    --cdr-margin: 0mm;
+    padding: var(--cdr-margin);
+}
+
+.cdr-doc-inner {
+    zoom: var(--cdr-scale);
+}
+
+/* On screen, stack pages with a visible gap + shadow so they read as
+   separate sheets; in print this collapses away (page-break handles the
+   actual page separation instead). Each page is a block-level <div> wrapping
+   its own <table> (rows 1-18 header + data + certification), matching one
+   Excel worksheet 1:1.
+   ✅ FIXED — page-break-after was previously set directly on the <table>
+   element. Browser print engines (Chromium especially) don't reliably honor
+   forced breaks on <table> itself — tables get their own internal
+   pagination/fragmentation logic that can override or ignore it, which is
+   why every page kept collapsing into "1 page" with the next page's header
+   overlapping the previous page's content regardless of the Scale slider.
+   Moving page-break-after onto this plain block-level div (see the
+   @media print rule above) is what browsers actually respect. */
+.cdr-doc-page {
+    background: #fff;
+    margin-bottom: 24px;
+    /* ✅ FIXED — these font-size values used to reuse the SAME numbers as
+       Excel's point sizes (e.g. 11px standing in for 11pt) without actually
+       converting units. 1pt = 1.333px at the standard 96dpi CSS reference
+       pixel — the .cdr-data-row row height below (141px) already applied
+       this conversion correctly from 105.75pt, but the font sizes never did,
+       so text rendered ~25% smaller relative to the row height than Excel
+       actually produces. All cdr-font-scale-driven sizes below are now
+       Npt × 1.333 to match. */
+    font-size: calc(14.67px * var(--cdr-font-scale));
+}
+@media screen {
+    .cdr-doc-page {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    }
+}
+@media print {
+    .cdr-doc-page {
+        margin-bottom: 0;
+        box-shadow: none;
+    }
+}
+
+.cdr-doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.cdr-doc-page-marker {
+    text-align: center;
+    font-size: 9px;
+    color: #888;
+    margin-bottom: 4px;
+}
+@media print {
+    .cdr-doc-page-marker { display: none; }
+}
+
+/* ── Base cell — every row in the page table is a <tr> of 8 columns ── */
+.cdr-doc-page td, .cdr-doc-page th {
+    padding: 1px 4px;
+    vertical-align: middle;
+    overflow-wrap: break-word;
+    font-family: "Times New Roman", Times, serif;
+}
+
+.cdr-center { text-align: center; }
+.cdr-bold { font-weight: 700; }
+.cdr-italic { font-style: italic; }
+.cdr-underline { text-decoration: underline; }
+.cdr-top { vertical-align: top; }
+.cdr-wrap { white-space: normal; }
+
+/* Plain (non-data-grid) rows — letterhead, title, info bars, cert text —
+   have no borders at all, matching the Excel template (only the CDR data
+   table and the officer-name boxes actually draw borders). */
+.cdr-row-plain td { border: none; }
+.cdr-row-blank td { height: 22px; }
+.cdr-row-blank-sm td { height: 12px; }
+
+.cdr-fs-title { font-size: calc(18.67px * var(--cdr-font-scale)); } /* 14pt */
+.cdr-fs-sub { font-size: calc(16px * var(--cdr-font-scale)); } /* 12pt */
+
+.cdr-appendix {
+    text-align: right;
+    font-style: italic;
+    font-size: calc(16px * var(--cdr-font-scale)); /* 12pt */
+}
+
+/* Boxed cells — Region/Org Unit + New ORG Code values (row 11), and the
+   Accountable Officer / Designation / Station pair (rows 15-16), which in
+   Excel is a 2-row-tall box per column group. box-bottom/top-flush removes
+   the shared inner edge so the two stacked <tr>s read as ONE box.
+   ✅ FIXED — ".cdr-row-plain td { border: none; }" above has HIGHER
+   specificity (class + element) than a bare ".cdr-boxed" (class only), so it
+   was winning regardless of source order and silently stripping every boxed
+   cell's border in the header (both these officer-name boxes and the
+   Region/Org Unit + New ORG Code boxes). Matching that same "class + element"
+   specificity here (and layering with :not() instead of relying on
+   cascade order for the flush variants) makes these actually win. */
+.cdr-row-plain td.cdr-boxed {
+    border: 1px solid #000;
+}
+.cdr-row-plain td.cdr-boxed.cdr-box-bottom-flush {
+    border-bottom: none;
+    vertical-align: bottom;
+}
+.cdr-row-plain td.cdr-boxed.cdr-box-top-flush {
+    border-top: none;
+    vertical-align: top;
+}
+
+/* ── Column headers (rows 17-18 in Excel, merged into one tall header) ── */
+.cdr-col-headers th {
+    border: 1px solid #000;
+    background: #f1f3f5;
+    font-weight: 700;
+    text-align: center;
+    font-size: calc(12.67px * var(--cdr-font-scale)); /* 9.5pt */
+    padding: 4px 5px;
+}
+
+/* ── Data rows (DV row + CDR grantee rows + the certification "Unclaimed"
+   row) — full grid, matches BorderAll(R,1,8) in the Excel builder. The
+   generous 141px row height (≈105.75pt, same as CdrDataRowHeightPt server-
+   side) is deliberate, not a bug — the real template gives every row that
+   much vertical space regardless of how little text is in it (text sits at
+   the top per the "cdr-top" class below, leaving visible blank space under
+   it), so the preview needs the same fixed height to actually look like the
+   Excel export instead of shrink-wrapping tightly around the text. */
+.cdr-data-row {
+    height: 141px;
+}
+/* Certification's "Unclaimed" row is shorter in Excel (74.25pt vs 105.75pt
+   for regular data rows). */
+.cdr-data-row.cdr-row-unclaimed {
+    height: 99px;
+}
+.cdr-data-row td {
+    border: 1px solid #000;
+    font-size: calc(14.67px * var(--cdr-font-scale)); /* 11pt */
+    padding: 4px 5px;
+}
+
+.cdr-cert-text {
+    line-height: 1.5;
+    padding: 2px 10px;
+}
+
+.cdr-cert-signoff {
+    border-bottom: 1px solid #000;
 }

@@ -1,5 +1,6 @@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Client.Pages.BeneficiaryInformation.LiquidationComponents
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @attribute [Authorize]
@@ -49,6 +50,12 @@
                         {
                             <span class="badge bg-primary ms-1">@_previewRows.Count</span>
                         }
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(_activeTab == "print" ? "active" : "")"
+                            @onclick="LoadPrintPreviewAsync">
+                        <i class="bi bi-printer me-1"></i> Print Preview
                     </button>
                 </li>
             </ul>
@@ -376,8 +383,10 @@
                     }
                 }
             }
-
-       
+            @if (_activeTab == "print")
+            {
+                <CdrPrintDocument Settings="_settings" Rows="_previewRows" />
+            }
         }
     </BodyTemplate>
 
@@ -527,9 +536,16 @@ private async Task ShowCgpMembersAsync(LiquidationPreviewRowDto row)
         !string.IsNullOrWhiteSpace(_settings.DvPayee) &&
         _settings.InitialCashAdvance > 0;
 
-    private async Task LoadPreviewAsync()
+    private Task LoadPreviewAsync() => LoadPreviewRowsAsync("preview");
+
+    // Shares the exact same fetch as the Preview tab — the Print Preview tab
+    // paginates client-side (CdrPrintDocument) from these same rows, so it
+    // always reflects what Generate CDR will actually produce.
+    private Task LoadPrintPreviewAsync() => LoadPreviewRowsAsync("print");
+
+    private async Task LoadPreviewRowsAsync(string targetTab)
     {
-        _activeTab = "preview";
+        _activeTab = targetTab;
 
         if (!IsValid())
         {

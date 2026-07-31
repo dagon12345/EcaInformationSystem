@@ -17,27 +17,27 @@
                 <div class="annexa-field">
                     <span class="annexa-item-label">Last Name</span>
                     <input class="annexa-input" value="@spouse?.LastName"
-                           @onchange="@(e => UpdateSpouseField(f => f.LastName = e.Value?.ToString()))" />
+                           @oninput="@(e => UpdateSpouseField(f => f.LastName = SanitizeUpper(e.Value?.ToString())))" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">First Name</span>
                     <input class="annexa-input" value="@spouse?.FirstName"
-                           @onchange="@(e => UpdateSpouseField(f => f.FirstName = e.Value?.ToString()))" />
+                           @oninput="@(e => UpdateSpouseField(f => f.FirstName = SanitizeUpper(e.Value?.ToString())))" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Middle Name</span>
                     <input class="annexa-input" value="@spouse?.MiddleName"
-                           @onchange="@(e => UpdateSpouseField(f => f.MiddleName = e.Value?.ToString()))" />
+                           @oninput="@(e => UpdateSpouseField(f => f.MiddleName = SanitizeUpper(e.Value?.ToString())))" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Ext.</span>
                     <input class="annexa-input" placeholder="Jr./Sr./III" value="@spouse?.Extension"
-                           @onchange="@(e => UpdateSpouseField(f => f.Extension = e.Value?.ToString()))" />
+                           @oninput="@(e => UpdateSpouseField(f => f.Extension = SanitizeUpper(e.Value?.ToString())))" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">D.2 Contact Number</span>
                     <input class="annexa-input" value="@spouse?.ContactNumber"
-                           @onchange="@(e => UpdateSpouseField(f => f.ContactNumber = e.Value?.ToString()))" />
+                           @oninput="@(e => UpdateSpouseField(f => f.ContactNumber = SanitizeUpper(e.Value?.ToString())))" />
                 </div>
             </div>
             @if (spouse != null && HasAnySpouseData(spouse))
@@ -80,22 +80,22 @@
                             <div class="annexa-field">
                                 <span class="annexa-item-label">Last Name</span>
                                 <input class="annexa-input" value="@child.LastName"
-                                       @onchange="@(e => { child.LastName = e.Value?.ToString(); NotifyChanged(); })" />
+                                       @oninput="@(e => { child.LastName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
                                 <span class="annexa-item-label">First Name</span>
                                 <input class="annexa-input" value="@child.FirstName"
-                                       @onchange="@(e => { child.FirstName = e.Value?.ToString(); NotifyChanged(); })" />
+                                       @oninput="@(e => { child.FirstName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
                                 <span class="annexa-item-label">Middle Name</span>
                                 <input class="annexa-input" value="@child.MiddleName"
-                                       @onchange="@(e => { child.MiddleName = e.Value?.ToString(); NotifyChanged(); })" />
+                                       @oninput="@(e => { child.MiddleName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
                                 <span class="annexa-item-label">Ext.</span>
                                 <input class="annexa-input" placeholder="Jr./Sr./III" value="@child.Extension"
-                                       @onchange="@(e => { child.Extension = e.Value?.ToString(); NotifyChanged(); })" />
+                                       @oninput="@(e => { child.Extension = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
                                 <span class="annexa-item-label">D.4 Sex</span>
@@ -114,7 +114,7 @@
                             <div class="annexa-field">
                                 <span class="annexa-item-label">D.6 Contact Number</span>
                                 <input class="annexa-input" value="@child.ContactNumber"
-                                       @onchange="@(e => { child.ContactNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                                       @oninput="@(e => { child.ContactNumber = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field justify-content-end">
                                 <label class="annexa-checkbox-item">
@@ -136,8 +136,11 @@
     [Parameter] public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
     [Parameter] public EventCallback<List<BeneficiaryFamilyMemberDto>> FamilyMembersChanged { get; set; }
 
+    // Newest child first in the UI so adding one doesn't require scrolling down;
+    // SortOrder itself still increments normally, so the printed Annex A form
+    // (which sorts ascending by SortOrder) keeps children in the order they were added.
     private List<BeneficiaryFamilyMemberDto> Children =>
-        FamilyMembers.Where(f => f.RelationType == 2).ToList();
+        FamilyMembers.Where(f => f.RelationType == 2).OrderByDescending(f => f.SortOrder).ToList();
 
     private bool HasAnySpouseData(BeneficiaryFamilyMemberDto s) =>
         !string.IsNullOrWhiteSpace(s.LastName) || !string.IsNullOrWhiteSpace(s.FirstName) ||
@@ -188,5 +191,10 @@
     {
         FamilyMembersChanged.InvokeAsync(FamilyMembers);
         StateHasChanged();
+    }
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
     }
 }

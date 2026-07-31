@@ -122,12 +122,12 @@
                         <td>House #</td><td>Street name</td><td>Barangay</td><td>City/Municipality</td><td>Province</td><td>Zip Code</td>
                     </tr>
                     <tr>
-                        <td>@(Beneficiary.HouseNumber ?? "—")</td>
-                        <td>@(Beneficiary.StreetName ?? "—")</td>
+                        <td class="text-uppercase">@(Beneficiary.HouseNumber ?? "—")</td>
+                        <td class="text-uppercase">@(Beneficiary.StreetName ?? "—")</td>
                         <td>@(Beneficiary.BarangayName ?? "—")</td>
                         <td>@(Beneficiary.MunicipalityName ?? "—")</td>
                         <td>@(Beneficiary.ProvinceName ?? "—")</td>
-                        <td>@(Beneficiary.ZipCode ?? "—")</td>
+                        <td class="text-uppercase">@(Beneficiary.ZipCode ?? "—")</td>
                     </tr>
                 </table>
             </td>
@@ -150,12 +150,12 @@
                     <tr>
                         @if (Beneficiary.PlaceOfSubmission == 2 && Beneficiary.AbroadAddress != null)
                         {
-                            <td>@(Beneficiary.AbroadAddress.HouseNumber ?? "—")</td>
-                            <td>@(Beneficiary.AbroadAddress.StreetName ?? "—")</td>
-                            <td>@(Beneficiary.AbroadAddress.City ?? "—")</td>
-                            <td>@(Beneficiary.AbroadAddress.State ?? "—")</td>
-                            <td>@(Beneficiary.AbroadAddress.Country ?? "—")</td>
-                            <td>@(Beneficiary.AbroadAddress.ZipCode ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.HouseNumber ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.StreetName ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.City ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.State ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.Country ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.AbroadAddress.ZipCode ?? "—")</td>
                         }
                         else
                         {
@@ -218,7 +218,8 @@
     <div class="annexa-doc-bar">D. FAMILY INFORMATION</div>
     @{
         var spouse = Beneficiary.FamilyMembers?.FirstOrDefault(f => f.RelationType == 1);
-        var children = Beneficiary.FamilyMembers?.Where(f => f.RelationType == 2).OrderBy(f => f.SortOrder).ToList() ?? new();
+        var children = Beneficiary.FamilyMembers?.Where(f => f.RelationType == 2)
+            .OrderBy(f => f.FirstName, StringComparer.OrdinalIgnoreCase).ToList() ?? new();
     }
     <table class="annexa-doc-table">
         <tr>
@@ -250,7 +251,7 @@
                         {
                             var c = children[i];
                             <tr>
-                                <td>@(i + 1)) @c.LastName, @c.FirstName @c.MiddleName @c.Extension @(c.IsLivingWithGrantee ? "*" : "")</td>
+                                <td class="text-uppercase">@(i + 1)) @c.LastName, @c.FirstName @c.MiddleName @c.Extension @(c.IsLivingWithGrantee ? "*" : "")</td>
                                 <td>@(c.Sex.HasValue ? (c.Sex == 1 ? "Male" : "Female") : "—")</td>
                                 <td>@(c.Age?.ToString() ?? "—")</td>
                                 <td>@(c.ContactNumber ?? "—")</td>
@@ -368,12 +369,12 @@
                             <td>House number</td><td>Street</td><td>Barangay</td><td>City/Municipality</td><td>Province</td><td>Zip Code</td>
                         </tr>
                         <tr>
-                            <td>@(Beneficiary.Claimant?.HouseNumber ?? "—")</td>
-                            <td>@(Beneficiary.Claimant?.StreetName ?? "—")</td>
-                            <td>@(Beneficiary.Claimant?.Barangay ?? "—")</td>
-                            <td>@(Beneficiary.Claimant?.CityMunicipality ?? "—")</td>
-                            <td>@(Beneficiary.Claimant?.Province ?? "—")</td>
-                            <td>@(Beneficiary.Claimant?.ZipCode ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.HouseNumber ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.StreetName ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.Barangay ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.CityMunicipality ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.Province ?? "—")</td>
+                            <td class="text-uppercase">@(Beneficiary.Claimant?.ZipCode ?? "—")</td>
                         </tr>
                     </table>
                 </td>
@@ -422,11 +423,11 @@
     <div class="annexa-doc-bar">G. ATTESTATION / CERTIFICATION OF PROVIDED INFORMATION</div>
     <div class="annexa-doc-section-body">
         <ol class="mb-2 ps-3" style="font-size:11px;">
-            <li>I hereby attest that all the information in this grantee/claim form is true and correct.</li>
-            <li>I further warrant that I have complied with all the requirements, and I have presented all original documentary requirements.</li>
-            <li>I understand that my application shall not be processed if any statement herein made is found to be false, or if any document I submitted is found to have been falsified, or if I fail to comply with all the requirements with respect to my application, without prejudice to whatever actions that may be taken against me in accordance with the applicable laws of the Republic of the Philippines.</li>
-            <li>Further, I hereby certify that I have not filed claims for cash gifts nor submitted application documents in other barangays, municipalities, cities, provinces, or in other regions/countries.</li>
-            <li>Should there be any violations or false attestation on the above statements, I will be held liable and accountable under civil law for misrepresentation and concealment of information, which shall warrant investigation, applicable charges, penalties and/or sanction.</li>
+            <li>Pinatutunayan ko na tama at totoo ang lahat ng impormasyong ibinigay ko sa form na ito upang maipadala ang aking cash gift sa aking bank account.</li>
+            <li>Pinatutunayan ko na kumpleto ang aking requirements at tunay na orihinal ang mga dokumentong aking ipinakita.</li>
+            <li>Nauunawaan ko na hindi maaaprubahan ang aking aplikasyon kung may maling impormasyon, pekeng dokumento, o kulang na requirements.</li>
+            <li>Kung mapatunayang may maling pahayag o itinagong impormasyon, maaari akong managot at mapatawan ng kaukulang aksyon ayon sa batas.</li>
+            <li>Pinapayagan ko ang NCSC at ang bangko nito na bawiin ang anumang perang maling naipasok sa aking account dahil sa sobrang bayad, dobleng bayad, o maling transfer para sa NCSC Expanded Centenarian Act Program. Maaari itong ibawas sa aking account ayon sa batas at patakaran ng bangko.</li>
         </ol>
     </div>
     <table class="annexa-doc-table">
@@ -458,21 +459,21 @@
             <td style="width:75%;">DOCUMENTS <div class="fw-normal fst-italic" style="font-size:9px;">Note: All should be with name and signature of the verifier and marked with "Verified from the original document"</div></td>
             <td style="width:25%;">REMARKS <div class="fw-normal fst-italic" style="font-size:9px;">(note lacking docs)</div></td>
         </tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasAnnexAForm == true ? "checked" : "")"></span>Accomplished Annex A Grantee/Claimant Form</span></td><td>@(vc?.AnnexARemarks ?? "—")</td></tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdLocal == true ? "checked" : "")"></span>Primary ID for Local Applicants: PSA/LCR issued birth certificate, National Senior Citizen ID generated from the EGov App, PhilSys / National ID, or Valid Philippine Passport</span></td><td>@(vc?.PrimaryIdLocalRemarks ?? "—")</td></tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdAbroad == true ? "checked" : "")"></span>Primary ID for Applicants Abroad: Valid PH Passport or Identification Certificate, signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.PrimaryIdAbroadRemarks ?? "—")</td></tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasSecondaryIds == true ? "checked" : "")"></span>Secondary IDs: Photocopy of any two (2) of the identified secondary ID in existing guidelines (indicate name of the two documents in the Remarks), signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.SecondaryIdsRemarks ?? "—")</td></tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPhoto == true ? "checked" : "")"></span>Whole-body/half-upper body photo</span></td><td>@(vc?.PhotoRemarks ?? "—")</td></tr>
-        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasBankDepositSlip == true ? "checked" : "")"></span>Photocopy of Grantee's bank-verified deposit slip or online transaction slip, signed and marked with "Verified from the Original Document", if applicable</span></td><td>@(vc?.BankDepositSlipRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasAnnexAForm == true ? "checked" : "")"></span>Accomplished Annex A Grantee/Claimant Form</span></td><td class="text-uppercase">@(vc?.AnnexARemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdLocal == true ? "checked" : "")"></span>Primary ID for Local Applicants: PSA/LCR issued birth certificate, National Senior Citizen ID generated from the EGov App, PhilSys / National ID, or Valid Philippine Passport</span></td><td class="text-uppercase">@(vc?.PrimaryIdLocalRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdAbroad == true ? "checked" : "")"></span>Primary ID for Applicants Abroad: Valid PH Passport or Identification Certificate, signed and marked with "Verified from the Original Document"</span></td><td class="text-uppercase">@(vc?.PrimaryIdAbroadRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasSecondaryIds == true ? "checked" : "")"></span>Secondary IDs: Photocopy of any two (2) of the identified secondary ID in existing guidelines (indicate name of the two documents in the Remarks), signed and marked with "Verified from the Original Document"</span></td><td class="text-uppercase">@(vc?.SecondaryIdsRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPhoto == true ? "checked" : "")"></span>Whole-body/half-upper body photo</span></td><td class="text-uppercase">@(vc?.PhotoRemarks ?? "—")</td></tr>
+        <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasBankDepositSlip == true ? "checked" : "")"></span>Photocopy of Grantee's bank-verified deposit slip or online transaction slip, signed and marked with "Verified from the Original Document", if applicable</span></td><td class="text-uppercase">@(vc?.BankDepositSlipRemarks ?? "—")</td></tr>
 
         @if (Beneficiary.IsDeceased)
         {
             <tr><td colspan="2" class="fw-bold" style="font-size:10px; background:#f1f3f5;">Other documents for deceased grantees:</td></tr>
-            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasDeathCertificate == true ? "checked" : "")"></span>Photocopy PSA/LCR death certificate or apostilled equivalent document issued overseas, signed and marked with "verified from the original document".</span></td><td>@(vc?.DeathCertificateRemarks ?? "—")</td></tr>
-            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasProofOfRelationship == true ? "checked" : "")"></span>Proof of relationship: Photocopy of PSA/LCR certificates/documents or apostilled equivalent document issued overseas, as proof of relationship, signed and marked with "Verified from the Original Document"</span></td><td>@(vc?.ProofOfRelationshipRemarks ?? "—")</td></tr>
-            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasClaimantBankSlip == true ? "checked" : "")"></span>Photocopy of Claimant's Bank-verified deposit slip or online transaction slip signed and marked with "Verified from the Original Document" (to replace Grantee's bank account), if applicable</span></td><td>@(vc?.ClaimantBankSlipRemarks ?? "—")</td></tr>
-            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasWarrantyReleaseForm == true ? "checked" : "")"></span>Original Copy of Sworn or Notarized Warranty and Release From Liability Form (If notarized by a foreign notary public the document must be apostilled)</span></td><td>@(vc?.WarrantyReleaseFormRemarks ?? "—")</td></tr>
-            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasLguRcfCertification == true ? "checked" : "")"></span>Original LGU/RCF Certification of no relative</span></td><td>@(vc?.LguRcfCertificationRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasDeathCertificate == true ? "checked" : "")"></span>Photocopy PSA/LCR death certificate or apostilled equivalent document issued overseas, signed and marked with "verified from the original document".</span></td><td class="text-uppercase">@(vc?.DeathCertificateRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasProofOfRelationship == true ? "checked" : "")"></span>Proof of relationship: Photocopy of PSA/LCR certificates/documents or apostilled equivalent document issued overseas, as proof of relationship, signed and marked with "Verified from the Original Document"</span></td><td class="text-uppercase">@(vc?.ProofOfRelationshipRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasClaimantBankSlip == true ? "checked" : "")"></span>Photocopy of Claimant's Bank-verified deposit slip or online transaction slip signed and marked with "Verified from the Original Document" (to replace Grantee's bank account), if applicable</span></td><td class="text-uppercase">@(vc?.ClaimantBankSlipRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasWarrantyReleaseForm == true ? "checked" : "")"></span>Original Copy of Sworn or Notarized Warranty and Release From Liability Form (If notarized by a foreign notary public the document must be apostilled)</span></td><td class="text-uppercase">@(vc?.WarrantyReleaseFormRemarks ?? "—")</td></tr>
+            <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasLguRcfCertification == true ? "checked" : "")"></span>Original LGU/RCF Certification of no relative</span></td><td class="text-uppercase">@(vc?.LguRcfCertificationRemarks ?? "—")</td></tr>
         }
     </table>
 

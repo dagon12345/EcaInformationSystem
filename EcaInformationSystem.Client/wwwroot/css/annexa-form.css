@@ -483,7 +483,7 @@
 }
 .annexa-doc-field-note { font-size: 8.5px; font-style: italic; color: #444; display: block; }
 .annexa-doc-field-value { font-size: 11px; display: block; margin-top: 2px; }
-.annexa-doc-underline-value { border-bottom: 1px solid #000; padding: 0 4px; font-size: 10.5px; }
+.annexa-doc-underline-value { border-bottom: 1px solid #000; padding: 0 4px; font-size: 10.5px; text-transform: uppercase; }
 
 .annexa-doc-checkbox {
     display: inline-flex;

@@ -35,5 +35,28 @@
 
         // Rows per page (A4 portrait fits ~8 data rows comfortably)
         public int RowsPerPage { get; set; } = 8;
+
+        // ── Print Preview overrides ──────────────────────────────────────
+        // Set by CdrPrintDocument's Scale/Font Size/Margin sliders (it mutates
+        // this same shared LiquidationSettingsDto instance directly, so
+        // whatever the user tunes on screen travels along when GenerateAsync
+        // posts these settings to api/liquidation/generate-cdr).
+        //
+        // PrintScalePercent is HTML-preview-only — it's a CSS `zoom`, a
+        // different rendering pipeline from Excel's own PageSetup.Scale, so
+        // the same percentage doesn't mean the same physical shrink in both.
+        // BuildCdrSheet deliberately ignores it and always uses its own
+        // auto-computed scale instead, which is the one actually derived from
+        // Excel's real row heights/page size and reliably fits exactly one
+        // physical page per worksheet. Left here only so the on-screen
+        // preview keeps its own independent zoom control.
+        //
+        // PrintFontPercent and PrintMarginMm DO carry through to Excel — both
+        // are literal, engine-agnostic physical units (points / millimeters).
+        // Null (any of the three) means "not tuned yet" — Excel falls back to
+        // its own defaults in that case.
+        public int? PrintScalePercent { get; set; }
+        public int? PrintFontPercent { get; set; }
+        public int? PrintMarginMm { get; set; }
     }
 }

@@ -1,0 +1,384 @@
+@* CdrPrintDocument.razor — HTML print-preview replica of the Excel CDR export.
+   Mirrors BeneficiaryInformationService.BuildCdrSheet CELL-FOR-CELL (same text,
+   same alignment/bold/underline, same merges as colspans) so the preview looks
+   like the actual CDR template, not a redesign — only the Scale/Font/Margin
+   sliders and the "does this fit one A4 page" concern are new, same live-preview
+   pattern as AnnexBPrintDocument/LivenessCheckPrintDocument. Pagination mirrors
+   GenerateCdrAsync exactly (page1Max = RowsPerPage - 1, certification always on
+   the last page), computed client-side from the already-loaded preview rows —
+   re-paginates live if Settings.RowsPerPage changes. *@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Services
+@using System.Globalization
+
+<div class="no-print annexb-print-controls mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-1"></i>Print Settings</h6>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="PrintAsync"
+                title="View & print the Cash Disbursements Record">
+            <i class="bi bi-printer me-1"></i>Print CDR
+        </button>
+    </div>
+    <div class="row g-3 align-items-end">
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Scale <span class="text-muted">(@ScalePercent%)</span></label>
+            <input type="range" class="form-range" min="60" max="120" step="1"
+                   @bind-value="ScalePercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Font Size <span class="text-muted">(@FontPercent%)</span></label>
+            <input type="range" class="form-range" min="70" max="130" step="1"
+                   @bind-value="FontPercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Margin <span class="text-muted">(@MarginMm mm)</span></label>
+            <input type="range" class="form-range" min="0" max="25" step="1"
+                   @bind-value="MarginMm" @bind-value:event="oninput" />
+        </div>
+    </div>
+    <div class="text-end mt-2 d-flex justify-content-end gap-3">
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SavePrintSettingsAsync">
+            <i class="bi bi-save me-1"></i>Save as default
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="ResetPrintSettings">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+        </button>
+    </div>
+</div>
+
+@if (!Rows.Any())
+{
+    <div class="no-print alert alert-info mb-0">
+        No CDR rows to preview yet — load the Preview tab first.
+    </div>
+}
+else
+{
+    <div class="cdr-doc" id="cdr-print-target" style="@RootStyle">
+        <div class="cdr-doc-inner">
+            @foreach (var pg in Pages)
+            {
+                <div class="cdr-doc-page-marker no-print">Page @pg.PageNum of @Pages.Count</div>
+                <div class="cdr-doc-page">
+                <table class="cdr-doc-table">
+                    <colgroup>
+                        <col style="width:9.7%;" /><col style="width:12.7%;" /><col style="width:17.2%;" />
+                        <col style="width:8.2%;" /><col style="width:19.6%;" /><col style="width:13.0%;" />
+                        <col style="width:8.6%;" /><col style="width:11.0%;" />
+                    </colgroup>
+                    <tbody>
+                        @* ── Row 1 — Appendix (top-right) ── *@
+                        <tr class="cdr-row-plain">
+                            <td colspan="6"></td>
+                            <td colspan="2" class="cdr-appendix">Appendix  40</td>
+                        </tr>
+
+                        @* ── Rows 2-5 — Letterhead ── *@
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center">Republic of the Philippines</td></tr>
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center cdr-bold">NATIONAL COMMISSION OF SENIOR CITIZENS</td></tr>
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center">The Upper Class Tower, Quezon Avenue cor. Scout Reyes St., Diliman, Quezon City 1117</td></tr>
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center">Official website: www.ncsc.gov.ph</td></tr>
+
+                        @* ── Row 6 — blank ── *@
+                        <tr class="cdr-row-plain cdr-row-blank"><td colspan="8"></td></tr>
+
+                        @* ── Row 7 — Title ── *@
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center cdr-bold cdr-fs-title">CASH DISBURSEMENTS RECORD</td></tr>
+
+                        @* ── Rows 8-9 — Program name / implementation line ── *@
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center cdr-bold cdr-fs-sub">SENIOR CITIZENS WELFARE DEVELOPMENT SERVICES PROGRAM</td></tr>
+                        <tr class="cdr-row-plain"><td colspan="8" class="cdr-center cdr-bold cdr-fs-sub">Implementation of the Expanded Centenarian Act Pursuant to R.A. 11982</td></tr>
+
+                        @* ── Row 10 — blank ── *@
+                        <tr class="cdr-row-plain cdr-row-blank"><td colspan="8"></td></tr>
+
+                        @* ── Row 11 — Region/Org Unit / New ORG Code ── *@
+                        <tr class="cdr-row-plain">
+                            <td colspan="2" class="cdr-bold">Region / Organization Unit:</td>
+                            <td colspan="2" class="cdr-bold cdr-boxed">@Settings.RegionOrgUnit</td>
+                            <td></td>
+                            <td class="cdr-bold cdr-italic">New ORG Code:</td>
+                            <td colspan="2" class="cdr-center cdr-boxed">@Settings.NewOrgCode</td>
+                        </tr>
+
+                        @* ── Row 12 — Fund Cluster / Sheet No. ── *@
+                        <tr class="cdr-row-plain">
+                            <td colspan="5" class="cdr-bold">
+                                Fund Cluster : <span class="cdr-underline">@Settings.FundCluster</span>
+                            </td>
+                            <td colspan="3" class="cdr-bold">
+                                Sheet No. : <span class="cdr-underline">@pg.PageNum of @Pages.Count</span>
+                            </td>
+                        </tr>
+
+                        @* ── Rows 13-14 — blank ── *@
+                        <tr class="cdr-row-plain cdr-row-blank"><td colspan="8"></td></tr>
+                        <tr class="cdr-row-plain cdr-row-blank-sm"><td colspan="8"></td></tr>
+
+                        @* ── Rows 15-16 — Accountable Officer / Designation / Station ── *@
+                        <tr class="cdr-row-plain">
+                            <td colspan="3" class="cdr-center cdr-bold cdr-underline cdr-boxed cdr-box-bottom-flush">@Settings.AccountableOfficerName</td>
+                            <td colspan="3" class="cdr-center cdr-bold cdr-underline cdr-boxed cdr-box-bottom-flush">@Settings.OfficialDesignation</td>
+                            <td colspan="2" class="cdr-center cdr-bold cdr-underline cdr-boxed cdr-box-bottom-flush">@Settings.Station</td>
+                        </tr>
+                        <tr class="cdr-row-plain">
+                            <td colspan="3" class="cdr-center cdr-boxed cdr-box-top-flush">Accountable Officer</td>
+                            <td colspan="3" class="cdr-center cdr-boxed cdr-box-top-flush">Official Designation</td>
+                            <td colspan="2" class="cdr-center cdr-boxed cdr-box-top-flush">Station</td>
+                        </tr>
+
+                        @* ── Rows 17-18 — Column headers ── *@
+                        <tr class="cdr-col-headers">
+                            <th>Date</th>
+                            <th>ADA/Check/DV/Payroll/Reference No.</th>
+                            <th>Payee</th>
+                            <th>UACS Object Code</th>
+                            <th>Nature of Payment</th>
+                            <th>Cash Advance Received/(Refunded)</th>
+                            <th>Disbursement</th>
+                            <th>Cash Advance Balance</th>
+                        </tr>
+
+                        @* ── DV cash-advance row (first page only) ── *@
+                        @if (pg.IsFirstPage)
+                        {
+                            <tr class="cdr-data-row">
+                                <td class="cdr-center cdr-top">@Settings.InputDate.ToString("MMMM dd, yyyy")</td>
+                                <td class="cdr-top cdr-wrap">DV: @Settings.DvYear-@Settings.DvMonth-0001</td>
+                                <td class="cdr-top cdr-wrap">@Settings.DvPayee</td>
+                                <td class="cdr-center cdr-top"></td>
+                                <td class="cdr-top cdr-wrap">@Settings.NatureOfPayment</td>
+                                <td class="cdr-center cdr-top">@Settings.InitialCashAdvance.ToString("N2")</td>
+                                <td class="cdr-center cdr-top"></td>
+                                <td class="cdr-center cdr-top">@Settings.InitialCashAdvance.ToString("N2")</td>
+                            </tr>
+                        }
+
+                        @* ── CDR data rows ── *@
+                        @foreach (var row in pg.Rows)
+                        {
+                            <tr class="cdr-data-row">
+                                <td class="cdr-center cdr-top">@row.PaymentDate.ToString("MMMM dd, yyyy")</td>
+                                <td class="cdr-top cdr-wrap">@row.CgpNumber</td>
+                                <td class="cdr-top cdr-wrap">@row.Payee</td>
+                                <td class="cdr-center cdr-top">50214990-00</td>
+                                <td class="cdr-top cdr-wrap">@row.NatureOfPayment</td>
+                                <td class="cdr-center cdr-top"></td>
+                                <td class="cdr-center cdr-top">@row.Disbursement.ToString("N2")</td>
+                                <td class="cdr-center cdr-top">@row.RunningBalance.ToString("N2")</td>
+                            </tr>
+                        }
+
+                        @* ── CERTIFICATION BLOCK (last page only) ── *@
+                        @if (pg.IncludeCertification)
+                        {
+                            <tr class="cdr-data-row cdr-row-unclaimed">
+                                <td class="cdr-center cdr-top">@Settings.CertificationDate.ToString("MMMM dd, yyyy")</td>
+                                <td class="cdr-top"></td>
+                                <td class="cdr-top cdr-wrap">NCSC CLUSTER 8 RO 13 (CARAGA)</td>
+                                <td class="cdr-center cdr-top">1990103000</td>
+                                <td class="cdr-top cdr-wrap">UNCLAIMED RA 11982 CASH GIFTS</td>
+                                <td class="cdr-center cdr-top">@FinalBalance.ToString("N2")</td>
+                                <td class="cdr-center cdr-top">-</td>
+                                <td class="cdr-center cdr-top">-</td>
+                            </tr>
+
+                            <tr class="cdr-row-plain">
+                                <td colspan="8" class="cdr-center cdr-bold cdr-fs-sub">C E R T I F I C A T I O N</td>
+                            </tr>
+                            <tr class="cdr-row-plain cdr-row-blank-sm"><td colspan="8"></td></tr>
+
+                            <tr class="cdr-row-plain">
+                                <td colspan="8" class="cdr-center cdr-fs-sub cdr-cert-text">
+                                    I hereby certify on my official oath that the foregoing is a correct and complete
+                                    record of all cash disbursements had by me in my capacity as
+                                    <strong><u>@Settings.OfficialDesignation / Special Disbursing Officer</u></strong>
+                                    of the <strong><u>National Commission of Senior Citizens Cluster 8 - Caraga Region</u></strong>
+                                    during the period from
+                                    @Settings.CertificationPeriodFrom to @Settings.CertificationPeriodTo, inclusive, as indicated
+                                    in the corresponding columns.
+                                </td>
+                            </tr>
+
+                            <tr class="cdr-row-plain cdr-row-blank"><td colspan="8"></td></tr>
+
+                            <tr class="cdr-row-plain">
+                                <td colspan="4"></td>
+                                <td colspan="3" class="cdr-center cdr-bold cdr-fs-sub cdr-cert-signoff">@Settings.AccountableOfficerName</td>
+                                <td></td>
+                            </tr>
+                            <tr class="cdr-row-plain">
+                                <td colspan="4"></td>
+                                <td colspan="3" class="cdr-center">Name and Signature of Disbursing Officer</td>
+                                <td></td>
+                            </tr>
+                            <tr class="cdr-row-plain cdr-row-blank-sm"><td colspan="8"></td></tr>
+                            <tr class="cdr-row-plain">
+                                <td colspan="4"></td>
+                                <td colspan="3" class="cdr-center cdr-bold cdr-fs-sub cdr-cert-signoff">@Settings.CertificationDate.ToString("MMMM d, yyyy").ToUpperInvariant()</td>
+                                <td></td>
+                            </tr>
+                            <tr class="cdr-row-plain">
+                                <td colspan="4"></td>
+                                <td colspan="3" class="cdr-center">Date</td>
+                                <td></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public LiquidationSettingsDto Settings { get; set; } = default!;
+    [Parameter, EditorRequired] public List<LiquidationPreviewRowDto> Rows { get; set; } = new();
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+    [Inject] public ToastService Toast { get; set; } = default!;
+
+    // ── Live print-formatting controls (Scale/Font/Margin) — same pattern as
+    // AnnexBPrintDocument/LivenessCheckPrintDocument, EXCEPT these read/write
+    // straight through to Settings.Print*, not private fields. Settings is
+    // the SAME LiquidationSettingsDto instance LiquidationModal holds and
+    // posts to api/liquidation/generate-cdr, so Font Size and Margin also
+    // shape the downloaded Excel file (see BuildCdrSheet's PrintFontPercent/
+    // PrintMarginMm overrides) — those are literal physical units (points/
+    // millimeters), valid in both engines. Scale is deliberately preview-only:
+    // it's a CSS `zoom` here, a different pipeline from Excel's own
+    // PageSetup.Scale, so the same percentage doesn't shrink the same amount
+    // in both — BuildCdrSheet always uses its own auto-computed scale instead,
+    // which is what reliably keeps each worksheet to exactly one physical
+    // page regardless of what this slider is set to.
+    // Defaults (66% / 98% / 5mm) are the tuned sweet spot for fitting cleanly
+    // on A4 in an actual printer — not the generic 100%/100%/0mm Annex B/
+    // Liveness use, which are single, much less densely packed pages so
+    // those just work. ──
+    private const int DefaultScalePercent = 66;
+    private const int DefaultFontPercent = 98;
+    private const int DefaultMarginMm = 5;
+
+    private int ScalePercent
+    {
+        get => Settings.PrintScalePercent ?? DefaultScalePercent;
+        set => Settings.PrintScalePercent = value;
+    }
+    private int FontPercent
+    {
+        get => Settings.PrintFontPercent ?? DefaultFontPercent;
+        set => Settings.PrintFontPercent = value;
+    }
+    private int MarginMm
+    {
+        get => Settings.PrintMarginMm ?? DefaultMarginMm;
+        set => Settings.PrintMarginMm = value;
+    }
+
+    private string RootStyle =>
+        $"--cdr-scale:{(ScalePercent / 100.0).ToString(CultureInfo.InvariantCulture)};" +
+        $"--cdr-font-scale:{(FontPercent / 100.0).ToString(CultureInfo.InvariantCulture)};" +
+        $"--cdr-margin:{MarginMm}mm;";
+
+    private void ResetPrintSettings()
+    {
+        Settings.PrintScalePercent = DefaultScalePercent;
+        Settings.PrintFontPercent = DefaultFontPercent;
+        Settings.PrintMarginMm = DefaultMarginMm;
+    }
+
+    private const string ScaleStorageKey = "cdr-print-scale";
+    private const string FontStorageKey = "cdr-print-font";
+    private const string MarginStorageKey = "cdr-print-margin";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var savedScale = await JS.InvokeAsync<string?>("localStorage.getItem", ScaleStorageKey);
+            var savedFont = await JS.InvokeAsync<string?>("localStorage.getItem", FontStorageKey);
+            var savedMargin = await JS.InvokeAsync<string?>("localStorage.getItem", MarginStorageKey);
+
+            var changed = false;
+            if (int.TryParse(savedScale, out var scale)) { Settings.PrintScalePercent = scale; changed = true; }
+            if (int.TryParse(savedFont, out var font)) { Settings.PrintFontPercent = font; changed = true; }
+            if (int.TryParse(savedMargin, out var margin)) { Settings.PrintMarginMm = margin; changed = true; }
+
+            if (changed) StateHasChanged();
+        }
+        catch
+        {
+            // localStorage unavailable — keep the built-in defaults.
+        }
+    }
+
+    private async Task SavePrintSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ScaleStorageKey, ScalePercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", FontStorageKey, FontPercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", MarginStorageKey, MarginMm.ToString());
+            Toast.ShowSuccess("Print settings saved as your default for the CDR.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save print settings: {ex.Message}");
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("printCdrOnly");
+
+    // ── Pagination — mirrors BeneficiaryInformationService.GenerateCdrAsync
+    // EXACTLY (page1Max = RowsPerPage - 1 for the DV row, certification always
+    // on the last page) so this preview always matches what the Excel export
+    // actually produces, and re-paginates live if RowsPerPage changes. ──
+    private sealed class CdrPageModel
+    {
+        public int PageNum { get; init; }
+        public bool IsFirstPage { get; init; }
+        public bool IncludeCertification { get; init; }
+        public List<LiquidationPreviewRowDto> Rows { get; init; } = new();
+    }
+
+    private List<CdrPageModel> Pages
+    {
+        get
+        {
+            var pages = new List<CdrPageModel>();
+            int rowsPerPage = Settings.RowsPerPage > 0 ? Settings.RowsPerPage : 8;
+            int page1Max = rowsPerPage - 1;
+            int totalData = Rows.Count;
+
+            int processed = 0;
+            int pageNum = 1;
+
+            while (processed < totalData || pages.Count == 0)
+            {
+                bool isFirstPage = pageNum == 1;
+                int takeCount = isFirstPage ? page1Max : rowsPerPage;
+                var pageRows = Rows.Skip(processed).Take(takeCount).ToList();
+                bool isLastPage = (processed + pageRows.Count) >= totalData;
+
+                pages.Add(new CdrPageModel
+                {
+                    PageNum = pageNum,
+                    IsFirstPage = isFirstPage,
+                    IncludeCertification = isLastPage,
+                    Rows = pageRows
+                });
+
+                processed += pageRows.Count;
+                pageNum++;
+
+                if (pageRows.Count == 0) break; // safety — avoid an infinite loop on 0 rows
+            }
+
+            return pages;
+        }
+    }
+
+    private decimal FinalBalance => Rows.Any() ? Rows.Last().RunningBalance : Settings.InitialCashAdvance;
+}

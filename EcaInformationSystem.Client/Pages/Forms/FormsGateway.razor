@@ -247,8 +247,18 @@
                                 </div>
 
                                 <div class="form-card-actions">
-                                    <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)">
-                                        <i class="bi bi-download me-1"></i>Download
+                                    <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)"
+                                            disabled="@_downloadingFormIds.Contains(form.Id)">
+                                        @if (_downloadingFormIds.Contains(form.Id))
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                            <span>Downloading...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-download me-1"></i>
+                                            <span>Download</span>
+                                        }
                                     </button>
 
                                     @if (_isAdmin)
@@ -533,6 +543,7 @@
     private IBrowserFile? _replaceFile;
 
     private List<FormActivityLogDto> _activityLogs = new();
+    private readonly HashSet<Guid> _downloadingFormIds = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -893,15 +904,26 @@
 
     private async Task DownloadAsync(FormDocumentDto form)
     {
-        var result = await FormService.DownloadAsync(form.Id, form.OriginalFileName);
-        if (result == null)
-        {
-            toast.ShowError("Could not download the file.");
-            return;
-        }
+        if (!_downloadingFormIds.Add(form.Id)) return;
+        StateHasChanged();
 
-        var base64 = Convert.ToBase64String(result.Value.Data);
-        await JS.InvokeVoidAsync("downloadFile", result.Value.FileName, base64, result.Value.ContentType);
+        try
+        {
+            var result = await FormService.DownloadAsync(form.Id, form.OriginalFileName);
+            if (result == null)
+            {
+                toast.ShowError("Could not download the file.");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(result.Value.Data);
+            await JS.InvokeVoidAsync("downloadFile", result.Value.FileName, base64, result.Value.ContentType);
+        }
+        finally
+        {
+            _downloadingFormIds.Remove(form.Id);
+            StateHasChanged();
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

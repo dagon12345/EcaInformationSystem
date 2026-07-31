@@ -28,7 +28,7 @@
                 <div class="annexa-field">
                     <span class="annexa-item-label">F.2 Contact Number of Claimant</span>
                     <input class="annexa-input" value="@Claimant.ContactNumber"
-                           @onchange="@(e => { Claimant.ContactNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                           @oninput="@(e => { Claimant.ContactNumber = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                 </div>
             </div>
 
@@ -38,22 +38,22 @@
                     <div class="annexa-field">
                         <span class="annexa-item-label">Last Name <span class="annexa-required">*</span></span>
                         <input class="annexa-input" value="@Claimant.LastName"
-                               @onchange="@(e => { Claimant.LastName = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.LastName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">First Name <span class="annexa-required">*</span></span>
                         <input class="annexa-input" value="@Claimant.FirstName"
-                               @onchange="@(e => { Claimant.FirstName = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.FirstName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Middle Name</span>
                         <input class="annexa-input" value="@Claimant.MiddleName"
-                               @onchange="@(e => { Claimant.MiddleName = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.MiddleName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Ext.</span>
                         <input class="annexa-input" placeholder="Jr./Sr./III" value="@Claimant.Extension"
-                               @onchange="@(e => { Claimant.Extension = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.Extension = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                 </div>
             </div>
@@ -62,7 +62,7 @@
                 <div class="annexa-subsection-title">F.5 Relationship to the Deceased <span class="annexa-item-note">(attach proof of relationship)</span></div>
                 <div class="annexa-field">
                     <input class="annexa-input" value="@Claimant.RelationshipToDeceased"
-                           @onchange="@(e => { Claimant.RelationshipToDeceased = e.Value?.ToString(); NotifyChanged(); })" />
+                           @oninput="@(e => { Claimant.RelationshipToDeceased = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                 </div>
             </div>
 
@@ -72,32 +72,32 @@
                     <div class="annexa-field">
                         <span class="annexa-item-label">House Number</span>
                         <input class="annexa-input" value="@Claimant.HouseNumber"
-                               @onchange="@(e => { Claimant.HouseNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.HouseNumber = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Street</span>
                         <input class="annexa-input" value="@Claimant.StreetName"
-                               @onchange="@(e => { Claimant.StreetName = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.StreetName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Barangay</span>
                         <input class="annexa-input" value="@Claimant.Barangay"
-                               @onchange="@(e => { Claimant.Barangay = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.Barangay = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">City / Municipality</span>
                         <input class="annexa-input" value="@Claimant.CityMunicipality"
-                               @onchange="@(e => { Claimant.CityMunicipality = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.CityMunicipality = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Province</span>
                         <input class="annexa-input" value="@Claimant.Province"
-                               @onchange="@(e => { Claimant.Province = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.Province = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Zip Code</span>
                         <input class="annexa-input" value="@Claimant.ZipCode"
-                               @onchange="@(e => { Claimant.ZipCode = e.Value?.ToString(); NotifyChanged(); })" />
+                               @oninput="@(e => { Claimant.ZipCode = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                     </div>
                 </div>
             </div>
@@ -144,28 +144,28 @@
                 <div class="annexa-field">
                     <span class="annexa-item-label">Bank Name</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.BankOrWalletName"
-                           @onchange="@(e => { ClaimantBankAccount.BankOrWalletName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                           @oninput="@(e => { ClaimantBankAccount.BankOrWalletName = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Account No.</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.AccountNumber"
-                           @onchange="@(e => { ClaimantBankAccount.AccountNumber = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                           @oninput="@(e => { ClaimantBankAccount.AccountNumber = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                 </div>
                 <div></div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">Branch Name</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.BranchName"
-                           @onchange="@(e => { ClaimantBankAccount.BranchName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                           @oninput="@(e => { ClaimantBankAccount.BranchName = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                 </div>
                 <div class="annexa-field" style="grid-column: span 2;">
                     <span class="annexa-item-label">Bank Address</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.BankAddress"
-                           @onchange="@(e => { ClaimantBankAccount.BankAddress = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                           @oninput="@(e => { ClaimantBankAccount.BankAddress = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">GCash Name</span>
                     <input class="annexa-input" value="@ClaimantBankAccount.GCashName"
-                           @onchange="@(e => { ClaimantBankAccount.GCashName = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                           @oninput="@(e => { ClaimantBankAccount.GCashName = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                 </div>
                 <div class="annexa-field" style="grid-column: span 2;">
                     <span class="annexa-item-label">GCash Account No.</span>
@@ -198,12 +198,12 @@
                         <div class="annexa-field">
                             <span class="annexa-item-label">BIC/SWIFT Code</span>
                             <input class="annexa-input" value="@ClaimantBankAccount.SwiftCode"
-                                   @onchange="@(e => { ClaimantBankAccount.SwiftCode = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                                   @oninput="@(e => { ClaimantBankAccount.SwiftCode = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                         </div>
                         <div class="annexa-field">
                             <span class="annexa-item-label">IBAN (European Countries)</span>
                             <input class="annexa-input" value="@ClaimantBankAccount.Iban"
-                                   @onchange="@(e => { ClaimantBankAccount.Iban = e.Value?.ToString(); NotifyBankAccountChanged(); })" />
+                                   @oninput="@(e => { ClaimantBankAccount.Iban = SanitizeUpper(e.Value?.ToString()); NotifyBankAccountChanged(); })" />
                         </div>
                     </div>
                 </div>
@@ -235,5 +235,10 @@
     {
         ClaimantBankAccountChanged.InvokeAsync(ClaimantBankAccount);
         StateHasChanged();
+    }
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
     }
 }

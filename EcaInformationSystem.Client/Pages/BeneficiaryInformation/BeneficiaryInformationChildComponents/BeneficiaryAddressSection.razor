@@ -15,32 +15,32 @@
             <div class="annexa-field">
                 <span class="annexa-item-label">House #</span>
                 <input class="annexa-input" value="@Abroad.HouseNumber"
-                       @onchange="@(e => { Abroad.HouseNumber = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.HouseNumber = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">Street Name</span>
                 <input class="annexa-input" value="@Abroad.StreetName"
-                       @onchange="@(e => { Abroad.StreetName = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.StreetName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">City</span>
                 <input class="annexa-input" value="@Abroad.City"
-                       @onchange="@(e => { Abroad.City = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.City = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">State</span>
                 <input class="annexa-input" value="@Abroad.State"
-                       @onchange="@(e => { Abroad.State = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.State = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">Country <span class="annexa-required">*</span></span>
                 <input class="annexa-input" value="@Abroad.Country"
-                       @onchange="@(e => { Abroad.Country = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.Country = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
             <div class="annexa-field">
                 <span class="annexa-item-label">Zip Code</span>
                 <input class="annexa-input" value="@Abroad.ZipCode"
-                       @onchange="@(e => { Abroad.ZipCode = e.Value?.ToString(); NotifyChanged(); })" />
+                       @oninput="@(e => { Abroad.ZipCode = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
             </div>
         </div>
     </div>
@@ -55,5 +55,10 @@
     {
         AbroadChanged.InvokeAsync(Abroad);
         StateHasChanged();
+    }
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
     }
 }

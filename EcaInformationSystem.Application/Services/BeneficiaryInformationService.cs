@@ -3846,6 +3846,12 @@ namespace EcaInformationSystem.Application.Services
             return ms.ToArray();
         }
 
+        // Row height for every CDR data/DV row (rows 19+) — matches the
+        // original template. Page-fit is now handled by FitToPages(1, 1) in
+        // BuildCdrSheet rather than a computed Scale, so this constant only
+        // controls row height, not pagination math.
+        private const double CdrDataRowHeightPt = 105.75;
+
         // ── Sheet builder — exact match to CDR_1st-Qtr-2026.xlsx template ────────
         private static void BuildCdrSheet(
             IXLWorksheet ws,
@@ -3861,9 +3867,16 @@ namespace EcaInformationSystem.Application.Services
             // EXACT values from template (CDR_1st-Qtr-2026.xlsx CashDR_Page1)
             // ══════════════════════════════════════════════════════════════════
             const string FONT = CommonConstants.TimesNewRoman;
-            const int FS_SM = 11;   // standard cell font size
-            const int FS_TITLE = 14;  // "CASH DISBURSEMENTS RECORD"
-            const int FS_SUB = 12;   // sub-headings & appendix
+
+            // ✅ CHANGED — no longer fixed ints. When the user tuned the Font
+            // Size slider in the CDR Print Preview tab (CdrPrintDocument.razor),
+            // Settings.PrintFontPercent carries that same percentage through
+            // here, so the downloaded Excel matches what was previewed on
+            // screen instead of always using the template's base sizes.
+            double fontScale = (s.PrintFontPercent ?? 100) / 100.0;
+            double FS_SM = 11 * fontScale;   // standard cell font size
+            double FS_TITLE = 14 * fontScale;  // "CASH DISBURSEMENTS RECORD"
+            double FS_SUB = 12 * fontScale;   // sub-headings & appendix
 
             // ── Column widths (exact from template) ──────────────────────────
             ws.Column(1).Width = 16.60;  // A  Date
@@ -3875,20 +3888,52 @@ namespace EcaInformationSystem.Application.Services
             ws.Column(7).Width = 14.70;  // G  Disbursements
             ws.Column(8).Width = 19.00;  // H  Cash Advance Balance
 
-            // ── Page setup (exact from template: paperSize=9=A4, portrait, scale=57) ──
+            // ── Page setup (paperSize=9=A4, portrait) ─────────────────────────
             ws.PageSetup.PaperSize = XLPaperSize.A4Paper;
             ws.PageSetup.PageOrientation = XLPageOrientation.Portrait;
-            ws.PageSetup.Scale = 57;
-            ws.PageSetup.Margins.Left = 0.7;
-            ws.PageSetup.Margins.Right = 0.7;
-            ws.PageSetup.Margins.Top = 0.12;
-            ws.PageSetup.Margins.Bottom = 0.75;
+
+            // ✅ CHANGED — when the user tuned the Margin slider in Print
+            // Preview, Settings.PrintMarginMm carries that through (converted
+            // mm → inches) and overrides the template's default asymmetric
+            // margins uniformly on all four sides, matching --cdr-margin in
+            // CdrPrintDocument.razor's on-screen preview.
+            if (s.PrintMarginMm is { } marginMm)
+            {
+                double marginIn = marginMm / 25.4;
+                ws.PageSetup.Margins.Left = marginIn;
+                ws.PageSetup.Margins.Right = marginIn;
+                ws.PageSetup.Margins.Top = marginIn;
+                ws.PageSetup.Margins.Bottom = marginIn;
+            }
+            else
+            {
+                ws.PageSetup.Margins.Left = 0.7;
+                ws.PageSetup.Margins.Right = 0.7;
+                ws.PageSetup.Margins.Top = 0.12;
+                ws.PageSetup.Margins.Bottom = 0.75;
+            }
             ws.PageSetup.Margins.Header = 0.12;
             ws.PageSetup.Margins.Footer = 0.3;
 
+            // ✅ CHANGED — gave up hand-computing a Scale percentage from
+            // estimated row/header heights (57% hardcoded, then a "fill the
+            // page" formula, then increasingly aggressive safety margins —
+            // still landing on 2 physical pages instead of 1, because it's
+            // all built on point-math approximations of heights ClosedXML
+            // doesn't expose a way to verify against Excel's actual renderer).
+            // FitToPages(1, 1) hands the job to Excel/LibreOffice itself: it
+            // auto-shrinks BOTH width and height to whatever scale actually
+            // fits the real, fully-rendered content onto exactly one physical
+            // page — no estimation involved, and no separate risk of clipping
+            // column A the way a manually-forced "1 page" print option did.
+            // This is also what the OTHER report builders in this file already
+            // use successfully (see their FitToPages(1, 0) calls) — this one
+            // just never had it.
+            ws.PageSetup.FitToPages(1, 1);
+
             // ── Style helper ─────────────────────────────────────────────────
             void S(IXLCell cell,
-                int fs = FS_SM, bool bold = false, bool italic = false,
+                double fs, bool bold = false, bool italic = false,
                 XLAlignmentHorizontalValues h = XLAlignmentHorizontalValues.Left,
                 XLAlignmentVerticalValues v = XLAlignmentVerticalValues.Center,
                 bool wrap = false)
@@ -3903,7 +3948,7 @@ namespace EcaInformationSystem.Application.Services
             }
 
             // Merge A-H for a row, set value and style
-            void MergeAH(int r, string text, int fs = FS_SM, bool bold = false,
+            void MergeAH(int r, string text, double fs, bool bold = false,
                 XLAlignmentHorizontalValues h = XLAlignmentHorizontalValues.Center,
                 XLAlignmentVerticalValues v = XLAlignmentVerticalValues.Center)
             {
@@ -4183,7 +4228,7 @@ namespace EcaInformationSystem.Application.Services
 
             if (isFirstPage)
             {
-                ws.Row(R).Height = 105.75;
+                ws.Row(R).Height = CdrDataRowHeightPt;
 
                 ws.Cell(R, 1).Value = s.InputDate;
                 ws.Cell(R, 1).Style.NumberFormat.Format = CommonConstants.DatePlaceHolder;
@@ -4225,7 +4270,7 @@ namespace EcaInformationSystem.Application.Services
             // ── CDR data rows ─────────────────────────────────────────────────
             foreach (var row in rows)
             {
-                ws.Row(R).Height = 105.75;
+                ws.Row(R).Height = CdrDataRowHeightPt;
 
                 ws.Cell(R, 1).Value = row.PaymentDate;
                 ws.Cell(R, 1).Style.NumberFormat.Format = CommonConstants.DatePlaceHolder;

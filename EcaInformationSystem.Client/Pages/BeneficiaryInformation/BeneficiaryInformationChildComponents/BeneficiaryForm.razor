@@ -210,7 +210,7 @@
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.2 LGU OSCA ID Number</span>
-                    <input class="annexa-input" @bind="model.OscaIdNumber" @bind:event="oninput" />
+                    <input class="annexa-input" value="@model.OscaIdNumber" @oninput="e => model.OscaIdNumber = SanitizeUpper(e.Value?.ToString())" />
                 </div>
             </div>
 
@@ -309,11 +309,11 @@
                 <div class="annexa-grid cols-4">
                     <div class="annexa-field">
                         <span class="annexa-item-label">House #</span>
-                        <input class="annexa-input" @bind="model.HouseNumber" />
+                        <input class="annexa-input" value="@model.HouseNumber" @oninput="e => model.HouseNumber = SanitizeUpper(e.Value?.ToString())" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Street Name</span>
-                        <input class="annexa-input" @bind="model.StreetName" />
+                        <input class="annexa-input" value="@model.StreetName" @oninput="e => model.StreetName = SanitizeUpper(e.Value?.ToString())" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">
@@ -365,7 +365,7 @@
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Zip Code</span>
-                        <input class="annexa-input" @bind="model.ZipCode" />
+                        <input class="annexa-input" value="@model.ZipCode" @oninput="e => model.ZipCode = SanitizeUpper(e.Value?.ToString())" />
                     </div>
                 </div>
             </div>
@@ -426,21 +426,21 @@
                     {
                         <div class="annexa-field">
                             <span class="annexa-item-label">Specify Civil Status</span>
-                            <input class="annexa-input" @bind="model.CivilStatusOtherDetail" />
+                            <input class="annexa-input" value="@model.CivilStatusOtherDetail" @oninput="e => model.CivilStatusOtherDetail = SanitizeUpper(e.Value?.ToString())" />
                         </div>
                     }
                     @if (model.Citizenship == 2)
                     {
                         <div class="annexa-field">
                             <span class="annexa-item-label">Dual Citizenship Details</span>
-                            <input class="annexa-input" @bind="model.DualCitizenshipDetails" />
+                            <input class="annexa-input" value="@model.DualCitizenshipDetails" @oninput="e => model.DualCitizenshipDetails = SanitizeUpper(e.Value?.ToString())" />
                         </div>
                     }
                     @if (model.IsPersonWithDisability == true)
                     {
                         <div class="annexa-field">
                             <span class="annexa-item-label">Type of Disability</span>
-                            <input class="annexa-input" @bind="model.DisabilityType" />
+                            <input class="annexa-input" value="@model.DisabilityType" @oninput="e => model.DisabilityType = SanitizeUpper(e.Value?.ToString())" />
                         </div>
                     }
                 </div>
@@ -463,7 +463,7 @@
                 </div>
                 @if (model.IsIndigenousPeople == true)
                 {
-                    <input class="annexa-input" placeholder="Name of IP group" @bind="model.EthnicityName" />
+                    <input class="annexa-input" placeholder="Name of IP group" value="@model.EthnicityName" @oninput="e => model.EthnicityName = SanitizeUpper(e.Value?.ToString())" />
                 }
             </div>
 
@@ -1158,6 +1158,7 @@
     private bool _showSoftDuplicateModal = false;
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
+    private string? _refNumberNote;
     private ReferenceNumberModal _refNumberModal = default!;
     // ── Ref number section toggle ─────────────────────────────────────────────
     private bool _showRefNumber = true;
@@ -1186,7 +1187,12 @@
     private static string SanitizeName(string? input)
     {
         if (string.IsNullOrEmpty(input)) return string.Empty;
-        return new string(input.Where(c => char.IsLetter(c) || c == ' ' || c == '-').ToArray());
+        return new string(input.Where(c => char.IsLetter(c) || c == ' ' || c == '-').ToArray()).ToUpperInvariant();
+    }
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1961,20 +1967,26 @@
                 return;
             }
 
+            _refNumberNote = null;
+
             if (!HasRefNumber &&
                 (model.Quarter != null || !string.IsNullOrWhiteSpace(model.Batch) || model.RefYear != null))
             {
-                toast.ShowWarning(
-                    "Partial reference number cleared — fill Quarter, Batch, and Year " +
-                    "together or leave all blank. Record will be saved without one.");
                 model.Quarter = null;
                 model.Batch = null;
                 model.RefYear = null;
+                _refNumberNote = "Partial reference number was cleared (Quarter, Batch, and Year must be filled together).";
             }
 
             if (!HasRefNumber)
             {
-                toast.ShowWarning("Saving without a reference number. Use Bulk Assign Ref Number in the grid to assign later.");
+                _refNumberNote = string.IsNullOrWhiteSpace(model.BatchCode)
+                    ? "Saved without a reference number or batch code — you can set these later via Bulk Assign Ref Number in the grid."
+                    : "Saved without a reference number — you can set one later via Bulk Assign Ref Number in the grid.";
+            }
+            else if (string.IsNullOrWhiteSpace(model.BatchCode))
+            {
+                _refNumberNote = "Saved without a batch code — you can set one later in the grid.";
             }
 
             _pendingDto = new CreateBeneficiaryInformationDto
@@ -2081,7 +2093,11 @@
 
             if (response.IsSuccessStatusCode)
             {
-                toast.ShowSuccess("Grantee has been registered successfully — payment status set to Pending.");
+                var successNote = string.IsNullOrWhiteSpace(_refNumberNote)
+                    ? string.Empty
+                    : $" {_refNumberNote}";
+                toast.ShowSuccess($"Grantee has been registered successfully — payment status set to Pending.{successNote}");
+                _refNumberNote = null;
                 _softDuplicates.Clear();
                 _pendingDto = null;
                 _showSoftDuplicateModal = false;

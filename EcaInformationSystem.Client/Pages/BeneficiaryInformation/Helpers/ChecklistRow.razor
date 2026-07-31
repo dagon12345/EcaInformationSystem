@@ -6,7 +6,7 @@
     <div class="flex-grow-1">
         <span class="annexa-item-label mb-1" style="text-transform:none; font-weight:600;">@Label</span>
         <input class="annexa-input" style="font-size:12px;" placeholder="Remarks"
-               value="@Remarks" @onchange="@(e => RemarksChanged.InvokeAsync(e.Value?.ToString()))" />
+               value="@Remarks" @oninput="@(e => RemarksChanged.InvokeAsync(SanitizeUpper(e.Value?.ToString())))" />
     </div>
 </div>
 
@@ -16,4 +16,9 @@
     [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
     [Parameter] public string? Remarks { get; set; }
     [Parameter] public EventCallback<string?> RemarksChanged { get; set; }
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
+    }
 }

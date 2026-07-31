@@ -51,31 +51,31 @@
         <div class="duplicate-dropdown notif-bell-dropdown" @onclick:stopPropagation="true">
             <div class="notif-bell-tabs">
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Duplicates ? "notif-bell-tab--active" : "")"
-                        @onclick="() => _activeTab = NotifTab.Duplicates">
+                        title="Duplicates" @onclick="() => _activeTab = NotifTab.Duplicates">
                     <i class="bi bi-exclamation-triangle"></i>
                     <span>Duplicates</span>
                     @if (DuplicatesBadge > 0) { <span class="notif-bell-tab-badge">@DuplicatesBadge</span> }
                 </button>
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Calendar ? "notif-bell-tab--active" : "")"
-                        @onclick="() => _activeTab = NotifTab.Calendar">
+                        title="Calendar" @onclick="() => _activeTab = NotifTab.Calendar">
                     <i class="bi bi-calendar-event"></i>
                     <span>Calendar</span>
                     @if (_todayActivities.Count > 0) { <span class="notif-bell-tab-badge">@_todayActivities.Count</span> }
                 </button>
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Uploads ? "notif-bell-tab--active" : "")"
-                        @onclick="() => _activeTab = NotifTab.Uploads">
+                        title="Uploads" @onclick="() => _activeTab = NotifTab.Uploads">
                     <i class="bi bi-cloud-upload"></i>
                     <span>Uploads</span>
                     @if (_uploadActiveCount > 0) { <span class="notif-bell-tab-badge">@_uploadActiveCount</span> }
                 </button>
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Documents ? "notif-bell-tab--active" : "")"
-                        @onclick="() => _activeTab = NotifTab.Documents">
+                        title="Documents" @onclick="() => _activeTab = NotifTab.Documents">
                     <i class="bi bi-truck"></i>
                     <span>Documents</span>
                     @if (DocTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@DocTracking.PendingForMeCount</span> }
                 </button>
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Updates ? "notif-bell-tab--active" : "")"
-                        @onclick="() => _activeTab = NotifTab.Updates">
+                        title="Updates" @onclick="() => _activeTab = NotifTab.Updates">
                     <i class="bi bi-arrow-repeat"></i>
                     <span>Updates</span>
                     @if (_hasUnseenUpdate) { <span class="notif-bell-tab-badge">1</span> }

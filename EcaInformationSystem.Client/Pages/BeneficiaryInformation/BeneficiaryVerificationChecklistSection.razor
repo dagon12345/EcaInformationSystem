@@ -116,12 +116,12 @@
                     <div class="annexa-field">
                         <span class="annexa-item-label">Eligibility Remarks</span>
                         <textarea class="annexa-input" rows="2" value="@EligibilityRemarks"
-                                  @onchange="@(e => EligibilityRemarksChanged.InvokeAsync(e.Value?.ToString()))"></textarea>
+                                  @oninput="@(e => EligibilityRemarksChanged.InvokeAsync(SanitizeUpper(e.Value?.ToString())))"></textarea>
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Compliance Remarks</span>
                         <textarea class="annexa-input" rows="2" value="@AssessmentRemarks"
-                                  @onchange="@(e => AssessmentRemarksChanged.InvokeAsync(e.Value?.ToString()))"></textarea>
+                                  @oninput="@(e => AssessmentRemarksChanged.InvokeAsync(SanitizeUpper(e.Value?.ToString())))"></textarea>
                     </div>
                 </div>
                 <div class="annexa-grid cols-2 mt-2">
@@ -131,14 +131,14 @@
                             <span class="annexa-required">*</span>
                         </span>
                         <input class="annexa-input" value="@Validator"
-                               @onchange="@(e => ValidatorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty))" />
+                               @oninput="@(e => ValidatorChanged.InvokeAsync(SanitizeUpper(e.Value?.ToString())))" />
                     </div>
                     <div class="annexa-field">
                         <span class="annexa-item-label">Verifier Office
                             <span class="annexa-item-note" style="display:inline;">(name, location, contact)</span>
                         </span>
                         <input class="annexa-input" value="@Checklist.VerifierOffice"
-                               @onchange="@(e => { Checklist.VerifierOffice = e.Value?.ToString(); Notify(); })" />
+                               @oninput="@(e => { Checklist.VerifierOffice = SanitizeUpper(e.Value?.ToString()); Notify(); })" />
                     </div>
                     <div class="annexa-field" style="grid-column: 1 / -1; max-width: 340px; margin: 0 auto;">
                         <span class="annexa-item-label text-center d-block">Date of Verification <span
@@ -179,6 +179,11 @@
     [Parameter] public EventCallback<string?> AssessmentRemarksChanged { get; set; }
 
     private void Notify() => ChecklistChanged.InvokeAsync(Checklist);
+
+    private static string SanitizeUpper(string? input)
+    {
+        return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
+    }
     // ✅ Auto-checks Compliant the moment ANY ONE of the three ID checkboxes is
     // checked (Primary Local, Primary Abroad, or Secondary IDs) — no combination
     // required. One-directional: only ever flips Compliant false → true, never

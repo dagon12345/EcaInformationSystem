@@ -508,7 +508,7 @@
                                                             <i class="bi bi-bank2"></i>
                                                         </span>
                                                     }
-                                                    <span class="fw-bold">@Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
+                                                    <span class="fw-bold text-uppercase">@Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
                                                     @if (!string.IsNullOrWhiteSpace(item.MiddleName))
                                                     {
                                                         <span>&nbsp;</span>
@@ -792,7 +792,7 @@
     {
         <i class="bi bi-check-circle-fill text-success" title="No issues found"></i>
     }
-    <div class="beneficiary-card-name">
+    <div class="beneficiary-card-name text-uppercase">
         @item.LastName, @item.FirstName
         @if (!string.IsNullOrWhiteSpace(item.MiddleName))
         {
@@ -1021,7 +1021,7 @@
                 @GetInitials(selectedDetails?.FirstName, selectedDetails?.LastName)
             </div>
             <div class="details-header-text">
-                <h5 class="offcanvas-title mb-0">
+                <h5 class="offcanvas-title mb-0 text-uppercase">
                     @selectedDetails?.LastName, @selectedDetails?.FirstName
                 </h5>
                 <div class="details-header-meta">
@@ -1241,7 +1241,7 @@ else
                                                                                                     {
                                                                                                         <div class="col-12">
                                                                                                             <small class="text-muted d-block">Eligibility Remarks</small>
-                                                                                                            <span>@selectedDetails.EligibilityRemarks</span>
+                                                                                                            <span class="text-uppercase">@selectedDetails.EligibilityRemarks</span>
                                                                                                         </div>
                                                                                                     }
                                                                                                     <div class="col-6">
@@ -1258,7 +1258,7 @@ else
                                                                                                     {
                                                                                                         <div class="col-12">
                                                                                                             <small class="text-muted d-block">Compliance Remarks</small>
-                                                                                                            <span>@selectedDetails.AssessmentRemarks</span>
+                                                                                                            <span class="text-uppercase">@selectedDetails.AssessmentRemarks</span>
                                                                                                         </div>
                                                                                                     }
                                                                                                 </div>
