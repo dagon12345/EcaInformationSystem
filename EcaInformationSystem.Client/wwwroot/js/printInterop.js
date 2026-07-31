@@ -28,6 +28,89 @@ window.printLivenessOnly = function () {
     setTimeout(cleanup, 3000);
 };
 
+// Same isolation trick as the others, scoped to the Daily Accomplishment
+// Report print preview (#dar-print-target) — PLUS the same DOM relocation
+// printCdrOnly() uses below, for the same reason: even though the DAR editor
+// isn't inside a modal, it still lives inside the app's main-content column,
+// which has its own overflow-y:auto/fixed-height scroll container (same
+// clipping problem a modal body causes). That's why only ~1 page ever came
+// out no matter what CSS position was tried directly on .dar-doc — the
+// clipping happens on an ANCESTOR. Moving #dar-print-target to be a direct
+// child of <body> (and #app to display:none, so its now-hidden height
+// doesn't push the DAR down by a blank leading page) sidesteps all of that,
+// exactly like printCdrOnly().
+//
+// PLUS a temporary <style> injection forcing "@page { size: A4 landscape }" —
+// the rest of the app relies on a single unnamed @page rule (A4 portrait, in
+// annexa-form.css) for every other document, and CSS named pages (an earlier
+// "@page dar-page {...}" + "page: dar-page" on .dar-doc) turned out to be
+// unreliable in Chromium's print engine here. An unnamed @page rule injected
+// right before print — and removed right after — safely overrides the
+// portrait default only for the duration of this one print job, without
+// touching how any other document prints.
+window.printDarOnly = function () {
+    const target = document.getElementById('dar-print-target');
+    let originalParent = null;
+    let originalNextSibling = null;
+
+    if (target) {
+        originalParent = target.parentNode;
+        originalNextSibling = target.nextSibling;
+        document.body.appendChild(target);
+    }
+
+    const appRoot = document.getElementById('app');
+    const appRootPreviousDisplay = appRoot ? appRoot.style.display : null;
+    if (appRoot) appRoot.style.display = 'none';
+
+    document.body.classList.add('printing-dar');
+
+    const styleTag = document.createElement('style');
+    styleTag.id = 'dar-print-page-size';
+    styleTag.textContent = '@page { size: A4 landscape; margin: 8mm 12mm 8mm 8mm; }';
+    document.head.appendChild(styleTag);
+
+    const cleanup = () => {
+        document.body.classList.remove('printing-dar');
+        styleTag.remove();
+        if (appRoot) appRoot.style.display = appRootPreviousDisplay || '';
+        if (target && originalParent) {
+            originalParent.insertBefore(target, originalNextSibling);
+        }
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+
+    window.print();
+
+    setTimeout(cleanup, 3000);
+};
+
+// Measures the DAR's hidden off-screen row-by-row layout (rendered by
+// DarPrintDocument.razor at #dar-measure-root — see its "MEASUREMENT PASS"
+// comment) and hands the real pixel heights back to Blazor so pagination can
+// be computed from actual rendered content instead of a guessed row count.
+// Returns null if the measurement root isn't in the DOM yet.
+window.measureDarLayout = function (rootId) {
+    const root = document.getElementById(rootId);
+    if (!root) return null;
+
+    const rowHeights = Array.from(root.querySelectorAll('[data-dar-row]'))
+        .map(el => el.getBoundingClientRect().height);
+
+    const heightOf = (selector) => {
+        const el = root.querySelector(selector);
+        return el ? el.getBoundingClientRect().height : 0;
+    };
+
+    return {
+        rowHeights: rowHeights,
+        headerHeight: heightOf('[data-dar-header]'),
+        theadHeight: heightOf('[data-dar-thead]'),
+        footerHeight: heightOf('[data-dar-footer]'),
+        signoffHeight: heightOf('[data-dar-signoff]')
+    };
+};
+
 // Same isolation trick as the others, scoped to the CDR (Cash Disbursements
 // Record) print preview (#cdr-print-target) — PLUS a DOM relocation, which
 // the single-page forms above don't need.

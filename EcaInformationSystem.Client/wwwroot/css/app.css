@@ -4655,18 +4655,34 @@
 
 /* Below ~420px there isn't room for icon + label in 5 tabs without every
    label getting clipped mid-word — drop to icon-only tabs and rely on the
-   title attribute (added on each tab button) for the label instead. */
+   title attribute (added on each tab button) for the label instead.
+   ✅ FIXED — ".notif-bell-tab span" was matching EVERY span in a tab, which
+   also hid the count badge (itself a <span class="notif-bell-tab-badge">),
+   not just the label text — e.g. the Calendar tab's "today's activity count"
+   silently disappeared on mobile even though "Today's Schedule" still had
+   an item. :not() keeps the badge visible while still hiding the label. */
 @media (max-width: 420px) {
-    .notif-bell-tab span {
+    .notif-bell-tab span:not(.notif-bell-tab-badge) {
         display: none;
     }
 
     .notif-bell-tab {
         padding: 10px 4px;
+        position: relative;
     }
 
     .notif-bell-tab i {
         font-size: 15px;
+    }
+
+    /* Icon-only mode needs the badge repositioned as a small corner overlay
+       on the icon instead of sitting inline after a now-hidden label. */
+    .notif-bell-tab-badge {
+        position: absolute;
+        top: 2px;
+        right: 6px;
+        font-size: 8.5px;
+        padding: 0 4px;
     }
 }
 
@@ -6040,6 +6056,49 @@
 
     .sys-card-body {
         padding: 16px;
+    }
+
+    /* ── DAR (Daily Accomplishment Report) tables — stack into cards below
+       768px instead of relying on horizontal scroll. Each <td> gets a
+       data-label attribute matching its column header; the label renders via
+       ::before so no separate label markup is needed. Screen-only (not used
+       by DarPrintDocument's own print output, which is untouched). ── */
+    @media (max-width: 767.98px) {
+        .dar-entries-table thead {
+            display: none;
+        }
+        .dar-entries-table, .dar-entries-table tbody, .dar-entries-table tr, .dar-entries-table td {
+            display: block;
+            width: 100% !important;
+        }
+        .dar-entries-table tr {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .dar-entries-table td {
+            border: none;
+            border-bottom: 1px solid #eef0f3;
+            padding: 8px 12px;
+            text-align: left !important;
+        }
+        .dar-entries-table td:last-child {
+            border-bottom: none;
+        }
+        .dar-entries-table td[data-label]::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            color: #8a93a3;
+            margin-bottom: 3px;
+        }
+        .dar-entries-table td .d-flex.justify-content-center {
+            justify-content: flex-start !important;
+        }
     }
 
     /* MFA-not-set-up highlight — ties back to the "Secure account" badge

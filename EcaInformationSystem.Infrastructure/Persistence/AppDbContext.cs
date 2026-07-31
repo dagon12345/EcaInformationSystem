@@ -57,6 +57,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<DocumentGranteeRow> DocumentGranteeRows => Set<DocumentGranteeRow>();
             public DbSet<DocumentTransfer> DocumentTransfers => Set<DocumentTransfer>();
             public DbSet<SystemUpdateNotice> SystemUpdateNotices => Set<SystemUpdateNotice>();
+            public DbSet<DarReport> DarReports => Set<DarReport>();
+            public DbSet<DarEntry> DarEntries => Set<DarEntry>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -1005,6 +1007,39 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.Content).HasMaxLength(4000);
                         entity.Property(x => x.ChecklistItemsJson).HasColumnType("nvarchar(max)");
                         entity.Property(x => x.Color).IsRequired().HasMaxLength(20);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // DAILY ACCOMPLISHMENT REPORT (semi-monthly COS employee report)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<DarReport>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => new { x.UserId, x.PeriodStart })
+                        .HasDatabaseName("IX_DarReport_UserId_PeriodStart");
+
+                        entity.Property(x => x.PreparedByName).IsRequired().HasMaxLength(200);
+                        entity.Property(x => x.PreparedByPosition).IsRequired().HasMaxLength(150);
+                        entity.Property(x => x.NotedByName).HasMaxLength(200);
+                        entity.Property(x => x.NotedByPosition).HasMaxLength(150);
+                        entity.Property(x => x.SharedEssentialFunctions).HasMaxLength(2000);
+
+                        entity.HasMany(x => x.Entries)
+                        .WithOne(x => x.DarReport)
+                        .HasForeignKey(x => x.DarReportId)
+                        .OnDelete(DeleteBehavior.Cascade);
+                  });
+
+                  modelBuilder.Entity<DarEntry>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => x.DarReportId)
+                        .HasDatabaseName("IX_DarEntry_DarReportId");
+
+                        entity.Property(x => x.EssentialFunctionsOverride).HasMaxLength(2000);
+                        entity.Property(x => x.AccomplishmentText).HasColumnType("nvarchar(max)");
                   });
             }
       }

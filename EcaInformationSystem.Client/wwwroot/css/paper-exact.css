@@ -704,6 +704,51 @@
         page-break-after: auto;
         break-after: auto;
     }
+
+    /* DAR (Daily Accomplishment Report) print isolation — triggered by
+       printDarOnly() in printInterop.js, same marker-class mechanism as
+       Annex B/Liveness/CDR above. */
+    body.printing-dar .annexa-doc, body.printing-dar .annexa-doc *,
+    body.printing-dar .annexb-doc, body.printing-dar .annexb-doc *,
+    body.printing-dar .liveness-doc, body.printing-dar .liveness-doc *,
+    body.printing-dar .cdr-doc, body.printing-dar .cdr-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-dar .dar-doc,
+    body.printing-dar .dar-doc * {
+        visibility: visible !important;
+    }
+    /* position:static (NOT :fixed like the single-page Annex B/Liveness) —
+       same reasoning as CDR above. printDarOnly() in printInterop.js also
+       physically relocates #dar-print-target to be a direct child of <body>
+       right before printing (and moves it back afterward), because the DAR
+       editor page's main-content column has its own overflow/fixed-height
+       scroll context that clips paginated content the same way a modal body
+       does — that relocation is what actually lets the page breaks below
+       take effect; static here just avoids position:fixed's own separate
+       pagination quirks on top of that. See printInterop.js. */
+    body.printing-dar .dar-doc {
+        position: static;
+        border: none;
+    }
+
+    /* Each DAR page is its own physical A4 landscape sheet. Most periods
+       (15/16 days) fit on one page — this exists mainly for robustness on
+       longer/edge-case periods. */
+    .dar-doc-page {
+        page-break-after: always;
+        break-after: page;
+    }
+    .dar-doc-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+    }
+    .dar-doc-table tr,
+    .dar-doc-bar,
+    .dar-doc-page-label {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -874,4 +919,356 @@
 
 .cdr-cert-signoff {
     border-bottom: 1px solid #000;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DAR PRINT SETTINGS — on-screen only (.no-print), boxed card
+   replacing the old bare-utility-classes layout for a cleaner look.
+   ══════════════════════════════════════════════════════════ */
+.dar-print-controls {
+    background: #f8f9fb;
+    border: 1px solid #dfe3ea;
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+
+.dar-print-controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e8ee;
+}
+
+.dar-print-controls-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dar-print-controls-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e7edfb;
+    color: #1a5fd0;
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.dar-print-controls-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.dar-print-btn {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.dar-print-controls-body {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    gap: 18px 24px;
+}
+
+.dar-print-slider-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #344054;
+}
+
+.dar-print-slider-value {
+    font-weight: 700;
+    color: #1a5fd0;
+    background: #e7edfb;
+    border-radius: 6px;
+    padding: 1px 8px;
+    font-size: 11.5px;
+}
+
+.dar-print-controls-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 18px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e8ee;
+}
+
+.dar-print-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #fff8e6;
+    border: 1px solid #f2dfa0;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #7a5b00;
+}
+
+@media (max-width: 640px) {
+    .dar-print-controls-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Mobile on-screen preview only — the A4 landscape page is wide, so on
+   narrow viewports it scrolls sideways inside this box instead of breaking
+   the surrounding page layout or shrinking/rescaling the document (which
+   would fight the live Scale/Font/Margin print settings). printDarOnly()
+   re-parents #dar-print-target directly onto <body> before printing (see
+   printInterop.js), so this wrapper never exists in the printed output —
+   purely a screen convenience. */
+.dar-doc-preview-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.dar-doc-mobile-hint {
+    display: none;
+}
+@media (max-width: 767.98px) {
+    .dar-doc-mobile-hint {
+        display: block;
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 6px;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   DAR (Daily Accomplishment Report) PRINT PREVIEW — same live
+   Scale/Font/Margin pattern as Annex B/CDR above, printed A4
+   LANDSCAPE (see the named @page rule in annexa-form.css). Reuses
+   the .annexa-doc-header-row/-logo/-text/-bar classes verbatim for
+   the letterhead so the header is a pixel-exact copy of Annex A/B.
+   Supports multiple stacked .dar-doc-page blocks, same as CDR,
+   though most 15/16-day periods fit on a single page.
+   ══════════════════════════════════════════════════════════ */
+.dar-doc {
+    color: #000;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+
+    --dar-scale: 1;
+    --dar-font-scale: 1;
+    --dar-margin: 0mm;
+    padding: var(--dar-margin);
+}
+
+.dar-doc-inner {
+    zoom: var(--dar-scale);
+}
+
+.dar-doc .annexa-doc-header-title {
+    color: #1a5fd0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.dar-doc .annexa-doc-header-line1,
+.dar-doc .annexa-doc-header-address {
+    font-weight: 700;
+}
+
+.dar-doc-page {
+    background: #fff;
+    /* No outer frame around the sheet — it was boxing in the header/letterhead,
+       which reads better open. The table below keeps its own cell borders, and
+       the footer/signoff area keeps its own border-top, so the page still
+       looks bounded where it matters. */
+    margin-bottom: 24px;
+    font-size: calc(10px * var(--dar-font-scale));
+    /* Take 2, more conservative than the reverted attempt above — that one
+       set min-height to the exact 194mm physical ceiling, so any stray
+       margin/border/rounding tipped it over into a full second sheet. This
+       time: a genuine ~8mm/4% safety buffer below the true height (186mm,
+       not 194mm), "height" (a hard cap) instead of "min-height" (which can
+       only grow), and letting .dar-doc-table grow into the leftover space
+       via flex instead of forcing anything to be exactly full — the table's
+       own rows absorb the extra room (see flex:1 below), which naturally
+       pulls the footer down near the bottom too, without pinning it there
+       directly. If content ever runs long, this degrades to normal
+       overflow (pushed to the next physical page) rather than silently
+       clipping — data visibility over a perfectly flush footer. */
+    display: flex;
+    flex-direction: column;
+    height: calc(186mm / var(--dar-scale));
+}
+/* Flex items shrink by default — without this, a tight-fitting page could
+   have the browser silently COMPRESS the table (and header/footer) smaller
+   than their natural content size to force everything inside the fixed
+   height above, clipping/squishing text instead of the safer "overflow onto
+   the next physical page" behavior. Every direct child keeps its natural
+   size; only .dar-doc-table is allowed to grow (not shrink) into any
+   leftover room. */
+.dar-doc-page > * {
+    flex-shrink: 0;
+}
+@media screen {
+    .dar-doc-page {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        /* Never let the on-screen preview compress below a legible width —
+           without this, a narrow (mobile) container just squeezes every
+           column down until header/date text wraps one letter per line.
+           .dar-doc-preview-scroll (screen-only wrapper) then scrolls this
+           sideways instead. Print is untouched — this rule doesn't exist in
+           @media print, and the real page size there comes from the @page
+           rule injected by printDarOnly(), not from this min-width. */
+        min-width: 1000px;
+    }
+}
+@media print {
+    .dar-doc-page {
+        margin-bottom: 0;
+        box-shadow: none;
+    }
+}
+
+.dar-doc-page-marker {
+    text-align: center;
+    font-size: 9px;
+    color: #888;
+    margin-bottom: 4px;
+}
+@media print {
+    .dar-doc-page-marker { display: none; }
+}
+
+.dar-doc .annexa-doc-header-line1 { font-size: calc(10px * var(--dar-font-scale)); }
+.dar-doc .annexa-doc-header-title { font-size: calc(13px * var(--dar-font-scale)); }
+.dar-doc .annexa-doc-header-address { font-size: calc(8px * var(--dar-font-scale)); }
+
+.dar-doc-title {
+    text-align: center;
+    font-weight: 800;
+    font-size: calc(13px * var(--dar-font-scale));
+    padding: 4px 0;
+}
+
+/* NCSC seal reads as oblong because the source image isn't perfectly square —
+   cropping it into a circle (object-fit: cover fills the circle instead of
+   letterboxing) reads as intentional instead of an image sizing issue. Scoped
+   to .dar-doc only — Annex A/B keep the seal as-is. */
+.dar-doc .dar-doc-logo-circle {
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dar-doc-link {
+    color: #1a5fd0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.dar-doc-intro {
+    padding: 4px 16px 8px;
+    font-size: calc(10px * var(--dar-font-scale));
+    line-height: 1.4;
+}
+
+.dar-doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    /* Grows to absorb .dar-doc-page's leftover flex space — browsers
+       distribute a table's extra allocated height across its own rows, so a
+       lightly-filled page's rows stretch a bit taller instead of leaving a
+       big blank gap between the table and the footer. flex-shrink is 0 (not
+       the shorthand's default 1) — the table must never be compressed
+       smaller than its natural row content; it may only grow. */
+    flex: 1 0 auto;
+}
+.dar-doc-table th, .dar-doc-table td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    vertical-align: top;
+    font-size: calc(9.5px * var(--dar-font-scale));
+    overflow-wrap: break-word;
+}
+.dar-doc-table thead th {
+    background: #1F3864;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+.dar-doc-table .dar-doc-col-date { width: 13%; text-align: center; }
+.dar-doc-table .dar-doc-col-day { width: 11%; text-align: center; }
+.dar-doc-table th.dar-doc-col-date,
+.dar-doc-table th.dar-doc-col-day,
+.dar-doc-table td.dar-doc-col-date,
+.dar-doc-table td.dar-doc-col-day {
+    font-weight: 700;
+    /* "Wednesday" was breaking mid-word ("Wednesda" / "y") under the generic
+       overflow-wrap: break-word rule — these two columns only ever hold a
+       short date/day-name (or the "DATE/S"/"DAY" header itself), so they
+       should just stay on one line instead. */
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+.dar-doc-table td.dar-doc-col-functions { width: 27%; vertical-align: middle; }
+.dar-doc-table .dar-doc-col-accomplishment { width: 49%; }
+
+.dar-doc-wfh-label {
+    font-weight: 700;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.dar-doc-bullets {
+    margin: 0;
+    padding-left: 16px;
+}
+.dar-doc-bullets li {
+    margin-bottom: 2px;
+}
+
+.dar-doc-page-label {
+    text-align: right;
+    /* Fixed size — deliberately NOT calc(9px * var(--dar-font-scale)) like
+       the rest of this document. The Font Size slider is meant to size the
+       report's actual content; the page number is a fixed structural label,
+       always the same small size in the lower-right regardless of what
+       Font Size/Scale are set to. */
+    font-size: 9px;
+    padding: 4px 16px;
+}
+
+.dar-doc-signoff-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 60px;
+    padding: 16px 40px 10px;
+}
+
+.dar-doc-signoff-row .annexa-doc-signoff-block {
+    flex: 1;
+}
+
+.dar-doc-signoff-row .annexa-doc-underline-value,
+.dar-doc-signoff-row .annexb-doc-signoff-caption {
+    font-weight: 700;
+    font-style: normal;
+    color: #000;
+}
+
+.dar-doc-signoff-label {
+    font-weight: 700;
+    font-size: calc(9.5px * var(--dar-font-scale));
+    /* Room for an actual pen signature above the underlined name — pushes
+       the name/underline down away from the "Prepared by:"/"Noted by:" label. */
+    margin-bottom: 26px;
 }

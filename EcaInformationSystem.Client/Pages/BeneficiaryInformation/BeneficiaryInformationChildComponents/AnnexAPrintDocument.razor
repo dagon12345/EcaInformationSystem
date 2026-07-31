@@ -523,7 +523,7 @@
     // PayrollLogos.cs (already the single source of truth for the Payroll
     // Excel header and the COE PDF) — no separate PNG files needed under
     // wwwroot/images/ for these two. Built once as data URIs for the <img> tags.
-    private readonly string _ncscLogoSrc   = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private const string _ncscLogoSrc      = "images/ncsc-seal.png";
     private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
 
     // ✅ Footer branding block reused on every page — defined once as a

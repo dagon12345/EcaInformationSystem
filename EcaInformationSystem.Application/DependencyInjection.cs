@@ -41,6 +41,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IWfpEcaService, WfpEcaService>();
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
             services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();
+            services.AddScoped<IDarReportService, DarReportService>();
             return services;
         }
     }

@@ -1,0 +1,516 @@
+@* DailyAccomplishmentReport.razor — semi-monthly COS accomplishment report.
+   Entries table follows the same inline per-row edit pattern as
+   WfpEca.razor: rows show read-only by default with an Edit (pencil) icon;
+   editing a row switches just that row to inputs with Save(check)/Cancel(x)
+   icons. There's no separate per-row API — same as WfpEca, every save just
+   resubmits the whole current report (header fields + full entries list) to
+   the existing upsert endpoint, so a user logging one day at a time never
+   has to touch a page-level "Save everything" button. *@
+@page "/dar"
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.DailyAccomplishmentReport
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Client.Pages.DailyAccomplishmentReport.DailyAccomplishmentReportChildComponents
+@inject DarReportClientService DarService
+@inject HttpClient Http
+@inject ToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Daily Accomplishment Report</PageTitle>
+
+<div class="container-fluid py-3">
+    <h4 class="fw-bold mb-3"><i class="bi bi-file-earmark-text me-2"></i>Daily Accomplishment Report</h4>
+
+    @if (_editing is null)
+    {
+        <div class="sys-card">
+            <div class="sys-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span><i class="bi bi-journal-check me-2"></i>Your Reports</span>
+                <button class="btn btn-primary btn-sm" @onclick="StartNewAsync">
+                    <i class="bi bi-plus-lg me-1"></i>New Report
+                </button>
+            </div>
+            <div class="sys-card-body">
+                @if (_loadingList)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                        <span class="ms-2 text-muted">Loading…</span>
+                    </div>
+                }
+                else if (_reports.Count == 0)
+                {
+                    <div class="text-muted">No reports yet — click "New Report" to create your first period.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover mb-0 align-middle dar-entries-table">
+                            <thead>
+                                <tr class="table-dark">
+                                    <th>Period</th>
+                                    <th>Last Updated</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in _reports)
+                                {
+                                    <tr>
+                                        <td data-label="Period">@r.PeriodStart.ToString("MMM d") - @r.PeriodEnd.ToString("MMM d, yyyy")</td>
+                                        <td data-label="Last Updated">@((r.UpdatedAt ?? r.CreatedAt).ToString("MMM d, yyyy h:mm tt"))</td>
+                                        <td class="text-end" data-label="Actions">
+                                            <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenAsync(r.Id)">
+                                                <i class="bi bi-pencil-square"></i> Open
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(r.Id)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <button class="btn btn-outline-secondary btn-sm mb-3" @onclick="BackToList">
+            <i class="bi bi-arrow-left me-1"></i>Back to list
+        </button>
+
+        <div class="sys-card mb-3">
+            <div class="sys-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span><i class="bi bi-card-list me-2"></i>Report Details</span>
+                <button type="button" class="btn btn-light btn-sm" disabled="@_isSaving" @onclick="SaveHeaderAsync">
+                    <i class="bi bi-save me-1"></i>@(_isSaving ? "Saving…" : "Save Details")
+                </button>
+            </div>
+            <div class="sys-card-body">
+                <div class="row g-3">
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Period Start</label>
+                        <input type="date" class="form-control form-control-sm"
+                               @bind="_periodStart" @bind:after="RegenerateEntries" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Period End</label>
+                        <input type="date" class="form-control form-control-sm"
+                               @bind="_periodEnd" @bind:after="RegenerateEntries" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Prepared By (Name)</label>
+                        <input class="form-control form-control-sm" @bind="_editing.PreparedByName" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Prepared By (Position)</label>
+                        <input class="form-control form-control-sm" @bind="_editing.PreparedByPosition" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Noted By (Name)</label>
+                        <input class="form-control form-control-sm" @bind="_editing.NotedByName" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small fw-bold">Noted By (Position)</label>
+                        <input class="form-control form-control-sm" @bind="_editing.NotedByPosition" />
+                    </div>
+                </div>
+
+                <hr />
+
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="useShared"
+                           @bind="_editing.UseSharedEssentialFunctions" />
+                    <label class="form-check-label small fw-bold" for="useShared">
+                        Use one shared "Essential Functions" text for every row
+                    </label>
+                </div>
+                <textarea class="form-control form-control-sm" rows="2"
+                          placeholder="e.g. Establish and maintains a monitoring and reporting system to track program progress, validate field accomplishments, and identify implantation gaps"
+                          @bind="_editing.SharedEssentialFunctions"></textarea>
+            </div>
+        </div>
+
+        <div class="sys-card mb-3">
+            <div class="sys-card-header">
+                <i class="bi bi-list-check me-2"></i>Entries (@_entryModels.Count days) — log and save one day at a time
+            </div>
+            <div class="sys-card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover mb-0 align-middle dar-entries-table">
+                        <thead>
+                            <tr class="table-dark">
+                                <th style="width:11%;">Date</th>
+                                <th style="width:8%;">Day</th>
+                                <th style="width:24%;">Essential Functions</th>
+                                <th style="width:6%;" class="text-center">WFH</th>
+                                <th>Accomplishment/s</th>
+                                <th style="width:9%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_entryModels.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">
+                                        Set a Period Start/End above to generate this period's daily rows.
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var m in _entryModels)
+                            {
+                                <tr @key="m">
+                                    @if (_editingRow == m)
+                                    {
+                                        <td class="fw-semibold" data-label="Date">@m.Date.ToString("MMM d, yyyy")</td>
+                                        <td data-label="Day">@m.Date.DayOfWeek.ToString()[..3]</td>
+                                        <td data-label="Essential Functions">
+                                            <div class="form-check form-check-sm mb-1">
+                                                <input type="checkbox" class="form-check-input" @bind="_rowDraft.HasOverride" />
+                                                <label class="form-check-label small text-muted">Override</label>
+                                            </div>
+                                            @if (_rowDraft.HasOverride)
+                                            {
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          @bind="_rowDraft.EssentialFunctionsOverride"></textarea>
+                                            }
+                                            else
+                                            {
+                                                <span class="small text-muted fst-italic">@(_editing.SharedEssentialFunctions ?? "(shared text)")</span>
+                                            }
+                                        </td>
+                                        <td class="text-center" data-label="WFH">
+                                            <input type="checkbox" class="form-check-input" @bind="_rowDraft.IsWorkFromHome" />
+                                        </td>
+                                        <td data-label="Accomplishment/s">
+                                            @if (IsWeekend(m.Date))
+                                            {
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          value="@WeekendLabel(m.Date)" disabled></textarea>
+                                            }
+                                            else
+                                            {
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          placeholder="One bullet per line"
+                                                          @bind="_rowDraft.AccomplishmentText"></textarea>
+                                            }
+                                        </td>
+                                        <td class="text-center" data-label="Actions">
+                                            <div class="d-flex gap-1 justify-content-center">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Save"
+                                                        disabled="@_isSaving" @onclick="SaveRowAsync">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary" title="Cancel"
+                                                        disabled="@_isSaving" @onclick="CancelEditRow">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    }
+                                    else
+                                    {
+                                        <td class="fw-semibold" data-label="Date">@m.Date.ToString("MMM d, yyyy")</td>
+                                        <td data-label="Day">@m.Date.DayOfWeek.ToString()[..3]</td>
+                                        <td data-label="Essential Functions">
+                                            @if (m.HasOverride)
+                                            {
+                                                <span class="badge bg-info-subtle text-info-emphasis me-1">override</span>
+                                                <span class="small">@m.EssentialFunctionsOverride</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="small text-muted fst-italic">@(_editing.SharedEssentialFunctions ?? "(shared text)")</span>
+                                            }
+                                        </td>
+                                        <td class="text-center" data-label="WFH">
+                                            @if (m.IsWorkFromHome)
+                                            {
+                                                <i class="bi bi-house-check-fill text-primary" title="Work from home"></i>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td data-label="Accomplishment/s">
+                                            @if (string.IsNullOrWhiteSpace(m.AccomplishmentText))
+                                            {
+                                                <span class="small text-muted fst-italic">Not logged yet</span>
+                                            }
+                                            else
+                                            {
+                                                <ul class="small mb-0 ps-3">
+                                                    @foreach (var line in m.AccomplishmentText.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                                                    {
+                                                        <li>@line.Trim()</li>
+                                                    }
+                                                </ul>
+                                            }
+                                        </td>
+                                        <td class="text-center" data-label="Actions">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" title="Edit"
+                                                    disabled="@(_editingRow is not null)" @onclick="() => StartEditRow(m)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <h6 class="fw-bold mb-2">Print Preview</h6>
+        <DarPrintDocument Report="BuildPreviewDto()" />
+    }
+</div>
+
+@code {
+    private List<DarReportListItemDto> _reports = new();
+    private bool _loadingList = true;
+
+    private DarReportUpsertDto? _editing;
+    private DateTime _periodStart;
+    private DateTime _periodEnd;
+    private List<DarEntryEditModel> _entryModels = new();
+    private bool _isSaving;
+
+    // Only one row can be in edit state at a time — edits happen on
+    // _rowDraft, a working copy, so a row's displayed values don't change
+    // until Save actually succeeds; Cancel just throws the draft away.
+    private DarEntryEditModel? _editingRow;
+    private DarEntryEditModel _rowDraft = new();
+
+    protected override async Task OnInitializedAsync() => await LoadListAsync();
+
+    private async Task LoadListAsync()
+    {
+        _loadingList = true;
+        _reports = await DarService.GetMineAsync();
+        _loadingList = false;
+    }
+
+    private async Task StartNewAsync()
+    {
+        var profile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
+
+        _editing = new DarReportUpsertDto
+        {
+            PreparedByName = profile?.FullName ?? string.Empty,
+            PreparedByPosition = profile?.Position ?? string.Empty,
+            UseSharedEssentialFunctions = true
+        };
+
+        _periodStart = DateTime.Today;
+        _periodEnd = DateTime.Today.AddDays(14);
+        RegenerateEntries();
+    }
+
+    private async Task OpenAsync(Guid id)
+    {
+        var report = await DarService.GetByIdAsync(id);
+        if (report is null)
+        {
+            Toast.ShowError("Report not found.");
+            return;
+        }
+
+        _editing = new DarReportUpsertDto
+        {
+            Id = report.Id,
+            PreparedByName = report.PreparedByName,
+            PreparedByPosition = report.PreparedByPosition,
+            NotedByName = report.NotedByName,
+            NotedByPosition = report.NotedByPosition,
+            UseSharedEssentialFunctions = report.UseSharedEssentialFunctions,
+            SharedEssentialFunctions = report.SharedEssentialFunctions
+        };
+        _periodStart = report.PeriodStart;
+        _periodEnd = report.PeriodEnd;
+
+        _entryModels = report.Entries.Select(ToEditModel).OrderBy(m => m.Date).ToList();
+    }
+
+    private void BackToList()
+    {
+        _editing = null;
+        _entryModels = new();
+        _editingRow = null;
+    }
+
+    // Client-side mirror of the server's period reconciliation — regenerates
+    // the working entry list to exactly the calendar days in range, preserving
+    // any already-typed row (matched by Date) so nudging the period doesn't
+    // silently discard in-progress text. Final reconciliation on save happens
+    // server-side (DarReportService.ReconcileEntries) — this is only for the
+    // live editor/preview.
+    private void RegenerateEntries()
+    {
+        _editingRow = null;
+        if (_periodEnd < _periodStart) return;
+
+        var existing = _entryModels.ToDictionary(m => m.Date.Date);
+        var updated = new List<DarEntryEditModel>();
+
+        for (var d = _periodStart.Date; d <= _periodEnd.Date; d = d.AddDays(1))
+        {
+            updated.Add(existing.TryGetValue(d, out var m)
+                ? m
+                : new DarEntryEditModel
+                {
+                    Date = d,
+                    AccomplishmentText = IsWeekend(d) ? WeekendLabel(d) : string.Empty
+                });
+        }
+
+        _entryModels = updated;
+    }
+
+    private void StartEditRow(DarEntryEditModel row)
+    {
+        _editingRow = row;
+        _rowDraft = new DarEntryEditModel
+        {
+            Date = row.Date,
+            HasOverride = row.HasOverride,
+            EssentialFunctionsOverride = row.EssentialFunctionsOverride,
+            AccomplishmentText = row.AccomplishmentText,
+            IsWorkFromHome = row.IsWorkFromHome
+        };
+    }
+
+    private void CancelEditRow() => _editingRow = null;
+
+    // Applies the draft onto the row, then persists the WHOLE report (header
+    // fields + every entry) — same pattern as WfpEca's per-row Save, which
+    // also has no dedicated per-row endpoint and just resubmits the full
+    // current list every time.
+    private async Task SaveRowAsync()
+    {
+        if (_editingRow is null) return;
+
+        _editingRow.HasOverride = _rowDraft.HasOverride;
+        _editingRow.EssentialFunctionsOverride = _rowDraft.EssentialFunctionsOverride;
+        _editingRow.AccomplishmentText = _rowDraft.AccomplishmentText;
+        _editingRow.IsWorkFromHome = _rowDraft.IsWorkFromHome;
+
+        if (await PersistAsync())
+        {
+            _editingRow = null;
+            Toast.ShowSuccess("Entry saved.");
+        }
+    }
+
+    private async Task SaveHeaderAsync()
+    {
+        if (await PersistAsync())
+            Toast.ShowSuccess("Report details saved.");
+    }
+
+    // Backs every row Save and the header's Save Details — there's no
+    // separate per-entry API, so each action just resubmits the current full
+    // report to the existing upsert endpoint (which reconciles entries by
+    // Date server-side) and refreshes local state from the result.
+    private async Task<bool> PersistAsync()
+    {
+        if (_editing is null) return false;
+
+        _editing.PeriodStart = _periodStart;
+        _editing.PeriodEnd = _periodEnd;
+        _editing.Entries = _entryModels.Select(ToEntryDto).ToList();
+
+        _isSaving = true;
+        var (success, report, error) = await DarService.UpsertAsync(_editing);
+        _isSaving = false;
+
+        if (!success || report is null)
+        {
+            Toast.ShowError(error ?? "Failed to save report.");
+            return false;
+        }
+
+        _editing.Id = report.Id;
+        _entryModels = report.Entries.Select(ToEditModel).OrderBy(m => m.Date).ToList();
+        _ = LoadListAsync();
+        return true;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this report? This cannot be undone.");
+        if (!confirmed) return;
+
+        if (await DarService.DeleteAsync(id))
+        {
+            Toast.ShowSuccess("Report deleted.");
+            await LoadListAsync();
+        }
+        else
+        {
+            Toast.ShowError("Failed to delete report.");
+        }
+    }
+
+    // Weekends always read "SATURDAY"/"SUNDAY" — forced here (not just via the
+    // disabled textarea) so it's authoritative even for entries created before
+    // this rule existed, or if a row's date ever moves onto a weekend.
+    private static bool IsWeekend(DateTime date) =>
+        date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+
+    private static string WeekendLabel(DateTime date) =>
+        date.DayOfWeek.ToString().ToUpperInvariant();
+
+    private static DarEntryEditModel ToEditModel(DarEntryDto e) => new()
+    {
+        Date = e.Date,
+        HasOverride = !string.IsNullOrWhiteSpace(e.EssentialFunctionsOverride),
+        EssentialFunctionsOverride = e.EssentialFunctionsOverride,
+        AccomplishmentText = string.Join('\n', e.AccomplishmentBullets),
+        IsWorkFromHome = e.IsWorkFromHome
+    };
+
+    private static DarEntryDto ToEntryDto(DarEntryEditModel m) => new()
+    {
+        Date = m.Date,
+        EssentialFunctionsOverride = m.HasOverride ? m.EssentialFunctionsOverride : null,
+        AccomplishmentBullets = IsWeekend(m.Date)
+            ? new List<string> { WeekendLabel(m.Date) }
+            : (m.AccomplishmentText ?? string.Empty)
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(b => b.Trim())
+                .Where(b => b.Length > 0)
+                .ToList(),
+        IsWorkFromHome = m.IsWorkFromHome
+    };
+
+    // Builds a DTO for the live preview from the current unsaved editor state —
+    // not persisted, just what DarPrintDocument needs to render.
+    private DarReportDto BuildPreviewDto() => new()
+    {
+        Id = _editing?.Id ?? Guid.Empty,
+        PeriodStart = _periodStart,
+        PeriodEnd = _periodEnd,
+        PreparedByName = _editing?.PreparedByName ?? string.Empty,
+        PreparedByPosition = _editing?.PreparedByPosition ?? string.Empty,
+        NotedByName = _editing?.NotedByName ?? string.Empty,
+        NotedByPosition = _editing?.NotedByPosition ?? string.Empty,
+        UseSharedEssentialFunctions = _editing?.UseSharedEssentialFunctions ?? true,
+        SharedEssentialFunctions = _editing?.SharedEssentialFunctions,
+        Entries = _entryModels.Select(ToEntryDto).ToList()
+    };
+
+    private class DarEntryEditModel
+    {
+        public DateTime Date { get; set; }
+        public bool HasOverride { get; set; }
+        public string? EssentialFunctionsOverride { get; set; }
+        public string AccomplishmentText { get; set; } = string.Empty;
+        public bool IsWorkFromHome { get; set; }
+    }
+}

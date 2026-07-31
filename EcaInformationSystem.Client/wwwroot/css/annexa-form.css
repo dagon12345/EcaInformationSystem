@@ -552,6 +552,13 @@
     size: A4 portrait;
     margin: 8mm;
 }
+
+/* DAR (Daily Accomplishment Report) prints A4 landscape via a <style>
+   injected by printDarOnly() in printInterop.js, only for the duration of
+   that one print job — CSS named pages ("@page dar-page" + "page: dar-page")
+   turned out unreliable in Chromium here, so this file no longer declares
+   one. See printInterop.js for the actual override. */
+
 .annexa-doc-nested-wrap {
     border: none !important;
     padding: 0 !important;

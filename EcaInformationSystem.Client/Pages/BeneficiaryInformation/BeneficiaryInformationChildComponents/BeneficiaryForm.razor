@@ -1096,7 +1096,7 @@
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
     // ✅ Same logo sources as AnnexAPrintDocument — reused from PayrollLogos.cs
-    private readonly string _ncscLogoSrc   = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private const string _ncscLogoSrc      = "images/ncsc-seal.png";
     private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
     private bool _showValidationHints = false;
     private List<PaymentHistoryDto> paymentHistory = new();

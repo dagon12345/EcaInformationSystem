@@ -81,6 +81,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IWfpEcaRepository, WfpEcaRepository>();
             services.AddScoped<IDocumentTrackingRepository, DocumentTrackingRepository>();
             services.AddScoped<ISystemUpdateNoticeRepository, SystemUpdateNoticeRepository>();
+            services.AddScoped<IDarReportRepository, DarReportRepository>();
             return services;
         }
     }

@@ -1,0 +1,691 @@
+@* DarPrintDocument.razor — Daily Accomplishment Report print/PDF preview.
+   Same live Scale/Font/Margin pattern as AnnexBPrintDocument.razor, printed
+   A4 landscape (see .dar-doc / @page dar-page in wwwroot/css). Header/logos
+   are a pixel-exact copy of Annex A/B's letterhead (page 1 only); the table
+   supports multi-page pagination like CdrPrintDocument.
+
+   Pagination is measurement-driven, not guessed — a hidden off-screen copy of
+   every row (see "MEASUREMENT PASS" below) is rendered at the same Scale/Font
+   settings and the same physical printable width A4 landscape gives a real
+   page, then measureDarLayout() in printInterop.js reports each row's actual
+   rendered pixel height back via JS interop. Pages are then packed from those
+   real heights against the true physical page-content-height (derived from
+   the same @page margins printDarOnly() injects), so a page with several
+   bullet-heavy days automatically holds fewer rows than a page of short
+   one-liners — no more guessing a "rows per page" constant that either wastes
+   space or silently overflows a physical sheet. *@
+@using EcaInformationSystem.Shared.DTOs.DailyAccomplishmentReport
+@using EcaInformationSystem.Client.Services
+@using System.Text
+@using System.Threading
+
+<div class="no-print dar-print-controls mb-3">
+    <div class="dar-print-controls-header">
+        <div class="dar-print-controls-title">
+            <span class="dar-print-controls-icon"><i class="bi bi-sliders"></i></span>
+            <div>
+                <div class="fw-bold">Print Settings</div>
+                <div class="dar-print-controls-subtitle">Adjust how the report looks before printing</div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm dar-print-btn" @onclick="PrintAsync"
+                title="View & print the Daily Accomplishment Report">
+            <i class="bi bi-printer me-1"></i>Print DAR
+        </button>
+    </div>
+
+    <div class="dar-print-controls-body">
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-arrows-angle-expand me-1"></i>Scale</span>
+                <span class="dar-print-slider-value">@_scalePercent%</span>
+            </div>
+            <input type="range" class="form-range" min="60" max="170" step="1"
+                   @bind-value="_scalePercent" @bind-value:event="oninput" />
+        </div>
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-fonts me-1"></i>Font Size</span>
+                <span class="dar-print-slider-value">@_fontPercent%</span>
+            </div>
+            <input type="range" class="form-range" min="70" max="180" step="1"
+                   @bind-value="_fontPercent" @bind-value:event="oninput" />
+        </div>
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-aspect-ratio me-1"></i>Margin</span>
+                <span class="dar-print-slider-value">@_marginMm mm</span>
+            </div>
+            <input type="range" class="form-range" min="0" max="25" step="1"
+                   @bind-value="_marginMm" @bind-value:event="oninput" />
+        </div>
+    </div>
+
+    <div class="dar-print-controls-footer">
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SavePrintSettingsAsync">
+            <i class="bi bi-save me-1"></i>Save as default
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="ResetPrintSettings">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+        </button>
+    </div>
+
+    <div class="dar-print-note">
+        <i class="bi bi-info-circle me-1"></i>
+        Before printing, check your browser/printer's paper setup — set <strong>paper size to A4</strong> and
+        <strong>layout to Landscape</strong> — for the best result.
+    </div>
+</div>
+
+@* Screen-only horizontal-scroll wrapper for narrow viewports — the A4
+   landscape page is wide, so on mobile it scrolls sideways inside this box
+   instead of breaking the surrounding page layout. printDarOnly() re-parents
+   #dar-print-target (the .dar-doc div itself) directly onto <body> before
+   printing and puts it back after, so this wrapper is never part of the
+   printed output and never affects it. *@
+<div class="no-print dar-doc-mobile-hint">
+    <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see the full page
+</div>
+<div class="dar-doc-preview-scroll">
+<div class="dar-doc" id="dar-print-target" style="@RootStyle">
+  <div class="dar-doc-inner">
+    @if (_measuring && _pages.Count == 0)
+    {
+        <div class="text-muted small p-3"><i class="bi bi-hourglass-split me-1"></i>Preparing print layout…</div>
+    }
+    @foreach (var pg in _pages)
+    {
+        <div class="dar-doc-page-marker no-print">Page @pg.PageNum of @_pages.Count</div>
+        <div class="dar-doc-page">
+
+            @if (pg.IsFirstPage)
+            {
+                <div class="annexa-doc-header-row">
+                    <img src="@_ncscLogoSrc" alt="NCSC Seal" class="annexa-doc-logo-left dar-doc-logo-circle" />
+                    <div class="annexa-doc-header-text">
+                        <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+                        <div class="annexa-doc-header-line1">Office of the President</div>
+                        <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+                        <div class="annexa-doc-header-title">CARAGA REGION</div>
+                        <div class="annexa-doc-header-address">
+                            Ground Floor, Samping Avenue, J.C. Aquino Avenue, Butuan City 8600
+                        </div>
+                        <div class="annexa-doc-header-address">
+                            Official website: <u class="dar-doc-link">www.ncsc.gov.ph</u>
+                        </div>
+                    </div>
+                    <img src="@_bagongLogoSrc" alt="Bagong Pilipinas" class="annexa-doc-logo-right" />
+                </div>
+
+                <div class="dar-doc-title">DAILY ACCOMPLISHMENT REPORT</div>
+
+                <div class="dar-doc-intro">
+                    This is to respectfully submit the Human Resource Development Program (HRDD) accomplishment report
+                    of the undersigned as supporting document in the processing of salary for the period
+                    <strong>@PeriodRangeText</strong>.
+                </div>
+            }
+
+            <table class="dar-doc-table">
+                @if (pg.IsFirstPage)
+                {
+                    <thead>
+                        <tr>
+                            <th class="dar-doc-col-date">DATE/S</th>
+                            <th class="dar-doc-col-day">DAY</th>
+                            <th class="dar-doc-col-functions">ESSENTIAL FUNCTIONS STATED IN THE CONTRACT</th>
+                            <th class="dar-doc-col-accomplishment">ACCOMPLISHMENT/S</th>
+                        </tr>
+                    </thead>
+                }
+                <tbody>
+                    @{ var functionCells = BuildFunctionsCells(pg.Rows); }
+                    @for (var i = 0; i < pg.Rows.Count; i++)
+                    {
+                        var entry = pg.Rows[i];
+                        var cell = functionCells[i];
+                        <tr>
+                            <td class="dar-doc-col-date">@entry.Date.ToString("MMMM d, yyyy")</td>
+                            <td class="dar-doc-col-day">@entry.Date.DayOfWeek</td>
+                            @if (cell.Render)
+                            {
+                                <td class="dar-doc-col-functions" rowspan="@cell.RowSpan">@cell.Text</td>
+                            }
+                            <td class="dar-doc-col-accomplishment">
+                                @if (entry.IsWorkFromHome)
+                                {
+                                    <span class="dar-doc-wfh-label">Work from home</span>
+                                }
+                                @if (entry.AccomplishmentBullets.Count > 0)
+                                {
+                                    <ul class="dar-doc-bullets">
+                                        @foreach (var bullet in entry.AccomplishmentBullets)
+                                        {
+                                            <li>@bullet</li>
+                                        }
+                                    </ul>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (pg.IsLastPage)
+            {
+                <div class="dar-doc-signoff-row">
+                    <div class="annexa-doc-signoff-block">
+                        <div class="dar-doc-signoff-label">Prepared by:</div>
+                        <div class="annexa-doc-underline-value">@Report.PreparedByName</div>
+                        <div class="annexb-doc-signoff-caption">
+                            @Report.PreparedByPosition
+                        </div>
+                    </div>
+                    <div class="annexa-doc-signoff-block">
+                        <div class="dar-doc-signoff-label">Noted by:</div>
+                        <div class="annexa-doc-underline-value">@(string.IsNullOrWhiteSpace(Report.NotedByName) ? "—" : Report.NotedByName)</div>
+                        <div class="annexb-doc-signoff-caption">
+                            @(string.IsNullOrWhiteSpace(Report.NotedByPosition) ? "Noted by" : Report.NotedByPosition)
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="dar-doc-page-label">@pg.PageNum | P a g e</div>
+        </div>
+    }
+  </div>
+</div>
+</div>
+
+@* ══════════════════════════════════════════════════════════════════════
+   MEASUREMENT PASS — off-screen (position:absolute + visibility:hidden,
+   never display:none since it still needs real layout), rendered at the
+   exact printable content width (A4 landscape minus printDarOnly()'s fixed
+   @page margins, divided by the current Scale so it wraps exactly like the
+   real physical page will) and the same --dar-scale/--dar-font-scale as the
+   visible preview. Every entry gets its OWN full copy of its effective
+   essential-functions text here (no rowspan merging) — merging doesn't add
+   height in the real render either, it only avoids repeating a border, so
+   this doesn't change what's being measured. JS (measureDarLayout in
+   printInterop.js) reads each [data-dar-row]'s real getBoundingClientRect()
+   height plus the header/thead/footer/signoff block heights, and
+   MeasureAndPaginateAsync() below packs pages from those real numbers.
+   ══════════════════════════════════════════════════════════════════════ *@
+<div style="position:absolute; left:-99999px; top:0; visibility:hidden;" aria-hidden="true">
+    <div id="@MeasureRootId" class="dar-doc-inner" style="@RootStyle">
+        <div data-dar-header style="width:@(MeasureWidthPx)px;">
+            <div class="annexa-doc-header-row">
+                <img src="@_ncscLogoSrc" alt="" class="annexa-doc-logo-left dar-doc-logo-circle" />
+                <div class="annexa-doc-header-text">
+                    <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+                    <div class="annexa-doc-header-line1">Office of the President</div>
+                    <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+                    <div class="annexa-doc-header-title">CARAGA REGION</div>
+                    <div class="annexa-doc-header-address">
+                        Ground Floor, Samping Avenue, J.C. Aquino Avenue, Butuan City 8600
+                    </div>
+                    <div class="annexa-doc-header-address">
+                        Official website: <u class="dar-doc-link">www.ncsc.gov.ph</u>
+                    </div>
+                </div>
+                <img src="@_bagongLogoSrc" alt="" class="annexa-doc-logo-right" />
+            </div>
+            <div class="dar-doc-title">DAILY ACCOMPLISHMENT REPORT</div>
+            <div class="dar-doc-intro">
+                This is to respectfully submit the Human Resource Development Program (HRDD) accomplishment report
+                of the undersigned as supporting document in the processing of salary for the period
+                <strong>@PeriodRangeText</strong>.
+            </div>
+        </div>
+
+        <table class="dar-doc-table" style="width:@(MeasureWidthPx)px;">
+            <thead data-dar-thead>
+                <tr>
+                    <th class="dar-doc-col-date">DATE/S</th>
+                    <th class="dar-doc-col-day">DAY</th>
+                    <th class="dar-doc-col-functions">ESSENTIAL FUNCTIONS STATED IN THE CONTRACT</th>
+                    <th class="dar-doc-col-accomplishment">ACCOMPLISHMENT/S</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in OrderedEntries)
+                {
+                    <tr data-dar-row>
+                        <td class="dar-doc-col-date">@entry.Date.ToString("MMMM d, yyyy")</td>
+                        <td class="dar-doc-col-day">@entry.Date.DayOfWeek</td>
+                        <td class="dar-doc-col-functions">@EffectiveFunctions(entry)</td>
+                        <td class="dar-doc-col-accomplishment">
+                            @if (entry.IsWorkFromHome)
+                            {
+                                <span class="dar-doc-wfh-label">Work from home</span>
+                            }
+                            @if (entry.AccomplishmentBullets.Count > 0)
+                            {
+                                <ul class="dar-doc-bullets">
+                                    @foreach (var bullet in entry.AccomplishmentBullets)
+                                    {
+                                        <li>@bullet</li>
+                                    }
+                                </ul>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div data-dar-footer class="dar-doc-page-label" style="width:@(MeasureWidthPx)px;">1 | P a g e</div>
+
+        <div data-dar-signoff style="width:@(MeasureWidthPx)px;">
+            <div class="dar-doc-signoff-row">
+                <div class="annexa-doc-signoff-block">
+                    <div class="dar-doc-signoff-label">Prepared by:</div>
+                    <div class="annexa-doc-underline-value">@Report.PreparedByName</div>
+                    <div class="annexb-doc-signoff-caption">@Report.PreparedByPosition</div>
+                </div>
+                <div class="annexa-doc-signoff-block">
+                    <div class="dar-doc-signoff-label">Noted by:</div>
+                    <div class="annexa-doc-underline-value">@(string.IsNullOrWhiteSpace(Report.NotedByName) ? "—" : Report.NotedByName)</div>
+                    <div class="annexb-doc-signoff-caption">@(string.IsNullOrWhiteSpace(Report.NotedByPosition) ? "Noted by" : Report.NotedByPosition)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DarReportDto Report { get; set; } = default!;
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+    [Inject] public ToastService Toast { get; set; } = default!;
+
+    private const string _ncscLogoSrc = "images/ncsc-seal.png";
+    private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
+
+    // Fixed constant — one per component instance is enough since only one
+    // DAR print preview is ever on screen at a time (same assumption the
+    // fixed "dar-print-target"/"cdr-print-target" ids already make).
+    private const string MeasureRootId = "dar-measure-root";
+
+    // Must match printDarOnly()'s injected "@page { size: A4 landscape;
+    // margin: 8mm 12mm 8mm 8mm; }" in printInterop.js exactly — this is what
+    // makes the measured layout match the real printed page.
+    private const double A4LandscapeWidthMm = 297;
+    private const double A4LandscapeHeightMm = 210;
+    private const double PrintMarginTopMm = 8;
+    private const double PrintMarginRightMm = 12;
+    private const double PrintMarginBottomMm = 8;
+    private const double PrintMarginLeftMm = 8;
+    private const double MmToPx = 96.0 / 25.4; // CSS reference pixel, 96dpi
+
+    private static double PageContentWidthPx =>
+        (A4LandscapeWidthMm - PrintMarginLeftMm - PrintMarginRightMm) * MmToPx;
+    private static double PageContentHeightPx =>
+        (A4LandscapeHeightMm - PrintMarginTopMm - PrintMarginBottomMm) * MmToPx;
+
+    // CSS zoom scales a subtree's rendered size without changing its OWN
+    // internal layout coordinate space — so to make the measured content
+    // wrap exactly as it will at the real physical page width, the local
+    // (pre-zoom) width has to be the physical content width divided by the
+    // current scale, not the physical width itself.
+    private double MeasureWidthPx => PageContentWidthPx / (_scalePercent / 100.0);
+
+    // Tuned sweet spot as a starting point for the print controls — not load-
+    // bearing for pagination correctness anymore now that pages are packed
+    // from real measured heights instead of a guessed row budget.
+    private const int DefaultScalePercent = 100;
+    private const int DefaultFontPercent = 130;
+    private const int DefaultMarginMm = 0;
+
+    private int _scalePercent = DefaultScalePercent;
+    private int _fontPercent = DefaultFontPercent;
+    private int _marginMm = DefaultMarginMm;
+
+    private string RootStyle =>
+        $"--dar-scale:{(_scalePercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--dar-font-scale:{(_fontPercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--dar-margin:{_marginMm}mm;";
+
+    private void ResetPrintSettings()
+    {
+        _scalePercent = DefaultScalePercent;
+        _fontPercent = DefaultFontPercent;
+        _marginMm = DefaultMarginMm;
+    }
+
+    private const string ScaleStorageKey = "dar-print-scale";
+    private const string FontStorageKey = "dar-print-font";
+    private const string MarginStorageKey = "dar-print-margin";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var savedScale = await JS.InvokeAsync<string?>("localStorage.getItem", ScaleStorageKey);
+                var savedFont = await JS.InvokeAsync<string?>("localStorage.getItem", FontStorageKey);
+                var savedMargin = await JS.InvokeAsync<string?>("localStorage.getItem", MarginStorageKey);
+
+                var changed = false;
+                if (int.TryParse(savedScale, out var scale)) { _scalePercent = scale; changed = true; }
+                if (int.TryParse(savedFont, out var font)) { _fontPercent = font; changed = true; }
+                if (int.TryParse(savedMargin, out var margin)) { _marginMm = margin; changed = true; }
+
+                if (changed) StateHasChanged();
+            }
+            catch
+            {
+                // localStorage unavailable — keep the built-in defaults.
+            }
+        }
+
+        // Only re-measure when something that actually affects layout
+        // changed — the parent page rebuilds a brand-new Report DTO on every
+        // one of its own re-renders (e.g. every keystroke), so comparing by
+        // reference would remeasure constantly for no reason.
+        var signature = BuildMeasureSignature();
+        if (signature != _lastMeasureSignature)
+        {
+            _lastMeasureSignature = signature;
+            ScheduleMeasure();
+        }
+    }
+
+    private async Task SavePrintSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ScaleStorageKey, _scalePercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", FontStorageKey, _fontPercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", MarginStorageKey, _marginMm.ToString());
+            Toast.ShowSuccess("Print settings saved as your default for the Daily Accomplishment Report.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save print settings: {ex.Message}");
+        }
+    }
+
+    private sealed class DarPageModel
+    {
+        public int PageNum { get; init; }
+        public bool IsFirstPage { get; init; }
+        public bool IsLastPage { get; init; }
+        public List<DarEntryDto> Rows { get; init; } = new();
+    }
+
+    // What the browser hands back from measureDarLayout() — property names
+    // are PascalCase here but match JS's camelCase keys automatically
+    // (Blazor's JS interop applies a camelCase naming policy both ways).
+    private sealed class DarMeasurements
+    {
+        public List<double> RowHeights { get; set; } = new();
+        public double HeaderHeight { get; set; }
+        public double TheadHeight { get; set; }
+        public double FooterHeight { get; set; }
+        public double SignoffHeight { get; set; }
+    }
+
+    private List<DarPageModel> _pages = new();
+    private bool _measuring = true;
+    private string? _lastMeasureSignature;
+    private CancellationTokenSource? _measureDebounceCts;
+
+    private List<DarEntryDto> OrderedEntries => Report.Entries.OrderBy(e => e.Date).ToList();
+
+    // Debounced so dragging the Scale/Font/Margin sliders (which fire on
+    // every "oninput" tick) doesn't trigger a JS round-trip per pixel of
+    // drag — only once movement settles for a moment.
+    private void ScheduleMeasure()
+    {
+        _measureDebounceCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _measureDebounceCts = cts;
+        _ = DebouncedMeasureAsync(cts.Token);
+    }
+
+    private async Task DebouncedMeasureAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(200, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested) return;
+        await MeasureAndPaginateAsync();
+    }
+
+    private async Task MeasureAndPaginateAsync()
+    {
+        var entries = OrderedEntries;
+
+        if (entries.Count == 0)
+        {
+            _pages = new();
+            _measuring = false;
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var measurements = await JS.InvokeAsync<DarMeasurements?>("measureDarLayout", MeasureRootId);
+            _pages = measurements is not null && measurements.RowHeights.Count == entries.Count
+                ? ComputePagesFromMeasurements(entries, measurements)
+                : ComputePagesFallback(entries);
+        }
+        catch
+        {
+            // JS measurement failed for any reason (interop not ready yet,
+            // browser quirk, etc.) — fall back to a conservative estimate
+            // rather than showing nothing.
+            _pages = ComputePagesFallback(entries);
+        }
+
+        _measuring = false;
+        StateHasChanged();
+    }
+
+    // Packs entries into pages using REAL measured row heights against the
+    // true physical page-content height. Page 1 additionally reserves the
+    // letterhead/intro block and the table header row, since only it shows
+    // them. Every page reserves the footer. If the very last batch of rows
+    // doesn't leave room for the Prepared-by/Noted-by block, that block gets
+    // its own trailing page instead of being squeezed or overflowing.
+    //
+    // Pulled back from an earlier, more generous 1.06 — .dar-doc-page now has
+    // a hard CSS height (see paper-exact.css) with its own ~4% safety buffer
+    // built in, and the table visually stretches to fill any leftover room,
+    // so there's no longer a need to also gamble on overpacking the page with
+    // more rows than comfortably fit; doing both at once would fight each
+    // other. A small 1.02 allowance stays only to absorb minor measurement
+    // rounding, not to deliberately pack extra content in.
+    private const double PageHeightSafetyFactor = 1.02;
+
+    private List<DarPageModel> ComputePagesFromMeasurements(List<DarEntryDto> entries, DarMeasurements m)
+    {
+        var pages = new List<DarPageModel>();
+        var pageNum = 1;
+        var index = 0;
+        var pageContentHeight = PageContentHeightPx * PageHeightSafetyFactor;
+
+        while (index < entries.Count || pages.Count == 0)
+        {
+            var isFirstPage = pageNum == 1;
+            var reserved = m.FooterHeight + (isFirstPage ? m.HeaderHeight + m.TheadHeight : 0);
+            var budget = Math.Max(0, pageContentHeight - reserved);
+
+            var pageRows = new List<DarEntryDto>();
+            var used = 0.0;
+
+            while (index < entries.Count)
+            {
+                var rowHeight = index < m.RowHeights.Count ? m.RowHeights[index] : 24;
+
+                // Always place at least one row per page, even an unusually
+                // tall one, rather than looping forever trying to fit zero.
+                if (pageRows.Count > 0 && used + rowHeight > budget) break;
+
+                pageRows.Add(entries[index]);
+                used += rowHeight;
+                index++;
+            }
+
+            var allEntriesPlaced = index >= entries.Count;
+            var signoffFits = allEntriesPlaced && used + m.SignoffHeight <= budget;
+
+            pages.Add(new DarPageModel
+            {
+                PageNum = pageNum,
+                IsFirstPage = isFirstPage,
+                IsLastPage = signoffFits,
+                Rows = pageRows
+            });
+            pageNum++;
+
+            if (allEntriesPlaced)
+            {
+                if (!signoffFits)
+                {
+                    pages.Add(new DarPageModel { PageNum = pageNum, IsFirstPage = false, IsLastPage = true, Rows = new() });
+                }
+                break;
+            }
+
+            if (pageRows.Count == 0) break; // safety — avoid an infinite loop
+        }
+
+        return pages;
+    }
+
+    // Fallback only — used if JS measurement throws or returns something
+    // unusable. Same budget-packing approach the whole component used before
+    // real measurement existed; conservative on purpose (better to leave a
+    // little unused space than risk overflowing a physical sheet).
+    private List<DarPageModel> ComputePagesFallback(List<DarEntryDto> entries)
+    {
+        const double firstPageBudget = 6.0;
+        const double continuationPageBudget = 12.0;
+
+        double EstimateRowUnits(DarEntryDto entry)
+        {
+            var extraBullets = Math.Max(0, entry.AccomplishmentBullets.Count - 1);
+            var units = 1.0 + extraBullets * 0.5;
+            if (entry.IsWorkFromHome) units += 0.5;
+            return units;
+        }
+
+        var pages = new List<DarPageModel>();
+        var pageNum = 1;
+        var index = 0;
+
+        while (index < entries.Count || pages.Count == 0)
+        {
+            var budget = pageNum == 1 ? firstPageBudget : continuationPageBudget;
+            var pageRows = new List<DarEntryDto>();
+            var used = 0.0;
+
+            while (index < entries.Count)
+            {
+                var units = EstimateRowUnits(entries[index]);
+                if (pageRows.Count > 0 && used + units > budget) break;
+                pageRows.Add(entries[index]);
+                used += units;
+                index++;
+            }
+
+            pages.Add(new DarPageModel
+            {
+                PageNum = pageNum,
+                IsFirstPage = pageNum == 1,
+                IsLastPage = index >= entries.Count,
+                Rows = pageRows
+            });
+            pageNum++;
+
+            if (pageRows.Count == 0) break;
+        }
+
+        return pages;
+    }
+
+    // Captures everything that can change what gets measured — content,
+    // and Scale/Font (which affect wrap width and font-size) and Margin
+    // (rendered inline, part of RootStyle). Two DTOs with identical values
+    // produce the same signature even though the parent handed us a new
+    // object reference, so unrelated re-renders don't trigger remeasurement.
+    private string BuildMeasureSignature()
+    {
+        var sb = new StringBuilder();
+        sb.Append(_scalePercent).Append('|').Append(_fontPercent).Append('|').Append(_marginMm).Append('|');
+        sb.Append(Report.SharedEssentialFunctions).Append('|');
+        sb.Append(Report.PreparedByName).Append('|').Append(Report.PreparedByPosition).Append('|');
+        sb.Append(Report.NotedByName).Append('|').Append(Report.NotedByPosition).Append('|');
+        sb.Append(Report.PeriodStart.Ticks).Append('|').Append(Report.PeriodEnd.Ticks);
+
+        foreach (var e in OrderedEntries)
+        {
+            sb.Append('|').Append(e.Date.Ticks).Append(':').Append(e.EssentialFunctionsOverride).Append(':')
+              .Append(string.Join(',', e.AccomplishmentBullets)).Append(':').Append(e.IsWorkFromHome);
+        }
+
+        return sb.ToString();
+    }
+
+    private string EffectiveFunctions(DarEntryDto entry) =>
+        string.IsNullOrWhiteSpace(entry.EssentialFunctionsOverride)
+            ? (Report.SharedEssentialFunctions ?? string.Empty)
+            : entry.EssentialFunctionsOverride;
+
+    // Rowspan-merges consecutive rows within THIS page whose effective essential-
+    // functions text is equal — groups never span a page break. Only the first
+    // row of each run renders a <td>; later rows in the run render nothing for
+    // that column (standard HTML rowspan technique).
+    private List<(bool Render, int RowSpan, string Text)> BuildFunctionsCells(List<DarEntryDto> rows)
+    {
+        var result = new List<(bool Render, int RowSpan, string Text)>(new (bool, int, string)[rows.Count]);
+
+        var i = 0;
+        while (i < rows.Count)
+        {
+            var text = EffectiveFunctions(rows[i]);
+            var span = 1;
+            while (i + span < rows.Count && EffectiveFunctions(rows[i + span]) == text) span++;
+
+            result[i] = (true, span, text);
+            for (var j = 1; j < span; j++) result[i + j] = (false, 0, string.Empty);
+
+            i += span;
+        }
+
+        return result;
+    }
+
+    private string PeriodRangeText
+    {
+        get
+        {
+            var start = Report.PeriodStart;
+            var end = Report.PeriodEnd;
+
+            // ✅ FIXED — a single "d" custom specifier is ambiguous with the
+            // standard ShortDatePattern ("d"), so {end:d} rendered the whole
+            // short date (e.g. "07/31/2026") instead of just the day number.
+            // Using end.Day directly sidesteps the ambiguity entirely.
+            if (start.Year == end.Year && start.Month == end.Month)
+                return $"{start:MMMM d}-{end.Day}, {end:yyyy}";
+
+            if (start.Year == end.Year)
+                return $"{start:MMMM d} - {end:MMMM d}, {end:yyyy}";
+
+            return $"{start:MMMM d, yyyy} - {end:MMMM d, yyyy}";
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("printDarOnly");
+}

@@ -254,7 +254,7 @@
     [Inject] public IJSRuntime JS { get; set; } = default!;
     [Inject] public ToastService Toast { get; set; } = default!;
 
-    private readonly string _ncscLogoSrc = $"data:image/png;base64,{PayrollLogos.NcscBase64}";
+    private const string _ncscLogoSrc = "images/ncsc-seal.png";
     private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
 
     // Deceased grantees get paid out through the claimant's account instead of
