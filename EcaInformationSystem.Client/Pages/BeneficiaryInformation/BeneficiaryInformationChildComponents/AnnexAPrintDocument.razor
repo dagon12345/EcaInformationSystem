@@ -457,7 +457,7 @@
     <table class="annexa-doc-vc-table">
         <tr class="annexa-doc-col-headers">
             <td style="width:75%;">DOCUMENTS <div class="fw-normal fst-italic" style="font-size:9px;">Note: All should be with name and signature of the verifier and marked with "Verified from the original document"</div></td>
-            <td style="width:25%;">REMARKS <div class="fw-normal fst-italic" style="font-size:9px;">(note lacking docs)</div></td>
+            <td style="width:25%;">REMARKS</td>
         </tr>
         <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasAnnexAForm == true ? "checked" : "")"></span>Accomplished Annex A Grantee/Claimant Form</span></td><td class="text-uppercase">@(vc?.AnnexARemarks ?? "—")</td></tr>
         <tr><td><span class="annexa-doc-checkbox"><span class="box @(vc?.HasPrimaryIdLocal == true ? "checked" : "")"></span>Primary ID for Local Applicants: PSA/LCR issued birth certificate, National Senior Citizen ID generated from the EGov App, PhilSys / National ID, or Valid Philippine Passport</span></td><td class="text-uppercase">@(vc?.PrimaryIdLocalRemarks ?? "—")</td></tr>

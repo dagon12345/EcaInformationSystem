@@ -1041,15 +1041,50 @@
             </div>
         </div>
 
-        <div class="d-flex gap-2 flex-wrap no-print">
-            <button type="button" class="btn btn-primary btn-sm details-header-action" @onclick="() => _annexBModal.ShowAsync()"
-                    title="View & print the Annex B Validation Form">
-                <i class="bi bi-file-earmark-text me-1"></i>Annex B &mdash; Validation Form
+        <div class="dropdown no-print print-forms-dropdown">
+            <button type="button" class="btn btn-primary btn-sm dropdown-toggle details-header-action" data-bs-toggle="dropdown"
+                    aria-expanded="false" title="View & print NCSC forms for this beneficiary">
+                <i class="bi bi-printer-fill me-1"></i>Print Forms
             </button>
-            <button type="button" class="btn btn-primary btn-sm details-header-action" @onclick="() => _livenessModal.ShowAsync()"
-                    title="View & print the Liveness Check and Transaction Account Form">
-                <i class="bi bi-person-check me-1"></i>Liveness &amp; Transaction Form
-            </button>
+            <ul class="dropdown-menu dropdown-menu-end print-forms-menu">
+                <li>
+                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _annexBModal.ShowAsync()">
+                        <i class="bi bi-file-earmark-text print-forms-item-icon"></i>
+                        <span class="print-forms-item-text">
+                            <span class="print-forms-item-title">Annex B</span>
+                            <span class="print-forms-item-sub">Validation Form</span>
+                        </span>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _livenessModal.ShowAsync()">
+                        <i class="bi bi-person-check print-forms-item-icon"></i>
+                        <span class="print-forms-item-text">
+                            <span class="print-forms-item-title">Liveness &amp; Transaction Form</span>
+                            <span class="print-forms-item-sub">Current form</span>
+                        </span>
+                    </button>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _annexMModal.ShowAsync()">
+                        <i class="bi bi-clipboard2-check print-forms-item-icon"></i>
+                        <span class="print-forms-item-text">
+                            <span class="print-forms-item-title">Annex M</span>
+                            <span class="print-forms-item-sub">Liveness &amp; Confirmation of Transaction Account (old form)</span>
+                        </span>
+                    </button>
+                </li>
+                <li>
+                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _annexNModal.ShowAsync()">
+                        <i class="bi bi-wallet2 print-forms-item-icon"></i>
+                        <span class="print-forms-item-text">
+                            <span class="print-forms-item-title">Annex N</span>
+                            <span class="print-forms-item-sub">Transaction Account Form (old form)</span>
+                        </span>
+                    </button>
+                </li>
+            </ul>
         </div>
     </div>
 </HeaderTemplate>
@@ -1405,6 +1440,42 @@ else
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => _livenessModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Annex M modal — Liveness Check and Confirmation of Transaction Account Form
+     (old-form variant), view-only preview + print, triggered from the Print Forms
+     dropdown inside the details offcanvas above. ── *@
+<HxModal @ref="_annexMModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title">Annex M &mdash; Liveness Check and Confirmation of Transaction Account Form</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (selectedDetails is not null)
+        {
+            <AnnexMPrintDocument Beneficiary="@selectedDetails" />
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _annexMModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Annex N modal — Transaction Account Form (old-form variant), view-only
+     preview + print, triggered from the Print Forms dropdown inside the details
+     offcanvas above. ── *@
+<HxModal @ref="_annexNModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title">Annex N &mdash; Transaction Account Form</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (selectedDetails is not null)
+        {
+            <AnnexNPrintDocument Beneficiary="@selectedDetails" />
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _annexNModal.HideAsync()">Close</HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -2280,6 +2351,8 @@ else
 @code {
     private HxModal _annexBModal = default!;
     private HxModal _livenessModal = default!;
+    private HxModal _annexMModal = default!;
+    private HxModal _annexNModal = default!;
     private PaymentHistoryDto? _pendingSetCurrentEntry;
     private HxModal bulkPaymentHistoryModal = default!;
     private PaymentHistoryDto? _pendingDeletePaymentHistory;

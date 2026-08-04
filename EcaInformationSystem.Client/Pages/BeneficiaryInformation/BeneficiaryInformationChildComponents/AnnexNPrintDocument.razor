@@ -1,0 +1,390 @@
+@* AnnexNPrintDocument.razor — Annex N: Transaction Account Form (for old forms), filled-up by
+   the Grantee/Claimant rather than NCSC personnel. Same data shape as
+   LivenessCheckPrintDocument.razor/AnnexMPrintDocument.razor's bank-account section (no new
+   entity/DTO fields) — reuses BeneficiaryInformationDto. No Remarks column, no NCSC assessment
+   section, and no batch-code field, matching the source form. The attestation/certification
+   paragraphs are reproduced verbatim (static text, not reflected from any DTO field).
+   Independent, one-page A4 document with its own print scope
+   (#annex-n-print-target) — printing it never pulls in Annex A/B/M or the Liveness form, even
+   when all are rendered on the same page. *@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Services
+
+@* ── Live print-formatting controls — Scale/Font/Margin apply as CSS custom
+     properties on .annexn-doc, so this preview always shows exactly what
+     will print (no separate print-only sizing to keep in sync). ── *@
+<div class="no-print annexb-print-controls mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-1"></i>Print Settings</h6>
+        <button type="button" class="btn btn-primary btn-sm" @onclick="PrintAsync"
+                title="View & print the Annex N Transaction Account Form">
+            <i class="bi bi-printer me-1"></i>Print Annex N
+        </button>
+    </div>
+    <div class="row g-3 align-items-end">
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Scale <span class="text-muted">(@_scalePercent%)</span></label>
+            <input type="range" class="form-range" min="60" max="120" step="1"
+                   @bind-value="_scalePercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Font Size <span class="text-muted">(@_fontPercent%)</span></label>
+            <input type="range" class="form-range" min="70" max="130" step="1"
+                   @bind-value="_fontPercent" @bind-value:event="oninput" />
+        </div>
+        <div class="col-sm-4">
+            <label class="form-label small fw-bold mb-1">Margin <span class="text-muted">(@_marginMm mm)</span></label>
+            <input type="range" class="form-range" min="0" max="25" step="1"
+                   @bind-value="_marginMm" @bind-value:event="oninput" />
+        </div>
+    </div>
+    <div class="text-end mt-2 d-flex justify-content-end gap-3">
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SavePrintSettingsAsync">
+            <i class="bi bi-save me-1"></i>Save as default
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="ResetPrintSettings">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+        </button>
+    </div>
+</div>
+
+<div class="annexn-doc" id="annex-n-print-target" style="@RootStyle">
+  <div class="annexn-doc-inner">
+
+    @* ══════════════════ HEADER — logos + agency text (same treatment as Annex A/B/M) ══════════════════ *@
+    <div class="annexa-doc-header-row">
+        <img src="@_ncscLogoSrc" alt="NCSC Seal" class="annexa-doc-logo-left" />
+        <div class="annexa-doc-header-text">
+            <div class="annexa-doc-header-line1">Republic of the Philippines</div>
+            <div class="annexa-doc-header-line1">Office of the President</div>
+            <div class="annexa-doc-header-title">NATIONAL COMMISSION OF SENIOR CITIZENS</div>
+            <div class="annexa-doc-header-address">
+                20th Floor, The Upper Class Tower, Quezon Avenue Corner Scout Reyes,<br />
+                Barangay Paligsahan, District 4, Quezon City
+            </div>
+        </div>
+        <img src="@_bagongLogoSrc" alt="Bagong Pilipinas" class="annexa-doc-logo-right" />
+    </div>
+
+    <div class="annexa-doc-annex-tag">
+        <div class="fw-bold fst-italic">ANNEX N</div>
+    </div>
+
+    @* ══════════════════ TITLE BLOCK ══════════════════ *@
+    <div class="annexa-doc-title-box annexn-title-box">
+        <div class="annexa-doc-title-main">TRANSACTION ACCOUNT FORM</div>
+        <div class="text-muted fst-italic annexn-doc-subtitle">(to be filled-up by the Grantee/Claimant, if old forms were used)</div>
+    </div>
+
+    @* ══════════════════ A. PERSONAL INFORMATION ══════════════════ *@
+    <div class="annexa-doc-bar">A. PERSONAL INFORMATION</div>
+    <table class="annexa-doc-table">
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.1 NCSC Registration Reference Number:</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.NcscRrn?.ToString() ?? "")</span>
+            </td>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.2 OSCA ID Number</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.OscaIdNumber ?? "")</span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <span class="annexa-doc-field-label">A.3 Full Name <em>(Last Name, Given Name, Middle Name, Ext.)</em></span>
+                <span class="annexa-doc-field-value">@FullName</span>
+            </td>
+        </tr>
+        <tr>
+            <td style="width:50%;">
+                <span class="annexa-doc-field-label">A.4 Date of Birth <em>(Month/Day/Year)</em></span>
+                <span class="annexa-doc-field-value">@Beneficiary.BirthDate.ToString("MMMM dd, yyyy")</span>
+            </td>
+            <td style="width:50%;">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <span class="annexa-doc-field-label">A.5 Date of Death if deceased <em>(Month/Day/Year)</em></span>
+                        <span class="annexa-doc-field-value">@(Beneficiary.DateOfDeath?.ToString("MMMM dd, yyyy") ?? "")</span>
+                    </div>
+                    <div class="text-end flex-shrink-0 annexn-doc-age-cell">
+                        <span class="annexa-doc-field-label d-block">A.6 Age</span>
+                        <span class="annexa-doc-field-value">@Beneficiary.Age</span>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ B. TRANSACTION ACCOUNT DETAILS ══════════════════ *@
+    <div class="annexa-doc-bar">B. TRANSACTION ACCOUNT DETAILS</div>
+    <table class="annexa-doc-table annexn-doc-boxed-table">
+        <tr>
+            <td>
+                <div class="annexn-doc-subheader">BANK ACCOUNT DETAILS</div>
+
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Account No.:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.AccountNumber ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Bank Name <em>(no acronyms)</em>:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.BankOrWalletName ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Branch Name <em>(no acronyms)</em>:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.BranchName ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Bank Address:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.BankAddress ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Is this a Joint Account (Yes/No)?</span>
+                    <span class="annexa-doc-underline-value" style="min-width:60px;">@JointAccountDisplay</span>
+                    <em class="annexn-doc-inline-note">If yes, need to present photocopy of proof name of grantee is indicated)</em>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Sample bank-verified deposit slip (attachment):</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill"></span>
+                </div>
+
+                <div class="annexn-doc-subheader annexn-doc-subheader--sm">*For Living Abroad Only:</div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">BIC/SWIFTCODE:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.SwiftCode ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">IBAN for European Countries:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(BankAccount?.Iban ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Sample bank-verified deposit slip (attachment):</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill"></span>
+                </div>
+
+                <div class="annexn-doc-field-row mt-1">
+                    <span class="annexn-doc-field-inline-label"><strong>GCASH ACCOUNT NUMBER:</strong></span>
+                    <div class="annexn-doc-digit-boxes">
+                        @for (int i = 0; i < 11; i++)
+                        {
+                            <span class="annexn-doc-digit-box">@GCashDigitAt(i)</span>
+                            if (i == 3 || i == 6)
+                            {
+                                <span class="annexn-doc-digit-dash">&ndash;</span>
+                            }
+                        }
+                    </div>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Screenshot of GCash Profile Information (attachment):</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill"></span>
+                </div>
+
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Active Mobile Number for <strong>PALAWAN PAWNSHOP:</strong></span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(PalawanMobileNumber ?? "")</span>
+                </div>
+                <div class="annexn-doc-field-row">
+                    <span class="annexn-doc-field-inline-label">Preferred branch:</span>
+                    <span class="annexa-doc-underline-value annexn-doc-field-fill">@(PalawanBranch ?? "")</span>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ B. ATTESTATION/CERTIFICATION OF PROVIDED INFORMATION — verbatim from
+         the source form (both sections are labeled "B." on the source form itself). Plain
+         paragraph weight, matching the source — no bolding. ══════════════════ *@
+    <div class="annexa-doc-bar">B. ATTESTATION/CERTIFICATION OF PROVIDED INFORMATION</div>
+    <table class="annexa-doc-table annexn-doc-boxed-table">
+        <tr>
+            <td>
+                <ol class="annexn-doc-attestation-list">
+                    <li>Pinatutunayan ko na tama at totoo ang lahat ng impormasyong ibinigay ko sa form na ito upang maipadala ang aking cash gift sa aking bank account.</li>
+                    <li>Pinapayagan ko ang NCSC at ang bangko nito na bawiin ang anumang perang maling naipasok sa aking account dahil sa sobrang bayad, dobleng bayad, o maling transfer para sa NCSC Expanded Centenarian Act Program. Maaari itong ibawas sa aking account ayon sa batas at patakaran ng bangko.</li>
+                </ol>
+            </td>
+        </tr>
+    </table>
+
+    @* ══════════════════ SIGNATURE — Claimant/Grantee (left blank for hand signature; no
+         corresponding stored field, unlike Sections D on the NCSC-staff-facing forms). ══════════════════ *@
+    <table class="annexa-doc-table annexn-doc-boxed-table">
+        <tr>
+            <td>
+                <div class="annexa-doc-signoff-block">
+                    <div class="annexa-doc-underline-value">&nbsp;</div>
+                    <div class="text-muted fst-italic annexn-doc-signoff-caption">Signature over printed name of the Claimant/Grantee and Date</div>
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="annexa-doc-footer">
+        <div class="annexa-doc-footer-brand">
+            <img src="images/puso-para-sa-seniors.png" alt="Puso Para sa Seniors" class="annexa-doc-footer-logo-img" />
+            <div class="annexa-doc-footer-contacts">
+                <span><i class="bi bi-telephone-fill"></i> 0962-2743-622</span>
+                <span><i class="bi bi-telephone-fill"></i> (02) 8567-5646</span>
+                <span><i class="bi bi-envelope-fill"></i> contact@ncsc.gov.ph</span>
+                <span><i class="bi bi-globe"></i> www.ncsc.gov.ph</span>
+            </div>
+        </div>
+    </div>
+
+  </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BeneficiaryInformationDto Beneficiary { get; set; } = default!;
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+    [Inject] public ToastService Toast { get; set; } = default!;
+
+    private const string _ncscLogoSrc = "images/ncsc-seal.png";
+    private readonly string _bagongLogoSrc = $"data:image/png;base64,{PayrollLogos.BagongBase64}";
+
+    // Same AccountView adapter pattern as LivenessCheckPrintDocument.razor / AnnexMPrintDocument.razor —
+    // deceased grantees pay out through the claimant's (structurally identical but separate) DTO.
+    private sealed class AccountView
+    {
+        public int PreferredChannel { get; init; }
+        public string? AccountNumber { get; init; }
+        public string? MobileNumber { get; init; }
+        public string? BankOrWalletName { get; init; }
+        public string? BranchName { get; init; }
+        public string? BankAddress { get; init; }
+        public bool? IsJointAccount { get; init; }
+        public string? SwiftCode { get; init; }
+        public string? Iban { get; init; }
+    }
+
+    private AccountView? BankAccount
+    {
+        get
+        {
+            if (Beneficiary.IsDeceased)
+            {
+                var c = Beneficiary.ClaimantBankAccount;
+                return c is null ? null : new AccountView
+                {
+                    PreferredChannel = c.PreferredChannel,
+                    AccountNumber = c.AccountNumber,
+                    MobileNumber = c.MobileNumber,
+                    BankOrWalletName = c.BankOrWalletName,
+                    BranchName = c.BranchName,
+                    BankAddress = c.BankAddress,
+                    IsJointAccount = c.IsJointAccount,
+                    SwiftCode = c.SwiftCode,
+                    Iban = c.Iban
+                };
+            }
+
+            var b = Beneficiary.BankAccount;
+            return b is null ? null : new AccountView
+            {
+                PreferredChannel = b.PreferredChannel,
+                AccountNumber = b.AccountNumber,
+                MobileNumber = b.MobileNumber,
+                BankOrWalletName = b.BankOrWalletName,
+                BranchName = b.BranchName,
+                BankAddress = b.BankAddress,
+                IsJointAccount = b.IsJointAccount,
+                SwiftCode = b.SwiftCode,
+                Iban = b.Iban
+            };
+        }
+    }
+
+    private string JointAccountDisplay => BankAccount?.IsJointAccount switch
+    {
+        true => "Yes",
+        false => "No",
+        null => ""
+    };
+
+    private string GCashDigits => OnlyDigits(BankAccount?.MobileNumber);
+    private char GCashDigitAt(int index) =>
+        index < GCashDigits.Length ? GCashDigits[index] : ' ';
+
+    private string? PalawanMobileNumber => BankAccount?.PreferredChannel == 4 ? BankAccount.MobileNumber : null;
+    private string? PalawanBranch => BankAccount?.PreferredChannel == 4 ? BankAccount.BranchName : null;
+
+    private static string OnlyDigits(string? s) =>
+        string.IsNullOrEmpty(s) ? string.Empty : new string(s.Where(char.IsDigit).ToArray());
+
+    // ── Live print-formatting controls (Scale/Font/Margin) ──
+    private int _scalePercent = 100;
+    private int _fontPercent = 100;
+    private int _marginMm = 0;
+
+    private string RootStyle =>
+        $"--an-scale:{(_scalePercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--an-font-scale:{(_fontPercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--an-margin:{_marginMm}mm;";
+
+    private void ResetPrintSettings()
+    {
+        _scalePercent = 100;
+        _fontPercent = 100;
+        _marginMm = 0;
+    }
+
+    private const string ScaleStorageKey = "annexn-print-scale";
+    private const string FontStorageKey = "annexn-print-font";
+    private const string MarginStorageKey = "annexn-print-margin";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var savedScale = await JS.InvokeAsync<string?>("localStorage.getItem", ScaleStorageKey);
+            var savedFont = await JS.InvokeAsync<string?>("localStorage.getItem", FontStorageKey);
+            var savedMargin = await JS.InvokeAsync<string?>("localStorage.getItem", MarginStorageKey);
+
+            var changed = false;
+            if (int.TryParse(savedScale, out var scale)) { _scalePercent = scale; changed = true; }
+            if (int.TryParse(savedFont, out var font)) { _fontPercent = font; changed = true; }
+            if (int.TryParse(savedMargin, out var margin)) { _marginMm = margin; changed = true; }
+
+            if (changed) StateHasChanged();
+        }
+        catch
+        {
+            // localStorage unavailable — keep the built-in defaults.
+        }
+    }
+
+    private async Task SavePrintSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ScaleStorageKey, _scalePercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", FontStorageKey, _fontPercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", MarginStorageKey, _marginMm.ToString());
+            Toast.ShowSuccess("Print settings saved as your default for Annex N.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save print settings: {ex.Message}");
+        }
+    }
+
+    private string FullName
+    {
+        get
+        {
+            var givenMiddleExt = string.Join(" ", new[]
+            {
+                Beneficiary.FirstName.ToUpperInvariant(),
+                Beneficiary.MiddleName?.ToUpperInvariant(),
+                Beneficiary.Extension?.ToUpperInvariant()
+            }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            return $"{Beneficiary.LastName?.ToUpperInvariant()}, {givenMiddleExt}";
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("printAnnexNOnly");
+}

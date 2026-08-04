@@ -386,7 +386,7 @@
     padding: 1px 0;
 }
 .liveness-doc-field-inline-label {
-    font-weight: 700;
+    font-weight: 400;
     flex-shrink: 0;
     white-space: nowrap;
 }
@@ -463,6 +463,400 @@
 }
 
 .liveness-doc table {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ANNEX M — Liveness Check and Confirmation of Transaction Account Form
+   (for old forms). Same read-only replica + live print-formatting pattern
+   as the Liveness form above, given its own print scope
+   (#annex-m-print-target) so printing it never pulls in Annex A/B or the
+   Liveness form even when all sit on the same page.
+   ══════════════════════════════════════════════════════════ */
+.annexm-doc {
+    border: 1px solid #000;
+    color: #000;
+    background: #fff;
+
+    --am-scale: 1;
+    --am-font-scale: 1;
+    --am-margin: 0mm;
+    padding: var(--am-margin);
+}
+
+.annexm-doc-inner {
+    zoom: var(--am-scale);
+}
+
+.annexm-doc {
+    font-size: 10px;
+    margin-top: 10px;
+}
+.annexm-doc .annexa-doc-header-row {
+    padding: 6px 12px 3px;
+}
+.annexm-doc .annexa-doc-logo-left,
+.annexm-doc .annexa-doc-logo-right {
+    width: 54px;
+    height: 54px;
+}
+.annexm-doc .annexa-doc-header-line1 {
+    font-size: calc(10px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-header-title {
+    font-size: calc(12px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-header-address {
+    font-size: calc(7.5px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-annex-tag {
+    font-size: calc(9px * var(--am-font-scale));
+    padding: 0 12px 3px;
+}
+.annexm-doc .annexa-doc-title-box {
+    padding: 6px 12px;
+}
+.annexm-doc .annexa-doc-title-main {
+    font-size: calc(12px * var(--am-font-scale));
+}
+.annexm-doc-subtitle {
+    font-size: calc(9px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-bar {
+    font-size: calc(10px * var(--am-font-scale));
+    padding: 3px 8px;
+}
+.annexm-doc .annexa-doc-field-label {
+    font-size: calc(7.5px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-field-value {
+    font-size: calc(10px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-table td,
+.annexm-doc .annexa-doc-vc-table td {
+    font-size: calc(8.5px * var(--am-font-scale));
+    padding: 3px 6px;
+}
+.annexm-doc .annexa-doc-col-headers td {
+    font-size: calc(7.5px * var(--am-font-scale));
+}
+.annexm-doc-age-cell {
+    border-left: 1px solid #000;
+    padding-left: 8px;
+}
+
+.annexm-doc .annexa-doc-vc-table {
+    border: 1px solid #000;
+    table-layout: fixed;
+}
+.annexm-doc .annexa-doc-vc-table td {
+    border: none;
+    line-height: 1.35;
+}
+.annexm-doc .annexa-doc-vc-table td:first-child {
+    border-right: 1px solid #000;
+}
+.annexm-doc .annexa-doc-vc-table tr.annexa-doc-col-headers td {
+    border-bottom: 1px solid #000;
+}
+
+.annexm-doc .annexm-doc-boxed-table {
+    border: 1px solid #000;
+}
+.annexm-doc .annexm-doc-boxed-table td {
+    border: none;
+    padding: 6px 10px;
+}
+.annexm-doc .annexm-doc-boxed-table td.annexm-doc-assessment-cell {
+    border-top: 1px solid #000;
+}
+
+.annexm-doc-subheader {
+    font-weight: 700;
+    font-size: calc(9px * var(--am-font-scale));
+    text-transform: uppercase;
+    margin: 6px 0 4px;
+}
+.annexm-doc-subheader--sm {
+    font-style: italic;
+    font-size: calc(8.5px * var(--am-font-scale));
+    text-transform: none;
+}
+
+.annexm-doc-field-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: calc(8.5px * var(--am-font-scale));
+    padding: 1px 0;
+}
+.annexm-doc-field-inline-label {
+    font-weight: 400;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.annexm-doc .annexa-doc-underline-value {
+    font-size: calc(8.5px * var(--am-font-scale));
+}
+.annexm-doc-field-fill {
+    flex: 1 1 auto;
+    min-width: 60px;
+}
+.annexm-doc-inline-note {
+    font-size: calc(7.5px * var(--am-font-scale));
+    color: #444;
+    flex-basis: 100%;
+}
+.annexm-doc-findings-line {
+    border-bottom: 1px solid #000;
+    min-height: 11px;
+    margin-top: 2px;
+}
+
+.annexm-doc-digit-boxes {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+.annexm-doc-digit-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 14px;
+    border: 1px solid #000;
+    font-size: calc(8px * var(--am-font-scale));
+}
+.annexm-doc-digit-dash {
+    color: #444;
+    font-weight: 700;
+}
+
+.annexm-doc .annexa-doc-checkbox {
+    font-size: calc(10px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-checkbox .box {
+    width: 11px;
+    height: 11px;
+    border-width: 1.1px;
+}
+.annexm-doc-signoff-caption {
+    font-size: calc(7.5px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-signoff-block {
+    margin: 4px 0 3px;
+}
+.annexm-doc .annexa-doc-footer {
+    padding: 4px 12px;
+}
+.annexm-doc .annexa-doc-footer-brand {
+    font-size: calc(7.5px * var(--am-font-scale));
+}
+.annexm-doc .annexa-doc-footer-logo-img {
+    height: 16px;
+}
+
+.annexm-doc .annexa-doc-table + .annexa-doc-bar {
+    margin-top: 10px;
+}
+/* Section B (Liveness Check Details) → Section C (Confirmation of Transaction
+   Account Details) sit flush against each other on the source form — the
+   vc-table's own bottom border and the bar's top border form one continuous
+   line, matching the reference's unbroken grid instead of leaving a visible
+   gap between the two boxes. */
+.annexm-doc .annexa-doc-vc-table + .annexa-doc-bar {
+    margin-top: 0;
+}
+
+.annexm-doc table {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ANNEX N — Transaction Account Form (for old forms), filled-up by the
+   Grantee/Claimant. Same read-only replica + live print-formatting pattern
+   as Annex M above, given its own print scope (#annex-n-print-target) so
+   printing it never pulls in Annex A/B/M or the Liveness form even when
+   all sit on the same page. No Remarks column, no assessment section —
+   simpler single-column layout matching the source form.
+   ══════════════════════════════════════════════════════════ */
+.annexn-doc {
+    border: 1px solid #000;
+    color: #000;
+    background: #fff;
+
+    --an-scale: 1;
+    --an-font-scale: 1;
+    --an-margin: 0mm;
+    padding: var(--an-margin);
+}
+
+.annexn-doc-inner {
+    zoom: var(--an-scale);
+}
+
+.annexn-doc {
+    font-size: 10px;
+    margin-top: 10px;
+}
+.annexn-doc .annexa-doc-header-row {
+    padding: 6px 12px 3px;
+}
+.annexn-doc .annexa-doc-logo-left,
+.annexn-doc .annexa-doc-logo-right {
+    width: 54px;
+    height: 54px;
+}
+.annexn-doc .annexa-doc-header-line1 {
+    font-size: calc(10px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-header-title {
+    font-size: calc(12px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-header-address {
+    font-size: calc(7.5px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-annex-tag {
+    font-size: calc(9px * var(--an-font-scale));
+    padding: 0 12px 3px;
+}
+.annexn-doc .annexa-doc-title-box {
+    padding: 6px 12px;
+}
+.annexn-doc .annexa-doc-title-main {
+    font-size: calc(12px * var(--an-font-scale));
+}
+.annexn-doc-subtitle {
+    font-size: calc(9px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-bar {
+    font-size: calc(10px * var(--an-font-scale));
+    padding: 3px 8px;
+}
+.annexn-doc .annexa-doc-field-label {
+    font-size: calc(7.5px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-field-value {
+    font-size: calc(10px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-table td {
+    font-size: calc(8.5px * var(--an-font-scale));
+    padding: 3px 6px;
+}
+.annexn-doc-age-cell {
+    border-left: 1px solid #000;
+    padding-left: 8px;
+}
+
+.annexn-doc .annexn-doc-boxed-table {
+    border: 1px solid #000;
+}
+.annexn-doc .annexn-doc-boxed-table td {
+    border: none;
+    padding: 6px 10px;
+}
+
+.annexn-doc-subheader {
+    font-weight: 700;
+    font-size: calc(9px * var(--an-font-scale));
+    text-transform: uppercase;
+    margin: 6px 0 4px;
+}
+.annexn-doc-subheader--sm {
+    font-style: italic;
+    font-size: calc(8.5px * var(--an-font-scale));
+    text-transform: none;
+}
+
+.annexn-doc-field-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: calc(8.5px * var(--an-font-scale));
+    padding: 1px 0;
+}
+.annexn-doc-field-inline-label {
+    font-weight: 400;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.annexn-doc .annexa-doc-underline-value {
+    font-size: calc(8.5px * var(--an-font-scale));
+}
+.annexn-doc-field-fill {
+    flex: 1 1 auto;
+    min-width: 60px;
+}
+.annexn-doc-inline-note {
+    font-size: calc(7.5px * var(--an-font-scale));
+    color: #444;
+    flex-basis: 100%;
+}
+
+.annexn-doc-digit-boxes {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+}
+.annexn-doc-digit-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 14px;
+    border: 1px solid #000;
+    font-size: calc(8px * var(--an-font-scale));
+}
+.annexn-doc-digit-dash {
+    color: #444;
+    font-weight: 700;
+}
+
+/* Attestation/Certification paragraphs — plain paragraph weight (matching
+   the source form; not a heading, so no bold), same font-scale variable as
+   the rest of the document. */
+.annexn-doc-attestation-list {
+    margin: 0;
+    padding-left: 16px;
+    font-weight: 400;
+    font-size: calc(8.5px * var(--an-font-scale));
+    line-height: 1.5;
+}
+.annexn-doc-attestation-list li {
+    margin-bottom: 6px;
+}
+.annexn-doc-attestation-list li:last-child {
+    margin-bottom: 0;
+}
+
+.annexn-doc-signoff-caption {
+    font-size: calc(7.5px * var(--an-font-scale));
+    font-weight: 700;
+}
+.annexn-doc .annexa-doc-signoff-block {
+    margin: 4px 0 3px;
+}
+.annexn-doc .annexa-doc-footer {
+    padding: 4px 12px;
+}
+.annexn-doc .annexa-doc-footer-brand {
+    font-size: calc(7.5px * var(--an-font-scale));
+}
+.annexn-doc .annexa-doc-footer-logo-img {
+    height: 16px;
+}
+
+.annexn-doc .annexa-doc-table + .annexa-doc-bar {
+    margin-top: 10px;
+}
+
+.annexn-doc table {
     box-sizing: border-box;
     width: 100%;
 }
@@ -669,11 +1063,54 @@
         border: none;
     }
 
+    /* Annex M (Liveness Check and Confirmation of Transaction Account Form,
+       old-form variant) print isolation — triggered by printAnnexMOnly() in
+       printInterop.js, same marker-class mechanism as Annex B/Liveness above. */
+    body.printing-annex-m .annexa-doc, body.printing-annex-m .annexa-doc *,
+    body.printing-annex-m .annexb-doc, body.printing-annex-m .annexb-doc *,
+    body.printing-annex-m .liveness-doc, body.printing-annex-m .liveness-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-annex-m .annexm-doc,
+    body.printing-annex-m .annexm-doc * {
+        visibility: visible !important;
+    }
+    body.printing-annex-m .annexm-doc {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        border: none;
+    }
+
+    /* Annex N (Transaction Account Form, old-form variant) print isolation —
+       triggered by printAnnexNOnly() in printInterop.js, same marker-class
+       mechanism as the others above. */
+    body.printing-annex-n .annexa-doc, body.printing-annex-n .annexa-doc *,
+    body.printing-annex-n .annexb-doc, body.printing-annex-n .annexb-doc *,
+    body.printing-annex-n .liveness-doc, body.printing-annex-n .liveness-doc *,
+    body.printing-annex-n .annexm-doc, body.printing-annex-n .annexm-doc * {
+        visibility: hidden !important;
+    }
+    body.printing-annex-n .annexn-doc,
+    body.printing-annex-n .annexn-doc * {
+        visibility: visible !important;
+    }
+    body.printing-annex-n .annexn-doc {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        border: none;
+    }
+
     /* CDR print isolation — triggered by printCdrOnly() in printInterop.js,
-       same marker-class mechanism as Annex B/Liveness above. */
+       same marker-class mechanism as Annex B/Liveness/M/N above. */
     body.printing-cdr .annexa-doc, body.printing-cdr .annexa-doc *,
     body.printing-cdr .annexb-doc, body.printing-cdr .annexb-doc *,
-    body.printing-cdr .liveness-doc, body.printing-cdr .liveness-doc * {
+    body.printing-cdr .liveness-doc, body.printing-cdr .liveness-doc *,
+    body.printing-cdr .annexm-doc, body.printing-cdr .annexm-doc *,
+    body.printing-cdr .annexn-doc, body.printing-cdr .annexn-doc * {
         visibility: hidden !important;
     }
     body.printing-cdr .cdr-doc,
@@ -711,6 +1148,8 @@
     body.printing-dar .annexa-doc, body.printing-dar .annexa-doc *,
     body.printing-dar .annexb-doc, body.printing-dar .annexb-doc *,
     body.printing-dar .liveness-doc, body.printing-dar .liveness-doc *,
+    body.printing-dar .annexm-doc, body.printing-dar .annexm-doc *,
+    body.printing-dar .annexn-doc, body.printing-dar .annexn-doc *,
     body.printing-dar .cdr-doc, body.printing-dar .cdr-doc * {
         visibility: hidden !important;
     }

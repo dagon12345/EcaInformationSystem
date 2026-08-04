@@ -28,6 +28,32 @@ window.printLivenessOnly = function () {
     setTimeout(cleanup, 3000);
 };
 
+// Same isolation trick as printAnnexBOnly, scoped to Annex M (Liveness Check
+// and Confirmation of Transaction Account Form — old-form variant, #annex-m-print-target).
+window.printAnnexMOnly = function () {
+    document.body.classList.add('printing-annex-m');
+
+    const cleanup = () => document.body.classList.remove('printing-annex-m');
+    window.addEventListener('afterprint', cleanup, { once: true });
+
+    window.print();
+
+    setTimeout(cleanup, 3000);
+};
+
+// Same isolation trick as printAnnexBOnly, scoped to Annex N (Transaction
+// Account Form — old-form variant, #annex-n-print-target).
+window.printAnnexNOnly = function () {
+    document.body.classList.add('printing-annex-n');
+
+    const cleanup = () => document.body.classList.remove('printing-annex-n');
+    window.addEventListener('afterprint', cleanup, { once: true });
+
+    window.print();
+
+    setTimeout(cleanup, 3000);
+};
+
 // Same isolation trick as the others, scoped to the Daily Accomplishment
 // Report print preview (#dar-print-target) — PLUS the same DOM relocation
 // printCdrOnly() uses below, for the same reason: even though the DAR editor
