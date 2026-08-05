@@ -18,11 +18,12 @@ namespace EcaInformationSystem.Application.Services
             {
                 Date = m.Date,
                 MarkType = m.MarkType,
-                NoteText = m.NoteText
+                NoteText = m.NoteText,
+                HalfDay = m.HalfDay
             }).ToList();
         }
 
-        public async Task SetAsync(Guid userId, DateTime date, string markType, string? noteText, string? updatedByName)
+        public async Task SetAsync(Guid userId, DateTime date, string markType, string? noteText, string? halfDay, string? updatedByName)
         {
             var mark = await _repository.GetAsync(userId, date);
             if (mark is null)
@@ -33,6 +34,8 @@ namespace EcaInformationSystem.Application.Services
 
             mark.MarkType = markType;
             mark.NoteText = markType == "Note" ? noteText : null;
+            // Wfh/Holiday are inherently whole-day — HalfDay only ever applies to Note.
+            mark.HalfDay = markType == "Note" ? halfDay : null;
             mark.UpdatedAt = DateTime.Now;
             mark.UpdatedByName = updatedByName;
 

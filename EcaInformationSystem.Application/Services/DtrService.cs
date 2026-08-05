@@ -34,7 +34,9 @@ namespace EcaInformationSystem.Application.Services
             periodEnd = periodEnd.Date;
 
             var logs = await _attendanceLogRepository.GetByUserAsync(user.BiometricUserId, periodStart, periodEnd.AddDays(1).AddTicks(-1));
-            var punchesByDay = logs.GroupBy(l => l.PunchTime.Date).ToDictionary(g => g.Key, g => g.Select(l => l.PunchTime).OrderBy(t => t).ToList());
+            var punchesByDay = logs.GroupBy(l => l.PunchTime.Date).ToDictionary(
+                g => g.Key,
+                g => g.Select(l => (Time: l.PunchTime, l.Id, l.IsManualEntry)).OrderBy(t => t.Time).ToList());
 
             var doc = new DtrDocumentDto
             {
@@ -69,19 +71,23 @@ namespace EcaInformationSystem.Application.Services
                 };
 
                 var punches = isInPeriod && punchesByDay.TryGetValue(date, out var p) ? p : [];
-                var (amIn, amOut, pmIn, pmOut, utHrs, utMin) = ComputeDay(punches);
+                var computed = ComputeDay(punches);
 
                 doc.Days.Add(new DtrDayDto
                 {
                     Day = date.Day,
                     DayType = dayType,
                     IsInPeriod = isInPeriod,
-                    AmTimeIn = isInPeriod ? amIn : null,
-                    AmTimeOut = isInPeriod ? amOut : null,
-                    PmTimeIn = isInPeriod ? pmIn : null,
-                    PmTimeOut = isInPeriod ? pmOut : null,
-                    UndertimeHours = isInPeriod && dayType == DtrDayType.Workday ? utHrs : 0,
-                    UndertimeMinutes = isInPeriod && dayType == DtrDayType.Workday ? utMin : 0
+                    AmTimeIn = isInPeriod ? computed.AmIn : null,
+                    AmTimeOut = isInPeriod ? computed.AmOut : null,
+                    PmTimeIn = isInPeriod ? computed.PmIn : null,
+                    PmTimeOut = isInPeriod ? computed.PmOut : null,
+                    AmTimeInManualId = isInPeriod ? computed.AmInManualId : null,
+                    AmTimeOutManualId = isInPeriod ? computed.AmOutManualId : null,
+                    PmTimeInManualId = isInPeriod ? computed.PmInManualId : null,
+                    PmTimeOutManualId = isInPeriod ? computed.PmOutManualId : null,
+                    UndertimeHours = isInPeriod && dayType == DtrDayType.Workday ? computed.UndertimeHours : 0,
+                    UndertimeMinutes = isInPeriod && dayType == DtrDayType.Workday ? computed.UndertimeMinutes : 0
                 });
             }
 
@@ -104,15 +110,17 @@ namespace EcaInformationSystem.Application.Services
                 var logs = await _attendanceLogRepository.GetByUserAsync(user.BiometricUserId!, periodStart, periodEnd);
                 var daysWithPunches = logs.Select(l => l.PunchTime.Date).Distinct().Count();
 
-                var punchesByDay = logs.GroupBy(l => l.PunchTime.Date).ToDictionary(g => g.Key, g => g.Select(l => l.PunchTime).OrderBy(t => t).ToList());
+                var punchesByDay = logs.GroupBy(l => l.PunchTime.Date).ToDictionary(
+                    g => g.Key,
+                    g => g.Select(l => (Time: l.PunchTime, l.Id, l.IsManualEntry)).OrderBy(t => t.Time).ToList());
                 var totalUndertimeMinutes = 0;
                 foreach (var (date, punches) in punchesByDay)
                 {
                     if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
                         continue;
 
-                    var (_, _, _, _, utHrs, utMin) = ComputeDay(punches);
-                    totalUndertimeMinutes += utHrs * 60 + utMin;
+                    var computed = ComputeDay(punches);
+                    totalUndertimeMinutes += computed.UndertimeHours * 60 + computed.UndertimeMinutes;
                 }
 
                 summaries.Add(new DtrSummaryDto
@@ -141,28 +149,42 @@ namespace EcaInformationSystem.Application.Services
             return $"{start:MMMM d, yyyy} - {end:MMMM d, yyyy}";
         }
 
+        private sealed record DayComputation(
+            string? AmIn, string? AmOut, string? PmIn, string? PmOut,
+            int? AmInManualId, int? AmOutManualId, int? PmInManualId, int? PmOutManualId,
+            int UndertimeHours, int UndertimeMinutes);
+
         // Splits a day's raw punches into AM in/out and PM in/out following the
         // standard 2-punch (in/out only) or 4-punch (in/lunch-out/lunch-in/out)
-        // patterns.
-        private static (string? AmIn, string? AmOut, string? PmIn, string? PmOut, int UndertimeHours, int UndertimeMinutes) ComputeDay(List<DateTime> sortedPunches)
+        // patterns. Punches carry their AttendanceLog Id + IsManualEntry flag
+        // through so the UI can tell which slots were manually entered (and
+        // let SuperAdmin/Finance remove them) — a manual punch is otherwise
+        // indistinguishable from a real one here; it just sits in the same
+        // chronological sequence and gets sorted into whichever slot its
+        // position implies, same as any device punch would.
+        private static DayComputation ComputeDay(List<(DateTime Time, int Id, bool IsManualEntry)> sortedPunches)
         {
             if (sortedPunches.Count == 0)
-                return (null, null, null, null, 0, 0);
+                return new DayComputation(null, null, null, null, null, null, null, null, 0, 0);
 
             // Collapse near-duplicate scans (an accidental double-tap on the
             // device) — without this, a second scan seconds after the first
             // gets misread as a separate lunch punch.
-            var punches = new List<DateTime> { sortedPunches[0] };
+            var punches = new List<(DateTime Time, int Id, bool IsManualEntry)> { sortedPunches[0] };
             foreach (var p in sortedPunches.Skip(1))
             {
-                if ((p - punches[^1]).TotalMinutes >= 2)
+                if ((p.Time - punches[^1].Time).TotalMinutes >= 2)
                     punches.Add(p);
             }
 
-            string? amIn = Format(punches[0]);
+            string? amIn = Format(punches[0].Time);
             string? amOut = null;
             string? pmIn = null;
             string? pmOut = null;
+            int? amInId = punches[0].IsManualEntry ? punches[0].Id : null;
+            int? amOutId = null;
+            int? pmInId = null;
+            int? pmOutId = null;
 
             switch (punches.Count)
             {
@@ -170,7 +192,8 @@ namespace EcaInformationSystem.Application.Services
                     break; // just clocked in so far
                 case 2:
                     // No lunch punches logged — a plain whole-day in/out.
-                    pmOut = Format(punches[1]);
+                    pmOut = Format(punches[1].Time);
+                    if (punches[1].IsManualEntry) pmOutId = punches[1].Id;
                     break;
                 case 3:
                     // This office's convention: morning-in, lunch-out,
@@ -179,14 +202,19 @@ namespace EcaInformationSystem.Application.Services
                     // sides). The day isn't over yet, so PM Time Out stays
                     // blank rather than being guessed from the lunch-in
                     // punch — it only gets filled by an actual 4th scan.
-                    amOut = Format(punches[1]);
-                    pmIn = Format(punches[2]);
+                    amOut = Format(punches[1].Time);
+                    pmIn = Format(punches[2].Time);
+                    if (punches[1].IsManualEntry) amOutId = punches[1].Id;
+                    if (punches[2].IsManualEntry) pmInId = punches[2].Id;
                     break;
                 default:
                     // 4+ punches: in, lunch-out, lunch-in, ..., out.
-                    amOut = Format(punches[1]);
-                    pmIn = Format(punches[^2]);
-                    pmOut = Format(punches[^1]);
+                    amOut = Format(punches[1].Time);
+                    pmIn = Format(punches[^2].Time);
+                    pmOut = Format(punches[^1].Time);
+                    if (punches[1].IsManualEntry) amOutId = punches[1].Id;
+                    if (punches[^2].IsManualEntry) pmInId = punches[^2].Id;
+                    if (punches[^1].IsManualEntry) pmOutId = punches[^1].Id;
                     break;
             }
 
@@ -196,14 +224,14 @@ namespace EcaInformationSystem.Application.Services
             // rather than showing a misleadingly large "undertime" measured
             // against a day that hasn't finished.
             if (pmOut is null)
-                return (amIn, amOut, pmIn, pmOut, 0, 0);
+                return new DayComputation(amIn, amOut, pmIn, pmOut, amInId, amOutId, pmInId, pmOutId, 0, 0);
 
             var workedMinutes = 0.0;
             for (var i = 0; i + 1 < punches.Count; i += 2)
-                workedMinutes += (punches[i + 1] - punches[i]).TotalMinutes;
+                workedMinutes += (punches[i + 1].Time - punches[i].Time).TotalMinutes;
 
             var undertimeMinutes = Math.Max(0, RequiredMinutesPerDay - (int)workedMinutes);
-            return (amIn, amOut, pmIn, pmOut, undertimeMinutes / 60, undertimeMinutes % 60);
+            return new DayComputation(amIn, amOut, pmIn, pmOut, amInId, amOutId, pmInId, pmOutId, undertimeMinutes / 60, undertimeMinutes % 60);
         }
 
         private static string Format(DateTime t) => t.ToString("h:mm tt");

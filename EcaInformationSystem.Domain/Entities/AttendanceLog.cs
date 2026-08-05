@@ -18,5 +18,13 @@ namespace EcaInformationSystem.Domain.Entities
         public int VerifyMode { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // Set when SuperAdmin/Finance manually added this punch (e.g. the
+        // employee forgot to time in/out) instead of it coming from the
+        // device. Flows through the same AM/PM/undertime calculation as any
+        // real punch — this only exists so the UI can show which entries
+        // were manually entered and let them be removed individually.
+        public bool IsManualEntry { get; set; }
+        public string? AddedByName { get; set; }
     }
 }

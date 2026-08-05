@@ -46,5 +46,32 @@ namespace EcaInformationSystem.Application.Services
 
         public Task<List<AttendanceLog>> GetLogsAsync(string biometricUserId, DateTime from, DateTime to)
             => _repository.GetByUserAsync(biometricUserId, from, to);
+
+        public async Task<int> AddManualPunchAsync(string biometricUserId, DateTime punchTime, string? addedByName)
+        {
+            var log = await _repository.AddAsync(new AttendanceLog
+            {
+                BiometricUserId = biometricUserId,
+                DeviceSerialNumber = "MANUAL",
+                PunchTime = punchTime,
+                Status = 0,
+                VerifyMode = 0,
+                IsManualEntry = true,
+                AddedByName = addedByName
+            });
+            await _repository.SaveChangesAsync();
+            return log.Id;
+        }
+
+        public async Task<bool> RemoveManualPunchAsync(int attendanceLogId)
+        {
+            var log = await _repository.GetByIdAsync(attendanceLogId);
+            if (log is null || !log.IsManualEntry)
+                return false;
+
+            await _repository.RemoveAsync(log);
+            await _repository.SaveChangesAsync();
+            return true;
+        }
     }
 }

@@ -11,5 +11,10 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         // (the old approach) doesn't scale to that.
         Task<int> AddManyIfNotExistsAsync(string deviceSerialNumber, List<AttendanceLog> candidates);
         Task<List<AttendanceLog>> GetByUserAsync(string biometricUserId, DateTime from, DateTime to);
+
+        Task<AttendanceLog> AddAsync(AttendanceLog log);
+        Task<AttendanceLog?> GetByIdAsync(int id);
+        Task RemoveAsync(AttendanceLog log);
+        Task SaveChangesAsync();
     }
 }

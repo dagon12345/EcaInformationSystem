@@ -341,7 +341,7 @@ else
                         <i class="bi bi-arrow-left me-1"></i>Back to summary
                     </button>
                 </div>
-                <DtrPrintDocument Document="_document" />
+                <DtrPrintDocument Document="_document" AllowManualPunchEdit="true" OnDocumentChanged="ReloadDtrAsync" />
             }
             else
             {
@@ -880,5 +880,15 @@ else
         {
             Toast.ShowError($"Failed to load DTR: {ex.Message}");
         }
+    }
+
+    // Adding/removing a manual punch changes AM/PM times and undertime
+    // server-side — re-fetch the whole document rather than trying to patch
+    // it client-side, since DtrService's punch-splitting logic isn't
+    // duplicated here.
+    private async Task ReloadDtrAsync()
+    {
+        if (_document is not null)
+            await ViewDtrAsync(_document.UserId);
     }
 }

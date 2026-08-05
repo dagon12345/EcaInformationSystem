@@ -20,6 +20,7 @@ namespace EcaInformationSystem.Api.Controllers
         private readonly IBiometricSyncStatusService _syncStatusService;
         private readonly IBiometricDeviceSettingService _deviceSettingService;
         private readonly IDtrDayMarkService _dayMarkService;
+        private readonly IAttendanceLogService _attendanceLogService;
         private readonly ZkSyncRunner _syncRunner;
         private readonly ZkDirectOptions _zkOptions;
 
@@ -30,6 +31,7 @@ namespace EcaInformationSystem.Api.Controllers
             IBiometricSyncStatusService syncStatusService,
             IBiometricDeviceSettingService deviceSettingService,
             IDtrDayMarkService dayMarkService,
+            IAttendanceLogService attendanceLogService,
             ZkSyncRunner syncRunner,
             IOptions<ZkDirectOptions> zkOptions)
         {
@@ -39,6 +41,7 @@ namespace EcaInformationSystem.Api.Controllers
             _syncStatusService = syncStatusService;
             _deviceSettingService = deviceSettingService;
             _dayMarkService = dayMarkService;
+            _attendanceLogService = attendanceLogService;
             _syncRunner = syncRunner;
             _zkOptions = zkOptions.Value;
         }
@@ -300,8 +303,11 @@ namespace EcaInformationSystem.Api.Controllers
             if (dto.MarkType is not ("Wfh" or "Holiday" or "Note"))
                 return BadRequest(new { message = "MarkType must be Wfh, Holiday, or Note." });
 
+            if (dto.HalfDay is not (null or "AM" or "PM"))
+                return BadRequest(new { message = "HalfDay must be AM, PM, or omitted." });
+
             var updatedByName = User.Identity?.Name;
-            await _dayMarkService.SetAsync(dto.UserId, dto.Date, dto.MarkType, dto.NoteText, updatedByName);
+            await _dayMarkService.SetAsync(dto.UserId, dto.Date, dto.MarkType, dto.NoteText, dto.HalfDay, updatedByName);
             return Ok();
         }
 
@@ -313,6 +319,40 @@ namespace EcaInformationSystem.Api.Controllers
 
             await _dayMarkService.ClearAsync(userId, date);
             return Ok();
+        }
+
+        // ── SuperAdmin/Finance ONLY: fill in a time in/out the employee
+        // forgot to punch. Unlike day-marks above, this is never self-
+        // service — correcting the actual attendance record (not just
+        // annotating it) is restricted to the two roles that already manage
+        // biometric assignment and DTR data for the whole region. ─────────
+        [HttpPost("manual-punch")]
+        [Authorize(Roles = "SuperAdmin,Finance")]
+        public async Task<IActionResult> AddManualPunch([FromBody] AddManualPunchRequestDto dto)
+        {
+            var regionCode = GetRegionCodeFromClaims();
+            if (regionCode is null)
+                return BadRequest(new { message = "No region is assigned to this account." });
+
+            var target = await _userManagementService.GetUserByIdAsync(dto.UserId);
+            if (target is null)
+                return NotFound();
+            if (target.Region != regionCode)
+                return Forbid();
+            if (string.IsNullOrWhiteSpace(target.BiometricUserId))
+                return BadRequest(new { message = "This user has no biometric device ID linked yet." });
+
+            var addedByName = User.Identity?.Name;
+            var id = await _attendanceLogService.AddManualPunchAsync(target.BiometricUserId, dto.PunchDateTime, addedByName);
+            return Ok(new { id });
+        }
+
+        [HttpDelete("manual-punch/{id:int}")]
+        [Authorize(Roles = "SuperAdmin,Finance")]
+        public async Task<IActionResult> RemoveManualPunch(int id)
+        {
+            var removed = await _attendanceLogService.RemoveManualPunchAsync(id);
+            return removed ? Ok() : NotFound(new { message = "No manual punch found with that Id." });
         }
     }
 }

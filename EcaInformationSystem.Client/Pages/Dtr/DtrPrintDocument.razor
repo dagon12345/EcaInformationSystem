@@ -74,9 +74,11 @@
   <div class="dtr-doc-wrap-inner">
     <div class="dtr-print-page">
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
-                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" />
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
+                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" />
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
-                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" />
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
+                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" />
     </div>
   </div>
 </div>
@@ -88,13 +90,23 @@
     [Inject] public ToastService Toast { get; set; } = default!;
     [Inject] public HttpClient Http { get; set; } = default!;
 
+    // SuperAdmin/Finance-only — see AttendanceManagement.razor, which is the
+    // only place this is ever set true. My DTR (self-service) never passes
+    // this, so regular users can't edit their own punches.
+    [Parameter] public bool AllowManualPunchEdit { get; set; }
+
+    // Adding/removing a punch changes Document.Days server-side (AM/PM times,
+    // undertime), which this component doesn't own — the parent re-fetches
+    // the whole DtrDocumentDto and passes a fresh one back down.
+    [Parameter] public EventCallback OnDocumentChanged { get; set; }
+
     // Shared between both printed copies so marking a day WFH in one always
     // reflects in the other — see DtrCopy.razor's file-header comment.
     // Loaded from (and saved to) DtrDayMark via the API, keyed by
     // Document.UserId — see LoadMarksAsync/SaveMarkAsync/ClearMarkAsync.
     private readonly HashSet<int> _wfhDays = new();
     private readonly HashSet<int> _holidayDays = new();
-    private readonly Dictionary<int, string> _noteDays = new();
+    private readonly Dictionary<int, DtrNoteEntry> _noteDays = new();
 
     private Guid _loadedForUserId;
     private DateTime _loadedMonth;
@@ -130,7 +142,7 @@
                 {
                     case "Wfh": _wfhDays.Add(mark.Date.Day); break;
                     case "Holiday": _holidayDays.Add(mark.Date.Day); break;
-                    case "Note": _noteDays[mark.Date.Day] = mark.NoteText ?? string.Empty; break;
+                    case "Note": _noteDays[mark.Date.Day] = new DtrNoteEntry { Text = mark.NoteText ?? string.Empty, HalfDay = mark.HalfDay }; break;
                 }
             }
 
@@ -144,7 +156,7 @@
 
     private DateTime DateFor(int day) => new(Document.PeriodStart.Year, Document.PeriodStart.Month, day);
 
-    private async Task SaveMarkAsync(int day, string markType, string? noteText)
+    private async Task SaveMarkAsync(int day, string markType, string? noteText, string? halfDay = null)
     {
         try
         {
@@ -153,7 +165,8 @@
                 UserId = Document.UserId,
                 Date = DateFor(day),
                 MarkType = markType,
-                NoteText = noteText
+                NoteText = noteText,
+                HalfDay = halfDay
             });
         }
         catch (Exception ex)
@@ -211,21 +224,88 @@
 
         _wfhDays.Remove(day);
         _holidayDays.Remove(day);
-        _noteDays[day] = string.Empty;
-        await SaveMarkAsync(day, "Note", string.Empty);
+        _noteDays[day] = new DtrNoteEntry { Text = string.Empty, HalfDay = null };
+        await SaveMarkAsync(day, "Note", string.Empty, null);
     }
 
     // Fires on every keystroke — local-only, no network call, so typing
     // stays instant. The actual save happens on blur, see NoteBlur below.
-    private void NoteChanged((int Day, string Text) change) => _noteDays[change.Day] = change.Text;
+    private void NoteChanged((int Day, string Text) change)
+    {
+        if (_noteDays.TryGetValue(change.Day, out var entry))
+            entry.Text = change.Text;
+    }
 
     private async Task NoteBlur(int day)
-        => await SaveMarkAsync(day, "Note", _noteDays.TryGetValue(day, out var text) ? text : string.Empty);
+    {
+        if (!_noteDays.TryGetValue(day, out var entry))
+            return;
+
+        await SaveMarkAsync(day, "Note", entry.Text, entry.HalfDay);
+    }
+
+    // Switches a note between "whole day" (null), "AM only", or "PM only" —
+    // the other half then shows its real punch times again, and this day's
+    // undertime is excluded from the total either way (see DtrCopy).
+    private async Task HalfDayChanged((int Day, string? HalfDay) change)
+    {
+        if (!_noteDays.TryGetValue(change.Day, out var entry))
+            return;
+
+        entry.HalfDay = change.HalfDay;
+        await SaveMarkAsync(change.Day, "Note", entry.Text, entry.HalfDay);
+    }
 
     private async Task ClearNote(int day)
     {
         _noteDays.Remove(day);
         await ClearMarkAsync(day);
+    }
+
+    // Mutable so NoteChanged/HalfDayChanged can update Text/HalfDay
+    // independently without needing to replace the whole dictionary entry.
+    public class DtrNoteEntry
+    {
+        public string Text { get; set; } = string.Empty;
+        public string? HalfDay { get; set; }
+    }
+
+    private async Task AddManualPunch((int Day, TimeOnly Time) input)
+    {
+        try
+        {
+            var punchDateTime = DateFor(input.Day).Add(input.Time.ToTimeSpan());
+            var response = await Http.PostAsJsonAsync("api/dtr/manual-punch", new AddManualPunchRequestDto
+            {
+                UserId = Document.UserId,
+                PunchDateTime = punchDateTime
+            });
+
+            if (response.IsSuccessStatusCode)
+                await OnDocumentChanged.InvokeAsync();
+            else
+                Toast.ShowError("Failed to add the manual time entry.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to add the manual time entry: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveManualPunch(int manualPunchId)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"api/dtr/manual-punch/{manualPunchId}");
+            if (response.IsSuccessStatusCode)
+                await OnDocumentChanged.InvokeAsync();
+            else
+                Toast.ShowError("Failed to remove the manual time entry.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to remove the manual time entry: {ex.Message}");
+        }
     }
 
     private const int DefaultScalePercent = 100;

@@ -1,0 +1,38 @@
+@* NoteCellContent.razor — the actual input/select/clear-button markup for
+   a note cell in DtrCopy.razor, factored out since it's identical whether
+   the note is whole-day (colspan 6) or half-day (colspan 2 next to the
+   real punch data for the other half). *@
+@using EcaInformationSystem.Client.Pages.Dtr
+
+<select class="dtr-doc-note-scope no-print" @onchange="HandleScopeChanged">
+    <option value="" selected="@(Note.HalfDay is null)">Full day</option>
+    <option value="AM" selected="@(Note.HalfDay == "AM")">AM only</option>
+    <option value="PM" selected="@(Note.HalfDay == "PM")">PM only</option>
+</select>
+<input type="text" class="dtr-doc-note-input no-print" value="@Note.Text"
+       placeholder="Type activity/remarks…"
+       @oninput="e => OnNoteChanged.InvokeAsync((Day, e.Value?.ToString() ?? string.Empty))"
+       @onblur="() => OnNoteBlur.InvokeAsync(Day)" />
+<span class="dtr-doc-print-only">@Note.Text</span>
+@if (OnClearNote.HasDelegate)
+{
+    <button type="button" class="btn btn-link btn-sm p-0 ms-2 no-print" @onclick="() => OnClearNote.InvokeAsync(Day)">
+        <i class="bi bi-x-circle"></i>
+    </button>
+}
+
+@code {
+    [Parameter, EditorRequired] public int Day { get; set; }
+    [Parameter, EditorRequired] public DtrPrintDocument.DtrNoteEntry Note { get; set; } = default!;
+    [Parameter] public EventCallback<(int Day, string Text)> OnNoteChanged { get; set; }
+    [Parameter] public EventCallback<int> OnNoteBlur { get; set; }
+    [Parameter] public EventCallback<int> OnClearNote { get; set; }
+    [Parameter] public EventCallback<(int Day, string? HalfDay)> OnHalfDayChanged { get; set; }
+
+    private async Task HandleScopeChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        var halfDay = string.IsNullOrEmpty(value) ? null : value;
+        await OnHalfDayChanged.InvokeAsync((Day, halfDay));
+    }
+}

@@ -30,6 +30,15 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public string? PmTimeIn { get; set; }
         public string? PmTimeOut { get; set; }
 
+        // Non-null (the underlying AttendanceLog.Id) only when that specific
+        // slot's punch was manually entered by SuperAdmin/Finance rather than
+        // synced from the device — lets the UI show a delete option only on
+        // manually-entered times.
+        public int? AmTimeInManualId { get; set; }
+        public int? AmTimeOutManualId { get; set; }
+        public int? PmTimeInManualId { get; set; }
+        public int? PmTimeOutManualId { get; set; }
+
         public int UndertimeHours { get; set; }
         public int UndertimeMinutes { get; set; }
     }
@@ -64,6 +73,10 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public DateTime Date { get; set; }
         public string MarkType { get; set; } = string.Empty; // "Wfh" | "Holiday" | "Note"
         public string? NoteText { get; set; }
+
+        // Only meaningful when MarkType is "Note": null = whole day,
+        // "AM" = note covers the morning only, "PM" = afternoon only.
+        public string? HalfDay { get; set; }
     }
 
     public class SetDtrDayMarkRequestDto
@@ -72,6 +85,14 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public DateTime Date { get; set; }
         public string MarkType { get; set; } = string.Empty; // "Wfh" | "Holiday" | "Note"
         public string? NoteText { get; set; }
+        public string? HalfDay { get; set; } // null | "AM" | "PM" — Note only
+    }
+
+    // SuperAdmin/Finance filling in a punch the employee forgot to make.
+    public class AddManualPunchRequestDto
+    {
+        public Guid UserId { get; set; }
+        public DateTime PunchDateTime { get; set; }
     }
 
     // Lightweight row for the SuperAdmin "all users" attendance overview.

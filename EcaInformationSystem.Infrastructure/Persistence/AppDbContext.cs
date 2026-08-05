@@ -1048,6 +1048,14 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   });
 
                   // ═══════════════════════════════════════════════════════════════════
+                  // ATTENDANCE LOG — manual-entry fields
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<AttendanceLog>(entity =>
+                  {
+                        entity.Property(x => x.AddedByName).HasMaxLength(200);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
                   // DTR DAY MARK (WFH / Holiday / Note — per user, per day, printable)
                   // ═══════════════════════════════════════════════════════════════════
                   modelBuilder.Entity<DtrDayMark>(entity =>
@@ -1055,6 +1063,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasKey(x => x.Id);
                         entity.Property(x => x.MarkType).IsRequired().HasMaxLength(20);
                         entity.Property(x => x.NoteText).HasMaxLength(500);
+                        entity.Property(x => x.HalfDay).HasMaxLength(10);
                         entity.Property(x => x.UpdatedByName).HasMaxLength(200);
 
                         entity.HasIndex(x => new { x.UserId, x.Date })

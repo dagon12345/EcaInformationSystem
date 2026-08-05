@@ -162,6 +162,29 @@
 }
 .dtr-doc-note-input:focus { outline: none; background: #fffbe6; }
 .dtr-doc-print-only { display: none; }
+.dtr-doc-note-scope {
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    font-size: calc(7px * var(--dtr-font-scale));
+    font-family: inherit;
+    padding: 0 1px;
+    margin-right: 3px;
+    max-width: 68px;
+    vertical-align: middle;
+}
+
+/* SuperAdmin/Finance filling in a punch the employee forgot to make — see
+   ManualPunchCell.razor. Only ever rendered when AllowManualPunchEdit is
+   true, so this never shows up on My DTR (self-service). */
+.dtr-doc-manual-input {
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    font-size: calc(7px * var(--dtr-font-scale));
+    font-family: inherit;
+    padding: 0;
+    width: 62px;
+    vertical-align: middle;
+}
 
 /* Days outside the selected filter period — the form still shows the whole
    month, but consecutive out-of-period days share ONE merged cell (see the

@@ -50,5 +50,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .OrderBy(a => a.PunchTime)
                 .ToListAsync();
         }
+
+        public async Task<AttendanceLog> AddAsync(AttendanceLog log)
+        {
+            await _context.AttendanceLogs.AddAsync(log);
+            return log;
+        }
+
+        public async Task<AttendanceLog?> GetByIdAsync(int id)
+            => await _context.AttendanceLogs.FirstOrDefaultAsync(a => a.Id == id);
+
+        public Task RemoveAsync(AttendanceLog log)
+        {
+            _context.AttendanceLogs.Remove(log);
+            return Task.CompletedTask;
+        }
+
+        public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
     }
 }

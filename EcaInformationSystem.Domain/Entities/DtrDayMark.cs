@@ -16,6 +16,12 @@ namespace EcaInformationSystem.Domain.Entities
         // Only populated when MarkType is "Note".
         public string? NoteText { get; set; }
 
+        // Only meaningful when MarkType is "Note": null = whole day,
+        // "AM" = note covers the morning only (afternoon punches still
+        // show normally), "PM" = note covers the afternoon only. Always
+        // null for Wfh/Holiday, which are inherently whole-day.
+        public string? HalfDay { get; set; }
+
         public DateTime UpdatedAt { get; set; }
         public string? UpdatedByName { get; set; }
     }
