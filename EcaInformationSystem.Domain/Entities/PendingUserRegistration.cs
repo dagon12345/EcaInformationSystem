@@ -40,6 +40,9 @@ namespace EcaInformationSystem.Domain.Entities
         public string? MfaSecret { get; set; }
         public bool MfaSetupComplete { get; set; } = false;
         public bool MfaPromptShown { get; set; } = false;
+        // Links this user to their ZKTeco device PIN (AttendanceLog.BiometricUserId) for DTR generation.
+        [MaxLength(50)]
+        public string? BiometricUserId { get; set; }
         public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
             = new List<PdoJurisdiction>();
     }

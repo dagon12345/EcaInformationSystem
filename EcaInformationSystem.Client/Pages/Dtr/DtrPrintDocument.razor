@@ -1,0 +1,294 @@
+@* DtrPrintDocument.razor — Civil Service Form No. 48 (Daily Time Record)
+   print/PDF preview. Same live Scale/Font/Margin control pattern as
+   DarPrintDocument.razor (reuses its .dar-print-controls* CSS classes
+   verbatim — that panel is generic chrome, not landscape-specific), printed
+   A4 portrait in duplicate (two copies side by side, matching the paper
+   form). Each copy's table rows auto-expand to fill the full page height —
+   see the file-header comment in dtr-form.css for how. *@
+@using EcaInformationSystem.Shared.DTOs.Dtr
+@using EcaInformationSystem.Client.Services
+
+<div class="no-print dar-print-controls mb-3">
+    <div class="dar-print-controls-header">
+        <div class="dar-print-controls-title">
+            <span class="dar-print-controls-icon"><i class="bi bi-sliders"></i></span>
+            <div>
+                <div class="fw-bold">Print Settings</div>
+                <div class="dar-print-controls-subtitle">Adjust how the DTR looks before printing</div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm dar-print-btn" @onclick="PrintAsync"
+                title="View & print the Daily Time Record">
+            <i class="bi bi-printer me-1"></i>Print DTR
+        </button>
+    </div>
+
+    <div class="dar-print-controls-body">
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-arrows-angle-expand me-1"></i>Scale</span>
+                <span class="dar-print-slider-value">@_scalePercent%</span>
+            </div>
+            <input type="range" class="form-range" min="60" max="170" step="1"
+                   @bind-value="_scalePercent" @bind-value:event="oninput" />
+        </div>
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-fonts me-1"></i>Font Size</span>
+                <span class="dar-print-slider-value">@_fontPercent%</span>
+            </div>
+            <input type="range" class="form-range" min="70" max="180" step="1"
+                   @bind-value="_fontPercent" @bind-value:event="oninput" />
+        </div>
+        <div class="dar-print-slider">
+            <div class="dar-print-slider-label">
+                <span><i class="bi bi-aspect-ratio me-1"></i>Margin</span>
+                <span class="dar-print-slider-value">@_marginMm mm</span>
+            </div>
+            <input type="range" class="form-range" min="0" max="25" step="1"
+                   @bind-value="_marginMm" @bind-value:event="oninput" />
+        </div>
+    </div>
+
+    <div class="dar-print-controls-footer">
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SavePrintSettingsAsync">
+            <i class="bi bi-save me-1"></i>Save as default
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="ResetPrintSettings">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+        </button>
+    </div>
+
+    <div class="dar-print-note">
+        <i class="bi bi-info-circle me-1"></i>
+        Before printing, check your browser/printer's paper setup — set <strong>paper size to A4</strong> and
+        <strong>layout to Portrait</strong> — for the best result.
+    </div>
+</div>
+
+<div class="no-print dar-doc-mobile-hint">
+    <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see both copies
+</div>
+<div class="dar-doc-preview-scroll">
+<div class="dtr-doc-wrap" id="dtr-print-target" style="@RootStyle">
+  <div class="dtr-doc-wrap-inner">
+    <div class="dtr-print-page">
+        <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" />
+        <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" />
+    </div>
+  </div>
+</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DtrDocumentDto Document { get; set; } = default!;
+    [Inject] public IJSRuntime JS { get; set; } = default!;
+    [Inject] public ToastService Toast { get; set; } = default!;
+    [Inject] public HttpClient Http { get; set; } = default!;
+
+    // Shared between both printed copies so marking a day WFH in one always
+    // reflects in the other — see DtrCopy.razor's file-header comment.
+    // Loaded from (and saved to) DtrDayMark via the API, keyed by
+    // Document.UserId — see LoadMarksAsync/SaveMarkAsync/ClearMarkAsync.
+    private readonly HashSet<int> _wfhDays = new();
+    private readonly HashSet<int> _holidayDays = new();
+    private readonly Dictionary<int, string> _noteDays = new();
+
+    private Guid _loadedForUserId;
+    private DateTime _loadedMonth;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Days are always shown for Document.PeriodStart's whole month
+        // (see DtrService), so that's the range marks are loaded/saved for.
+        var month = new DateTime(Document.PeriodStart.Year, Document.PeriodStart.Month, 1);
+        if (Document.UserId == _loadedForUserId && month == _loadedMonth)
+            return;
+
+        _loadedForUserId = Document.UserId;
+        _loadedMonth = month;
+        await LoadMarksAsync(month);
+    }
+
+    private async Task LoadMarksAsync(DateTime month)
+    {
+        _wfhDays.Clear();
+        _holidayDays.Clear();
+        _noteDays.Clear();
+
+        try
+        {
+            var monthEnd = new DateTime(month.Year, month.Month, DateTime.DaysInMonth(month.Year, month.Month));
+            var marks = await Http.GetFromJsonAsync<List<DtrDayMarkDto>>(
+                $"api/dtr/day-marks/{Document.UserId}?start={month:yyyy-MM-dd}&end={monthEnd:yyyy-MM-dd}") ?? new();
+
+            foreach (var mark in marks)
+            {
+                switch (mark.MarkType)
+                {
+                    case "Wfh": _wfhDays.Add(mark.Date.Day); break;
+                    case "Holiday": _holidayDays.Add(mark.Date.Day); break;
+                    case "Note": _noteDays[mark.Date.Day] = mark.NoteText ?? string.Empty; break;
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load WFH/Holiday/Note marks: {ex.Message}");
+        }
+    }
+
+    private DateTime DateFor(int day) => new(Document.PeriodStart.Year, Document.PeriodStart.Month, day);
+
+    private async Task SaveMarkAsync(int day, string markType, string? noteText)
+    {
+        try
+        {
+            await Http.PutAsJsonAsync("api/dtr/day-marks", new SetDtrDayMarkRequestDto
+            {
+                UserId = Document.UserId,
+                Date = DateFor(day),
+                MarkType = markType,
+                NoteText = noteText
+            });
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save: {ex.Message}");
+        }
+    }
+
+    private async Task ClearMarkAsync(int day)
+    {
+        try
+        {
+            await Http.DeleteAsync($"api/dtr/day-marks/{Document.UserId}?date={DateFor(day):yyyy-MM-dd}");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to clear: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleWfh(int day)
+    {
+        if (_wfhDays.Remove(day))
+        {
+            await ClearMarkAsync(day);
+        }
+        else
+        {
+            _wfhDays.Add(day);
+            _holidayDays.Remove(day);
+            _noteDays.Remove(day);
+            await SaveMarkAsync(day, "Wfh", null);
+        }
+    }
+
+    private async Task ToggleHoliday(int day)
+    {
+        if (_holidayDays.Remove(day))
+        {
+            await ClearMarkAsync(day);
+        }
+        else
+        {
+            _holidayDays.Add(day);
+            _wfhDays.Remove(day);
+            _noteDays.Remove(day);
+            await SaveMarkAsync(day, "Holiday", null);
+        }
+    }
+
+    private async Task SetNote(int day)
+    {
+        if (_noteDays.ContainsKey(day))
+            return;
+
+        _wfhDays.Remove(day);
+        _holidayDays.Remove(day);
+        _noteDays[day] = string.Empty;
+        await SaveMarkAsync(day, "Note", string.Empty);
+    }
+
+    // Fires on every keystroke — local-only, no network call, so typing
+    // stays instant. The actual save happens on blur, see NoteBlur below.
+    private void NoteChanged((int Day, string Text) change) => _noteDays[change.Day] = change.Text;
+
+    private async Task NoteBlur(int day)
+        => await SaveMarkAsync(day, "Note", _noteDays.TryGetValue(day, out var text) ? text : string.Empty);
+
+    private async Task ClearNote(int day)
+    {
+        _noteDays.Remove(day);
+        await ClearMarkAsync(day);
+    }
+
+    private const int DefaultScalePercent = 100;
+    private const int DefaultFontPercent = 100;
+    private const int DefaultMarginMm = 0;
+
+    private int _scalePercent = DefaultScalePercent;
+    private int _fontPercent = DefaultFontPercent;
+    private int _marginMm = DefaultMarginMm;
+
+    private string RootStyle =>
+        $"--dtr-scale:{(_scalePercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--dtr-font-scale:{(_fontPercent / 100.0).ToString(System.Globalization.CultureInfo.InvariantCulture)};" +
+        $"--dtr-margin:{_marginMm}mm;";
+
+    private void ResetPrintSettings()
+    {
+        _scalePercent = DefaultScalePercent;
+        _fontPercent = DefaultFontPercent;
+        _marginMm = DefaultMarginMm;
+    }
+
+    private const string ScaleStorageKey = "dtr-print-scale";
+    private const string FontStorageKey = "dtr-print-font";
+    private const string MarginStorageKey = "dtr-print-margin";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var savedScale = await JS.InvokeAsync<string?>("localStorage.getItem", ScaleStorageKey);
+            var savedFont = await JS.InvokeAsync<string?>("localStorage.getItem", FontStorageKey);
+            var savedMargin = await JS.InvokeAsync<string?>("localStorage.getItem", MarginStorageKey);
+
+            var changed = false;
+            if (int.TryParse(savedScale, out var scale)) { _scalePercent = scale; changed = true; }
+            if (int.TryParse(savedFont, out var font)) { _fontPercent = font; changed = true; }
+            if (int.TryParse(savedMargin, out var margin)) { _marginMm = margin; changed = true; }
+
+            if (changed) StateHasChanged();
+        }
+        catch
+        {
+            // localStorage unavailable — keep the built-in defaults.
+        }
+    }
+
+    private async Task SavePrintSettingsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", ScaleStorageKey, _scalePercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", FontStorageKey, _fontPercent.ToString());
+            await JS.InvokeVoidAsync("localStorage.setItem", MarginStorageKey, _marginMm.ToString());
+            Toast.ShowSuccess("Print settings saved as your default for the DTR.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save print settings: {ex.Message}");
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("printDtrOnly");
+}

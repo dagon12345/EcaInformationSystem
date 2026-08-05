@@ -97,6 +97,16 @@
         <span class="nav-label">Document Tracking</span>
     </NavLink>
 
+    @* ── Attendance Management — SuperAdmin/Finance: link users to their
+       biometric device and review all DTRs ── *@
+    @if (_isSuperAdmin || _isFinance)
+    {
+        <NavLink class="nav-item" href="attendance-management">
+            <span class="nav-icon"><i class="bi bi-fingerprint"></i></span>
+            <span class="nav-label">Attendance Management</span>
+        </NavLink>
+    }
+
     @* ── Administration section — SuperAdmin only ── *@
     @* ── Administration section — SuperAdmin only ── *@
     @if (_isSuperAdmin)

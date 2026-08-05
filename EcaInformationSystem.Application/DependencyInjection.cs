@@ -42,6 +42,12 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
             services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();
             services.AddScoped<IDarReportService, DarReportService>();
+            services.AddScoped<IAttendanceLogService, AttendanceLogService>();
+            services.AddScoped<IDtrService, DtrService>();
+            services.AddScoped<IBiometricDeviceUserService, BiometricDeviceUserService>();
+            services.AddScoped<IBiometricSyncStatusService, BiometricSyncStatusService>();
+            services.AddScoped<IBiometricDeviceSettingService, BiometricDeviceSettingService>();
+            services.AddScoped<IDtrDayMarkService, DtrDayMarkService>();
             return services;
         }
     }

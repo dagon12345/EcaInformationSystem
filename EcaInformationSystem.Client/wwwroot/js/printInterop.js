@@ -158,6 +158,39 @@ window.measureDarLayout = function (rootId) {
 // all of that: it's no longer inside the modal's scroll/transform context at
 // all, so it flows and paginates normally. It's moved back to its original
 // spot afterward so Blazor's component tree isn't disturbed.
+// Same relocation trick as printDarOnly/printCdrOnly, scoped to the DTR
+// (Daily Time Record, #dtr-print-target) print preview.
+window.printDtrOnly = function () {
+    const target = document.getElementById('dtr-print-target');
+    let originalParent = null;
+    let originalNextSibling = null;
+
+    if (target) {
+        originalParent = target.parentNode;
+        originalNextSibling = target.nextSibling;
+        document.body.appendChild(target);
+    }
+
+    const appRoot = document.getElementById('app');
+    const appRootPreviousDisplay = appRoot ? appRoot.style.display : null;
+    if (appRoot) appRoot.style.display = 'none';
+
+    document.body.classList.add('printing-dtr');
+
+    const cleanup = () => {
+        document.body.classList.remove('printing-dtr');
+        if (appRoot) appRoot.style.display = appRootPreviousDisplay || '';
+        if (target && originalParent) {
+            originalParent.insertBefore(target, originalNextSibling);
+        }
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+
+    window.print();
+
+    setTimeout(cleanup, 3000);
+};
+
 window.printCdrOnly = function () {
     const target = document.getElementById('cdr-print-target');
     let originalParent = null;

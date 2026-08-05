@@ -94,10 +94,11 @@ builder.Services
             {
                 var accessToken = context.Request.Query["access_token"];
 
-                // ✅ Only redirect token-from-querystring for the chat hub path —
+                // ✅ Only redirect token-from-querystring for hub paths that need it —
                 // every other endpoint keeps using the normal Authorization header.
                 var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chatHub"))
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/biometricStatusHub")))
                 {
                     context.Token = accessToken;
                 }
@@ -205,16 +206,37 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddHostedService<PsgcCacheRefreshBackgroundService>();
-// ─── PSGC Background Seeder ──────────────────────────────────────────────────
-// Runs geography seeding AFTER the web server has started (not during startup).
-// This prevents IIS from killing the process for exceeding startupTimeLimit
-// when the database is empty on first deployment.
-builder.Services.AddHostedService<PsgcSeederBackgroundService>();
-builder.Services.AddHostedService<PayrollQueueProcessor>();
 
-builder.Services.AddSingleton<ActivityReminderScheduler>();
-builder.Services.AddHostedService<ActivityReminderResyncService>();
+// ─── Sync-only mode ───────────────────────────────────────────────────────────
+// For running this exact same API project locally on a machine that's on the
+// biometric device's network (since there's no port-forward to it and no
+// dedicated always-on local server) — set SyncOnlyMode=true (see
+// appsettings.LocalSync.json / ASPNETCORE_ENVIRONMENT=LocalSync) so ONLY
+// ZkDirectPollingService runs. Without this guard, running the full API
+// locally against the production connection string would also fire off
+// payroll processing, activity reminder emails, and PSGC seeding against
+// real production data — none of which should ever run from an ad-hoc
+// machine someone happens to be using at the office.
+var syncOnlyMode = builder.Configuration.GetValue<bool>("SyncOnlyMode");
+
+if (!syncOnlyMode)
+{
+    builder.Services.AddHostedService<PsgcCacheRefreshBackgroundService>();
+    // ─── PSGC Background Seeder ──────────────────────────────────────────────
+    // Runs geography seeding AFTER the web server has started (not during startup).
+    // This prevents IIS from killing the process for exceeding startupTimeLimit
+    // when the database is empty on first deployment.
+    builder.Services.AddHostedService<PsgcSeederBackgroundService>();
+    builder.Services.AddHostedService<PayrollQueueProcessor>();
+
+    builder.Services.AddSingleton<ActivityReminderScheduler>();
+    builder.Services.AddHostedService<ActivityReminderResyncService>();
+}
+
+builder.Services.Configure<EcaInformationSystem.Api.ZkDevice.ZkDirectOptions>(
+    builder.Configuration.GetSection(EcaInformationSystem.Api.ZkDevice.ZkDirectOptions.SectionName));
+builder.Services.AddSingleton<EcaInformationSystem.Api.ZkDevice.ZkSyncRunner>();
+builder.Services.AddHostedService<EcaInformationSystem.Api.BackgroundServices.ZkDirectPollingService>();
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -241,6 +263,7 @@ app.MapHub<ActivityHub>("/activityHub");
 app.MapHub<PublicActivityHub>("/publicActivityHub");
 app.MapHub<DocumentTrackingHub>("/documentTrackingHub");
 app.MapHub<SystemUpdateHub>("/systemUpdateHub");
+app.MapHub<EcaInformationSystem.Api.Hubs.BiometricStatusHub>("/biometricStatusHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),

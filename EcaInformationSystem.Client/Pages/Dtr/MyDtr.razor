@@ -1,0 +1,202 @@
+@* Client/Pages/Dtr/MyDtr.razor — self-service Daily Time Record, generated from
+   the user's own biometric punches (linked via SuperAdmin/Finance-assigned
+   BiometricUserId), for any date span the user picks (e.g. a 1-15 cutoff). *@
+@page "/my-dtr"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Dtr
+@using Microsoft.AspNetCore.Authorization
+@implements IDisposable
+@inject HttpClient Http
+@inject ToastService Toast
+@inject BiometricStatusClientService BiometricStatus
+
+<PageTitle>My Daily Time Record</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 no-print">
+        <div class="page-header-icon">
+            <i class="bi bi-clock-history"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">My Daily Time Record</h5>
+            <span class="page-header-sub">Generated from your biometric attendance punches</span>
+        </div>
+    </div>
+
+    <div class="no-print d-flex align-items-end gap-2 mb-3 flex-wrap">
+        <div>
+            <label class="form-label small fw-bold mb-1">Year</label>
+            <input type="number" class="form-control form-control-sm" style="width:100px;" @bind="_year" @bind:after="ApplyPreset" />
+        </div>
+        <div>
+            <label class="form-label small fw-bold mb-1">Month</label>
+            <select class="form-select form-select-sm" style="width:160px;" @bind="_month" @bind:after="ApplyPreset">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
+                }
+            </select>
+        </div>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn @(_preset == "first" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("first")'>1 - 15</button>
+            <button type="button" class="btn @(_preset == "second" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("second")'>16 - End</button>
+            <button type="button" class="btn @(_preset == "full" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("full")'>Full Month</button>
+            <button type="button" class="btn @(_preset == "custom" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("custom")'>Custom</button>
+        </div>
+        @if (_preset == "custom")
+        {
+            <div>
+                <label class="form-label small fw-bold mb-1">Start</label>
+                <input type="date" class="form-control form-control-sm" @bind="_customStart" />
+            </div>
+            <div>
+                <label class="form-label small fw-bold mb-1">End</label>
+                <input type="date" class="form-control form-control-sm" @bind="_customEnd" />
+            </div>
+        }
+        <button type="button" class="btn btn-primary btn-sm" @onclick="LoadAsync">
+            <i class="bi bi-arrow-repeat me-1"></i>Pull Latest Record
+        </button>
+    </div>
+
+    @if (_lastSyncAt is not null)
+    {
+        <div class="no-print small text-success mb-3">
+            <i class="bi bi-patch-check-fill me-1"></i>
+            Successfully synced by <strong>@(string.IsNullOrWhiteSpace(_lastSyncedByName) ? "someone at the office" : _lastSyncedByName)</strong>
+            on @_lastSyncAt.Value.ToString("MMMM d, yyyy 'at' h:mm tt") — you have the latest data as of that time.
+        </div>
+    }
+
+    @if (_syncIsStale)
+    {
+        <div class="alert alert-info no-print">
+            <i class="bi bi-wifi me-1"></i>
+            Attendance data may be out of date. The biometric device only syncs when someone connects to
+            <strong>NCSC Eastern Telecom</strong> at the office and runs the sync tool — please connect to that
+            network to generate an up-to-date DTR.
+            @if (_lastSyncAt is not null)
+            {
+                <span class="text-muted">(Last synced @_lastSyncAt.Value.ToString("MMMM d, yyyy h:mm tt"))</span>
+            }
+            <div class="mt-1 text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                This only applies to whoever performs the sync at the office — you can still view your DTR
+                from anywhere once it's been synced; you personally don't need to be on that network to open this page.
+            </div>
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="text-muted no-print">Loading…</div>
+    }
+    else if (_notLinked)
+    {
+        <div class="alert alert-warning no-print">
+            No biometric device is linked to your account yet. Ask a SuperAdmin or Finance user
+            to assign your biometric ID under Attendance Management.
+        </div>
+    }
+    else if (_document is not null)
+    {
+        <DtrPrintDocument Document="_document" />
+    }
+</div>
+
+@code {
+    private int _year = DateTime.Today.Year;
+    private int _month = DateTime.Today.Month;
+    private string _preset = "first";
+    private DateTime _customStart = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _customEnd = new(DateTime.Today.Year, DateTime.Today.Month, 15);
+
+    private DtrDocumentDto? _document;
+    private bool _isLoading;
+    private bool _notLinked;
+    private bool _syncIsStale;
+    private DateTime? _lastSyncAt;
+    private string? _lastSyncedByName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+
+        if (BiometricStatus.CurrentStatus is not null)
+            ApplyStatus(BiometricStatus.CurrentStatus);
+
+        BiometricStatus.OnStatusChanged += HandleStatusChanged;
+        await BiometricStatus.RefreshNowAsync();
+    }
+
+    private void HandleStatusChanged(SyncFreshnessDto freshness)
+    {
+        ApplyStatus(freshness);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyStatus(SyncFreshnessDto freshness)
+    {
+        _syncIsStale = freshness.IsStale;
+        _lastSyncAt = freshness.LastSuccessAt;
+        _lastSyncedByName = freshness.LastSuccessByName;
+    }
+
+    public void Dispose() => BiometricStatus.OnStatusChanged -= HandleStatusChanged;
+
+    private void SetPreset(string preset)
+    {
+        _preset = preset;
+        ApplyPreset();
+    }
+
+    private void ApplyPreset()
+    {
+        var daysInMonth = DateTime.DaysInMonth(_year, _month);
+        (_customStart, _customEnd) = _preset switch
+        {
+            "first" => (new DateTime(_year, _month, 1), new DateTime(_year, _month, Math.Min(15, daysInMonth))),
+            "second" => (new DateTime(_year, _month, Math.Min(16, daysInMonth)), new DateTime(_year, _month, daysInMonth)),
+            "full" => (new DateTime(_year, _month, 1), new DateTime(_year, _month, daysInMonth)),
+            _ => (_customStart, _customEnd)
+        };
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_preset != "custom")
+            ApplyPreset();
+
+        _isLoading = true;
+        _notLinked = false;
+        _document = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetAsync($"api/dtr/me?start={_customStart:yyyy-MM-dd}&end={_customEnd:yyyy-MM-dd}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _notLinked = true;
+            }
+            else if (response.IsSuccessStatusCode)
+            {
+                _document = await response.Content.ReadFromJsonAsync<DtrDocumentDto>();
+            }
+            else
+            {
+                Toast.ShowError("Failed to load your DTR.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load your DTR: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

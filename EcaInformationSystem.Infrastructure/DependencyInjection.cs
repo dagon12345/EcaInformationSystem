@@ -82,6 +82,11 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IDocumentTrackingRepository, DocumentTrackingRepository>();
             services.AddScoped<ISystemUpdateNoticeRepository, SystemUpdateNoticeRepository>();
             services.AddScoped<IDarReportRepository, DarReportRepository>();
+            services.AddScoped<IAttendanceLogRepository, AttendanceLogRepository>();
+            services.AddScoped<IBiometricDeviceUserRepository, BiometricDeviceUserRepository>();
+            services.AddScoped<IBiometricSyncStatusRepository, BiometricSyncStatusRepository>();
+            services.AddScoped<IBiometricDeviceSettingRepository, BiometricDeviceSettingRepository>();
+            services.AddScoped<IDtrDayMarkRepository, DtrDayMarkRepository>();
             return services;
         }
     }

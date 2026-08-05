@@ -1,0 +1,243 @@
+/* ══════════════════════════════════════════════════════════
+   DAILY TIME RECORD (Civil Service Form No. 48) — printed in
+   duplicate, two copies side by side on one A4 portrait sheet.
+   Same live Scale/Font/Margin pattern as DarPrintDocument.razor
+   (.dar-print-controls* classes, reused verbatim — see
+   DtrPrintDocument.razor). Each copy auto-expands its table rows
+   to fill the full page height the same way .dar-doc-table does:
+   a fixed-height flex column with every child pinned to its
+   natural size (flex-shrink:0) except the table, which is left to
+   grow (flex:1 0 auto) — browsers then distribute that leftover
+   height across the table's own rows instead of leaving a blank
+   gap under a short (e.g. 1-15) date range.
+   ══════════════════════════════════════════════════════════ */
+
+.dtr-doc-wrap {
+    background: #fff;
+    --dtr-scale: 1;
+    --dtr-font-scale: 1;
+    --dtr-margin: 0mm;
+    padding: var(--dtr-margin);
+}
+
+.dtr-doc-wrap-inner {
+    zoom: var(--dtr-scale);
+}
+
+.dtr-print-page {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.dtr-doc {
+    width: 50%;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    line-height: 1.3;
+    display: flex;
+    flex-direction: column;
+    /* A4 portrait content height (297mm - 8mm top/bottom margins = 281mm),
+       ~4% safety buffer under that true ceiling — same margin DAR keeps
+       against its own physical page height. */
+    height: calc(270mm / var(--dtr-scale));
+}
+.dtr-doc > * {
+    flex-shrink: 0;
+}
+
+.dtr-doc-formno-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.dtr-doc-formno-table td {
+    height: 14px;
+}
+.dtr-doc-formno-label {
+    font-style: italic;
+    font-size: calc(8px * var(--dtr-font-scale));
+    padding: 1px 4px;
+    width: 55%;
+}
+
+.dtr-doc-title {
+    text-align: center;
+    font-weight: 800;
+    font-size: calc(12px * var(--dtr-font-scale));
+    margin-top: 6px;
+}
+.dtr-doc-title-sub {
+    text-align: center;
+    font-size: calc(9px * var(--dtr-font-scale));
+    margin-bottom: 6px;
+}
+
+.dtr-doc-name {
+    text-align: center;
+    font-weight: 800;
+    font-size: calc(11px * var(--dtr-font-scale));
+    border-bottom: 1px solid #000;
+    padding-bottom: 1px;
+    margin: 0 8px;
+}
+.dtr-doc-name-caption {
+    text-align: center;
+    font-size: calc(8px * var(--dtr-font-scale));
+    font-style: italic;
+    margin: 0 8px 6px;
+}
+
+/* Real bordered grid (not flex divs) — matches the paper form's actual
+   cell layout for "For the month" / "Official hours for arrival and
+   departure". */
+.dtr-doc-meta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0;
+}
+.dtr-doc-meta-table td {
+    border: 1px solid #000;
+    padding: 2px 4px;
+    vertical-align: top;
+}
+.dtr-doc-meta-label {
+    font-size: calc(7.5px * var(--dtr-font-scale));
+    font-style: italic;
+    vertical-align: middle;
+}
+.dtr-doc-meta-value-inline {
+    font-size: calc(8.5px * var(--dtr-font-scale));
+    font-style: italic;
+    white-space: nowrap;
+}
+.dtr-doc-meta-sublabel {
+    font-style: normal;
+    font-weight: 700;
+    margin-right: 6px;
+}
+.dtr-doc-meta-underline {
+    display: inline-block;
+    min-width: 70%;
+    border-bottom: 1px solid #000;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Grows to absorb the page's leftover flex space — see file header. */
+.dtr-doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-top: 2px;
+    flex: 1 0 auto;
+}
+.dtr-doc-table th, .dtr-doc-table td {
+    border: 1px solid #000;
+    text-align: center;
+    padding: 1px 2px;
+    font-size: calc(8px * var(--dtr-font-scale));
+}
+.dtr-doc-table th { font-weight: 700; }
+.dtr-doc-table td.dtr-doc-day { width: 14px; }
+.dtr-doc-table tr.dtr-doc-weekend td,
+.dtr-doc-table tr.dtr-doc-wfh td,
+.dtr-doc-table tr.dtr-doc-holiday td {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* Free-text remarks row — an actual input on screen (so it's editable in
+   place), swapped for plain text when printed since form controls don't
+   always render their value consistently across browsers/printers. */
+.dtr-doc-note-cell { text-align: center; }
+.dtr-doc-note-input {
+    border: none;
+    border-bottom: 1px solid #000;
+    font-size: calc(8px * var(--dtr-font-scale));
+    font-family: inherit;
+    text-align: center;
+    width: 70%;
+    padding: 0 2px;
+}
+.dtr-doc-note-input:focus { outline: none; background: #fffbe6; }
+.dtr-doc-print-only { display: none; }
+
+/* Days outside the selected filter period — the form still shows the whole
+   month, but consecutive out-of-period days share ONE merged cell (see the
+   rowspan logic in DtrCopy.razor) so the diagonal itself is one continuous
+   line rather than a separate short diagonal per row. Merging the cell loses
+   the normal per-row/per-column grid lines that a real "empty but bordered"
+   row would have, so two repeating-linear-gradient layers reconstruct them
+   (row dividers using --dtr-run-length, set inline per merged cell since
+   each run is a different number of rows; column dividers assume 6 equal
+   columns, matching the header's default table-layout:fixed sizing) —
+   stacked underneath the diagonal gradient as extra `background` layers. */
+.dtr-doc-outofperiod-diagonal {
+    background:
+        linear-gradient(to top left,
+            transparent calc(50% - 0.5px), #000 50%, transparent calc(50% + 0.5px)),
+        repeating-linear-gradient(to bottom,
+            #000 0, #000 1px,
+            transparent 1px, transparent calc(100% / var(--dtr-run-length, 1))),
+        repeating-linear-gradient(to right,
+            #000 0, #000 1px,
+            transparent 1px, transparent calc(100% / 6));
+    /* Without this, Chromium drops the gradient entirely in print unless the
+       user has "Background graphics" checked in the print dialog — off by
+       default, so the merged cell just prints blank. This forces it on for
+       this element specifically, regardless of that toggle. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.dtr-doc-cert {
+    font-size: calc(7.5px * var(--dtr-font-scale));
+    margin: 6px 4px 2px;
+}
+
+.dtr-doc-signoff {
+    text-align: center;
+    margin-top: 14px;
+}
+.dtr-doc-signoff-name {
+    font-weight: 800;
+    font-size: calc(9px * var(--dtr-font-scale));
+    border-bottom: 1px solid #000;
+    display: inline-block;
+    min-width: 200px;
+    padding: 0 6px;
+}
+.dtr-doc-signoff-title { font-size: calc(8px * var(--dtr-font-scale)); margin-top: 1px; }
+
+.dtr-doc-verified {
+    font-size: calc(7.5px * var(--dtr-font-scale));
+    margin: 10px 4px 0;
+}
+.dtr-doc-verified-line {
+    border-bottom: 1px solid #000;
+    min-height: 12px;
+    margin: 2px 20px 0;
+}
+
+/* ── Print isolation — only .dtr-doc-wrap (and its contents) is visible.
+   printDtrOnly() (printInterop.js) also relocates #dtr-print-target to be
+   a direct child of <body> and hides #app, same trick as printDarOnly. ── */
+@media print {
+    body * { visibility: hidden; }
+    .dtr-doc-wrap, .dtr-doc-wrap * { visibility: visible; }
+    .dtr-doc-wrap { position: absolute; left: 0; top: 0; width: 100%; }
+    .no-print { display: none !important; }
+    .dtr-doc-print-only { display: inline; }
+}
+
+@media screen {
+    .dtr-print-page {
+        min-width: 800px;
+    }
+}
+
+@media screen and (max-width: 992px) {
+    .dtr-print-page { flex-direction: column; }
+    .dtr-doc { width: 100%; height: auto; }
+}

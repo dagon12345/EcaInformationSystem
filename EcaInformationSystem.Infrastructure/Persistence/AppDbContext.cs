@@ -17,6 +17,10 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<Barangay> Barangays => Set<Barangay>();
             public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
             public DbSet<Log> Logs => Set<Log>();
+            public DbSet<AttendanceLog> AttendanceLogs => Set<AttendanceLog>();
+            public DbSet<BiometricDeviceUser> BiometricDeviceUsers => Set<BiometricDeviceUser>();
+            public DbSet<BiometricSyncStatus> BiometricSyncStatuses => Set<BiometricSyncStatus>();
+            public DbSet<BiometricDeviceSetting> BiometricDeviceSettings => Set<BiometricDeviceSetting>();
             public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
             public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
             public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
@@ -59,6 +63,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<SystemUpdateNotice> SystemUpdateNotices => Set<SystemUpdateNotice>();
             public DbSet<DarReport> DarReports => Set<DarReport>();
             public DbSet<DarEntry> DarEntries => Set<DarEntry>();
+            public DbSet<DtrDayMark> DtrDayMarks => Set<DtrDayMark>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -1040,6 +1045,49 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                         entity.Property(x => x.EssentialFunctionsOverride).HasMaxLength(2000);
                         entity.Property(x => x.AccomplishmentText).HasColumnType("nvarchar(max)");
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // DTR DAY MARK (WFH / Holiday / Note — per user, per day, printable)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<DtrDayMark>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.MarkType).IsRequired().HasMaxLength(20);
+                        entity.Property(x => x.NoteText).HasMaxLength(500);
+                        entity.Property(x => x.UpdatedByName).HasMaxLength(200);
+
+                        entity.HasIndex(x => new { x.UserId, x.Date })
+                        .IsUnique()
+                        .HasDatabaseName("UQ_DtrDayMark_User_Date");
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // BIOMETRIC DEVICE SETTING (single row — LAN address, editable in-app)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<BiometricDeviceSetting>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.DeviceHost).IsRequired().HasMaxLength(255);
+                        entity.Property(x => x.DeviceSerialNumber).IsRequired().HasMaxLength(50);
+                        entity.Property(x => x.UpdatedByName).HasMaxLength(200);
+
+                        // One device config per region.
+                        entity.HasIndex(x => x.RegionCode)
+                        .IsUnique()
+                        .HasDatabaseName("UQ_BiometricDeviceSetting_RegionCode");
+                  });
+
+                  modelBuilder.Entity<BiometricSyncStatus>(entity =>
+                  {
+                        entity.HasIndex(x => x.RegionCode)
+                        .HasDatabaseName("IX_BiometricSyncStatus_RegionCode");
+                  });
+
+                  modelBuilder.Entity<BiometricDeviceUser>(entity =>
+                  {
+                        entity.HasIndex(x => x.RegionCode)
+                        .HasDatabaseName("IX_BiometricDeviceUser_RegionCode");
                   });
             }
       }

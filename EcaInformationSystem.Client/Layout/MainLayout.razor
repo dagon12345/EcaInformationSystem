@@ -13,6 +13,7 @@
 @inject ChatClientService ChatClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject SystemUpdateClientService SystemUpdateClientService
+@inject BiometricStatusClientService BiometricStatusClientService
 @inject ToastService Toast
 @inject IJSRuntime JS
 @implements IDisposable
@@ -101,6 +102,11 @@
                                 <li>
                                     <a class="dropdown-item d-flex align-items-center" href="/dar">
                                         <i class="bi bi-journal-check me-2"></i>Daily Accomplishment Report
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center" href="/my-dtr">
+                                        <i class="bi bi-clock-history me-2"></i>My DTR
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider" /></li>
@@ -280,6 +286,20 @@
                 catch
                 {
                     // Non-fatal — the update banner just won't show live this session
+                }
+            }
+
+            if (!BiometricStatusClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "biometricStatusHub").ToString();
+                    await BiometricStatusClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — Attendance Management/My DTR fall back to their own REST fetch
                 }
             }
 

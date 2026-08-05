@@ -16,6 +16,7 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
         public int? Region { get; set; }
         public string? RegionName { get; set; } // resolved name, e.g. "Caraga"
         public bool IsMfaEnabled { get; set; } = false;
+        public string? BiometricUserId { get; set; }
         public List<JurisdictionDto> Jurisdictions { get; set; } = new();
     }
 
@@ -42,5 +43,10 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
     {
         // List of municipality PSGC codes to assign
         public List<int> MunicipalityCodes { get; set; } = new();
+    }
+
+    public class SetBiometricUserIdRequestDto
+    {
+        public string? BiometricUserId { get; set; }
     }
 }

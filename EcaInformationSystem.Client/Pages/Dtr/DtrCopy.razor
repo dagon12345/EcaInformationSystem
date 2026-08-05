@@ -1,0 +1,228 @@
+@* DtrCopy.razor — one copy of Civil Service Form No. 48 (Daily Time
+   Record). DtrPrintDocument.razor renders this twice side by side inside
+   .dtr-print-page, matching the paper form's printed-in-duplicate layout.
+   WfhDays/HolidayDays (and their toggle callbacks) are owned by the parent
+   so both copies always show the same marks — punches alone can't tell WFH
+   or Holiday apart from a regular day, so these are manual, display-only
+   overrides. *@
+@using EcaInformationSystem.Shared.DTOs.Dtr
+
+<div class="dtr-doc">
+    <table class="dtr-doc-formno-table">
+        <tr>
+            <td class="dtr-doc-formno-label">Civil Service Form No. 48</td>
+            <td></td>
+        </tr>
+    </table>
+
+    <div class="dtr-doc-title">DAILY TIME RECORD</div>
+    <div class="dtr-doc-title-sub">-----o0o-----</div>
+
+    <div class="dtr-doc-name">@Document.EmployeeName.ToUpperInvariant()</div>
+    <div class="dtr-doc-name-caption">(Name)</div>
+
+    <table class="dtr-doc-meta-table">
+        <tr>
+            <td class="dtr-doc-meta-label" style="width:45%;">For the month</td>
+            <td class="dtr-doc-meta-value-inline">@Document.ForTheMonthLabel</td>
+        </tr>
+        <tr>
+            <td class="dtr-doc-meta-label" rowspan="2">Official hours for arrival and departure</td>
+            <td class="dtr-doc-meta-value-inline">
+                <span class="dtr-doc-meta-sublabel">Regular days</span>
+                <span class="dtr-doc-meta-underline">@Document.RegularDaysHours</span>
+            </td>
+        </tr>
+        <tr>
+            <td class="dtr-doc-meta-value-inline">
+                <span class="dtr-doc-meta-sublabel">Saturdays</span>
+                <span class="dtr-doc-meta-underline">@Document.SaturdaysHours</span>
+            </td>
+        </tr>
+    </table>
+
+    <table class="dtr-doc-table">
+        <thead>
+            <tr>
+                <th rowspan="2">Day</th>
+                <th colspan="2">A.M.</th>
+                <th colspan="2">P.M.</th>
+                <th colspan="2">Undertime</th>
+            </tr>
+            <tr>
+                <th>Time in</th>
+                <th>Time out</th>
+                <th>Time in</th>
+                <th>Time out</th>
+                <th>Hrs</th>
+                <th>Min</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Document.Days.Count; i++)
+            {
+                var day = Document.Days[i];
+                var isWfh = WfhDays.Contains(day.Day);
+                var isHoliday = HolidayDays.Contains(day.Day);
+
+                @if (!day.IsInPeriod)
+                {
+                    @if (i > 0 && !Document.Days[i - 1].IsInPeriod)
+                    {
+                        // Continuation of an out-of-period run — the diagonal cell
+                        // from the run's first row already spans down over this one.
+                        <tr class="dtr-doc-outofperiod">
+                            <td class="dtr-doc-day">@day.Day</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        var runLength = 1;
+                        while (i + runLength < Document.Days.Count && !Document.Days[i + runLength].IsInPeriod)
+                            runLength++;
+
+                        <tr class="dtr-doc-outofperiod">
+                            <td class="dtr-doc-day">@day.Day</td>
+                            <td colspan="6" rowspan="@runLength" class="dtr-doc-outofperiod-diagonal"
+                                style="--dtr-run-length:@runLength;"></td>
+                        </tr>
+                    }
+                }
+                else if (day.DayType == DtrDayType.Saturday || day.DayType == DtrDayType.Sunday)
+                {
+                    <tr class="dtr-doc-weekend">
+                        <td class="dtr-doc-day">@day.Day</td>
+                        <td colspan="6">@(day.DayType == DtrDayType.Saturday ? "SATURDAY" : "SUNDAY")</td>
+                    </tr>
+                }
+                else if (isHoliday)
+                {
+                    <tr class="dtr-doc-holiday">
+                        <td class="dtr-doc-day">@day.Day</td>
+                        <td colspan="6">
+                            HOLIDAY
+                            @if (OnToggleHoliday.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2 no-print" @onclick="() => OnToggleHoliday.InvokeAsync(day.Day)">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+                else if (isWfh)
+                {
+                    <tr class="dtr-doc-wfh">
+                        <td class="dtr-doc-day">@day.Day</td>
+                        <td colspan="6">
+                            WORK FROM HOME
+                            @if (OnToggleWfh.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2 no-print" @onclick="() => OnToggleWfh.InvokeAsync(day.Day)">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+                else if (NoteDays.ContainsKey(day.Day))
+                {
+                    <tr class="dtr-doc-note">
+                        <td class="dtr-doc-day">@day.Day</td>
+                        <td colspan="6" class="dtr-doc-note-cell">
+                            <input type="text" class="dtr-doc-note-input no-print" value="@NoteDays[day.Day]"
+                                   placeholder="Type activity/remarks…"
+                                   @oninput="e => OnNoteChanged.InvokeAsync((day.Day, e.Value?.ToString() ?? string.Empty))"
+                                   @onblur="() => OnNoteBlur.InvokeAsync(day.Day)" />
+                            <span class="dtr-doc-print-only">@NoteDays[day.Day]</span>
+                            @if (OnClearNote.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2 no-print" @onclick="() => OnClearNote.InvokeAsync(day.Day)">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td class="dtr-doc-day">
+                            @day.Day
+                            @if (OnToggleWfh.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Mark as work-from-home"
+                                        @onclick="() => OnToggleWfh.InvokeAsync(day.Day)">
+                                    <i class="bi bi-house"></i>
+                                </button>
+                            }
+                            @if (OnToggleHoliday.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Mark as holiday"
+                                        @onclick="() => OnToggleHoliday.InvokeAsync(day.Day)">
+                                    <i class="bi bi-flag"></i>
+                                </button>
+                            }
+                            @if (OnSetNote.HasDelegate)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Add a note/activity for this day"
+                                        @onclick="() => OnSetNote.InvokeAsync(day.Day)">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            }
+                        </td>
+                        <td>@day.AmTimeIn</td>
+                        <td>@day.AmTimeOut</td>
+                        <td>@day.PmTimeIn</td>
+                        <td>@day.PmTimeOut</td>
+                        <td>@(day.UndertimeHours > 0 ? day.UndertimeHours.ToString() : "")</td>
+                        <td>@(day.UndertimeMinutes > 0 ? day.UndertimeMinutes.ToString() : "")</td>
+                    </tr>
+                }
+            }
+            <tr>
+                <td colspan="5" style="text-align:right;font-weight:700;">Total</td>
+                <td style="font-weight:700;">@(Document.TotalUndertimeHours > 0 ? Document.TotalUndertimeHours.ToString() : "")</td>
+                <td style="font-weight:700;">@(Document.TotalUndertimeMinutes > 0 ? Document.TotalUndertimeMinutes.ToString() : "")</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="dtr-doc-cert">
+        I certify on my honor that the above is a true and correct report of
+        the hours of work performed, record of which was made daily at
+        the time of arrival and departure from office.
+    </div>
+
+    <div class="dtr-doc-signoff">
+        <div class="dtr-doc-signoff-name">@Document.EmployeeName.ToUpperInvariant()</div>
+        <div class="dtr-doc-signoff-title">@Document.Position</div>
+    </div>
+
+    <div class="dtr-doc-verified">
+        VERIFIED as to the prescribed office hours:
+        <div class="dtr-doc-verified-line"></div>
+    </div>
+
+    <div class="dtr-doc-signoff" style="margin-top:6px;">
+        <div class="dtr-doc-signoff-name">@Document.ApprovedByName</div>
+        <div class="dtr-doc-signoff-title">@Document.ApprovedByPosition</div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DtrDocumentDto Document { get; set; } = default!;
+    [Parameter] public ISet<int> WfhDays { get; set; } = new HashSet<int>();
+    [Parameter] public EventCallback<int> OnToggleWfh { get; set; }
+    [Parameter] public ISet<int> HolidayDays { get; set; } = new HashSet<int>();
+    [Parameter] public EventCallback<int> OnToggleHoliday { get; set; }
+
+    // Free-text remarks per day (e.g. "Field Visit", "Seminar") — unlike
+    // WFH/Holiday's fixed labels, this is an actual editable text box in
+    // the row, for whatever office activity doesn't fit those two options.
+    [Parameter] public IDictionary<int, string> NoteDays { get; set; } = new Dictionary<int, string>();
+    [Parameter] public EventCallback<int> OnSetNote { get; set; }
+    [Parameter] public EventCallback<(int Day, string Text)> OnNoteChanged { get; set; }
+    [Parameter] public EventCallback<int> OnNoteBlur { get; set; }
+    [Parameter] public EventCallback<int> OnClearNote { get; set; }
+}

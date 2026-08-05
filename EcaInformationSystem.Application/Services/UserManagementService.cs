@@ -28,6 +28,16 @@ namespace EcaInformationSystem.Application.Services
 
             return users.Select(u => MapToDto(u, regionNameLookup)).ToList();
         }
+
+        public async Task<List<UserListDto>> GetAllUsersAsync(int regionCode)
+        {
+            var users = await _repo.GetAllAsync();
+            var regions = await _regionService.GetAllAsync();
+            var regionNameLookup = regions.ToDictionary(r => r.PsgcCodeRegion, r => r.Name);
+
+            return users.Where(u => u.Region == regionCode)
+                .Select(u => MapToDto(u, regionNameLookup)).ToList();
+        }
         public async Task<UserListDto?> GetUserByIdAsync(Guid id)
         {
             var user = await _repo.GetByIdAsync(id);
@@ -55,6 +65,15 @@ namespace EcaInformationSystem.Application.Services
             user.ReviewedBy = approvedBy;
             user.Remarks = remarks;
 
+            await _repo.SaveChangesAsync();
+        }
+
+        public async Task SetBiometricUserIdAsync(Guid userId, string? biometricUserId, string setBy)
+        {
+            var user = await _repo.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            user.BiometricUserId = string.IsNullOrWhiteSpace(biometricUserId) ? null : biometricUserId.Trim();
             await _repo.SaveChangesAsync();
         }
 
@@ -151,6 +170,7 @@ namespace EcaInformationSystem.Application.Services
                  ? name
                  : (u.Region.HasValue ? $"Region {u.Region.Value}" : "Not set"),
                  IsMfaEnabled = u.IsMfaEnabled,
+                 BiometricUserId = u.BiometricUserId,
                  Jurisdictions = u.Jurisdictions.Select(j => new JurisdictionDto
                  {
                      Id = j.Id,

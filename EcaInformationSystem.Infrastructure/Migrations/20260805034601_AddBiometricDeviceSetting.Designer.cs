@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805034601_AddBiometricDeviceSetting")]
+    partial class AddBiometricDeviceSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1066,9 +1069,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("RegionCode")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1077,10 +1077,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("RegionCode")
-                        .IsUnique()
-                        .HasDatabaseName("UQ_BiometricDeviceSetting_RegionCode");
 
                     b.ToTable("BiometricDeviceSettings");
                 });
@@ -1114,13 +1110,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Property<int>("Privilege")
                         .HasColumnType("int");
 
-                    b.Property<int>("RegionCode")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("RegionCode")
-                        .HasDatabaseName("IX_BiometricDeviceUser_RegionCode");
 
                     b.ToTable("BiometricDeviceUsers");
                 });
@@ -1158,13 +1148,7 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Property<string>("LastSuccessByName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("RegionCode")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("RegionCode")
-                        .HasDatabaseName("IX_BiometricSyncStatus_RegionCode");
 
                     b.ToTable("BiometricSyncStatuses");
                 });
@@ -1637,45 +1621,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.HasIndex("DocumentBatchId");
 
                     b.ToTable("DocumentTransfers");
-                });
-
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.DtrDayMark", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("MarkType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("NoteText")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedByName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Date")
-                        .IsUnique()
-                        .HasDatabaseName("UQ_DtrDayMark_User_Date");
-
-                    b.ToTable("DtrDayMarks");
                 });
 
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FormActivityLog", b =>

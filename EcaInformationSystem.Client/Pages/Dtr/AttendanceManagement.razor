@@ -1,0 +1,884 @@
+@* Client/Pages/Dtr/AttendanceManagement.razor — SuperAdmin/Finance: link each
+   registered user to their ZKTeco device PIN (BiometricUserId) so DTRs can be
+   generated without manually matching names, and view/print any user's DTR
+   or a summary of everyone's attendance for a month. *@
+@page "/attendance-management"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Dtr
+@using EcaInformationSystem.Shared.DTOs.UserManagement
+@using Microsoft.AspNetCore.Authorization
+@implements IDisposable
+@inject HttpClient Http
+@inject ToastService Toast
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@inject BiometricStatusClientService BiometricStatus
+@inject IJSRuntime JS
+
+<PageTitle>Attendance Management</PageTitle>
+
+@if (!_isAuthorized)
+{
+    <div class="container-fluid py-3">
+        <div class="alert alert-danger">You are not authorized to view this page.</div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-3">
+        <div class="page-header-bar mb-3 no-print">
+            <div class="page-header-icon">
+                <i class="bi bi-fingerprint"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">Attendance Management</h5>
+                <span class="page-header-sub">Link users to their biometric device ID and review Daily Time Records</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_regionName))
+        {
+            <div class="alert alert-secondary no-print py-2 small mb-3">
+                <i class="bi bi-geo-alt me-1"></i>
+                Showing all <strong>@_regionName</strong> users' DTR records, device connection, and enrollment —
+                other regions manage their own separately and are never mixed in here.
+            </div>
+        }
+
+        @* Reflects the DEVICE's own reachability on its last sync attempt —
+           deliberately NOT tied to whether this browser's SignalR socket
+           happens to be connected right now, which only ever describes the
+           viewer's own network, not the biometric device's. Live-refreshed
+           by HandleStatusChanged re-calling LoadSyncStatusAsync below. *@
+        <div class="no-print mb-2">
+            @if (_locallyDisconnected)
+            {
+                <span class="badge bg-secondary"><i class="bi bi-dash-circle me-1"></i>Disconnected (this browser only)</span>
+            }
+            else if (_isLoadingSyncStatus)
+            {
+                <span class="badge bg-secondary"><i class="bi bi-hourglass-split me-1"></i>Checking device status…</span>
+            }
+            else if (_syncStatuses.Any(s => s.IsConnected))
+            {
+                <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Biometric device: connected</span>
+            }
+            else if (_syncStatuses.Count > 0)
+            {
+                <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Biometric device: not connected</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary"><i class="bi bi-question-circle me-1"></i>No connection reports yet</span>
+            }
+        </div>
+        <div class="no-print text-muted small mb-2" style="margin-top:-6px;">
+            <i class="bi bi-info-circle me-1"></i>
+            This status is the biometric device's own reachability, not your connection or the browser you're
+            using it from — you can manage this page from anywhere. Syncing itself only happens when someone
+            connects to <strong>NCSC Eastern Telecom</strong> at the office and runs the sync tool there.
+        </div>
+
+        @* "Connect"/"Sync DTR" first probe a LocalSync-profile instance on THIS
+           machine (localhost:5010 — see TryLocalInstanceAsync) before falling back
+           to the normal injected Http. That lets someone physically at the office,
+           running `dotnet watch --launch-profile LocalSync` locally, use the REAL
+           published site directly — the deployed API is a remote cloud server and
+           can never reach the device no matter what network the browser is on, but
+           a local instance on the SAME machine can. For every other viewer, nothing
+           answers on localhost:5010, so this silently falls back to the normal Http
+           client, which reports honestly whether THAT instance has ZkDirect:Enabled
+           and LAN access (never true for the deployed production API). *@
+        <div class="card no-print mb-3">
+            <div class="card-body">
+                <h6 class="card-title mb-2"><i class="bi bi-hdd-network me-1"></i>Biometric Device Connection</h6>
+                <p class="text-muted small mb-2">
+                    Set the device's LAN IP address here — no commands, no config files. The buttons below only
+                    work from a machine at the office connected to <strong>NCSC Eastern Telecom</strong>.
+                </p>
+                <div class="d-flex align-items-end gap-2 flex-wrap mb-2">
+                    <div>
+                        <label class="form-label small fw-bold mb-1">Device IP address</label>
+                        <input class="form-control form-control-sm" style="width:180px;" @bind="_deviceHost" placeholder="e.g. 192.168.68.124" />
+                    </div>
+                    <div>
+                        <label class="form-label small fw-bold mb-1">Port</label>
+                        <input type="number" class="form-control form-control-sm" style="width:100px;" @bind="_devicePort" />
+                    </div>
+                    <div>
+                        <label class="form-label small fw-bold mb-1">Serial number</label>
+                        <input class="form-control form-control-sm" style="width:180px;" @bind="_deviceSerialNumber" placeholder="e.g. CQUJ233561114" />
+                    </div>
+                    <button type="button" class="btn btn-outline-primary btn-sm" disabled="@_isSavingSettings" @onclick="SaveDeviceSettingsAsync">
+                        <i class="bi bi-save me-1"></i>Save IP
+                    </button>
+                </div>
+                @if (_deviceSettingsMessage is not null)
+                {
+                    <div class="alert @(_deviceSettingsSuccess ? "alert-success" : "alert-warning") py-2 small mb-2">
+                        @_deviceSettingsMessage
+                    </div>
+                }
+
+                <div class="d-flex align-items-end gap-2 flex-wrap">
+                    <div>
+                        <label class="form-label small fw-bold mb-1">Your name</label>
+                        <input class="form-control form-control-sm" style="width:220px;" @bind="_syncByName" placeholder="e.g. Lance Espina" />
+                    </div>
+                    @if (_isDeviceConnected)
+                    {
+                        <button type="button" class="btn btn-outline-danger btn-sm" disabled="@_isTestingConnection" @onclick="DisconnectDevice">
+                            <i class="bi bi-plug-fill me-1"></i>
+                            <text>Disconnect</text>
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@_isTestingConnection" @onclick="TestConnectionAsync">
+                            @if (_isTestingConnection)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <text>Connecting…</text>
+                            }
+                            else
+                            {
+                                <i class="bi bi-plug me-1"></i>
+                                <text>Connect</text>
+                            }
+                        </button>
+                    }
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_isSyncing" @onclick="RunLocalSyncAsync">
+                        @if (_isSyncing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <text>Syncing…</text>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-repeat me-1"></i>
+                            <text>Sync DTR</text>
+                        }
+                    </button>
+                </div>
+                @if (_connectResultMessage is not null)
+                {
+                    <div class="alert @(_connectResultSuccess ? "alert-success" : "alert-danger") mt-2 mb-0 py-2 small">
+                        @_connectResultMessage
+                    </div>
+                }
+                @if (_syncResultMessage is not null)
+                {
+                    <div class="alert @(_syncResultSuccess ? "alert-success" : "alert-warning") mt-2 mb-0 py-2 small">
+                        @_syncResultMessage
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="no-print mb-3">
+            @if (_locallyDisconnected)
+            {
+                <div class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-dash-circle"></i>
+                    Disconnected in this browser only — this doesn't affect other viewers or the device itself.
+                    Click Connect or Sync DTR to check again.
+                </div>
+            }
+            else if (_isLoadingSyncStatus)
+            {
+                <div class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-hourglass-split"></i>Checking biometric device connection…
+                </div>
+            }
+            else if (_syncStatuses.Count == 0)
+            {
+                <div class="alert alert-secondary d-flex align-items-center gap-2 mb-0">
+                    <i class="bi bi-question-circle"></i>
+                    No connection reports yet. The ZKTecoAgent Windows service hasn't checked in — confirm it's running on the office LAN.
+                </div>
+            }
+            else
+            {
+                @foreach (var s in _syncStatuses)
+                {
+                    @if (s.IsConnected)
+                    {
+                        <div class="alert alert-success d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>
+                                <strong>Connected</strong> to device <code>@s.DeviceSerialNumber</code> —
+                                successfully synced by
+                                <strong>@(string.IsNullOrWhiteSpace(s.LastSuccessByName) ? "someone at the office" : s.LastSuccessByName)</strong>
+                                on @s.LastSuccessAt?.ToString("g")
+                                (@s.LastAttendanceRecordsSynced attendance record(s), @s.LastEnrolledUsersSynced enrolled user(s))
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-danger d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-x-circle-fill"></i>
+                            <span>
+                                <strong>Connection failed</strong> to device <code>@s.DeviceSerialNumber</code> —
+                                @s.LastErrorMessage (last attempt @s.LastAttemptAt.ToString("g"))
+                                @if (s.LastSuccessAt is not null)
+                                {
+                                    <text> — last successful sync was @s.LastSuccessAt.Value.ToString("g")</text>
+                                }
+                            </span>
+                        </div>
+                    }
+                }
+            }
+        </div>
+
+        <ul class="nav nav-tabs no-print mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(_activeTab == "assign" ? "active" : "")" @onclick='() => _activeTab = "assign"'>
+                    Biometric Assignment
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(_activeTab == "summary" ? "active" : "")" @onclick='SwitchToSummaryAsync'>
+                    Monthly Summary
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(_activeTab == "device" ? "active" : "")" @onclick='SwitchToDeviceUsersAsync'>
+                    Device Enrollment
+                </button>
+            </li>
+        </ul>
+
+        @if (_activeTab == "assign")
+        {
+            <div class="no-print">
+                @if (_isLoadingUsers)
+                {
+                    <div class="text-muted">Loading users…</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Position</th>
+                                <th>Role</th>
+                                <th style="width:220px;">Biometric Device PIN</th>
+                                <th style="width:100px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in _users)
+                            {
+                                <tr>
+                                    <td>@u.FullName</td>
+                                    <td>@u.Position</td>
+                                    <td>@u.Role</td>
+                                    <td>
+                                        <input class="form-control form-control-sm" @bind="_editValues[u.Id]" placeholder="e.g. 1, 23, 105…" />
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-primary btn-sm" @onclick="() => SaveBiometricIdAsync(u.Id)">
+                                            <i class="bi bi-save"></i> Save
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+        else if (_activeTab == "summary")
+        {
+            <div class="no-print d-flex align-items-end gap-2 mb-3 flex-wrap">
+                <div>
+                    <label class="form-label small fw-bold mb-1">Year</label>
+                    <input type="number" class="form-control form-control-sm" style="width:100px;" @bind="_year" @bind:after="ApplyPreset" />
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1">Month</label>
+                    <select class="form-select form-select-sm" style="width:160px;" @bind="_month" @bind:after="ApplyPreset">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
+                        }
+                    </select>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn @(_preset == "first" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("first")'>1 - 15</button>
+                    <button type="button" class="btn @(_preset == "second" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("second")'>16 - End</button>
+                    <button type="button" class="btn @(_preset == "full" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("full")'>Full Month</button>
+                    <button type="button" class="btn @(_preset == "custom" ? "btn-primary" : "btn-outline-primary")" @onclick='() => SetPreset("custom")'>Custom</button>
+                </div>
+                @if (_preset == "custom")
+                {
+                    <div>
+                        <label class="form-label small fw-bold mb-1">Start</label>
+                        <input type="date" class="form-control form-control-sm" @bind="_customStart" />
+                    </div>
+                    <div>
+                        <label class="form-label small fw-bold mb-1">End</label>
+                        <input type="date" class="form-control form-control-sm" @bind="_customEnd" />
+                    </div>
+                }
+                <button type="button" class="btn btn-primary btn-sm" @onclick="LoadSummaryAsync">
+                    <i class="bi bi-search me-1"></i>Load
+                </button>
+            </div>
+
+            @if (_isLoadingSummary)
+            {
+                <div class="text-muted no-print">Loading…</div>
+            }
+            else if (_document is not null)
+            {
+                <div class="no-print mb-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick='() => _document = null'>
+                        <i class="bi bi-arrow-left me-1"></i>Back to summary
+                    </button>
+                </div>
+                <DtrPrintDocument Document="_document" />
+            }
+            else
+            {
+                <table class="table table-sm table-bordered align-middle no-print">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Days with Punches</th>
+                            <th>Total Undertime</th>
+                            <th style="width:120px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _summaries)
+                        {
+                            <tr>
+                                <td>@s.EmployeeName</td>
+                                <td>@s.Position</td>
+                                <td>@s.DaysWithPunches</td>
+                                <td>@s.TotalUndertimeHours h @s.TotalUndertimeMinutes m</td>
+                                <td>
+                                    <button class="btn btn-outline-primary btn-sm" @onclick="() => ViewDtrAsync(s.UserId)">
+                                        View DTR
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (_summaries.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-muted text-center">No users with a linked biometric device yet.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+        else
+        {
+            <div class="no-print">
+                <p class="text-muted small">
+                    Records synced by the ZKTecoAgent Windows service from the device's own enrollment list —
+                    this is who's actually registered on the physical terminal, independent of ECA-InFORMS accounts.
+                </p>
+                @if (_isLoadingDeviceUsers)
+                {
+                    <div class="text-muted">Loading…</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>PIN</th>
+                                <th>Name (on device)</th>
+                                <th>Privilege</th>
+                                <th>Card No.</th>
+                                <th>Linked ECA-InFORMS User</th>
+                                <th>Last Synced</th>
+                                <th>Device Serial</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in _deviceUsers)
+                            {
+                                <tr>
+                                    <td>@u.BiometricUserId</td>
+                                    <td>@u.Name</td>
+                                    <td>@u.Privilege</td>
+                                    <td>@u.CardNumber</td>
+                                    <td>
+                                        @if (u.LinkedSystemUserName is not null)
+                                        {
+                                            <span class="badge bg-success">@u.LinkedSystemUserName</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">Not linked</span>
+                                        }
+                                    </td>
+                                    <td>@u.LastSyncedAt.ToString("g")</td>
+                                    <td>@u.DeviceSerialNumber</td>
+                                </tr>
+                            }
+                            @if (_deviceUsers.Count == 0)
+                            {
+                                <tr><td colspan="7" class="text-muted text-center">No enrolled users synced yet. Confirm the ZKTecoAgent service is running and has completed at least one poll cycle.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _isAuthorized;
+    private string _activeTab = "assign";
+    private string? _regionName;
+
+    private List<UserListDto> _users = new();
+    private Dictionary<Guid, string?> _editValues = new();
+    private bool _isLoadingUsers;
+
+    private int _year = DateTime.Today.Year;
+    private int _month = DateTime.Today.Month;
+    private string _preset = "first";
+    private DateTime _customStart = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _customEnd = new(DateTime.Today.Year, DateTime.Today.Month, 15);
+    private List<DtrSummaryDto> _summaries = new();
+    private DtrDocumentDto? _document;
+    private bool _isLoadingSummary;
+
+    private List<BiometricDeviceUserDto> _deviceUsers = new();
+    private bool _isLoadingDeviceUsers;
+
+    private List<BiometricSyncStatusDto> _syncStatuses = new();
+    private bool _isLoadingSyncStatus = true;
+
+    private string _syncByName = string.Empty;
+    private bool _isSyncing;
+    private string? _syncResultMessage;
+    private bool _syncResultSuccess;
+
+    private string _deviceHost = string.Empty;
+    private int _devicePort = 4370;
+
+    // Defaults to the office's known device — still fully editable, and
+    // overwritten by whatever's actually saved in the DB once loaded.
+    private string _deviceSerialNumber = "CQUJ233561114";
+    private bool _isSavingSettings;
+    private string? _deviceSettingsMessage;
+    private bool _deviceSettingsSuccess;
+
+    private bool _isTestingConnection;
+    private string? _connectResultMessage;
+    private bool _connectResultSuccess;
+
+    // Drives the Connect/Disconnect button label — true either after a
+    // successful manual Connect test, or whenever the device's own reported
+    // status (background auto-poll or someone else's sync) is connected.
+    private bool _isDeviceConnected;
+
+    // "Disconnect" has nothing real to close (no persistent session — see
+    // DisconnectDevice below), so it can't change what the server reports.
+    // This flag overrides the badge/report list to visibly reflect the
+    // click in THIS browser only, instead of silently doing nothing while
+    // still showing "connected" everywhere else on the page. Cleared by
+    // the next real Connect/Sync DTR attempt or status refresh.
+    private bool _locallyDisconnected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _isAuthorized = AuthService.IsSuperAdmin() || AuthService.IsFinance();
+        if (!_isAuthorized)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        try
+        {
+            _syncByName = await JS.InvokeAsync<string?>("localStorage.getItem", "fullName") ?? string.Empty;
+        }
+        catch
+        {
+            // Non-critical — just leave the name field blank.
+        }
+
+        try
+        {
+            _regionName = await AuthService.GetRegionNameAsync(Http);
+        }
+        catch
+        {
+            // Non-critical — the banner just won't show a region name.
+        }
+
+        await LoadUsersAsync();
+        await LoadSyncStatusAsync();
+        await LoadDeviceSettingsAsync();
+
+        BiometricStatus.OnStatusChanged += HandleStatusChanged;
+        await BiometricStatus.RefreshNowAsync();
+    }
+
+    private void HandleStatusChanged(SyncFreshnessDto freshness)
+    {
+        // The live broadcast only carries the non-sensitive freshness shape —
+        // re-fetch the full admin detail (serials, error messages) it hints at changed.
+        _ = LoadSyncStatusAsync();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => BiometricStatus.OnStatusChanged -= HandleStatusChanged;
+
+    private async Task LoadDeviceSettingsAsync()
+    {
+        try
+        {
+            var settings = await Http.GetFromJsonAsync<BiometricDeviceSettingDto?>("api/dtr/device-settings");
+            if (settings is not null)
+            {
+                _deviceHost = settings.DeviceHost;
+                _devicePort = settings.DevicePort;
+                _deviceSerialNumber = settings.DeviceSerialNumber;
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load device settings: {ex.Message}");
+        }
+    }
+
+    private async Task SaveDeviceSettingsAsync()
+    {
+        _isSavingSettings = true;
+        _deviceSettingsMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync("api/dtr/device-settings", new SaveDeviceSettingRequestDto
+            {
+                DeviceHost = _deviceHost,
+                DevicePort = _devicePort,
+                DeviceSerialNumber = _deviceSerialNumber,
+                UpdatedByName = _syncByName
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                _deviceSettingsSuccess = true;
+                _deviceSettingsMessage = "Device IP saved. Click Connect to verify it's reachable.";
+            }
+            else
+            {
+                _deviceSettingsSuccess = false;
+                _deviceSettingsMessage = "Failed to save device IP — check the values and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _deviceSettingsSuccess = false;
+            _deviceSettingsMessage = $"Failed to save device IP: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingSettings = false;
+            StateHasChanged();
+        }
+    }
+
+    // A LocalSync-profile instance running on THIS machine (the office PC
+    // physically on NCSC Eastern Telecom) always listens on this fixed
+    // port. Probing it first lets whoever's running it use the REAL
+    // published site directly — the published site's own backend is a
+    // remote cloud server and can never reach the device no matter what
+    // network the browser is on, but a local instance on the SAME machine
+    // can. Falls back to the normal Http client (whatever this page's own
+    // backend is) when nothing answers here, which is the common case for
+    // every other viewer. Short timeout since a closed port fails near-
+    // instantly anyway (connection refused), not a real wait.
+    private static readonly HttpClient LocalProbeHttp = new() { BaseAddress = new Uri("http://localhost:5010/"), Timeout = TimeSpan.FromSeconds(4) };
+
+    private async Task<HttpResponseMessage?> TryLocalInstanceAsync(HttpMethod method, string path, HttpContent? content)
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string?>("localStorage.getItem", "authToken");
+            if (string.IsNullOrWhiteSpace(token))
+                return null;
+
+            using var request = new HttpRequestMessage(method, path) { Content = content };
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            return await LocalProbeHttp.SendAsync(request);
+        }
+        catch
+        {
+            // Nothing listening on localhost:5010 — the common case. Caller falls back to Http.
+            return null;
+        }
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        _isTestingConnection = true;
+        _connectResultMessage = null;
+        _locallyDisconnected = false;
+        StateHasChanged();
+
+        try
+        {
+            var response = await TryLocalInstanceAsync(HttpMethod.Post, "api/dtr/test-connection", null)
+                ?? await Http.PostAsync("api/dtr/test-connection", null);
+            var result = await response.Content.ReadFromJsonAsync<ConnectionTestResultDto>();
+
+            if (result is null)
+            {
+                _connectResultSuccess = false;
+                _connectResultMessage = "Unexpected response from the server.";
+            }
+            else if (result.Success)
+            {
+                _connectResultSuccess = true;
+                _isDeviceConnected = true;
+                _connectResultMessage = $"Connected — device reports {result.DeviceRecordCount} attendance record(s), {result.DeviceUserCount} enrolled user(s). Ready to sync.";
+                // Refresh the badge/report list right away instead of waiting
+                // on the SignalR broadcast to round-trip back to this same
+                // browser — keeps the button, badge, and detail list all in
+                // sync with a single click instead of possibly lagging.
+                await LoadSyncStatusAsync();
+            }
+            else
+            {
+                _connectResultSuccess = false;
+                _isDeviceConnected = false;
+                _connectResultMessage = $"Connection failed: {result.ErrorMessage}";
+                await LoadSyncStatusAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _connectResultSuccess = false;
+            _isDeviceConnected = false;
+            _connectResultMessage = $"Couldn't reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isTestingConnection = false;
+            StateHasChanged();
+        }
+    }
+
+    private void DisconnectDevice()
+    {
+        // No real persistent session to close — each sync/connect check
+        // opens and closes its own short-lived TCP connection to the
+        // device. This can't tell the server (or any other viewer)
+        // anything, so it overrides the badge/report list locally instead
+        // of just resetting the button while everything else keeps
+        // showing "connected" — see _locallyDisconnected above.
+        _isDeviceConnected = false;
+        _locallyDisconnected = true;
+        _connectResultMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task RunLocalSyncAsync()
+    {
+        _isSyncing = true;
+        _syncResultMessage = null;
+        _locallyDisconnected = false;
+        StateHasChanged();
+
+        try
+        {
+            var response = await TryLocalInstanceAsync(HttpMethod.Post, "api/dtr/sync-now", JsonContent.Create(new TriggerSyncRequestDto { SyncedByName = _syncByName }))
+                ?? await Http.PostAsJsonAsync("api/dtr/sync-now", new TriggerSyncRequestDto { SyncedByName = _syncByName });
+            var result = await response.Content.ReadFromJsonAsync<TriggerSyncResultDto>();
+
+            if (result is null)
+            {
+                _syncResultSuccess = false;
+                _syncResultMessage = "Unexpected response from the server.";
+            }
+            else if (result.Success)
+            {
+                _syncResultSuccess = true;
+                _syncResultMessage = $"Synced successfully — {result.AttendanceRecordsSynced} attendance record(s), {result.EnrolledUsersSynced} enrolled user(s).";
+                await LoadSyncStatusAsync();
+            }
+            else
+            {
+                _syncResultSuccess = false;
+                _syncResultMessage = $"Sync failed: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _syncResultSuccess = false;
+            _syncResultMessage = $"Couldn't reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isSyncing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSyncStatusAsync()
+    {
+        _isLoadingSyncStatus = true;
+        StateHasChanged();
+        try
+        {
+            _syncStatuses = await Http.GetFromJsonAsync<List<BiometricSyncStatusDto>>("api/dtr/sync-status") ?? new();
+            _isDeviceConnected = _syncStatuses.Any(s => s.IsConnected);
+            _locallyDisconnected = false;
+        }
+        catch
+        {
+            // Silent — the banner already shows "no reports yet" when empty; no need to toast on top of that.
+        }
+        finally
+        {
+            _isLoadingSyncStatus = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _isLoadingUsers = true;
+        StateHasChanged();
+        try
+        {
+            _users = await Http.GetFromJsonAsync<List<UserListDto>>("api/dtr/users") ?? new();
+            _editValues = _users.ToDictionary(u => u.Id, u => u.BiometricUserId);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load users: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingUsers = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveBiometricIdAsync(Guid userId)
+    {
+        try
+        {
+            var value = _editValues.TryGetValue(userId, out var v) ? v : null;
+            var response = await Http.PostAsJsonAsync($"api/dtr/users/{userId}/biometric-id",
+                new SetBiometricUserIdRequestDto { BiometricUserId = value });
+
+            if (response.IsSuccessStatusCode)
+                Toast.ShowSuccess("Biometric device link updated.");
+            else
+                Toast.ShowError("Failed to update biometric device link.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update biometric device link: {ex.Message}");
+        }
+    }
+
+    private async Task SwitchToSummaryAsync()
+    {
+        _activeTab = "summary";
+        _document = null;
+        if (_summaries.Count == 0)
+            await LoadSummaryAsync();
+    }
+
+    private async Task SwitchToDeviceUsersAsync()
+    {
+        _activeTab = "device";
+        if (_deviceUsers.Count == 0)
+            await LoadDeviceUsersAsync();
+    }
+
+    private async Task LoadDeviceUsersAsync()
+    {
+        _isLoadingDeviceUsers = true;
+        StateHasChanged();
+        try
+        {
+            _deviceUsers = await Http.GetFromJsonAsync<List<BiometricDeviceUserDto>>("api/dtr/device-users") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load device enrollment: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingDeviceUsers = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SetPreset(string preset)
+    {
+        _preset = preset;
+        ApplyPreset();
+    }
+
+    private void ApplyPreset()
+    {
+        var daysInMonth = DateTime.DaysInMonth(_year, _month);
+        (_customStart, _customEnd) = _preset switch
+        {
+            "first" => (new DateTime(_year, _month, 1), new DateTime(_year, _month, Math.Min(15, daysInMonth))),
+            "second" => (new DateTime(_year, _month, Math.Min(16, daysInMonth)), new DateTime(_year, _month, daysInMonth)),
+            "full" => (new DateTime(_year, _month, 1), new DateTime(_year, _month, daysInMonth)),
+            _ => (_customStart, _customEnd)
+        };
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        if (_preset != "custom")
+            ApplyPreset();
+
+        _isLoadingSummary = true;
+        _document = null;
+        StateHasChanged();
+        try
+        {
+            _summaries = await Http.GetFromJsonAsync<List<DtrSummaryDto>>(
+                $"api/dtr/all?start={_customStart:yyyy-MM-dd}&end={_customEnd:yyyy-MM-dd}") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load attendance summary: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingSummary = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewDtrAsync(Guid userId)
+    {
+        try
+        {
+            _document = await Http.GetFromJsonAsync<DtrDocumentDto>(
+                $"api/dtr/user/{userId}?start={_customStart:yyyy-MM-dd}&end={_customEnd:yyyy-MM-dd}");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load DTR: {ex.Message}");
+        }
+    }
+}
