@@ -20,6 +20,13 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Lets this same Api project run as a proper Windows Service (see
+// LocalSyncService/windows) - integrates with the Service Control Manager
+// so it correctly reports "started"/"stopped" and handles stop signals.
+// No effect when run normally (dotnet run/watch, or the real Linux
+// deployment) - only activates when actually launched as a Windows Service.
+builder.Services.AddWindowsService();
+
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddEndpointsApiExplorer();
