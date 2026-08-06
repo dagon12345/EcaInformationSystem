@@ -1,6 +1,7 @@
 ﻿@using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Forms
@@ -14,12 +15,162 @@
 @inject NavigationManager Navigation
 @inject StickyNoteClientService StickyNotes
 @inject ToastService toast
+@inject TransactionTierClientService TierClient
+@inject TransactionTierHubClientService TierHub
 
 <div class="feed-page-layout">
 @if (_isAuthenticated)
 {
+    @* ── Transaction Leaderboard — replaces the old inline chat sidebar here;
+         Messages moved to a navbar icon (MainLayout) with the same click-to-open
+         behavior as the notification bell. Reuses .feed-chat-sidebar's exact
+         CSS (width/shrink/mobile-stacking) so the column behaves identically. ── *@
     <aside class="feed-chat-sidebar">
-        <ChatWidget Inline="true" />
+        <div class="tier-leaderboard-card">
+            <div class="tier-leaderboard-header" @onclick="ToggleLeaderboard">
+                <div class="tier-leaderboard-header-left">
+                    <i class="bi bi-trophy-fill"></i>
+                    <div>
+                        <div class="tier-leaderboard-title">Transaction Leaderboard</div>
+                        <div class="tier-leaderboard-subtitle">Ranked by activity across the whole system</div>
+                    </div>
+                </div>
+                <i class="bi bi-chevron-@(_leaderboardExpanded ? "up" : "down")"></i>
+            </div>
+
+            @if (_leaderboardExpanded && _myTier is not null)
+            {
+                var myVisual = TierVisuals.For(_myTier.TierLevel);
+                <div class="tier-leaderboard-myprogress @myVisual.CssClass">
+                    <div class="tier-leaderboard-myprogress-top">
+                        <span><i class="bi @myVisual.Icon me-1"></i>You're <strong>@_myTier.TierName</strong> tier</span>
+                        <button type="button" class="tier-info-btn" title="View the full tier list"
+                                @onclick="() => _showTierInfo = !_showTierInfo">
+                            <i class="bi bi-info-circle"></i>
+                        </button>
+                    </div>
+                    <div class="tier-progress-track">
+                        <div class="tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
+                    </div>
+                    <div class="tier-progress-label @(_myTier.NextTierMinCount is null ? "tier-progress-label--max" : "")">
+                        @if (_myTier.NextTierMinCount.HasValue)
+                        {
+                            <i class="bi bi-arrow-up-circle me-1"></i>
+                            <strong>@((_myTier.NextTierMinCount.Value - _myTier.TransactionCount).ToString("N0"))</strong>
+                            <span>@(" transaction" + (_myTier.NextTierMinCount.Value - _myTier.TransactionCount == 1 ? "" : "s")) away from <strong>@_myTier.NextTierName</strong></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle-fill me-1"></i><span>Max tier reached!</span>
+                        }
+                    </div>
+
+                    @if (_showTierInfo)
+                    {
+                        <div class="tier-ladder">
+                            @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                            {
+                                var v = TierVisuals.For(t.Level);
+                                var isCurrent = t.Level == _myTier.TierLevel;
+                                <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                    <i class="bi @v.Icon"></i>
+                                    <span class="tier-ladder-name">@t.Name</span>
+                                    <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                    @if (isCurrent)
+                                    {
+                                        <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_leaderboardExpanded)
+            {
+                @if (_isLoadingLeaderboard)
+                {
+                    <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                }
+                else if (!_leaderboard.Any())
+                {
+                    <div class="tier-leaderboard-empty">No activity recorded yet.</div>
+                }
+                else
+                {
+                    <div class="tier-leaderboard-list">
+                        @foreach (var entry in _leaderboard)
+                        {
+                            var v = TierVisuals.For(entry.TierLevel);
+                            var isLive = _recentlyUpdatedUserNames.Contains(entry.UserName);
+                            var isRankedUp = _rankedUpUserNames.Contains(entry.UserName);
+                            var isRankedDown = _rankedDownUserNames.Contains(entry.UserName);
+                            <div class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
+                                 @onclick="() => GoToProfile(entry.UserId)">
+                                <span class="tier-row-sheen"></span>
+                                <span class="tier-row-particle tier-row-particle--1"></span>
+                                <span class="tier-row-particle tier-row-particle--2"></span>
+                                <span class="tier-row-particle tier-row-particle--3"></span>
+                                <span class="tier-row-particle tier-row-particle--4"></span>
+                                <span class="tier-row-particle tier-row-particle--5"></span>
+                                <span class="tier-row-particle tier-row-particle--6"></span>
+                                <div class="tier-leaderboard-rank">
+                                    @if (entry.Rank <= 3)
+                                    {
+                                        <i class="bi bi-award-fill"></i>
+                                    }
+                                    else
+                                    {
+                                        <span>#@entry.Rank</span>
+                                    }
+                                    @if (isRankedUp)
+                                    {
+                                        <i class="bi bi-caret-up-fill tier-leaderboard-rank-arrow tier-leaderboard-rank-arrow--up" title="Overtook someone!"></i>
+                                    }
+                                    else if (isRankedDown)
+                                    {
+                                        <i class="bi bi-caret-down-fill tier-leaderboard-rank-arrow tier-leaderboard-rank-arrow--down" title="Got overtaken"></i>
+                                    }
+                                </div>
+
+                                <div class="tier-leaderboard-avatar-fx">
+                                    @if (entry.UserId.HasValue)
+                                    {
+                                        <img src="@AvatarUrl(entry.UserId.Value)" alt="" class="tier-leaderboard-avatar avatar-img"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                        <div class="tier-leaderboard-avatar tier-leaderboard-avatar-fallback" style="display:none;">@GetInitials(entry.DisplayName)</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="tier-leaderboard-avatar tier-leaderboard-avatar-fallback">@GetInitials(entry.DisplayName)</div>
+                                    }
+                                </div>
+
+                                <div class="tier-leaderboard-info">
+                                    <div class="tier-leaderboard-name @(isLive ? "tier-leaderboard-name--live" : "")">
+                                        @entry.DisplayName
+                                        @if (entry.IsMe)
+                                        {
+                                            <span class="tier-leaderboard-you-tag">You</span>
+                                        }
+                                        @if (isLive)
+                                        {
+                                            <i class="bi bi-lightning-charge-fill tier-leaderboard-live-icon" title="Just updated"></i>
+                                        }
+                                    </div>
+                                    <div class="tier-leaderboard-tier">
+                                        <i class="bi @v.Icon"></i>@entry.TierName
+                                    </div>
+                                </div>
+
+                                <div class="tier-leaderboard-count @(isLive ? "tier-leaderboard-count--live" : "")">@entry.TransactionCount.ToString("N0")</div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
     </aside>
 }
 <div class="feed-container">
@@ -1110,6 +1261,15 @@
         {
             await LoadUpcomingBirthdaysAsync();
             await LoadNotesAsync();
+
+            // ✅ Now a persistent sidebar (like birthday/sticky-notes) instead of
+            // an inline collapsed-by-default banner, so it starts expanded and
+            // loads immediately rather than waiting for a header click.
+            _leaderboardExpanded = true;
+            await LoadLeaderboardAsync();
+            _myTier = await TierClient.GetMyTierAsync();
+
+            await ConnectTierRealtimeAsync();
         }
 
         // ✅ If we were opened via a shared link, ensure that post is present
@@ -1548,7 +1708,72 @@
         PostsClient.PostEdited -= OnPostEdited;
         PostsClient.CommentEdited -= OnCommentEdited;
         PostsClient.ReactionUpdated -= OnReactionUpdated;
+        TierHub.TransactionRecorded -= OnTransactionRecorded;
         await Task.CompletedTask;
+    }
+
+    // ── Live leaderboard ─────────────────────────────────────────────────
+    private HashSet<string> _recentlyUpdatedUserNames = new();
+    // Rank moved up (overtook someone) vs. moved down (got overtaken) —
+    // separate from _recentlyUpdatedUserNames (count pulse) so an "overtake"
+    // gets its own distinct climb/drop effect instead of just the count glow.
+    private HashSet<string> _rankedUpUserNames = new();
+    private HashSet<string> _rankedDownUserNames = new();
+
+    private async Task ConnectTierRealtimeAsync()
+    {
+        TierHub.TransactionRecorded += OnTransactionRecorded;
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "transactionTierHub").ToString();
+            await TierHub.ConnectAsync(hubUrl);
+        }
+        catch { /* non-fatal — the leaderboard still works, just without live push */ }
+    }
+
+    private void OnTransactionRecorded(string userName)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var previous = _leaderboard;
+            _leaderboard = await TierClient.GetLeaderboardAsync(forceRefresh: true);
+
+            var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var rankedUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var rankedDown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in _leaderboard)
+            {
+                var old = previous.FirstOrDefault(p => string.Equals(p.UserName, entry.UserName, StringComparison.OrdinalIgnoreCase));
+                if (old is null || old.TransactionCount != entry.TransactionCount)
+                    changed.Add(entry.UserName);
+
+                // Only flag an actual overtake — both users need to have been
+                // ranked before (a brand-new leaderboard entry isn't "overtaking"
+                // anyone, it's just showing up for the first time).
+                if (old is not null && old.Rank != entry.Rank)
+                {
+                    if (entry.Rank < old.Rank) rankedUp.Add(entry.UserName);
+                    else rankedDown.Add(entry.UserName);
+                }
+            }
+
+            // Own badge/progress bar (NavMenu/MainLayout/Profile) reads from the
+            // same cached tier — force-refresh it too when it's our own activity.
+            if (changed.Any(u => string.Equals(u, userName, StringComparison.OrdinalIgnoreCase)))
+                _myTier = await TierClient.GetMyTierAsync(forceRefresh: true);
+
+            _recentlyUpdatedUserNames = changed;
+            _rankedUpUserNames = rankedUp;
+            _rankedDownUserNames = rankedDown;
+            StateHasChanged();
+
+            await Task.Delay(2800);
+            _recentlyUpdatedUserNames = new();
+            _rankedUpUserNames = new();
+            _rankedDownUserNames = new();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private void OnPostCreated(PostDto post)
@@ -1631,6 +1856,50 @@
     // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
     // 404s (API is on a different origin than the client).
     private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    // ── Transaction Leaderboard ──────────────────────────────────────────
+    private List<UserLeaderboardEntryDto> _leaderboard = new();
+    private bool _leaderboardExpanded;
+    private bool _isLoadingLeaderboard;
+    private bool _leaderboardLoaded;
+    private UserTransactionTierDto? _myTier;
+    private bool _showTierInfo;
+
+    private async Task ToggleLeaderboard()
+    {
+        _leaderboardExpanded = !_leaderboardExpanded;
+        if (_leaderboardExpanded && !_leaderboardLoaded)
+            await LoadLeaderboardAsync();
+    }
+
+    private async Task LoadLeaderboardAsync()
+    {
+        _isLoadingLeaderboard = true;
+        StateHasChanged();
+        try
+        {
+            _leaderboard = await TierClient.GetLeaderboardAsync();
+            _leaderboardLoaded = true;
+        }
+        finally
+        {
+            _isLoadingLeaderboard = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string RankRowClass(int rank) => rank switch
+    {
+        1 => "tier-leaderboard-row--rank1",
+        2 => "tier-leaderboard-row--rank2",
+        3 => "tier-leaderboard-row--rank3",
+        _ => ""
+    };
+
+    private void GoToProfile(Guid? userId)
+    {
+        if (userId.HasValue) Navigation.NavigateTo($"/profile/{userId.Value}");
+    }
 
     private string GetCommentDraft(Guid postId)
         => _newCommentContent.TryGetValue(postId, out var val) ? val : string.Empty;

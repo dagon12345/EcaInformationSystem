@@ -7,21 +7,30 @@
 @inject AuthService AuthService
 @inject HttpClient Http
 @inject ToastService Toast
+@inject SystemUpdateClientService SystemUpdateClient
+@inject IJSRuntime JS
 
 <PageTitle>System Updates</PageTitle>
 
 <div class="container-fluid py-3">
 
-    <div class="page-header-bar mb-3">
-        <div class="page-header-icon">
-            <i class="bi bi-arrow-repeat"></i>
+    <div class="page-header-bar mb-3 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <div class="page-header-icon">
+                <i class="bi bi-arrow-repeat"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">System Updates</h5>
+                <span class="page-header-sub">
+                    Publish a release note — it's pushed live to everyone currently in the app.
+                </span>
+            </div>
         </div>
-        <div>
-            <h5 class="page-header-title">System Updates</h5>
-            <span class="page-header-sub">
-                Publish a release note — it's pushed live to everyone currently in the app.
-            </span>
-        </div>
+        <button class="btn btn-outline-primary btn-sm" disabled="@_refreshing" @onclick="HardRefreshAsync"
+                title="Hard refresh — bypasses the disk cache, same as Ctrl+Shift+R">
+            <i class="bi bi-arrow-clockwise me-1 @(_refreshing ? "spin" : "")"></i>
+            @(_refreshing ? "Refreshing..." : "Refresh")
+        </button>
     </div>
 
     @if (!_authorized)
@@ -109,11 +118,31 @@
 @code {
     private bool _authorized;
     private bool _publishing;
+    private bool _refreshing;
     private string? _error;
     private string _version = string.Empty;
     private string _title = string.Empty;
     private string _changes = string.Empty;
     private List<SystemUpdateNoticeDto>? _history;
+
+    private async Task HardRefreshAsync()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        StateHasChanged();
+
+        // Acknowledge the latest published notice (if any) so the bell/banner
+        // don't immediately flag it again right after this same refresh.
+        var latest = _history?.FirstOrDefault();
+        if (latest != null)
+            await SystemUpdateClient.AcknowledgeAsync(latest.Version);
+
+        // Brief pause so the spin is actually visible before the page tears down.
+        await Task.Delay(350);
+        // hardReload (not a plain location.reload) — forces every framework file
+        // to be re-fetched bypassing the disk cache, same as Ctrl+Shift+R.
+        await JS.InvokeVoidAsync("hardReload");
+    }
 
     protected override async Task OnInitializedAsync()
     {

@@ -79,6 +79,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IResolvedDuplicatePairRepository, ResolvedDuplicatePairRepository>();
             services.AddScoped<IStickyNoteRepository, StickyNoteRepository>();
             services.AddScoped<IWfpEcaRepository, WfpEcaRepository>();
+            services.AddScoped<ISeniorCitizenDirectoryRepository, SeniorCitizenDirectoryRepository>();
             services.AddScoped<IDocumentTrackingRepository, DocumentTrackingRepository>();
             services.AddScoped<ISystemUpdateNoticeRepository, SystemUpdateNoticeRepository>();
             services.AddScoped<IDarReportRepository, DarReportRepository>();
@@ -87,6 +88,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IBiometricSyncStatusRepository, BiometricSyncStatusRepository>();
             services.AddScoped<IBiometricDeviceSettingRepository, BiometricDeviceSettingRepository>();
             services.AddScoped<IDtrDayMarkRepository, DtrDayMarkRepository>();
+            services.AddScoped<ITransactionTierBroadcaster, NoOpTransactionTierBroadcaster>();
             return services;
         }
     }

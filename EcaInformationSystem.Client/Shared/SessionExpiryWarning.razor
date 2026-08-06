@@ -1,0 +1,156 @@
+@using System.IdentityModel.Tokens.Jwt
+@using EcaInformationSystem.Client.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@* Warns the user before their JWT (8-hour lifetime, EcaInformationSystem.Application/Services/TokenService.cs)
+   expires, so unsaved form work doesn't just vanish out from under them.
+   There's no refresh-token mechanism in this app, so the only real remedy is
+   "save your work and log back in" — this modal exists purely to give that
+   warning instead of silently booting them once JwtAuthStateProvider notices
+   the token has expired. *@
+
+@if (_stage != WarningStage.None)
+{
+    <div class="modal d-block session-expiry-modal-backdrop" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content session-expiry-modal @(_stage == WarningStage.Urgent ? "session-expiry-modal--urgent" : "")">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title d-flex align-items-center gap-2">
+                        <i class="bi @(_stage == WarningStage.Urgent ? "bi-alarm-fill text-danger" : "bi-clock-history text-warning")"></i>
+                        @(_stage == WarningStage.Urgent ? "Your session is about to expire!" : "Your session will expire soon")
+                    </h5>
+                    @if (_stage == WarningStage.Early)
+                    {
+                        <button type="button" class="btn-close" @onclick="DismissEarlyWarning"></button>
+                    }
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        You've been logged in for a while, and for security this session automatically ends
+                        <strong>8 hours</strong> after you signed in.
+                    </p>
+                    <div class="session-expiry-countdown @(_stage == WarningStage.Urgent ? "text-danger" : "text-warning-emphasis")">
+                        <i class="bi bi-hourglass-split me-1"></i>@FormatRemaining()
+                    </div>
+                    <p class="mt-2 mb-0 text-muted small">
+                        Please save any unsaved work now — once the timer runs out you'll be signed out
+                        automatically and will need to log back in.
+                    </p>
+                </div>
+                <div class="modal-footer border-0">
+                    @if (_stage == WarningStage.Early)
+                    {
+                        <button class="btn btn-secondary" @onclick="DismissEarlyWarning">I'll save my work</button>
+                    }
+                    <button class="btn btn-primary" @onclick="LogOutNowAsync">
+                        <i class="bi bi-box-arrow-right me-1"></i>Log Out Now
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Thresholds before actual token expiry.
+    private static readonly TimeSpan EarlyWarnAt = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan UrgentWarnAt = TimeSpan.FromMinutes(5);
+    // If the loop's long sleep somehow overshoots (system sleep/resume, clock
+    // change), never wait longer than this before re-checking token expiry.
+    private static readonly TimeSpan MaxRecheckInterval = TimeSpan.FromMinutes(5);
+
+    private enum WarningStage { None, Early, Urgent }
+    private WarningStage _stage = WarningStage.None;
+    private TimeSpan _remaining;
+    private bool _earlyDismissed;
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        _cts = new CancellationTokenSource();
+        _ = MonitorSessionAsync(_cts.Token);
+    }
+
+    private async Task MonitorSessionAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var expiry = await GetTokenExpiryUtcAsync();
+            if (expiry is null)
+            {
+                // Not logged in / no token yet — check back periodically.
+                try { await Task.Delay(MaxRecheckInterval, ct); } catch (TaskCanceledException) { return; }
+                continue;
+            }
+
+            var remaining = expiry.Value - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                await ForceLogoutAsync();
+                return;
+            }
+
+            _remaining = remaining;
+            _stage = remaining <= UrgentWarnAt
+                ? WarningStage.Urgent
+                : (remaining <= EarlyWarnAt && !_earlyDismissed ? WarningStage.Early : WarningStage.None);
+
+            await InvokeAsync(StateHasChanged);
+
+            TimeSpan delay;
+            if (remaining <= UrgentWarnAt)
+                delay = TimeSpan.FromSeconds(1); // live countdown once in the urgent zone
+            else if (remaining <= EarlyWarnAt)
+                delay = TimeSpan.FromSeconds(5); // less frequent tick while just "early" warned
+            else
+                delay = remaining - EarlyWarnAt;
+
+            if (delay > MaxRecheckInterval) delay = MaxRecheckInterval;
+            if (delay < TimeSpan.FromMilliseconds(200)) delay = TimeSpan.FromMilliseconds(200);
+
+            try { await Task.Delay(delay, ct); } catch (TaskCanceledException) { return; }
+        }
+    }
+
+    private async Task<DateTime?> GetTokenExpiryUtcAsync()
+    {
+        var token = await AuthService.GetTokenAsync();
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        var handler = new JwtSecurityTokenHandler();
+        if (!handler.CanReadToken(token)) return null;
+
+        var jwt = handler.ReadJwtToken(token);
+        return jwt.ValidTo; // UTC — same field JwtAuthStateProvider already checks for expiry
+    }
+
+    private void DismissEarlyWarning()
+    {
+        _earlyDismissed = true;
+        _stage = WarningStage.None;
+    }
+
+    private async Task LogOutNowAsync() => await ForceLogoutAsync();
+
+    private async Task ForceLogoutAsync()
+    {
+        _stage = WarningStage.None;
+        await InvokeAsync(StateHasChanged);
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private string FormatRemaining()
+    {
+        var r = _remaining < TimeSpan.Zero ? TimeSpan.Zero : _remaining;
+        return $"{(int)r.TotalMinutes:D2}:{r.Seconds:D2} remaining";
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

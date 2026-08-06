@@ -11,5 +11,7 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
         Task<(List<LogEntryDto> Items, int TotalCount)> GetAllLogsAsync(LogFilterDto filter);
         Task SaveChangesAsync(); // ✅ NEW
+        Task<int> CountUserTransactionsAsync(string userName);
+        Task<List<(string UserName, int Count)>> GetTransactionCountsByUserAsync();
     }
 }

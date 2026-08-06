@@ -2,6 +2,7 @@
 @page "/profile/{UserId:guid}"
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
@@ -11,6 +12,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ToastService Toast
 @inject NavigationManager Navigation
+@inject TransactionTierClientService TierClient
 
 <PageTitle>@(_isSelf ? "My Profile" : _publicProfile?.FullName ?? "Profile")</PageTitle>
 
@@ -78,6 +80,64 @@
                         <span class="badge bg-secondary mt-2">@_myProfile.Role</span>
                     </div>
                 </div>
+
+                @* ── Transaction Tier — gamified activity ladder ── *@
+                @if (_myTier is not null)
+                {
+                    var tierVisual = TierVisuals.For(_myTier.TierLevel);
+                    <div class="sys-card mt-3 tier-card @tierVisual.CssClass">
+                        <div class="sys-card-body text-center">
+                            <div class="tier-card-icon-wrap @(_myTier.TierLevel == 9 ? "tier-card-icon-wrap--god" : "")">
+                                <i class="bi @tierVisual.Icon"></i>
+                            </div>
+                            <div class="tier-card-name">@_myTier.TierName Tier</div>
+                            <div class="tier-card-count">@_myTier.TransactionCount.ToString("N0") transaction@(_myTier.TransactionCount == 1 ? "" : "s")</div>
+
+                            @if (_myTier.NextTierMinCount.HasValue)
+                            {
+                                <div class="tier-progress-wrap">
+                                    <div class="tier-progress-track">
+                                        <div class="tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
+                                    </div>
+                                    <div class="tier-progress-label">
+                                        @((_myTier.NextTierMinCount.Value - _myTier.TransactionCount).ToString("N0")) more to reach <strong>@_myTier.NextTierName</strong>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="tier-progress-label tier-progress-label--max">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Max tier reached!
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => _showTierLadder = !_showTierLadder">
+                                @(_showTierLadder ? "Hide" : "View") full tier ladder
+                                <i class="bi bi-chevron-@(_showTierLadder ? "up" : "down") ms-1"></i>
+                            </button>
+
+                            @if (_showTierLadder)
+                            {
+                                <div class="tier-ladder">
+                                    @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                                    {
+                                        var v = TierVisuals.For(t.Level);
+                                        var isCurrent = t.Level == _myTier.TierLevel;
+                                        <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                            <i class="bi @v.Icon"></i>
+                                            <span class="tier-ladder-name">@t.Name</span>
+                                            <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                            @if (isCurrent)
+                                            {
+                                                <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
 
             @* ── Editable details ── *@
@@ -202,6 +262,68 @@
                         <span class="badge bg-secondary mt-2">@_publicProfile.Role</span>
                     </div>
                 </div>
+
+                @* ── Transaction Tier — this user's activity ladder + rank ── *@
+                @if (_viewedTier is not null)
+                {
+                    var tierVisual = TierVisuals.For(_viewedTier.TierLevel);
+                    <div class="sys-card mt-3 tier-card @tierVisual.CssClass">
+                        <div class="sys-card-body text-center">
+                            <div class="tier-card-icon-wrap @(_viewedTier.TierLevel == 9 ? "tier-card-icon-wrap--god" : "")">
+                                <i class="bi @tierVisual.Icon"></i>
+                            </div>
+                            <div class="tier-card-name">@_viewedTier.TierName Tier</div>
+                            @if (_viewedTier.Rank.HasValue)
+                            {
+                                <div class="tier-card-rank"><i class="bi bi-trophy-fill me-1"></i>Rank #@_viewedTier.Rank on the leaderboard</div>
+                            }
+                            <div class="tier-card-count">@_viewedTier.TransactionCount.ToString("N0") transaction@(_viewedTier.TransactionCount == 1 ? "" : "s")</div>
+
+                            @if (_viewedTier.NextTierMinCount.HasValue)
+                            {
+                                <div class="tier-progress-wrap">
+                                    <div class="tier-progress-track">
+                                        <div class="tier-progress-fill" style="width:@(_viewedTier.ProgressPercent.ToString("0.#"))%;"></div>
+                                    </div>
+                                    <div class="tier-progress-label">
+                                        @((_viewedTier.NextTierMinCount.Value - _viewedTier.TransactionCount).ToString("N0")) more to reach <strong>@_viewedTier.NextTierName</strong>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="tier-progress-label tier-progress-label--max">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Max tier reached!
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => _showViewedTierLadder = !_showViewedTierLadder">
+                                @(_showViewedTierLadder ? "Hide" : "View") full tier ladder
+                                <i class="bi bi-chevron-@(_showViewedTierLadder ? "up" : "down") ms-1"></i>
+                            </button>
+
+                            @if (_showViewedTierLadder)
+                            {
+                                <div class="tier-ladder">
+                                    @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                                    {
+                                        var v = TierVisuals.For(t.Level);
+                                        var isCurrent = t.Level == _viewedTier.TierLevel;
+                                        <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                            <i class="bi @v.Icon"></i>
+                                            <span class="tier-ladder-name">@t.Name</span>
+                                            <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                            @if (isCurrent)
+                                            {
+                                                <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     }
@@ -300,6 +422,10 @@
 
     private UserProfileDto? _myProfile;
     private PublicUserProfileDto? _publicProfile;
+    private UserTransactionTierDto? _myTier;
+    private bool _showTierLadder;
+    private UserTransactionTierDto? _viewedTier;
+    private bool _showViewedTierLadder;
 
     private string _editFullName = string.Empty;
     private string _editPosition = string.Empty;
@@ -330,6 +456,8 @@
         _isLoading = true;
         _loadError = null;
         _pictureRemoved = false;
+        _viewedTier = null;
+        _showViewedTierLadder = false;
 
         try
         {
@@ -347,11 +475,14 @@
                     _editPosition = _myProfile.Position;
                     _editBirthDate = _myProfile.BirthDate.Date;
                 }
+
+                _myTier = await TierClient.GetMyTierAsync();
             }
             else
             {
                 _publicProfile = await Http.GetFromJsonAsync<PublicUserProfileDto>($"api/UserProfile/{UserId}");
                 if (_publicProfile is null) _loadError = "This user's profile could not be found.";
+                else _viewedTier = await TierClient.GetTierForUserAsync(_publicProfile.Id);
             }
         }
         catch (Exception ex)

@@ -1,5 +1,6 @@
 ﻿@using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.DocumentTracking
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Net.Http.Json
@@ -14,13 +15,14 @@
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
+@inject TransactionTierClientService TierClient
 @inject ToastService Toast
 @inject IJSRuntime JS
 @implements IDisposable
 
 <AuthorizeView>
     <Authorized>
-        <SystemUpdateBanner />
+        <SessionExpiryWarning />
         <div class="app-shell">
             <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
 
@@ -39,6 +41,11 @@
                     </div>
                     <div class="navbar-actions">
 
+                        @* ── Messages — floating toggle + panel (ChatWidget's non-inline mode),
+                             same click-to-open behavior as the bell. Was previously an always-
+                             visible sidebar on the Feed page; now it's reachable from anywhere. ── *@
+                        <ChatWidget />
+
                         @* ── Single notification bell — duplicates, calendar, uploads ── *@
                         <UnifiedNotificationBell @ref="_notificationBell" />
 
@@ -53,10 +60,19 @@
                                     <span class="navbar-profile-mfa-dot" title="Add two-factor authentication to secure your account"></span>
                                 }
                                 <div class="d-flex align-items-center gap-2">
-                                    <div class="d-flex flex-column align-items-end" style="line-height:1.2;">
+                                    <div class="d-flex flex-column align-items-end" style="line-height:1.2; min-width:100px;">
                                         <span style="font-size:12px; color:#6b7280; font-weight:500;">
                                             @_displayFullName
                                         </span>
+                                        @if (_myTier is not null)
+                                        {
+                                            <div class="navbar-profile-tier-progress @TierVisuals.For(_myTier.TierLevel).CssClass"
+                                                 title="@TierProgressTitle()">
+                                                <div class="navbar-profile-tier-progress-track">
+                                                    <div class="navbar-profile-tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
+                                                </div>
+                                            </div>
+                                        }
                                         @if (!string.IsNullOrWhiteSpace(_userRole))
                                         {
                                             <span class="badge @GetRoleBadgeClass(_userRole)"
@@ -65,16 +81,25 @@
                                             </span>
                                         }
                                     </div>
-                                    @if (_currentUserId.HasValue)
-                                    {
-                                        <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-avatar avatar-img"
-                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                        <div class="navbar-profile-avatar" style="display:none;">@GetInitials(_displayFullName)</div>
-                                    }
-                                    else
-                                    {
-                                        <div class="navbar-profile-avatar">@GetInitials(_displayFullName)</div>
-                                    }
+                                    <div class="position-relative">
+                                        @if (_currentUserId.HasValue)
+                                        {
+                                            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-avatar avatar-img"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="navbar-profile-avatar" style="display:none;">@GetInitials(_displayFullName)</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="navbar-profile-avatar">@GetInitials(_displayFullName)</div>
+                                        }
+                                        @if (_myTier is not null)
+                                        {
+                                            <span class="tier-badge-dot @TierVisuals.For(_myTier.TierLevel).CssClass"
+                                                  title="@($"{_myTier.TierName} tier — {_myTier.TransactionCount} transaction(s)")">
+                                                <i class="bi @TierVisuals.For(_myTier.TierLevel).Icon"></i>
+                                            </span>
+                                        }
+                                    </div>
                                 </div>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
@@ -192,6 +217,7 @@
     private bool _showLogoutConfirm;
     private bool? _mfaEnabled; // null = not checked yet
     private Guid? _currentUserId;
+    private UserTransactionTierDto? _myTier;
 
     public static MainLayout? Current { get; private set; }
 
@@ -309,6 +335,7 @@
             await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission");
 
             await LoadMfaStatusAsync();
+            _myTier = await TierClient.GetMyTierAsync();
         }
 
         StateHasChanged();
@@ -381,6 +408,16 @@
         "Viewer" => "Viewer",
         _ => role
     };
+
+    private string TierProgressTitle()
+    {
+        if (_myTier is null) return string.Empty;
+
+        return _myTier.NextTierMinCount.HasValue
+            ? $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). " +
+              $"{_myTier.NextTierMinCount.Value - _myTier.TransactionCount:N0} more to reach {_myTier.NextTierName}."
+            : $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). Max tier reached!";
+    }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {

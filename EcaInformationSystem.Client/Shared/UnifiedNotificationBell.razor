@@ -623,6 +623,11 @@
                 </div>
             }
 
+            <label class="activity-reminder-dontshow">
+                <input type="checkbox" @bind="_dontShowModalAgain" />
+                <span>Don't show this again</span>
+            </label>
+
             <div class="activity-reminder-actions">
                 <button class="btn btn-outline-secondary" @onclick="DismissModal">Dismiss</button>
                 <button class="btn btn-primary" @onclick="GoToCalendarAndDismiss">
@@ -678,7 +683,7 @@
         _myRegionCode = AuthService.GetRegionCode();
 
         await LoadTodayActivitiesAsync();
-        ShowAllDayRemindersOnLoad();
+        await ShowAllDayRemindersOnLoad();
         await ConnectRealtimeAsync();
 
         ActivityClient.ActivityStarting += OnActivityStarting;
@@ -826,18 +831,48 @@
         if (_myRegionCode.HasValue && activity.PsgcCodeRegion.HasValue && activity.PsgcCodeRegion != _myRegionCode)
             return;
 
-        InvokeAsync(() =>
+        InvokeAsync(async () =>
         {
             if (!_todayActivities.Any(a => a.Id == activity.Id))
                 _todayActivities.Add(activity);
 
-            if (_modalActivity is null)
-                _modalActivity = activity;
-            else
-                _modalQueue.Enqueue(activity);
+            if (!await IsModalDismissedAsync(activity.Id))
+                EnqueueModal(activity);
 
             StateHasChanged();
         });
+    }
+
+    private void EnqueueModal(ActivityDto activity)
+    {
+        if (_modalActivity is null)
+            _modalActivity = activity;
+        else
+            _modalQueue.Enqueue(activity);
+    }
+
+    // ✅ "Don't show this again" — persisted per activity/day in localStorage
+    // (survives a full page reload, unlike the static in-memory dedup below
+    // which only survives component remounts within the same WASM session).
+    private bool _dontShowModalAgain;
+
+    private static string DismissedModalKey(int activityId) =>
+        $"eca-dismissed-activity-modal-{activityId}-{DateTime.Today:yyyyMMdd}";
+
+    private async Task<bool> IsModalDismissedAsync(int activityId)
+    {
+        try
+        {
+            var value = await JS.InvokeAsync<string?>("localStorage.getItem", DismissedModalKey(activityId));
+            return value == "true";
+        }
+        catch { return false; }
+    }
+
+    private async Task MarkModalDismissedAsync(int activityId)
+    {
+        try { await JS.InvokeVoidAsync("localStorage.setItem", DismissedModalKey(activityId), "true"); }
+        catch { /* non-fatal — worst case it just pops again next reload */ }
     }
 
     private void OnActivityChanged(ActivityDto activity) =>
@@ -846,13 +881,21 @@
     private void OnActivityDeleted(int id) =>
         InvokeAsync(async () => { await LoadTodayActivitiesAsync(); StateHasChanged(); });
 
-    private void DismissModal()
+    private async Task DismissModal()
     {
+        if (_dontShowModalAgain && _modalActivity is not null)
+            await MarkModalDismissedAsync(_modalActivity.Id);
+
+        _dontShowModalAgain = false;
         _modalActivity = _modalQueue.Count > 0 ? _modalQueue.Dequeue() : null;
     }
 
-    private void GoToCalendarAndDismiss()
+    private async Task GoToCalendarAndDismiss()
     {
+        if (_dontShowModalAgain && _modalActivity is not null)
+            await MarkModalDismissedAsync(_modalActivity.Id);
+
+        _dontShowModalAgain = false;
         _modalActivity = null;
         _modalQueue.Clear();
         GoToCalendar();
@@ -866,7 +909,7 @@
     private static DateTime _shownAllDayRemindersDate = DateTime.MinValue;
     private static readonly HashSet<int> _shownAllDayActivityIds = new();
 
-    private void ShowAllDayRemindersOnLoad()
+    private async Task ShowAllDayRemindersOnLoad()
     {
         if (_shownAllDayRemindersDate != DateTime.Today)
         {
@@ -877,11 +920,9 @@
         foreach (var activity in _todayActivities.Where(a => a.IsAllDay))
         {
             if (!_shownAllDayActivityIds.Add(activity.Id)) continue;
+            if (await IsModalDismissedAsync(activity.Id)) continue;
 
-            if (_modalActivity is null)
-                _modalActivity = activity;
-            else
-                _modalQueue.Enqueue(activity);
+            EnqueueModal(activity);
         }
     }
 

@@ -5,6 +5,7 @@
 @inject ToastService toast
 @inject HttpClient Http
 @inject LiquidationStateService State
+@inject AuthService AuthService
 
 <div class="sf-wrap">
     <div class="sf-card">
@@ -124,11 +125,25 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.InitAsync();
+
         // ✅ Restore prior selections if the user navigated away and back
         _selectedRegionId = State.SelectedRegionId;
         _selectedProvinceId = State.SelectedProvinceId;
         _paymentDateFrom = State.PaymentDateFrom;
         _paymentDateTo = State.PaymentDateTo;
+
+        // ✅ Default the Region filter to the logged-in user's own region —
+        // only when nothing is already selected/restored above.
+        if (_selectedRegionId == 0)
+        {
+            var myRegion = AuthService.GetRegionCode();
+            if (myRegion.HasValue)
+            {
+                _selectedRegionId = myRegion.Value;
+                State.SelectedRegionId = myRegion.Value;
+            }
+        }
 
         await LoadRegionsAsync();
 

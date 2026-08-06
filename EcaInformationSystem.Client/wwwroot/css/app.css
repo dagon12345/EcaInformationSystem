@@ -4499,11 +4499,25 @@
     }   
 }
 
-@media (max-width: 480px) {
-    .chat-widget-panel {
-        width: min(340px, calc(100vw - 24px));
-        right: -8px;
+/* ── Mobile/shrunk navbar — the floating chat panel used to anchor with
+   `position:absolute; right:0` off its small toggle button, so once the
+   button sat near the left of a cramped navbar the 340px panel spilled off
+   the left edge of the viewport (only its rightmost sliver stayed visible,
+   overlapping whatever was underneath). Pin it to the viewport instead so
+   it always renders fully on-screen regardless of where the toggle sits. ── */
+@media (max-width: 768px) {
+    .chat-widget-container:not(.chat-widget-container--inline) .chat-widget-panel {
+        position: fixed;
+        top: 64px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        height: min(480px, calc(100vh - 88px));
+        z-index: 1500;
     }
+}
+
+@media (max-width: 480px) {
     .dash-stat-grid {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
@@ -7617,6 +7631,516 @@ body {
         box-shadow: 0 0 0 1px rgba(220,53,69,0.4);
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       TRANSACTION TIER — gamified "how much you've done" ladder.
+       9 levels, each with its own color identity. Keep this palette in
+       sync with TierVisuals.cs (Client/Services). ═══════════════════════ */
+    .tier-rookie   { --tier-c1: #9ca3af; --tier-c2: #6b7280; }
+    .tier-bronze   { --tier-c1: #d97742; --tier-c2: #92400e; }
+    .tier-silver   { --tier-c1: #cbd5e1; --tier-c2: #64748b; }
+    .tier-gold     { --tier-c1: #fde047; --tier-c2: #ca8a04; }
+    .tier-platinum { --tier-c1: #5eead4; --tier-c2: #0f766e; }
+    .tier-diamond  { --tier-c1: #7dd3fc; --tier-c2: #4f46e5; }
+    .tier-master   { --tier-c1: #d8b4fe; --tier-c2: #7c3aed; }
+    .tier-legend   { --tier-c1: #fb923c; --tier-c2: #dc2626; }
+    .tier-god      { --tier-c1: #fde047; --tier-c2: #f43f5e; }
+
+    .tier-badge-dot {
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--tier-c1), var(--tier-c2));
+        border: 2px solid #fff;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+        font-size: 9px;
+        color: #fff;
+        cursor: pointer;
+    }
+    .tier-god.tier-badge-dot {
+        animation: tier-god-pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes tier-god-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(244,63,94,0.55), 0 1px 4px rgba(0,0,0,0.35); }
+        50% { box-shadow: 0 0 0 5px rgba(244,63,94,0), 0 1px 4px rgba(0,0,0,0.35); }
+    }
+
+    /* ── Sidebar user-card progress bar — name → progress → role, so the
+       tier's climb is visible at a glance without opening the profile. ── */
+    .user-tier-progress-wrap { margin: 3px 0 2px; }
+    .user-tier-progress-track {
+        height: 4px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+    }
+    .user-tier-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--tier-c1), var(--tier-c2));
+        transition: width 0.4s ease;
+    }
+
+    /* ── Tier card (Profile page) ───────────────────────────────────── */
+    .tier-card {
+        border-top: 3px solid var(--tier-c2);
+        overflow: hidden;
+    }
+    .tier-card-icon-wrap {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 10px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--tier-c1), var(--tier-c2));
+        box-shadow: 0 4px 14px -4px var(--tier-c2);
+    }
+    .tier-card-icon-wrap--god { animation: tier-god-pulse 1.8s ease-in-out infinite; }
+    .tier-card-name {
+        font-weight: 700;
+        font-size: 17px;
+        background-image: linear-gradient(90deg, var(--tier-c1), var(--tier-c2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+    .tier-card-count { font-size: 12.5px; color: #6b7280; margin-top: 2px; }
+    .tier-card-rank {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--tier-c2);
+        margin-top: 4px;
+    }
+
+    .tier-progress-wrap { margin-top: 14px; }
+    .tier-progress-track {
+        height: 8px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        overflow: hidden;
+    }
+    .tier-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--tier-c1), var(--tier-c2));
+        transition: width 0.4s ease;
+    }
+    .tier-progress-label { font-size: 11.5px; color: #6b7280; margin-top: 6px; }
+    .tier-progress-label--max { color: #16a34a; font-weight: 600; margin-top: 14px; }
+
+    .tier-ladder {
+        margin-top: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        text-align: left;
+    }
+    .tier-ladder-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-size: 12.5px;
+        color: #475569;
+    }
+    .tier-ladder-row i:first-child { color: var(--tier-c2); }
+    .tier-ladder-row--current {
+        background: linear-gradient(90deg, color-mix(in srgb, var(--tier-c1) 20%, white), color-mix(in srgb, var(--tier-c2) 12%, white));
+        font-weight: 700;
+        color: #1f2937;
+        box-shadow: inset 0 0 0 1.5px var(--tier-c2);
+    }
+    .tier-ladder-name { flex: 1; }
+    .tier-ladder-min { font-size: 11px; color: #94a3b8; }
+    .tier-ladder-current-mark { color: var(--tier-c2) !important; }
+
+    /* ── Transaction Leaderboard (Feed page) ────────────────────────────
+       Header uses the "god tier" gold→rose gradient so it reads as a
+       reward/trophy surface regardless of who's viewing it. ──────────── */
+    .tier-leaderboard-card {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    .tier-leaderboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px 16px;
+        cursor: pointer;
+        background: linear-gradient(120deg, #fde047, #f97316 55%, #f43f5e);
+        color: #fff;
+        user-select: none;
+    }
+    .tier-leaderboard-header-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .tier-leaderboard-header-left > i {
+        font-size: 22px;
+        flex-shrink: 0;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+    }
+    .tier-leaderboard-title { font-weight: 700; font-size: 14.5px; line-height: 1.2; }
+    .tier-leaderboard-subtitle { font-size: 11px; opacity: 0.9; }
+    .tier-leaderboard-header > i.bi-chevron-up,
+    .tier-leaderboard-header > i.bi-chevron-down { flex-shrink: 0; }
+
+    /* ── "Your Progress" strip — sits between the header and the ranked
+       list, uses the viewer's own tier color pair via --tier-c1/--tier-c2
+       (set by the .tier-xxx class rendered alongside it). ────────────── */
+    .tier-leaderboard-myprogress {
+        padding: 14px 16px;
+        border-bottom: 1px solid #eef0f3;
+        background: color-mix(in srgb, var(--tier-c1) 6%, white);
+    }
+    .tier-leaderboard-myprogress-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12.5px;
+        color: #374151;
+        margin-bottom: 8px;
+    }
+    .tier-leaderboard-myprogress-top i.bi { color: var(--tier-c2); }
+    .tier-leaderboard-myprogress-top strong { color: #1f2937; }
+    .tier-leaderboard-myprogress .tier-progress-track { height: 7px; }
+    .tier-leaderboard-myprogress .tier-progress-label { margin-top: 6px; }
+    .tier-leaderboard-myprogress .tier-progress-label--max { margin-top: 6px; }
+    .tier-leaderboard-myprogress .tier-ladder { margin-top: 12px; }
+
+    .tier-info-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: #6b7280;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+    .tier-info-btn:hover {
+        background: color-mix(in srgb, var(--tier-c2) 15%, white);
+        color: var(--tier-c2);
+    }
+
+    .tier-leaderboard-empty {
+        padding: 24px 16px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+    }
+
+    .tier-leaderboard-list {
+        max-height: 640px;
+        overflow-y: auto;
+        padding: 6px;
+    }
+    .tier-leaderboard-row {
+        position: relative;
+        z-index: 0; /* establishes a stacking context so the -1 sheen/particle
+                       layers below stay contained inside THIS row instead of
+                       escaping to the leaderboard card's context and painting
+                       behind the whole card (invisible) */
+        overflow: hidden; /* clips the sheen/particles to this row only */
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 10px;
+        transition: background 0.15s ease;
+    }
+    .tier-leaderboard-row:hover { background: #f8fafc; }
+    .tier-leaderboard-row--clickable { cursor: pointer; }
+
+    /* ── Frosted-glass backdrop + plain drifting particles across the WHOLE
+       row — a soft, static-but-tinted glass panel (no glow/blur halos) with
+       a handful of small dots quietly floating upward behind the avatar/
+       name/count. Each row's own --tier-c1/--tier-c2 (from the .tier-xxx
+       class already on the row) tints the glass, so it stays subtle and
+       matches that user's tier without drawing attention away from the
+       actual leaderboard content. Both layers sit at z-index:-1 inside this
+       positioned row, painting behind the content automatically. ───────── */
+    .tier-row-sheen {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(120deg,
+            color-mix(in srgb, var(--tier-c1) 55%, white) 0%,
+            color-mix(in srgb, var(--tier-c2) 15%, white) 30%,
+            color-mix(in srgb, var(--tier-c1) 15%, white) 55%,
+            color-mix(in srgb, var(--tier-c2) 55%, white) 100%);
+        background-size: 260% 260%;
+        opacity: 0.9;
+        animation: tierRowSheenSweep 8s ease-in-out infinite;
+        pointer-events: none;
+    }
+    @keyframes tierRowSheenSweep {
+        0%   { background-position: 0% 20%; }
+        50%  { background-position: 100% 80%; }
+        100% { background-position: 0% 20%; }
+    }
+
+    .tier-row-particle {
+        position: absolute;
+        bottom: -6px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--tier-c2) 85%, black 5%);
+        z-index: -1;
+        pointer-events: none;
+        animation: tierRowParticleFloat 6.5s ease-in-out infinite;
+    }
+    .tier-row-particle--1 { left: 12%; animation-duration: 6.2s; animation-delay: 0s; }
+    .tier-row-particle--2 { left: 26%; animation-duration: 7.4s; animation-delay: 0.9s; }
+    .tier-row-particle--3 { left: 44%; animation-duration: 5.8s; animation-delay: 1.8s; }
+    .tier-row-particle--4 { left: 61%; animation-duration: 7s;   animation-delay: 2.7s; }
+    .tier-row-particle--5 { left: 78%; animation-duration: 6.6s; animation-delay: 1.3s; }
+    .tier-row-particle--6 { left: 92%; animation-duration: 5.9s; animation-delay: 3.4s; }
+    @keyframes tierRowParticleFloat {
+        0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+        20%  { opacity: 0.85; }
+        80%  { opacity: 0.55; }
+        100% { transform: translateY(-52px) scale(1); opacity: 0; }
+    }
+    /* Top-3 rows already carry a warmer gold/silver/bronze tint — let the
+       glass read a touch stronger there to match the extra polish. */
+    .tier-leaderboard-row--rank1 .tier-row-sheen,
+    .tier-leaderboard-row--rank2 .tier-row-sheen,
+    .tier-leaderboard-row--rank3 .tier-row-sheen {
+        opacity: 1;
+    }
+
+    /* ── Live update pulse — briefly plays when a SignalR "TransactionRecorded"
+       push causes this row's count to change, so the leaderboard visibly reacts
+       in real time instead of silently re-sorting. ────────────────────────── */
+    .tier-leaderboard-row--live {
+        animation: tierLiveRowSweep 2.2s ease-out;
+    }
+    @keyframes tierLiveRowSweep {
+        0% {
+            background: linear-gradient(90deg, color-mix(in srgb, var(--tier-c1) 45%, white), color-mix(in srgb, var(--tier-c2) 30%, white));
+            box-shadow: 0 0 0 1.5px var(--tier-c2), 0 4px 14px color-mix(in srgb, var(--tier-c2) 35%, transparent);
+        }
+        70% {
+            background: color-mix(in srgb, var(--tier-c1) 10%, white);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--tier-c2) 40%, transparent);
+        }
+        100% {
+            background: transparent;
+            box-shadow: none;
+        }
+    }
+
+    .tier-leaderboard-name--live {
+        background: linear-gradient(90deg, var(--tier-c2), var(--tier-c1), var(--tier-c2));
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: tierLiveTextShimmer 1.6s linear 2;
+    }
+    @keyframes tierLiveTextShimmer {
+        0% { background-position: 0% center; }
+        100% { background-position: 200% center; }
+    }
+
+    .tier-leaderboard-live-icon {
+        color: #f59e0b;
+        font-size: 11px;
+        margin-left: 4px;
+        animation: tierLiveIconPulse 0.9s ease-in-out infinite;
+        -webkit-text-fill-color: #f59e0b; /* undo the text-gradient clip on the sibling name span */
+    }
+    @keyframes tierLiveIconPulse {
+        0%, 100% { opacity: 0.4; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.15); }
+    }
+
+    .tier-leaderboard-count--live {
+        color: var(--tier-c2);
+        animation: tierLiveCountPop 0.5s ease-out;
+    }
+    @keyframes tierLiveCountPop {
+        0% { transform: scale(1.4); }
+        100% { transform: scale(1); }
+    }
+    .tier-leaderboard-row--me {
+        background: color-mix(in srgb, var(--tier-c2) 8%, white);
+        box-shadow: inset 0 0 0 1.5px var(--tier-c2);
+    }
+    .tier-leaderboard-row--rank1 { background: linear-gradient(90deg, rgba(253,224,71,0.25), transparent); }
+    .tier-leaderboard-row--rank2 { background: linear-gradient(90deg, rgba(203,213,225,0.35), transparent); }
+    .tier-leaderboard-row--rank3 { background: linear-gradient(90deg, rgba(217,119,66,0.2), transparent); }
+
+    .tier-leaderboard-rank {
+        position: relative;
+        width: 28px;
+        flex-shrink: 0;
+        text-align: center;
+        font-weight: 700;
+        font-size: 12.5px;
+        color: #94a3b8;
+    }
+    .tier-leaderboard-row--rank1 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #facc15; font-size: 18px; }
+    .tier-leaderboard-row--rank2 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #94a3b8; font-size: 18px; }
+    .tier-leaderboard-row--rank3 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #d97742; font-size: 18px; }
+
+    /* ── Overtake effect — plays when a SignalR push changes this row's rank,
+       distinct from the plain count-pulse so "you passed someone" reads as a
+       bigger deal than "your count went up". ─────────────────────────────── */
+    .tier-leaderboard-rank-arrow {
+        position: absolute;
+        top: -6px;
+        right: -2px;
+        font-size: 10px !important;
+    }
+    .tier-leaderboard-rank-arrow--up {
+        color: #16a34a !important;
+        animation: tierRankArrowUpBounce 1.4s ease-in-out 2;
+    }
+    .tier-leaderboard-rank-arrow--down {
+        color: #94a3b8 !important;
+        animation: tierRankArrowDownFade 1.4s ease-in-out 2;
+    }
+    @keyframes tierRankArrowUpBounce {
+        0%, 100% { transform: translateY(0); opacity: 0.7; }
+        50% { transform: translateY(-4px); opacity: 1; }
+    }
+    @keyframes tierRankArrowDownFade {
+        0%, 100% { transform: translateY(0); opacity: 0.3; }
+        50% { transform: translateY(3px); opacity: 0.8; }
+    }
+
+    .tier-leaderboard-row--rank-up {
+        animation: tierRankUpSweep 2.8s ease-out;
+    }
+    @keyframes tierRankUpSweep {
+        0% {
+            background: linear-gradient(90deg, rgba(22,163,74,0.25), transparent);
+            box-shadow: inset 0 0 0 1.5px rgba(22,163,74,0.5);
+            transform: translateX(0);
+        }
+        15% { transform: translateX(3px); }
+        30% { transform: translateX(0); }
+        100% {
+            background: transparent;
+            box-shadow: none;
+        }
+    }
+    .tier-leaderboard-row--rank-down {
+        animation: tierRankDownFade 2.8s ease-out;
+    }
+    @keyframes tierRankDownFade {
+        0% { background: rgba(148,163,184,0.18); }
+        100% { background: transparent; }
+    }
+
+    .tier-leaderboard-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1; /* sits above the aura/particle layers behind it */
+    }
+    .tier-leaderboard-avatar-fallback {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e2e8f0;
+        color: #475569;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .tier-leaderboard-avatar-fx {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .tier-leaderboard-info { flex: 1; min-width: 0; }
+    .tier-leaderboard-name {
+        font-weight: 600;
+        font-size: 13.5px;
+        color: #1f2937;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .tier-leaderboard-you-tag {
+        margin-left: 6px;
+        font-size: 9.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #fff;
+        background: #4f46e5;
+        border-radius: 999px;
+        padding: 1px 7px;
+        vertical-align: middle;
+    }
+    .tier-leaderboard-tier {
+        font-size: 11px;
+        color: var(--tier-c2, #6b7280);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .tier-leaderboard-count {
+        font-weight: 800;
+        font-size: 14.5px;
+        color: var(--tier-c2, #1f2937);
+        flex-shrink: 0;
+        text-shadow: 0 0 12px color-mix(in srgb, var(--tier-c2, transparent) 35%, transparent);
+    }
+
+    /* ── Mobile ──────────────────────────────────────────────────────── */
+    @media (max-width: 576px) {
+        .tier-leaderboard-header { padding: 12px; }
+        .tier-leaderboard-title { font-size: 13.5px; }
+        .tier-leaderboard-subtitle { font-size: 10.5px; }
+        .tier-leaderboard-list { max-height: 480px; padding: 4px; }
+        .tier-leaderboard-row { padding: 8px; gap: 8px; }
+        .tier-leaderboard-avatar { width: 32px; height: 32px; }
+        .tier-leaderboard-avatar-fx { width: 32px; height: 32px; }
+        .tier-leaderboard-name { font-size: 12.5px; }
+        .tier-leaderboard-count { font-size: 13px; }
+        .tier-card-icon-wrap { width: 54px; height: 54px; font-size: 24px; }
+        .tier-leaderboard-myprogress { padding: 12px; }
+        .tier-leaderboard-myprogress-top { font-size: 11.5px; }
+    }
+
     .navbar-profile-mfa-dot {
         position: absolute;
         top: 2px;
@@ -7626,6 +8150,22 @@ body {
         border-radius: 50%;
         background: #dc3545;
         border: 2px solid #fff;
+    }
+
+    /* ── Top-navbar profile widget progress bar — same name → progress →
+       role order as the sidebar's user-card. ──────────────────────────── */
+    .navbar-profile-tier-progress { width: 100%; margin: 3px 0 1px; }
+    .navbar-profile-tier-progress-track {
+        height: 4px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        overflow: hidden;
+    }
+    .navbar-profile-tier-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--tier-c1), var(--tier-c2));
+        transition: width 0.4s ease;
     }
 
     .user-name {
@@ -7832,6 +8372,30 @@ body {
     justify-content: center;
     font-weight: 700;
     font-size: 36px;
+}
+
+/* ── Session expiry warning modal ────────────────────────────────────── */
+.session-expiry-modal-backdrop {
+    background: rgba(0,0,0,0.55);
+    z-index: 2100; /* above the notification bell dropdown (1400) */
+}
+.session-expiry-modal {
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+.session-expiry-modal--urgent {
+    box-shadow: 0 0 0 2px #dc3545, 0 12px 40px rgba(220,53,69,0.35);
+    animation: sessionExpiryUrgentPulse 1.6s ease-in-out infinite;
+}
+@keyframes sessionExpiryUrgentPulse {
+    0%, 100% { box-shadow: 0 0 0 2px #dc3545, 0 12px 40px rgba(220,53,69,0.35); }
+    50% { box-shadow: 0 0 0 4px rgba(220,53,69,0.5), 0 12px 40px rgba(220,53,69,0.5); }
+}
+.session-expiry-countdown {
+    font-size: 22px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
 }
 
 /* ── Avatar lightbox — click the profile picture to view it full size ── */

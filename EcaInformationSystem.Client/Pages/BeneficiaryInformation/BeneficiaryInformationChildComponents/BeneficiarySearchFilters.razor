@@ -4,6 +4,7 @@
 @inject HttpClient Http
 @inject BeneficiaryStateService State
 @inject IJSRuntime JS
+@inject AuthService AuthService
 
 <div class="sf-wrap">
     <div class="sf-card" @onkeydown="OnFilterKeyDown">
@@ -754,7 +755,18 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.InitAsync();
         await LoadFilterRegionsAsync();
+
+        // ✅ Default the Region filter to the logged-in user's own region —
+        // only when nothing is already selected, so it doesn't clobber a
+        // selection restored from State after navigating away and back.
+        if (State.SelectedRegionId == 0)
+        {
+            var myRegion = AuthService.GetRegionCode();
+            if (myRegion.HasValue)
+                State.SelectedRegionId = myRegion.Value;
+        }
 
         if (State.SelectedRegionId > 0 && !State.FilterProvinces.Any())
             await LoadFilterProvincesAsync(State.SelectedRegionId);

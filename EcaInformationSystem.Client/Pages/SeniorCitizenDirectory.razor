@@ -1,0 +1,684 @@
+@page "/senior-citizen-directory"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using System.Net.Http.Json
+@inject AuthService AuthService
+@inject HttpClient Http
+@inject ToastService toast
+@inject IConfiguration Configuration
+@inject SeniorCitizenDirectoryClientService RealtimeClient
+@implements IAsyncDisposable
+
+<PageTitle>Senior Citizens Directory</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="page-header-bar mb-3 d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <div class="page-header-icon">
+                <i class="bi bi-people-fill"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">@(_myRegionName ?? "Your Region") Senior Citizens Directory</h5>
+                <span class="page-header-sub">
+                    One centralized, shared directory — editable by PDO, Admin, and SuperAdmin; view-only for everyone else.
+                    @if (RealtimeClient.IsConnected)
+                    {
+                        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1">
+                            <i class="bi bi-broadcast me-1"></i>Live
+                        </span>
+                    }
+                </span>
+            </div>
+        </div>
+        @if (_canEdit)
+        {
+            <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">
+                <i class="bi bi-plus-circle me-1"></i>Add Entry
+            </button>
+        }
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body py-2">
+            <input class="form-control form-control-sm" style="max-width:360px;"
+                   placeholder="Search by municipality, province, LSWDO, OSCA Head, Mayor..."
+                   @bind="_searchTerm" @bind:event="oninput" />
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            @if (_isLoading)
+            {
+                <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+            }
+            else if (!FilteredEntries.Any())
+            {
+                <div class="p-4 text-muted text-center">No directory entries found.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Province</th>
+                                <th>City / Municipality</th>
+                                <th>Income Class</th>
+                                <th>SC Population</th>
+                                <th>LSWDO</th>
+                                <th>OSCA Head</th>
+                                <th>Mayor</th>
+                                <th class="text-center">SCC</th>
+                                <th class="text-center">Cash Incentive</th>
+                                <th class="text-center">VAOP</th>
+                                <th>Last Updated</th>
+                                <th style="width:170px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in FilteredEntries)
+                            {
+                                <tr @key="entry.Id">
+                                    <td>@entry.ProvinceName</td>
+                                    <td class="fw-semibold">@entry.MunicipalityName</td>
+                                    <td>@entry.IncomeClassification</td>
+                                    <td>@entry.SeniorCitizensPopulation?.ToString("N0")</td>
+                                    <td>@entry.LswdoName</td>
+                                    <td>@entry.OscaHeadName</td>
+                                    <td>@entry.MayorName</td>
+                                    <td class="text-center">@YesNoBadge(entry.HasSeniorCitizenCenter)</td>
+                                    <td class="text-center">@YesNoBadge(entry.HasCashIncentive)</td>
+                                    <td class="text-center">@YesNoBadge(entry.HasVaopHelpDesk)</td>
+                                    <td class="small text-muted">
+                                        @if (entry.UpdatedAt.HasValue)
+                                        {
+                                            @entry.UpdatedAt.Value.ToLocalTime().ToString("MMM dd, yyyy")
+                                            <br /><span>@entry.UpdatedBy</span>
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-sm btn-outline-secondary" title="View" @onclick="() => OpenViewModal(entry.Id)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary" title="History" @onclick="() => OpenHistoryModal(entry.Id)">
+                                                <i class="bi bi-clock-history"></i>
+                                            </button>
+                                            @if (_canEdit)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" title="Edit" @onclick="() => OpenEditModal(entry.Id)">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => ConfirmDelete(entry)">
+                                                    <i class="bi bi-trash3"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* ── Add/Edit/View Modal ── *@
+<HxModal @ref="_editModal" Size="ModalSize.ExtraLarge" Scrollable="true">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            @(_readOnlyView ? "View Directory Entry" : (_draft.Id.HasValue ? "Edit Directory Entry" : "Add Directory Entry"))
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <fieldset disabled="@_readOnlyView">
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">Location & Classification</div>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label small">Region</label>
+                        <select class="form-select form-select-sm" value="@_selectedRegionId" disabled title="Locked to your account's assigned region">
+                            <option value="0">-- Select Region --</option>
+                            @foreach (var r in _regions)
+                            {
+                                <option value="@r.PsgcCodeRegion">@r.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Province</label>
+                        <select class="form-select form-select-sm" value="@_draft.PsgcCodeProvince" @onchange="OnProvinceChanged" disabled="@(!_provinces.Any())">
+                            <option value="0">-- Select Province --</option>
+                            @foreach (var p in _provinces)
+                            {
+                                <option value="@p.PsgcCodeProvince">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">City / Municipality</label>
+                        <select class="form-select form-select-sm" @bind="_draft.PsgcCodeMunicipality" disabled="@(!_municipalities.Any())">
+                            <option value="0">-- Select Municipality --</option>
+                            @foreach (var m in _municipalities)
+                            {
+                                <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Income Classification</label>
+                        <input class="form-control form-control-sm" placeholder="e.g. 1st Class" @bind="_draft.IncomeClassification" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">SC Population</label>
+                        <input type="number" class="form-control form-control-sm" @bind="_draft.SeniorCitizensPopulation" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Population As-Of Note</label>
+                        <input class="form-control form-control-sm" placeholder="e.g. as of June 2026" @bind="_draft.PopulationAsOfNote" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">LSWDO</div>
+                <div class="row g-2">
+                    <div class="col-md-3"><label class="form-label small">Name</label><input class="form-control form-control-sm" @bind="_draft.LswdoName" /></div>
+                    <div class="col-md-3"><label class="form-label small">Position</label><input class="form-control form-control-sm" @bind="_draft.LswdoPosition" /></div>
+                    <div class="col-md-3"><label class="form-label small">Contact Number</label><input class="form-control form-control-sm" @bind="_draft.LswdoContactNumber" /></div>
+                    <div class="col-md-3"><label class="form-label small">Email</label><input class="form-control form-control-sm" @bind="_draft.LswdoEmail" /></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">SC Focal</div>
+                <div class="row g-2">
+                    <div class="col-md-4"><label class="form-label small">Name</label><input class="form-control form-control-sm" @bind="_draft.ScFocalName" /></div>
+                    <div class="col-md-4"><label class="form-label small">Contact Number</label><input class="form-control form-control-sm" @bind="_draft.ScFocalContactNumber" /></div>
+                    <div class="col-md-4"><label class="form-label small">Email</label><input class="form-control form-control-sm" @bind="_draft.ScFocalEmail" /></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">OSCA Head</div>
+                <div class="row g-2">
+                    <div class="col-md-3"><label class="form-label small">Name</label><input class="form-control form-control-sm" @bind="_draft.OscaHeadName" /></div>
+                    <div class="col-md-3"><label class="form-label small">Length of Service</label><input class="form-control form-control-sm" @bind="_draft.OscaHeadLengthOfService" /></div>
+                    <div class="col-md-3"><label class="form-label small">Contact Number</label><input class="form-control form-control-sm" @bind="_draft.OscaHeadContactNumber" /></div>
+                    <div class="col-md-3"><label class="form-label small">Email</label><input class="form-control form-control-sm" @bind="_draft.OscaHeadEmail" /></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">FSCAP President</div>
+                <div class="row g-2">
+                    <div class="col-md-3"><label class="form-label small">Name</label><input class="form-control form-control-sm" @bind="_draft.FscapPresidentName" /></div>
+                    <div class="col-md-3"><label class="form-label small">Length of Service</label><input class="form-control form-control-sm" @bind="_draft.FscapPresidentLengthOfService" /></div>
+                    <div class="col-md-3"><label class="form-label small">Contact Number</label><input class="form-control form-control-sm" @bind="_draft.FscapPresidentContactNumber" /></div>
+                    <div class="col-md-3"><label class="form-label small">Email</label><input class="form-control form-control-sm" @bind="_draft.FscapPresidentEmail" /></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">Senior Citizen Center (SCC)</div>
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">With SCC?</label>
+                        <select class="form-select form-select-sm" @bind="_draft.HasSeniorCitizenCenter">
+                            <option value="">-- N/A --</option><option value="true">Yes</option><option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">SCC Accredited?</label>
+                        <select class="form-select form-select-sm" @bind="_draft.IsSccAccredited">
+                            <option value="">-- N/A --</option><option value="true">Yes</option><option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6"><label class="form-label small">Accreditation Validity</label><input class="form-control form-control-sm" @bind="_draft.SccAccreditationValidity" /></div>
+                    <div class="col-md-6"><label class="form-label small">Without-SCC Resources Note</label><input class="form-control form-control-sm" @bind="_draft.WithoutSccResourcesNote" /></div>
+                    <div class="col-md-6"><label class="form-label small">Managed By</label><input class="form-control form-control-sm" @bind="_draft.SccManagedBy" /></div>
+                    <div class="col-12"><label class="form-label small">Services Offered</label><textarea class="form-control form-control-sm" rows="2" @bind="_draft.ServicesOffered"></textarea></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">LGU Cash Incentive</div>
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">Provides Cash Incentive?</label>
+                        <select class="form-select form-select-sm" @bind="_draft.HasCashIncentive">
+                            <option value="">-- N/A --</option><option value="true">Yes</option><option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-9"><label class="form-label small">Amount / Frequency / Details</label><input class="form-control form-control-sm" @bind="_draft.CashIncentiveDetails" /></div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Supporting Ordinance?</label>
+                        <select class="form-select form-select-sm" @bind="_draft.HasSupportingOrdinance">
+                            <option value="">-- N/A --</option><option value="true">Yes</option><option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-9"><label class="form-label small">Ordinance / Document Links</label><input class="form-control form-control-sm" @bind="_draft.OrdinanceDocumentLinks" /></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">VAOP Help Desk</div>
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">Has VAOP Help Desk?</label>
+                        <select class="form-select form-select-sm" @bind="_draft.HasVaopHelpDesk">
+                            <option value="">-- N/A --</option><option value="true">Yes</option><option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="col-md-9"><label class="form-label small">Referral Mechanism</label><textarea class="form-control form-control-sm" rows="2" @bind="_draft.VaopReferralMechanism"></textarea></div>
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <div class="fw-bold text-primary border-bottom pb-1 mb-2">City / Municipal Mayor</div>
+                <div class="row g-2">
+                    <div class="col-md-6"><label class="form-label small">Mayor Name</label><input class="form-control form-control-sm" @bind="_draft.MayorName" /></div>
+                    <div class="col-md-6"><label class="form-label small">Office Email</label><input class="form-control form-control-sm" @bind="_draft.MayorOfficeEmail" /></div>
+                </div>
+            </div>
+        </fieldset>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _editModal!.HideAsync()">Close</HxButton>
+        @if (!_readOnlyView)
+        {
+            <HxButton Color="ThemeColor.Primary" @onclick="SaveAsync" Disabled="@_isSaving">
+                @(_isSaving ? "Saving..." : "Save")
+            </HxButton>
+        }
+    </FooterTemplate>
+</HxModal>
+
+@* ── History Modal ── *@
+<HxModal @ref="_historyModal">
+    <HeaderTemplate><h5 class="modal-title">Change History</h5></HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingHistory)
+        {
+            <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
+        }
+        else if (!_history.Any())
+        {
+            <p class="text-muted small mb-0">No changes recorded yet.</p>
+        }
+        else
+        {
+            <div class="list-group" style="max-height:400px; overflow-y:auto;">
+                @foreach (var h in _history)
+                {
+                    <div class="list-group-item">
+                        <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt") · @h.UserName</div>
+                        <div>@h.Activity</div>
+                    </div>
+                }
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _historyModal!.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Delete Confirm Modal ── *@
+<HxModal @ref="_deleteModal">
+    <HeaderTemplate><h5 class="modal-title">Delete Directory Entry</h5></HeaderTemplate>
+    <BodyTemplate>
+        <p>Delete the directory entry for <strong>@_pendingDelete?.MunicipalityName</strong>? This can only be undone by re-adding it.</p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deleteModal!.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="DeleteAsync" Disabled="@_isSaving">
+            @(_isSaving ? "Deleting..." : "Yes, Delete")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private List<SeniorCitizenDirectoryListItemDto> _entries = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isLoadingHistory;
+    private string _searchTerm = string.Empty;
+
+    private bool _isAdmin;
+    private bool _isPdo;
+    private bool _canEdit => _isAdmin || _isPdo;
+
+    private HxModal? _editModal;
+    private HxModal? _historyModal;
+    private HxModal? _deleteModal;
+
+    private bool _readOnlyView;
+    private UpsertSeniorCitizenDirectoryDto _draft = new();
+    private int _selectedRegionId;
+    private List<RegionLookupDto> _regions = new();
+    private List<ProvinceLookupDto> _provinces = new();
+    private List<MunicipalityLookupDto> _municipalities = new();
+
+    private List<SeniorCitizenDirectoryHistoryDto> _history = new();
+    private SeniorCitizenDirectoryListItemDto? _pendingDelete;
+
+    // Drives the page header — this is a multi-region system, so the title
+    // must reflect whichever region the logged-in account actually belongs
+    // to, never a hardcoded region name.
+    private string? _myRegionName =>
+        _regions.FirstOrDefault(r => r.PsgcCodeRegion == AuthService.GetRegionCode())?.Name;
+
+    private List<SeniorCitizenDirectoryListItemDto> FilteredEntries =>
+        string.IsNullOrWhiteSpace(_searchTerm)
+            ? _entries
+            : _entries.Where(e =>
+                (e.MunicipalityName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (e.ProvinceName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (e.LswdoName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (e.OscaHeadName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (e.MayorName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _isAdmin = AuthService.IsAdmin();
+        _isPdo = AuthService.IsPDO();
+
+        await LoadRegionsAsync();
+        await LoadEntriesAsync();
+        await ConnectRealtimeAsync();
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<SeniorCitizenDirectoryListItemDto>>("api/senior-citizen-directory") ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load directory: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "seniorCitizenDirectoryHub").ToString();
+            RealtimeClient.OnEntryChanged += HandleEntryChanged;
+            await RealtimeClient.ConnectAsync(hubUrl);
+        }
+        catch { /* non-fatal — the grid still works, just without live push */ }
+    }
+
+    // ✅ Live update handler — patches the in-memory list directly instead of
+    // re-fetching, so every connected viewer's grid updates without a reload.
+    private void HandleEntryChanged(SeniorCitizenDirectoryChangeDto change)
+    {
+        InvokeAsync(() =>
+        {
+            if (change.ChangeType == "Deleted")
+            {
+                _entries.RemoveAll(e => e.Id == change.Id);
+            }
+            else if (change.Entry != null)
+            {
+                var idx = _entries.FindIndex(e => e.Id == change.Entry.Id);
+                if (idx >= 0) _entries[idx] = change.Entry;
+                else _entries.Add(change.Entry);
+            }
+            StateHasChanged();
+        });
+    }
+
+    private static RenderFragment YesNoBadge(bool? value) => builder =>
+    {
+        var (text, cls) = value switch
+        {
+            true => ("Yes", "bg-success-subtle text-success-emphasis border border-success-subtle"),
+            false => ("No", "bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"),
+            null => ("—", "bg-light text-muted")
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {cls}");
+        builder.AddContent(2, text);
+        builder.CloseElement();
+    };
+
+    // ── Location cascade (mirrors BeneficiarySearchFilters' Region → Province → Municipality pattern) ──
+    private async Task LoadRegionsAsync()
+    {
+        if (_regions.Any()) return;
+        _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
+    }
+
+    // Region is locked to the account's own region (multi-region system —
+    // a user must never add/see entries outside their region), so this is
+    // called programmatically rather than wired to an onchange handler.
+    private async Task SelectRegionAsync(int regionId)
+    {
+        _selectedRegionId = regionId;
+        _draft.PsgcCodeRegion = regionId;
+        _draft.PsgcCodeProvince = 0;
+        _draft.PsgcCodeMunicipality = 0;
+        _provinces = new();
+        _municipalities = new();
+
+        if (regionId > 0)
+            _provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{regionId}") ?? new();
+    }
+
+    private async Task OnProvinceChanged(ChangeEventArgs e)
+    {
+        _draft.PsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        _draft.PsgcCodeMunicipality = 0;
+        _municipalities = new();
+
+        if (_draft.PsgcCodeProvince > 0)
+            _municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{_draft.PsgcCodeProvince}") ?? new();
+    }
+
+    private async Task OpenAddModal()
+    {
+        var myRegion = AuthService.GetRegionCode();
+        if (myRegion is null)
+        {
+            toast.ShowError("Your account has no region assigned — cannot add a directory entry. Contact an administrator.");
+            return;
+        }
+
+        _readOnlyView = false;
+        _draft = new UpsertSeniorCitizenDirectoryDto();
+        _provinces = new();
+        _municipalities = new();
+        await LoadRegionsAsync();
+        await SelectRegionAsync(myRegion.Value);
+        await _editModal!.ShowAsync();
+    }
+
+    private async Task OpenViewModal(Guid id) => await OpenModalAsync(id, readOnly: true);
+    private async Task OpenEditModal(Guid id) => await OpenModalAsync(id, readOnly: false);
+
+    private async Task OpenModalAsync(Guid id, bool readOnly)
+    {
+        try
+        {
+            var full = await Http.GetFromJsonAsync<SeniorCitizenDirectoryDto>($"api/senior-citizen-directory/{id}");
+            if (full == null)
+            {
+                toast.ShowError("Entry not found — it may have been deleted.");
+                return;
+            }
+
+            _readOnlyView = readOnly;
+            _draft = new UpsertSeniorCitizenDirectoryDto
+            {
+                Id = full.Id,
+                PsgcCodeRegion = full.PsgcCodeRegion,
+                PsgcCodeProvince = full.PsgcCodeProvince,
+                PsgcCodeMunicipality = full.PsgcCodeMunicipality,
+                IncomeClassification = full.IncomeClassification,
+                SeniorCitizensPopulation = full.SeniorCitizensPopulation,
+                PopulationAsOfNote = full.PopulationAsOfNote,
+                LswdoName = full.LswdoName,
+                LswdoPosition = full.LswdoPosition,
+                LswdoContactNumber = full.LswdoContactNumber,
+                LswdoEmail = full.LswdoEmail,
+                ScFocalName = full.ScFocalName,
+                ScFocalContactNumber = full.ScFocalContactNumber,
+                ScFocalEmail = full.ScFocalEmail,
+                OscaHeadName = full.OscaHeadName,
+                OscaHeadLengthOfService = full.OscaHeadLengthOfService,
+                OscaHeadContactNumber = full.OscaHeadContactNumber,
+                OscaHeadEmail = full.OscaHeadEmail,
+                FscapPresidentName = full.FscapPresidentName,
+                FscapPresidentContactNumber = full.FscapPresidentContactNumber,
+                FscapPresidentEmail = full.FscapPresidentEmail,
+                FscapPresidentLengthOfService = full.FscapPresidentLengthOfService,
+                HasSeniorCitizenCenter = full.HasSeniorCitizenCenter,
+                IsSccAccredited = full.IsSccAccredited,
+                SccAccreditationValidity = full.SccAccreditationValidity,
+                WithoutSccResourcesNote = full.WithoutSccResourcesNote,
+                SccManagedBy = full.SccManagedBy,
+                ServicesOffered = full.ServicesOffered,
+                HasCashIncentive = full.HasCashIncentive,
+                CashIncentiveDetails = full.CashIncentiveDetails,
+                HasSupportingOrdinance = full.HasSupportingOrdinance,
+                OrdinanceDocumentLinks = full.OrdinanceDocumentLinks,
+                HasVaopHelpDesk = full.HasVaopHelpDesk,
+                VaopReferralMechanism = full.VaopReferralMechanism,
+                MayorName = full.MayorName,
+                MayorOfficeEmail = full.MayorOfficeEmail,
+                RowVersion = full.RowVersion
+            };
+
+            _selectedRegionId = full.PsgcCodeRegion;
+            await LoadRegionsAsync();
+            _provinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{full.PsgcCodeRegion}") ?? new();
+            _municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{full.PsgcCodeProvince}") ?? new();
+
+            await _editModal!.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load entry: {ex.Message}");
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_draft.PsgcCodeRegion <= 0 || _draft.PsgcCodeProvince <= 0 || _draft.PsgcCodeMunicipality <= 0)
+        {
+            toast.ShowError("Region, Province, and Municipality are required.");
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            var isUpdate = _draft.Id.HasValue;
+            var response = isUpdate
+                ? await Http.PutAsJsonAsync("api/senior-citizen-directory", _draft)
+                : await Http.PostAsJsonAsync("api/senior-citizen-directory", _draft);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess(isUpdate ? "Entry updated." : "Entry added.");
+                await _editModal!.HideAsync();
+                await LoadEntriesAsync();
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task OpenHistoryModal(Guid id)
+    {
+        _isLoadingHistory = true;
+        _history = new();
+        await _historyModal!.ShowAsync();
+        try
+        {
+            _history = await Http.GetFromJsonAsync<List<SeniorCitizenDirectoryHistoryDto>>($"api/senior-citizen-directory/{id}/history") ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load history: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingHistory = false;
+        }
+    }
+
+    private async Task ConfirmDelete(SeniorCitizenDirectoryListItemDto entry)
+    {
+        _pendingDelete = entry;
+        await _deleteModal!.ShowAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_pendingDelete == null) return;
+
+        _isSaving = true;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/senior-citizen-directory/{_pendingDelete.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess("Entry deleted.");
+                await _deleteModal!.HideAsync();
+                await LoadEntriesAsync();
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+            _pendingDelete = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        RealtimeClient.OnEntryChanged -= HandleEntryChanged;
+        await Task.CompletedTask;
+    }
+}

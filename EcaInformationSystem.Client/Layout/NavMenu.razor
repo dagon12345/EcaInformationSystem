@@ -6,6 +6,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject AuthService AuthService
 @inject HttpClient Http
+@inject TransactionTierClientService TierClient
 
 <div class="sidebar-brand">
     <NavLink href="" Match="NavLinkMatch.All">
@@ -95,6 +96,13 @@
     <NavLink class="nav-item" href="document-tracking">
         <span class="nav-icon"><i class="bi bi-truck"></i></span>
         <span class="nav-label">Document Tracking</span>
+    </NavLink>
+
+    @* ── Senior Citizens Directory — visible to everyone (view-only); Add/Edit/Delete are gated inside the page to PDO/Admin/SuperAdmin ── *@
+    <div class="nav-section-label">Directory</div>
+    <NavLink class="nav-item" href="senior-citizen-directory">
+        <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+        <span class="nav-label">Senior Citizens Directory</span>
     </NavLink>
 
     @* ── Attendance Management — SuperAdmin/Finance: link users to their
@@ -245,14 +253,36 @@
             {
                 <span class="mfa-warning-dot" title="Add two-factor authentication to secure your account"></span>
             }
+            @if (_myTier is not null)
+            {
+                <span class="tier-badge-dot @TierVisuals.For(_myTier.TierLevel).CssClass"
+                      title="@($"{_myTier.TierName} tier — {_myTier.TransactionCount} transaction(s). Click to view your profile.")">
+                    <i class="bi @TierVisuals.For(_myTier.TierLevel).Icon"></i>
+                </span>
+            }
         </div>
         <div class="user-info">
             <div class="user-name">@DisplayName</div>
+
+            @if (_myTier is not null)
+            {
+                <div class="user-tier-progress-wrap @TierVisuals.For(_myTier.TierLevel).CssClass"
+                     title="@TierProgressTitle()">
+                    <div class="user-tier-progress-track">
+                        <div class="user-tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
+                    </div>
+                </div>
+            }
+
             @if (_mfaEnabled == false)
             {
                 <div class="user-role text-warning">
                     <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure your account
                 </div>
+            }
+            else if (_roleLoaded)
+            {
+                <div class="user-role">@GetRoleLabel(_role)</div>
             }
             else
             {
@@ -284,6 +314,7 @@
     private string _role = string.Empty;
     private List<int> _jurisdictions = new();
     private List<string> _jurisdictionNames = new();
+    private UserTransactionTierDto? _myTier;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -298,6 +329,8 @@
         _isFinance = AuthService.IsFinance();
         _role = AuthService.GetRole() ?? string.Empty;
         _roleLoaded = true;
+
+        _myTier = await TierClient.GetMyTierAsync();
 
         // ── Load jurisdiction names for PDO ───────────────────────────────
         if (_isPdo)
@@ -442,4 +475,14 @@
         "Viewer" => "Viewer",
         _ => role
     };
+
+    private string TierProgressTitle()
+    {
+        if (_myTier is null) return string.Empty;
+
+        return _myTier.NextTierMinCount.HasValue
+            ? $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). " +
+              $"{_myTier.NextTierMinCount.Value - _myTier.TransactionCount:N0} more to reach {_myTier.NextTierName}."
+            : $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). Max tier reached!";
+    }
 }

@@ -1,4 +1,6 @@
-﻿using EcaInformationSystem.Application.Interfaces.Repositories;
+﻿using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
@@ -9,13 +11,27 @@ namespace EcaInformationSystem.Infrastructure.Repositories
     public class LogRepository : ILogRepository
     {
         private readonly AppDbContext _context;
-        public LogRepository(AppDbContext context)
+        private readonly ITransactionTierBroadcaster _tierBroadcaster;
+        public LogRepository(AppDbContext context, ITransactionTierBroadcaster tierBroadcaster)
         {
             _context = context;
+            _tierBroadcaster = tierBroadcaster;
         }
         public async Task AddAsync(Log log)
         {
             await _context.Logs.AddAsync(log);
+
+            // Live leaderboard push — skip the same activity this repo already
+            // excludes from the tier count itself (logins, bulk import/update
+            // rows), so a 40k-row Excel import doesn't spam every connected
+            // client with 40k SignalR events for activity that isn't even counted.
+            if (log.Category != "Login" &&
+                !(log.UserName ?? string.Empty).StartsWith("System") &&
+                !log.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
+                !log.Activity.StartsWith(CommonConstants.ExcelUpdate))
+            {
+                await _tierBroadcaster.NotifyTransactionRecordedAsync(log.UserName);
+            }
         }
 
         public async Task AddRangeAsync(IEnumerable<Log> logs)
@@ -124,6 +140,42 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
+        }
+
+        // Excludes Category "Login" (signing in isn't "work") and bulk-import
+        // activity (one Log row is written PER ROW imported/updated via Excel,
+        // so a single 40k-row import would otherwise dwarf everyone's real,
+        // one-click-at-a-time activity). Powers the gamified transaction tier
+        // badge, which should only reflect genuine individual edits.
+        private IQueryable<Log> TransactionLogsQuery() =>
+            _context.Logs.AsNoTracking().Where(l =>
+                l.Category != "Login" &&
+                !l.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
+                !l.Activity.StartsWith(CommonConstants.ExcelUpdate));
+
+        public async Task<int> CountUserTransactionsAsync(string userName)
+        {
+            return await TransactionLogsQuery()
+                .Where(l => l.UserName == userName)
+                .CountAsync();
+        }
+
+        // Powers the leaderboard — one row per user who has at least one
+        // qualifying log entry, ordered highest-count first. Usernames starting
+        // with "System" (the bare fallback "System" several controllers write
+        // when User.Identity.Name is unavailable, plus variants like "System
+        // (Payroll Generation)" for specific background jobs) aren't real
+        // accounts, so they're excluded from the ranking.
+        public async Task<List<(string UserName, int Count)>> GetTransactionCountsByUserAsync()
+        {
+            var grouped = await TransactionLogsQuery()
+                .Where(l => !l.UserName.StartsWith("System"))
+                .GroupBy(l => l.UserName)
+                .Select(g => new { UserName = g.Key, Count = g.Count() })
+                .OrderByDescending(g => g.Count)
+                .ToListAsync();
+
+            return grouped.Select(g => (g.UserName, g.Count)).ToList();
         }
         // Strips commas/periods and collapses whitespace so "ABAA, ASINDINA" and
         // "Abaa Asindina" both normalize to the same searchable form as the
