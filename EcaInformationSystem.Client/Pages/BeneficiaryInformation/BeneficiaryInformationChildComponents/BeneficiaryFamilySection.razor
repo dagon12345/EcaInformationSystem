@@ -36,8 +36,12 @@
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">D.2 Contact Number</span>
-                    <input class="annexa-input" value="@spouse?.ContactNumber"
-                           @oninput="@(e => UpdateSpouseField(f => f.ContactNumber = SanitizeUpper(e.Value?.ToString())))" />
+                    <input class="annexa-input" inputmode="numeric" maxlength="11" value="@spouse?.ContactNumber"
+                           @oninput="@(e => UpdateSpouseField(f => f.ContactNumber = SanitizeDigits(e.Value?.ToString())))" />
+                    @if (!IsValidOptionalContactNumber(spouse?.ContactNumber))
+                    {
+                        <span class="ff-err d-block">Must be 11 digits starting with 09 (e.g. 0910-123-4567).</span>
+                    }
                 </div>
             </div>
             @if (spouse != null && HasAnySpouseData(spouse))
@@ -113,8 +117,12 @@
                             </div>
                             <div class="annexa-field">
                                 <span class="annexa-item-label">D.6 Contact Number</span>
-                                <input class="annexa-input" value="@child.ContactNumber"
-                                       @oninput="@(e => { child.ContactNumber = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
+                                <input class="annexa-input" inputmode="numeric" maxlength="11" value="@child.ContactNumber"
+                                       @oninput="@(e => { child.ContactNumber = SanitizeDigits(e.Value?.ToString()); NotifyChanged(); })" />
+                                @if (!IsValidOptionalContactNumber(child.ContactNumber))
+                                {
+                                    <span class="ff-err d-block">Must be 11 digits starting with 09 (e.g. 0910-123-4567).</span>
+                                }
                             </div>
                             <div class="annexa-field justify-content-end">
                                 <label class="annexa-checkbox-item">
@@ -197,4 +205,21 @@
     {
         return string.IsNullOrEmpty(input) ? string.Empty : input.ToUpperInvariant();
     }
+
+    // ── D.2 / D.6 Contact Number — not required, but if entered must be
+    // exactly 11 digits starting with 09 (9 or 10 digits, or any other
+    // prefix, is rejected). Non-digit characters are stripped as the user
+    // types so the field can only ever hold digits.
+    private static readonly System.Text.RegularExpressions.Regex ContactNumberRegex =
+        new(@"^09\d{9}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string SanitizeDigits(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        var digits = new string(input.Where(char.IsDigit).ToArray());
+        return digits.Length > 11 ? digits[..11] : digits;
+    }
+
+    internal static bool IsValidOptionalContactNumber(string? number) =>
+        string.IsNullOrWhiteSpace(number) || ContactNumberRegex.IsMatch(number.Trim());
 }

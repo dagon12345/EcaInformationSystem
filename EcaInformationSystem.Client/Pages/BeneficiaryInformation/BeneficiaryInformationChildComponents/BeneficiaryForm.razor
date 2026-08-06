@@ -1811,7 +1811,18 @@
 
     private async Task AutosaveDraftAsync()
     {
-        if (_showDraftBanner) return; // don't clobber an unrestored draft with the blank/loaded form underneath it
+        // ⚠️ If a "restore your unsaved changes?" banner is showing, the user
+        // typing into the form INSTEAD of clicking Restore/Discard is itself a
+        // decision — they're continuing with what's on screen. Previously this
+        // just returned here forever, silently disabling autosave for the rest
+        // of the session (since only Restore/Discard flip _showDraftBanner back
+        // to false) — so any section filled in after that point was never
+        // captured, and only whatever the STALE draft already had (e.g. up
+        // through Section C from an earlier session) ever came back on restore.
+        // Dismissing the banner here and falling through lets the current edits
+        // start saving immediately, same as if they'd clicked Discard first.
+        if (_showDraftBanner)
+            _showDraftBanner = false;
 
         try
         {
@@ -1907,6 +1918,15 @@
     {
         try
         {
+            // ⚠️ The debounced autosave (DraftDebounceMs) is a pending JS setTimeout.
+            // unwatchFormActivity below clearTimeout()s it as part of tearing down
+            // the listener — so navigating away before that debounce window elapses
+            // (Create/Edit are routed pages, not tabs, so this runs on every
+            // navigation-away) previously discarded whatever was typed in that last
+            // ~1.2s without ever writing it to localStorage. Flush a final synchronous
+            // save first so nothing typed right before leaving the page is lost.
+            await AutosaveDraftAsync();
+
             if (_draftWatchHandle is not null)
             {
                 await JS.InvokeVoidAsync("draftInterop.unwatchFormActivity", _draftWatchHandle);
@@ -2036,6 +2056,13 @@
         {
             _showValidationHints = true;
             toast.ShowError("One or more contact numbers are not valid Philippine mobile numbers (11 digits, starting with 09).");
+            await ScrollToValidationSummaryAsync();
+            return;
+        }
+
+        if (model.FamilyMembers.Any(f => !BeneficiaryFamilySection.IsValidOptionalContactNumber(f.ContactNumber)))
+        {
+            toast.ShowError("Spouse/Child Contact Number must be exactly 11 digits (Section D).");
             await ScrollToValidationSummaryAsync();
             return;
         }
