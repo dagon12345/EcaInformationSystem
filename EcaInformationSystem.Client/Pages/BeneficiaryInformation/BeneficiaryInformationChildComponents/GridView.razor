@@ -425,6 +425,7 @@
                                         <th>Compliant</th>
                                         <th>CO Findings</th>
                                         <th>CO Status</th>
+                                        <th title="Internal-only status for grantee slot hand-overs">Replacement Status</th>
                                         <th>Docs</th>
                                         <th>Actions</th>
                                     </tr>
@@ -686,6 +687,28 @@
                                                     }
                                                 </td>
                                                 <td>
+                                                    @{
+                                                        var replLabel = GetReplacementStatusLabel(item.ReplacementStatus, item.ReplacedByName, item.ReplacesName);
+                                                    }
+                                                    @if (item.ReplacementStatus is 1 or 2)
+                                                    {
+                                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(item.ReplacementStatus)" title="@replLabel">
+                                                            @Highlight(replLabel)
+                                                        </span>
+                                                        @if (item.ReplacementDate.HasValue)
+                                                        {
+                                                            <br />
+                                                            <small class="text-muted" style="font-size:10px;">
+                                                                @item.ReplacementDate.Value.ToString("MMM dd, yyyy")
+                                                            </small>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">—</span>
+                                                    }
+                                                </td>
+                                                <td>
                                                     @if (item.HasDocuments)
                                                     {
                                                         <span class="tbl-badge yes-b" title="Has attached documents">
@@ -696,7 +719,7 @@
                                                     {
                                                         <span class="text-muted small">—</span>
                                                     }
-                                                </td>                                              
+                                                </td>
                                                <td>
                                                     <div class="d-flex gap-1">
                                                         <button class="btn-details" @onclick="() => OpenDetailsPanel(item)" title="View Details">
@@ -706,6 +729,21 @@
              PsgcCodeMunicipality="@item.PsgcCodeMunicipality"
              LastName="@item.LastName"
              FirstName="@item.FirstName" />
+                                                        @if (_isAdmin)
+                                                        {
+                                                            @if (item.ReplacementStatus is 1 or 2)
+                                                            {
+                                                                <button class="btn-details" title="Undo Replacement Status" @onclick='() => OpenUndoReplacementModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
+                                                                    <i class="bi bi-arrow-counterclockwise"></i> Undo
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button class="btn-details" title="Mark this grantee's slot as replaced" @onclick='() => OpenReplaceModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
+                                                                    <i class="bi bi-arrow-left-right"></i> Replace
+                                                                </button>
+                                                            }
+                                                        }
                                                     </div>
                                                </td>
                                             </tr>
@@ -713,7 +751,7 @@
                                     @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="21">
+                                            <td colspan="22">
                                                 @if (!State.IsLoading)
                                                 {
                                                     <div class="d-flex flex-column align-items-center gap-2 py-3">
@@ -871,11 +909,35 @@
                                     </div>
                                 }
 
+                                @if (item.ReplacementStatus is 1 or 2)
+                                {
+                                    <div class="beneficiary-card-co-status">
+                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(item.ReplacementStatus)">
+                                            @GetReplacementStatusLabel(item.ReplacementStatus, item.ReplacedByName, item.ReplacesName)
+                                        </span>
+                                    </div>
+                                }
+
                               <div class="d-flex gap-1">
                                   <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
                                       <i class="bi bi-info-circle"></i> Details
                                   </button>
                                   <QuickUpload BeneficiaryId="@item.Id" PsgcCodeMunicipality="@item.PsgcCodeMunicipality" />
+                                  @if (_isAdmin)
+                                  {
+                                      @if (item.ReplacementStatus is 1 or 2)
+                                      {
+                                          <button class="btn-details" @onclick='() => OpenUndoReplacementModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
+                                              <i class="bi bi-arrow-counterclockwise"></i> Undo
+                                          </button>
+                                      }
+                                      else
+                                      {
+                                          <button class="btn-details" @onclick='() => OpenReplaceModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
+                                              <i class="bi bi-arrow-left-right"></i> Replace
+                                          </button>
+                                      }
+                                  }
                               </div>
                             </div>
                         }
@@ -1008,6 +1070,105 @@
             {
 
                 <span>Yes, Update</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+<HxModal @ref="replaceModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Replace Grantee's Slot</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-2">
+            <strong>@_replaceOutgoingName</strong> will be marked
+            <span class="tbl-badge no-g">Replaced</span> and handed over to the grantee you select below.
+        </p>
+        <div class="mb-2">
+            <label class="ff-label">Search Replacement Grantee</label>
+            <input class="form-control form-control-sm" placeholder="Type a name or batch code..."
+                   value="@_replaceSearchTerm" @oninput="OnReplaceSearchInput" />
+        </div>
+        @if (_isSearchingReplacement)
+        {
+            <div class="text-center py-2">
+                <span class="spinner-border spinner-border-sm text-primary"></span>
+                <span class="ms-2 text-muted small">Searching...</span>
+            </div>
+        }
+        else if (_replacementCandidates.Any())
+        {
+            <div class="list-group mb-2" style="max-height:220px; overflow-y:auto;">
+                @foreach (var candidate in _replacementCandidates)
+                {
+                    <button type="button"
+                            class="list-group-item list-group-item-action @(_selectedReplacementId == candidate.Id ? "active" : "")"
+                            @onclick="() => _selectedReplacementId = candidate.Id">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>@candidate.FullName</span>
+                            @if (!string.IsNullOrWhiteSpace(candidate.BatchCode))
+                            {
+                                <small class="text-muted">@candidate.BatchCode</small>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(candidate.MunicipalityName))
+                        {
+                            <small class="text-muted">@candidate.MunicipalityName</small>
+                        }
+                    </button>
+                }
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_replaceSearchTerm))
+        {
+            <p class="text-muted small">No matching grantees found.</p>
+        }
+
+        <div class="mb-2">
+            <label class="ff-label">Replacement Date</label>
+            <input type="date" class="form-control form-control-sm" @bind="_replacementDate" />
+        </div>
+        <div class="mb-2">
+            <label class="ff-label">Remarks (optional)</label>
+            <textarea class="form-control form-control-sm" rows="2" @bind="_replacementRemarks"></textarea>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => replaceModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ExecuteReplaceAsync"
+                  Disabled="@(_selectedReplacementId == null || IsReplacing)">
+            @if (IsReplacing)
+            {
+                <span>Replacing...</span>
+            }
+            else
+            {
+                <span>Confirm Replacement</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+<HxModal @ref="undoReplacementModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Undo Replacement Status</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            Clear the Replacement Status for <strong>@_undoReplacementName</strong>
+            (and its linked grantee)? Both records will return to Not Replaced.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => undoReplacementModal.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ExecuteUndoReplacementAsync" Disabled="@IsReplacing">
+            @if (IsReplacing)
+            {
+                <span>Undoing...</span>
+            }
+            else
+            {
+                <span>Yes, Undo</span>
             }
         </HxButton>
     </FooterTemplate>
@@ -1368,6 +1529,54 @@ else
                                                                                                                          <span class="fw-semibold text-primary">@detailCoDuration</span>
                                                                                                                      </div>
                                                                                                                  }
+                                                                                                            </div>
+
+                                                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+                                                                                                                <span><i class="bi bi-arrow-left-right me-1"></i>Replacement Status</span>
+                                                                                                                @if (_isAdmin)
+                                                                                                                {
+                                                                                                                    @if (selectedDetails!.ReplacementStatus is 1 or 2)
+                                                                                                                    {
+                                                                                                                        <HxButton Color="ThemeColor.Secondary" Size="ButtonSize.Small" @onclick='() => OpenUndoReplacementModal(selectedDetails.Id, $"{selectedDetails.LastName}, {selectedDetails.FirstName}")'>
+                                                                                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+                                                                                                                        </HxButton>
+                                                                                                                    }
+                                                                                                                    else
+                                                                                                                    {
+                                                                                                                        <HxButton Color="ThemeColor.Primary" Size="ButtonSize.Small" @onclick='() => OpenReplaceModal(selectedDetails.Id, $"{selectedDetails.LastName}, {selectedDetails.FirstName}")'>
+                                                                                                                            <i class="bi bi-arrow-left-right me-1"></i>Replace
+                                                                                                                        </HxButton>
+                                                                                                                    }
+                                                                                                                }
+                                                                                                            </h6>
+                                                                                                            <div class="row g-2 mb-4">
+                                                                                                                <div class="col-6">
+                                                                                                                    <small class="text-muted d-block">Status</small>
+                                                                                                                    @if (selectedDetails!.ReplacementStatus is 1 or 2)
+                                                                                                                    {
+                                                                                                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(selectedDetails.ReplacementStatus)">
+                                                                                                                            @GetReplacementStatusLabel(selectedDetails.ReplacementStatus, selectedDetails.ReplacedByName, selectedDetails.ReplacesName)
+                                                                                                                        </span>
+                                                                                                                    }
+                                                                                                                    else
+                                                                                                                    {
+                                                                                                                        <span class="text-muted">—</span>
+                                                                                                                    }
+                                                                                                                </div>
+                                                                                                                @if (selectedDetails.ReplacementDate.HasValue)
+                                                                                                                {
+                                                                                                                    <div class="col-6">
+                                                                                                                        <small class="text-muted d-block">Date</small>
+                                                                                                                        <span>@selectedDetails.ReplacementDate.Value.ToString("MMMM dd, yyyy")</span>
+                                                                                                                    </div>
+                                                                                                                }
+                                                                                                                @if (!string.IsNullOrWhiteSpace(selectedDetails.ReplacementRemarks))
+                                                                                                                {
+                                                                                                                    <div class="col-12">
+                                                                                                                        <small class="text-muted d-block">Remarks</small>
+                                                                                                                        <span>@selectedDetails.ReplacementRemarks</span>
+                                                                                                                    </div>
+                                                                                                                }
                                                                                                             </div>
 
                                                                                                             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
@@ -2411,6 +2620,22 @@ else
     private DateTime? bulkCoDateApproved = null;
     private bool IsBulkUpdatingCoStatus;
     private HxModal bulkCoStatusModal = default!;
+
+    // ── Replacement Status ──────────────────────────────────────────────
+    private HxModal replaceModal = default!;
+    private HxModal undoReplacementModal = default!;
+    private bool IsReplacing;
+    private Guid _replaceOutgoingId;
+    private string _replaceOutgoingName = string.Empty;
+    private Guid _undoReplacementId;
+    private string _undoReplacementName = string.Empty;
+    private string _replaceSearchTerm = string.Empty;
+    private bool _isSearchingReplacement;
+    private Guid? _selectedReplacementId;
+    private DateTime _replacementDate = DateTime.Today;
+    private string? _replacementRemarks;
+    private List<BeneficiaryLookupDto> _replacementCandidates = new();
+    private CancellationTokenSource? _replacementSearchCts;
     private string? bulkRefQuarter = null;
     private string? bulkRefBatch = null;
     private int? bulkRefYear = null;
@@ -2428,7 +2653,6 @@ else
     private bool _isDuplicateDetailLoading;
     private BeneficiaryInformationDto? _duplicateRecord1;
     private BeneficiaryInformationDto? _duplicateRecord2;
-    private List<BeneficiaryListItemDto>? _cachedBeneficiaries;
     private bool _hasCheckedAutoOpenDuplicateModal = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -2436,8 +2660,6 @@ protected override void OnInitialized()
 {
     _stateChangeHandler = () =>
     {
-        _cachedBeneficiaries = null;
-
         if (State.ShouldAutoOpenDuplicateModal)
         {
             State.ClearDuplicateModalOpenRequest();
@@ -3050,6 +3272,123 @@ public void Dispose()
         await bulkCoStatusModal.ShowAsync();
     }
 
+    // ── Replacement Status ──────────────────────────────────────────────
+    private async Task OpenReplaceModal(Guid outgoingId, string outgoingName)
+    {
+        if (!_isAdmin) return;
+        _replaceOutgoingId = outgoingId;
+        _replaceOutgoingName = outgoingName;
+        _replaceSearchTerm = string.Empty;
+        _replacementCandidates = new();
+        _selectedReplacementId = null;
+        _replacementDate = DateTime.Today;
+        _replacementRemarks = null;
+        await replaceModal.ShowAsync();
+        await SearchReplacementCandidatesAsync(string.Empty);
+    }
+
+    private async Task OnReplaceSearchInput(ChangeEventArgs e)
+    {
+        _replaceSearchTerm = e.Value?.ToString() ?? string.Empty;
+        await SearchReplacementCandidatesAsync(_replaceSearchTerm);
+    }
+
+    private async Task SearchReplacementCandidatesAsync(string term)
+    {
+        _replacementSearchCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _replacementSearchCts = cts;
+
+        try
+        {
+            _isSearchingReplacement = true;
+            StateHasChanged();
+            await Task.Delay(300, cts.Token);
+
+            var url = $"api/beneficiary/replacement-lookup?excludeId={_replaceOutgoingId}" +
+                      (string.IsNullOrWhiteSpace(term) ? "" : $"&search={Uri.EscapeDataString(term)}");
+            var result = await Http.GetFromJsonAsync<List<BeneficiaryLookupDto>>(url, cts.Token);
+
+            if (!cts.IsCancellationRequested)
+                _replacementCandidates = result ?? new();
+        }
+        catch (TaskCanceledException) { /* superseded by a newer search */ }
+        catch (Exception ex) { toast.ShowError($"Search failed: {ex.Message}"); }
+        finally
+        {
+            if (!cts.IsCancellationRequested)
+                _isSearchingReplacement = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExecuteReplaceAsync()
+    {
+        if (_selectedReplacementId == null) return;
+
+        try
+        {
+            IsReplacing = true;
+            var request = new ReplaceBeneficiaryRequestDto
+            {
+                OutgoingBeneficiaryId = _replaceOutgoingId,
+                IncomingBeneficiaryId = _selectedReplacementId.Value,
+                ReplacementDate = _replacementDate,
+                Remarks = _replacementRemarks
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/replace", request);
+
+            await HandleApiResponseAsync(response, "Replacement Status updated for both grantees.", async () =>
+            {
+                await replaceModal.HideAsync();
+                State.Invalidate();
+                await State.LoadAsync();
+            });
+        }
+        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+        finally { IsReplacing = false; }
+    }
+
+    private async Task OpenUndoReplacementModal(Guid beneficiaryId, string name)
+    {
+        if (!_isAdmin) return;
+        _undoReplacementId = beneficiaryId;
+        _undoReplacementName = name;
+        await undoReplacementModal.ShowAsync();
+    }
+
+    private async Task ExecuteUndoReplacementAsync()
+    {
+        try
+        {
+            IsReplacing = true;
+            var response = await Http.PostAsync($"api/beneficiary/undo-replacement/{_undoReplacementId}", null);
+
+            await HandleApiResponseAsync(response, "Replacement Status cleared.", async () =>
+            {
+                await undoReplacementModal.HideAsync();
+                State.Invalidate();
+                await State.LoadAsync();
+            });
+        }
+        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+        finally { IsReplacing = false; }
+    }
+
+    private string GetReplacementStatusLabel(int? status, string? replacedByName, string? replacesName) => status switch
+    {
+        1 => $"Replaced by {(string.IsNullOrWhiteSpace(replacedByName) ? "—" : replacedByName)}",
+        2 => $"Replacement for {(string.IsNullOrWhiteSpace(replacesName) ? "—" : replacesName)}",
+        _ => "-"
+    };
+
+    private string GetReplacementStatusBadgeClass(int? status) => status switch
+    {
+        1 => "no-g",
+        2 => "yes-g",
+        _ => "pending"
+    };
+
     private void OnBulkBatchInput(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString() ?? string.Empty;
@@ -3234,15 +3573,7 @@ public void Dispose()
         return _sortAscending ? "bi bi-sort-up" : "bi bi-sort-down";
     }
 
-    private List<BeneficiaryInformationDto>? _cachedBeneficiaries2; // removed — using _cachedBeneficiaries
-    private List<BeneficiaryListItemDto> FilteredBeneficiaries
-    {
-        get
-        {
-            _cachedBeneficiaries ??= State.Beneficiaries.ToList();
-            return _cachedBeneficiaries;
-        }
-    }
+    private List<BeneficiaryListItemDto> FilteredBeneficiaries => State.Beneficiaries;
 
     private async Task OpenDetailsPanel(BeneficiaryListItemDto item)
 {

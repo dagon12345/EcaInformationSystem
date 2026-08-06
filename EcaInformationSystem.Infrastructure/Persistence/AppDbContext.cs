@@ -173,6 +173,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasIndex(x => new { x.IsDeleted, x.CoStatus, x.IsEligible })
                         .HasDatabaseName("IX_Beneficiary_CoStatus_Eligible");
 
+                        entity.HasIndex(x => new { x.IsDeleted, x.ReplacementStatus })
+                        .HasDatabaseName("IX_Beneficiary_ReplacementStatus");
+
                         entity.HasIndex(x => new { x.IsDeleted, x.Quarter, x.Batch, x.RefYear })
                         .HasDatabaseName("IX_Beneficiary_RefNumber");
 

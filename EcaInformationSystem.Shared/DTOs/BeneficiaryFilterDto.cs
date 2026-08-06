@@ -61,6 +61,8 @@
         public string? EligibilityMode { get; set; }
         public string? GeneralSearch { get; set; } // General search - scans all relevant columns with OR logic
         public int? CoStatus { get; set; }
+        // 0 = Not Replaced, 1 = Replaced, 2 = Is Replacement
+        public int? ReplacementStatus { get; set; }
         public int? FilterModeOfPayment { get; set; }
         public string? DataQualityIssue { get; set; } // "location" | "headsup" | "incomplete"
 

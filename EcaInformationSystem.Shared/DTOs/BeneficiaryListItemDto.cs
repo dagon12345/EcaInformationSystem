@@ -50,6 +50,13 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? CoStatus { get; set; }
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
+        public int? ReplacementStatus { get; set; }
+        public Guid? ReplacedByBeneficiaryId { get; set; }
+        public string? ReplacedByName { get; set; }
+        public Guid? ReplacesBeneficiaryId { get; set; }
+        public string? ReplacesName { get; set; }
+        public DateTime? ReplacementDate { get; set; }
+        public string? ReplacementRemarks { get; set; }
         public DateTime? PaymentDate { get; set; }
         public int PaymentHistoryCount { get; set; }
         public string? PaymentHistorySummary { get; set; }   // ✅ new — hover tooltip text

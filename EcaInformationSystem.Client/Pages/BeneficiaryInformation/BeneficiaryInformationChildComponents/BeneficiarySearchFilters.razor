@@ -516,6 +516,16 @@
                                 <option value="2">Approved</option>
                             </select>
                         </div>
+                        @* REPLACEMENT STATUS — internal-only, SuperAdmin/Admin restricted action lives in the grid *@
+                        <div class="sf-field">
+                            <label>Replacement Status</label>
+                            <select value="@_replacementStatusValue" @onchange="OnReplacementStatusFilterChanged" disabled="@IsLoading">
+                                <option value="-1">Select Replacement Status</option>
+                                <option value="0">Not Replaced</option>
+                                <option value="1">Replaced</option>
+                                <option value="2">Is Replacement</option>
+                            </select>
+                        </div>
                         <div class="sf-field">
                             <label>Validator</label>
                             <input type="text" placeholder="Validator" @bind="State.Filter.Validator" />
@@ -613,6 +623,7 @@
     };
     private string _refQuarterValue = string.Empty;
     private string _coStatusValue = "-1";
+    private string _replacementStatusValue = "-1";
 
     private void OnBarangayIssueChanged(ChangeEventArgs e)
     {
@@ -630,6 +641,16 @@
             State.Filter.CoStatus = parsed; // 0 = Not Set, 1 = Endorsed, 2 = Approved
         else
             State.Filter.CoStatus = null; // -1 = no filter
+    }
+    private void OnReplacementStatusFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _replacementStatusValue = val ?? "-1";
+
+        if (int.TryParse(val, out var parsed) && parsed >= 0)
+            State.Filter.ReplacementStatus = parsed; // 0 = Not Replaced, 1 = Replaced, 2 = Is Replacement
+        else
+            State.Filter.ReplacementStatus = null; // -1 = no filter
     }
     // Use a fixed leap year (2000) so February always shows up to day 29
     private static IEnumerable<int> GetDaysForMonth(int month)
@@ -1068,8 +1089,10 @@
         _birthdayToMonth = 0;
         _birthdayToDay = 0;
         _coStatusValue = "-1";
+        _replacementStatusValue = "-1";
         _barangayIssueValue = string.Empty;
         State.Filter.CoStatus = null;
+        State.Filter.ReplacementStatus = null;
         _complianceValue = string.Empty;
         State.Filter.IsCompliant = null;
         State.Filter.ComplianceMode = null;
@@ -1146,6 +1169,7 @@
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
     f.CoStatus == null &&
+    f.ReplacementStatus == null &&
     _specificBirthdayMonth == 0 &&
     _birthdayFromMonth == 0 &&
     f.FilterQuarter == null &&

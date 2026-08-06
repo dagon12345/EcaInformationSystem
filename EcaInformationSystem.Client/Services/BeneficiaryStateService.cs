@@ -96,12 +96,19 @@ public class BeneficiaryStateService
                 // ✅ Auto-fallback — if the exact search found nothing AND the
                 // person searched by name, automatically try the fuzzy match
                 // instead of making them click a separate button.
+                //
+                // ⚠️ SearchSimilarNamesAsync matches on name ONLY — it ignores every
+                // other filter (ReplacementStatus, CoStatus, region, etc). If another
+                // filter is also active, a correctly-empty result (e.g. "this person
+                // matches the name but not this status") must NOT be silently replaced
+                // by a fuzzy name match that ignores that status. Only fall back when
+                // the search is effectively name-only.
                 var nameTerm = !string.IsNullOrWhiteSpace(Filter.FullName) ? Filter.FullName
                     : !string.IsNullOrWhiteSpace(Filter.LastName) ? Filter.LastName
                     : !string.IsNullOrWhiteSpace(Filter.FirstName) ? Filter.FirstName
                     : Filter.GeneralSearch;
 
-                if (TotalCount == 0 && !string.IsNullOrWhiteSpace(nameTerm))
+                if (TotalCount == 0 && !string.IsNullOrWhiteSpace(nameTerm) && !HasNonNameFilters())
                 {
                     await TryFuzzyFallbackAsync();
                 }
@@ -153,6 +160,41 @@ public class BeneficiaryStateService
         }
 
         HasActiveFilter = true;
+    }
+
+    // Returns true if any filter besides the name fields / GeneralSearch / paging
+    // is narrowing the search. Used to gate the fuzzy name fallback — see the
+    // warning where it's called in LoadAsync().
+    private bool HasNonNameFilters()
+    {
+        var f = Filter;
+        return f.PsgcCodeRegion.HasValue
+            || (f.PsgcCodeProvinces?.Any() ?? false)
+            || (f.PsgcCodeMunicipalities?.Any() ?? false)
+            || f.PsgcCodeBarangay.HasValue
+            || (f.PaymentStatuses?.Any() ?? false)
+            || (f.FilterPayrollQuarters?.Any() ?? false)
+            || f.PaymentDateFrom.HasValue || f.PaymentDateTo.HasValue
+            || f.DateAddedFrom.HasValue || f.DateAddedTo.HasValue
+            || f.DateEndorsedFrom.HasValue || f.DateEndorsedTo.HasValue
+            || f.IsCompliant.HasValue || !string.IsNullOrWhiteSpace(f.ComplianceMode)
+            || f.IsEligible.HasValue || !string.IsNullOrWhiteSpace(f.EligibilityMode)
+            || f.CoStatus.HasValue
+            || f.ReplacementStatus.HasValue
+            || (f.FindingStatus.HasValue && f.FindingStatus != 3)
+            || f.Sex.HasValue
+            || f.FilterModeOfPayment.HasValue
+            || f.SpecificAge.HasValue
+            || f.MilestoneYear.HasValue
+            || f.SpecificBirthday.HasValue || f.BirthdayFrom.HasValue || f.BirthdayTo.HasValue
+            || f.FilterQuarter.HasValue
+            || f.FilterFiscalYear.HasValue
+            || !string.IsNullOrWhiteSpace(f.FilterBatch)
+            || f.FilterRefYear.HasValue
+            || !string.IsNullOrWhiteSpace(f.FilterRegionRoman)
+            || !string.IsNullOrWhiteSpace(f.Validator)
+            || !string.IsNullOrWhiteSpace(f.BatchCode)
+            || !string.IsNullOrWhiteSpace(f.DataQualityIssue);
     }
 
     // ✅ Internal — silently tries the fuzzy match and swaps it into the
@@ -284,6 +326,7 @@ public class BeneficiaryStateService
             N(f.IsCompliant),
             N(f.ComplianceMode),
             N(f.CoStatus),
+            N(f.ReplacementStatus),
             N(f.FindingStatus),
             N(f.Sex),
             N(f.FilterModeOfPayment),
@@ -361,6 +404,7 @@ public class BeneficiaryStateService
         IsCompliant = f.IsCompliant,
         ComplianceMode = f.ComplianceMode,
         CoStatus = f.CoStatus,
+        ReplacementStatus = f.ReplacementStatus,
         FindingStatus = f.FindingStatus,
         Sex = f.Sex,
         FilterModeOfPayment = f.FilterModeOfPayment,
@@ -507,6 +551,7 @@ public class BeneficiaryStateService
             a.IsCompliant == b.IsCompliant &&
             a.ComplianceMode == b.ComplianceMode &&
             a.CoStatus == b.CoStatus &&
+            a.ReplacementStatus == b.ReplacementStatus &&
             a.FindingStatus == b.FindingStatus &&
             a.Sex == b.Sex &&
             a.FilterModeOfPayment == b.FilterModeOfPayment &&
@@ -607,6 +652,8 @@ public class BeneficiaryStateService
             parts.Add($"Sex: {(filter.Sex.Value == 1 ? "Male" : "Female")}");
         if (filter.CoStatus.HasValue)
             parts.Add($"CO Status: {GetCoStatusLabel(filter.CoStatus.Value)}");
+        if (filter.ReplacementStatus.HasValue)
+            parts.Add($"Replacement Status: {GetReplacementStatusLabel(filter.ReplacementStatus.Value)}");
         if (filter.FindingStatus.HasValue && filter.FindingStatus != 3)
             parts.Add($"Findings: {GetFindingStatusLabel(filter.FindingStatus.Value)}");
         if (filter.FilterModeOfPayment.HasValue)
@@ -726,6 +773,14 @@ public class BeneficiaryStateService
         0 => "Not Set",
         1 => "Endorsed",
         2 => "Approved",
+        _ => status.ToString()
+    };
+
+    private string GetReplacementStatusLabel(int status) => status switch
+    {
+        0 => "Not Replaced",
+        1 => "Replaced",
+        2 => "Is Replacement",
         _ => status.ToString()
     };
 

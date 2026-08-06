@@ -49,6 +49,20 @@ namespace EcaInformationSystem.Domain.Entities
         public int? CoStatus { get; set; }
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
+
+        // ✅ NEW — Replacement Status: internal-only status for when one grantee's
+        // payout slot is handed over to another (absence, ineligibility, etc.).
+        // null/0 = Not Replaced (default). 1 = Replaced — this grantee's slot was
+        // taken over, ReplacedByBeneficiaryId points to the incoming grantee.
+        // 2 = Replacement — this grantee took over someone else's slot,
+        // ReplacesBeneficiaryId points back to the outgoing grantee. Both sides
+        // of the pair are updated together so the link is always symmetric.
+        public int? ReplacementStatus { get; set; }
+        public Guid? ReplacedByBeneficiaryId { get; set; }
+        public Guid? ReplacesBeneficiaryId { get; set; }
+        public DateTime? ReplacementDate { get; set; }
+        public string? ReplacementRemarks { get; set; }
+
         public bool IsDeleted { get; set; }
         public BeneficiaryFinding? Finding { get; set; }
         public int? CgpPageNumber { get; set; }

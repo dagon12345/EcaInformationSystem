@@ -422,6 +422,48 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        [HttpPost("replace")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> ReplaceBeneficiary([FromBody] ReplaceBeneficiaryRequestDto dto)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.ReplaceBeneficiaryAsync(
+                    dto.OutgoingBeneficiaryId,
+                    dto.IncomingBeneficiaryId,
+                    dto.ReplacementDate,
+                    dto.Remarks,
+                    userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+        [HttpPost("undo-replacement/{id:guid}")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> UndoReplacement(Guid id)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.UndoReplacementAsync(id, userName);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+        [HttpGet("replacement-lookup")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> SearchReplacementLookup([FromQuery] string? search, [FromQuery] Guid excludeId)
+        {
+            var result = await _service.SearchBeneficiaryLookupAsync(search, excludeId);
+            return Ok(result);
+        }
         [HttpPost("bulk-eligibility-batchcode")]
         [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> BulkUpdateEligibilityAndBatchCode([FromBody] BulkUpdateEligibilityBatchCodeRequestDto request)

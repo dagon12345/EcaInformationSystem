@@ -1324,6 +1324,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     on b.Id equals finding.BeneficiaryInformationId into findingJoin
                 from finding in findingJoin.DefaultIfEmpty()
 
+                    // ✅ NEW — Replacement Status linked grantee names
+                join replacedBy in _context.BeneficiaryInformations
+                    on b.ReplacedByBeneficiaryId equals replacedBy.Id into replacedByJoin
+                from replacedBy in replacedByJoin.DefaultIfEmpty()
+
+                join replaces in _context.BeneficiaryInformations
+                    on b.ReplacesBeneficiaryId equals replaces.Id into replacesJoin
+                from replaces in replacesJoin.DefaultIfEmpty()
+
                 where b.Id == id && !b.IsDeleted
 
                 select new BeneficiaryInformationDto
@@ -1384,6 +1393,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = b.CoStatus,
                     CoDateEndorsed = b.CoDateEndorsed,
                     CoDateApproved = b.CoDateApproved,
+                    ReplacementStatus = b.ReplacementStatus,
+                    ReplacedByBeneficiaryId = b.ReplacedByBeneficiaryId,
+                    ReplacedByName = replacedBy != null ? replacedBy.LastName + ", " + replacedBy.FirstName : null,
+                    ReplacesBeneficiaryId = b.ReplacesBeneficiaryId,
+                    ReplacesName = replaces != null ? replaces.LastName + ", " + replaces.FirstName : null,
+                    ReplacementDate = b.ReplacementDate,
+                    ReplacementRemarks = b.ReplacementRemarks,
                     IsDeleted = b.IsDeleted,
                     RowVersion = b.RowVersion,
 
@@ -1742,6 +1758,102 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     $"{conflictedNames}. Please refresh and try again.", ex);
             }
         }
+        public async Task ReplaceBeneficiaryAsync(Guid outgoingId, Guid incomingId, DateTime? replacementDate, string? remarks)
+        {
+            var pair = await _context.BeneficiaryInformations
+                .Where(x => (x.Id == outgoingId || x.Id == incomingId) && !x.IsDeleted)
+                .ToListAsync();
+
+            var outgoing = pair.FirstOrDefault(x => x.Id == outgoingId)
+                ?? throw new Exception("The grantee to be replaced was not found.");
+            var incoming = pair.FirstOrDefault(x => x.Id == incomingId)
+                ?? throw new Exception("The replacement grantee was not found.");
+
+            if (outgoing.ReplacementStatus.HasValue && outgoing.ReplacementStatus.Value != 0)
+                throw new Exception("This grantee already has a Replacement Status set. Undo it first before assigning a new one.");
+            if (incoming.ReplacementStatus.HasValue && incoming.ReplacementStatus.Value != 0)
+                throw new Exception("The selected replacement grantee already has a Replacement Status set. Undo it first before assigning a new one.");
+
+            var date = replacementDate ?? DateTime.Now;
+
+            outgoing.ReplacementStatus = 1; // Replaced
+            outgoing.ReplacedByBeneficiaryId = incoming.Id;
+            outgoing.ReplacementDate = date;
+            outgoing.ReplacementRemarks = remarks;
+
+            incoming.ReplacementStatus = 2; // Is Replacement
+            incoming.ReplacesBeneficiaryId = outgoing.Id;
+            incoming.ReplacementDate = date;
+            incoming.ReplacementRemarks = remarks;
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UndoReplacementAsync(Guid beneficiaryId)
+        {
+            var beneficiary = await _context.BeneficiaryInformations
+                .FirstOrDefaultAsync(x => x.Id == beneficiaryId && !x.IsDeleted)
+                ?? throw new Exception("Beneficiary not found.");
+
+            if (!beneficiary.ReplacementStatus.HasValue || beneficiary.ReplacementStatus.Value == 0)
+                throw new Exception("This grantee has no Replacement Status to undo.");
+
+            var linkedId = beneficiary.ReplacementStatus == 1
+                ? beneficiary.ReplacedByBeneficiaryId
+                : beneficiary.ReplacesBeneficiaryId;
+
+            var linked = linkedId.HasValue
+                ? await _context.BeneficiaryInformations.FirstOrDefaultAsync(x => x.Id == linkedId.Value)
+                : null;
+
+            beneficiary.ReplacementStatus = null;
+            beneficiary.ReplacedByBeneficiaryId = null;
+            beneficiary.ReplacesBeneficiaryId = null;
+            beneficiary.ReplacementDate = null;
+            beneficiary.ReplacementRemarks = null;
+
+            if (linked != null)
+            {
+                linked.ReplacementStatus = null;
+                linked.ReplacedByBeneficiaryId = null;
+                linked.ReplacesBeneficiaryId = null;
+                linked.ReplacementDate = null;
+                linked.ReplacementRemarks = null;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<List<BeneficiaryLookupDto>> SearchBeneficiaryLookupAsync(string? search, Guid excludeId)
+        {
+            var query = _context.BeneficiaryInformations.AsNoTracking()
+                .Where(b => !b.IsDeleted && b.Id != excludeId
+                    && (b.ReplacementStatus == null || b.ReplacementStatus == 0));
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = NormalizeSearchTerm(search);
+                query = query.Where(b =>
+                    (b.LastName + " " + b.FirstName + " " + b.MiddleName).ToLower().Contains(term) ||
+                    (b.BatchCode != null && b.BatchCode.Contains(search)));
+            }
+
+            return await query
+                .OrderBy(b => b.LastName).ThenBy(b => b.FirstName)
+                .Take(20)
+                .Select(b => new BeneficiaryLookupDto
+                {
+                    Id = b.Id,
+                    FullName = b.LastName + ", " + b.FirstName + (b.MiddleName != null ? " " + b.MiddleName : ""),
+                    BatchCode = b.BatchCode,
+                    MunicipalityName = _context.Municipalities
+                        .Where(m => m.PsgcCodeMunicipality == b.Municipality)
+                        .Select(m => m.Name).FirstOrDefault(),
+                    ReplacementStatus = b.ReplacementStatus
+                })
+                .ToListAsync();
+        }
+
         // WHY THIS QUERY IS FASTER THAN GetPagedAsync:
         //
         // 1. NO JOINS to Region/Province/Municipality/Barangay. Names resolved
@@ -1822,6 +1934,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.CoStatus,
                     x.b.CoDateEndorsed,
                     x.b.CoDateApproved,
+                    x.b.ReplacementStatus,
+                    x.b.ReplacedByBeneficiaryId,
+                    x.b.ReplacesBeneficiaryId,
+                    x.b.ReplacementDate,
+                    x.b.ReplacementRemarks,
                     x.b.RowVersion,
                     x.b.DateEndorsed,
                     x.b.DateApplied,
@@ -1878,6 +1995,22 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ToDictionaryAsync(h => h.Id)
                 : new Dictionary<Guid, BeneficiaryPaymentHistory>();
 
+            // ── Replacement Status: resolve linked grantee names for this page ──
+            var linkedBeneficiaryIds = pageRaw
+                .SelectMany(x => new[] { x.ReplacedByBeneficiaryId, x.ReplacesBeneficiaryId })
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+
+            var linkedNameLookup = linkedBeneficiaryIds.Any()
+                ? await _context.BeneficiaryInformations
+                    .AsNoTracking()
+                    .Where(b => linkedBeneficiaryIds.Contains(b.Id))
+                    .Select(b => new { b.Id, b.LastName, b.FirstName })
+                    .ToDictionaryAsync(b => b.Id, b => $"{b.LastName}, {b.FirstName}")
+                : new Dictionary<Guid, string>();
+
             // ── Step 3: merge in memory ──
             var items = pageRaw.Select(x =>
             {
@@ -1921,6 +2054,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = x.CoStatus,
                     CoDateEndorsed = x.CoDateEndorsed,
                     CoDateApproved = x.CoDateApproved,
+                    ReplacementStatus = x.ReplacementStatus,
+                    ReplacedByBeneficiaryId = x.ReplacedByBeneficiaryId,
+                    ReplacedByName = x.ReplacedByBeneficiaryId.HasValue
+                        ? linkedNameLookup.GetValueOrDefault(x.ReplacedByBeneficiaryId.Value) : null,
+                    ReplacesBeneficiaryId = x.ReplacesBeneficiaryId,
+                    ReplacesName = x.ReplacesBeneficiaryId.HasValue
+                        ? linkedNameLookup.GetValueOrDefault(x.ReplacesBeneficiaryId.Value) : null,
+                    ReplacementDate = x.ReplacementDate,
+                    ReplacementRemarks = x.ReplacementRemarks,
                     HasDocuments = x.HasDocuments,
                     EligibilityRemarksPreview = x.EligibilityRemarksPreview,
                     AssessmentRemarksPreview = x.AssessmentRemarksPreview,
@@ -2507,6 +2649,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     query = query.Where(x => x.Beneficiary.CoStatus == filter.CoStatus.Value);
                 }
             }
+            // ── Replacement Status Filter ────────────────────────────────────────────
+            if (filter.ReplacementStatus.HasValue && filter.ReplacementStatus.Value >= 0)
+            {
+                query = filter.ReplacementStatus.Value == 0
+                    ? query.Where(x => x.Beneficiary.ReplacementStatus == null || x.Beneficiary.ReplacementStatus == 0)
+                    : query.Where(x => x.Beneficiary.ReplacementStatus == filter.ReplacementStatus.Value);
+            }
             // ── Quarter Filter ────────────────────────────────────────────────────────
             if (filter.FilterQuarter.HasValue)
                 query = query.Where(x => x.Beneficiary.Quarter == filter.FilterQuarter.Value);
@@ -3075,6 +3224,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = filter.CoStatus.Value == 0
                     ? query.Where(b => b.CoStatus == null || b.CoStatus == 0)
                     : query.Where(b => b.CoStatus == filter.CoStatus.Value);
+            }
+
+            if (filter.ReplacementStatus.HasValue && filter.ReplacementStatus.Value >= 0)
+            {
+                query = filter.ReplacementStatus.Value == 0
+                    ? query.Where(b => b.ReplacementStatus == null || b.ReplacementStatus == 0)
+                    : query.Where(b => b.ReplacementStatus == filter.ReplacementStatus.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.LastName))

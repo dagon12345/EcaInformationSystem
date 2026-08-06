@@ -33,6 +33,9 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<SoftDuplicateCandidateDto>> FindSoftDuplicatesAsync(string? firstName, string? lastName, DateTime birthDate, int birthdateToleranceDays = 365);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, Dictionary<Guid, byte[]>? rowVersions = null);
+        Task ReplaceBeneficiaryAsync(Guid outgoingId, Guid incomingId, DateTime? replacementDate, string? remarks);
+        Task UndoReplacementAsync(Guid beneficiaryId);
+        Task<List<BeneficiaryLookupDto>> SearchBeneficiaryLookupAsync(string? search, Guid excludeId);
         Task<List<BeneficiaryInformation>> GetEntitiesByIdsAsync(List<Guid> ids);
         Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
         Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);

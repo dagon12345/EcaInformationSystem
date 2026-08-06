@@ -691,6 +691,7 @@ namespace EcaInformationSystem.Application.Services
                 N(f.IsCompliant),
                 N(f.ComplianceMode),
                 N(f.CoStatus),
+                N(f.ReplacementStatus),
                 N(f.FindingStatus),
                 N(f.Sex),
                 N(f.FilterModeOfPayment),
@@ -1356,6 +1357,40 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+
+        public async Task ReplaceBeneficiaryAsync(Guid outgoingId, Guid incomingId, DateTime? replacementDate, string? remarks, string userName)
+        {
+            if (outgoingId == Guid.Empty || incomingId == Guid.Empty)
+                throw new Exception("Both the outgoing and replacement grantee are required.");
+
+            if (outgoingId == incomingId)
+                throw new Exception("A grantee cannot replace themself.");
+
+            await _repo.ReplaceBeneficiaryAsync(outgoingId, incomingId, replacementDate, remarks);
+
+            await AddLogAsync(outgoingId, "Replacement Status → Replaced (slot handed over)", userName);
+            await AddLogAsync(incomingId, "Replacement Status → Is Replacement (took over a slot)", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
+        public async Task UndoReplacementAsync(Guid beneficiaryId, string userName)
+        {
+            if (beneficiaryId == Guid.Empty)
+                throw new Exception(CommonConstants.NoRecordsSelected);
+
+            await _repo.UndoReplacementAsync(beneficiaryId);
+
+            await AddLogAsync(beneficiaryId, "Replacement Status cleared", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
+        public async Task<List<BeneficiaryLookupDto>> SearchBeneficiaryLookupAsync(string? search, Guid excludeId)
+            => await _repo.SearchBeneficiaryLookupAsync(search, excludeId);
+
         public async Task UpdateAsync(Guid Id, BeneficiaryInformationDto dto, string userName)
         {
             var beneficiary = await _repo.GetEntityByIdAsync(Id);
@@ -4712,6 +4747,8 @@ namespace EcaInformationSystem.Application.Services
                 parts.Add($"Sex: {(filter.Sex.Value == 1 ? "Male" : "Female")}");
             if (filter.CoStatus.HasValue)
                 parts.Add($"CO Status: {CoStatusLabel(filter.CoStatus.Value)}");
+            if (filter.ReplacementStatus.HasValue)
+                parts.Add($"Replacement Status: {ReplacementStatusLabel(filter.ReplacementStatus.Value)}");
             if (filter.FindingStatus.HasValue && filter.FindingStatus != 3)
                 parts.Add($"Findings: {GetFindingStatusLabelForDescription(filter.FindingStatus.Value)}");
             if (filter.FilterModeOfPayment.HasValue)
@@ -4809,6 +4846,12 @@ namespace EcaInformationSystem.Application.Services
             2 => "Approved",
             _ => "Not Set"
         };
+        private static string ReplacementStatusLabel(int status) => status switch
+        {
+            1 => "Replaced",
+            2 => "Is Replacement",
+            _ => "Not Replaced"
+        };
         // ── Map Payment Status from col 31 ───────────────────────────────────────
         private static int? MapPaymentStatus(string? value)
         {
@@ -4892,6 +4935,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.EligibilityMode ?? CommonConstants.Null,
                 filter.GeneralSearch ?? string.Empty,
                 filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
+                filter.ReplacementStatus != null ? filter.ReplacementStatus.ToString() : CommonConstants.Null,
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
                 filter.FilterFiscalYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
@@ -5075,6 +5119,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.ComplianceMode ?? CommonConstants.Null,
                 filter.EligibilityMode ?? CommonConstants.Null,
                 filter.CoStatus != null ? filter.CoStatus.ToString() : CommonConstants.Null,
+                filter.ReplacementStatus != null ? filter.ReplacementStatus.ToString() : CommonConstants.Null,
                 filter.FilterQuarter?.ToString() ?? CommonConstants.Null,
                 filter.FilterFiscalYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterBatch ?? CommonConstants.Null,
