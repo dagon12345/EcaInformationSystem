@@ -1,8 +1,10 @@
 ﻿@* BeneficiaryForm.razor — Annex A (2026) aligned, with system-only fields separated out *@
+@using System.Text.Json
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @using Microsoft.AspNetCore.Components.Authorization
+@implements IAsyncDisposable
 @inject HttpClient Http
 @inject ToastService toast
 @inject NavigationManager Navigation
@@ -12,11 +14,34 @@
 @inject BeneficiaryFindingClientService FindingService
 @inject IJSRuntime JS
 
-<EditForm Model="@model" OnValidSubmit="@OpenSaveConfirmationModal" OnInvalidSubmit="@OnFormInvalidSubmit">
+<EditForm id="beneficiary-form-root" Model="@model" OnValidSubmit="@OpenSaveConfirmationModal" OnInvalidSubmit="@OnFormInvalidSubmit">
     <DataAnnotationsValidator />
     <div id="annexa-validation-summary">
         <ValidationSummary class="text-danger mb-3 small" />
     </div>
+
+    @* ── Draft recovery banner — shown when a locally-saved draft is found
+       that differs from what's currently loaded (e.g. after an accidental
+       reload/close mid-entry) ── *@
+    @if (_showDraftBanner)
+    {
+        <div class="alert alert-info d-flex justify-content-between align-items-center py-2 px-3 mb-3">
+            <div>
+                <i class="bi bi-clock-history me-2"></i>
+                We found unsaved changes from a previous session
+                @(_draftSavedAt.HasValue ? $"(saved {_draftSavedAt.Value.ToLocalTime():MMM dd, yyyy hh:mm tt})" : "")
+                . Would you like to restore them?
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-primary" @onclick="RestoreDraftAsync">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="DiscardDraftAsync">
+                    Discard
+                </button>
+            </div>
+        </div>
+    }
 
     @* ══════════════════════════════════════════════════════════════════
        SYSTEM FIELD — Reference Number (PDO-internal, NOT part of Annex A)
@@ -839,14 +864,21 @@
     </div>
 
     @* ── Actions ── *@
-    <div class="d-flex justify-content-end gap-2 mt-2">
-        <button type="button" class="sys-btn sys-btn-cancel"
-                @onclick='() => { State.Invalidate(); Navigation.NavigateTo("/beneficiary-records"); }'>
-            <i class="bi bi-x-circle me-1"></i>Cancel
-        </button>
-        <button type="submit" class="sys-btn sys-btn-save" disabled="@IsLoading">
-            @(IsEditMode ? "Update Record" : "Save Record")
-        </button>
+    <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+        <span class="text-muted small">
+            @if (_lastDraftSavedAt.HasValue)
+            {
+                <span><i class="bi bi-cloud-check me-1"></i>Draft saved @_lastDraftSavedAt.Value.ToString("hh:mm:ss tt")</span>
+            }
+        </span>
+        <div class="d-flex gap-2">
+            <button type="button" class="sys-btn sys-btn-cancel" @onclick="CancelFormAsync">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+            </button>
+            <button type="submit" class="sys-btn sys-btn-save" disabled="@IsLoading">
+                @(IsEditMode ? "Update Record" : "Save Record")
+            </button>
+        </div>
     </div>
 
 </EditForm>
@@ -1162,6 +1194,30 @@
     private ReferenceNumberModal _refNumberModal = default!;
     // ── Ref number section toggle ─────────────────────────────────────────────
     private bool _showRefNumber = true;
+
+    // ── Draft autosave (local recovery from accidental reload/close) ─────────
+    // Real-time-ish rather than truly per-keystroke: a JS listener watches the
+    // whole form for input/change activity and debounces ~1.2s after the user
+    // stops typing before calling back into .NET. Saving on every keystroke
+    // would mean a synchronous localStorage write + full-model JSON
+    // serialization per character, which is noticeable typing lag on a form
+    // this size — the debounce avoids that while still feeling immediate.
+    private const string DraftKeyPrefix = "eca-beneficiary-draft-";
+    private string DraftKey => DraftKeyPrefix + (IsEditMode && EditId.HasValue ? EditId.Value.ToString() : "new");
+    private const int DraftDebounceMs = 1200;
+    private IJSObjectReference? _draftWatchHandle;
+    private DotNetObjectReference<BeneficiaryForm>? _draftDotNetRef;
+    private string? _baselineModelJson;
+    private string? _lastSavedDraftJson;
+    private bool _showDraftBanner;
+    private DateTime? _draftSavedAt;
+    private DateTime? _lastDraftSavedAt;
+
+    private class DraftEnvelope
+    {
+        public DateTime SavedAt { get; set; }
+        public BeneficiaryInformationDto? Model { get; set; }
+    }
     // ✅ True only when all three fields are filled
     private bool HasRefNumber =>
         model.Quarter != null &&
@@ -1214,6 +1270,13 @@
         {
             model.Validator = _loggedInFullName;
         }
+
+        // Snapshot what's on screen right now (blank for a new record, the
+        // loaded record for an edit) as the baseline — autosave only fires
+        // once the user has actually changed something beyond this.
+        _baselineModelJson = JsonSerializer.Serialize(model);
+        await CheckForDraftAsync();
+        await StartWatchingFormActivityAsync();
 
         StateHasChanged();
     }
@@ -1710,6 +1773,148 @@
         _formProvinces = new();
         _formMunicipalities = new();
         _formBarangays = new();
+
+        // The fresh blank model is the new baseline — otherwise autosave
+        // would immediately fire again, comparing it against the previous
+        // (now-cleared) draft's baseline.
+        _baselineModelJson = JsonSerializer.Serialize(model);
+        _lastSavedDraftJson = null;
+        _lastDraftSavedAt = null;
+    }
+
+    private async Task CancelFormAsync()
+    {
+        await ClearDraftAsync();
+        State.Invalidate();
+        Navigation.NavigateTo("/beneficiary-records");
+    }
+
+    #region Draft autosave
+    private async Task StartWatchingFormActivityAsync()
+    {
+        _draftDotNetRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            _draftWatchHandle = await JS.InvokeAsync<IJSObjectReference?>(
+                "draftInterop.watchFormActivity", _draftDotNetRef, "beneficiary-form-root", DraftDebounceMs);
+        }
+        catch
+        {
+            // If the interop call fails for any reason, the form still works —
+            // it just won't autosave a local draft.
+        }
+    }
+
+    // Called from JS a short debounce after the user stops typing/selecting anywhere in the form.
+    [JSInvokable]
+    public async Task OnFormActivityDetected() => await AutosaveDraftAsync();
+
+    private async Task AutosaveDraftAsync()
+    {
+        if (_showDraftBanner) return; // don't clobber an unrestored draft with the blank/loaded form underneath it
+
+        try
+        {
+            var currentJson = JsonSerializer.Serialize(model);
+            if (currentJson == _baselineModelJson || currentJson == _lastSavedDraftJson)
+                return;
+
+            var envelope = new DraftEnvelope { SavedAt = DateTime.UtcNow, Model = model };
+            await JS.InvokeVoidAsync("localStorage.setItem", DraftKey, JsonSerializer.Serialize(envelope));
+
+            _lastSavedDraftJson = currentJson;
+            _lastDraftSavedAt = DateTime.Now;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Best-effort background autosave — a failure here shouldn't interrupt the user.
+        }
+    }
+
+    private async Task CheckForDraftAsync()
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", DraftKey);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+
+            var envelope = JsonSerializer.Deserialize<DraftEnvelope>(raw);
+            if (envelope?.Model == null) return;
+
+            // A draft that matches what's already on screen isn't worth surfacing.
+            if (JsonSerializer.Serialize(envelope.Model) == _baselineModelJson) return;
+
+            _draftSavedAt = envelope.SavedAt;
+            _showDraftBanner = true;
+        }
+        catch
+        {
+            // Corrupt/incompatible draft (e.g. from an older app version) — drop it silently.
+            await JS.InvokeVoidAsync("localStorage.removeItem", DraftKey);
+        }
+    }
+
+    private async Task RestoreDraftAsync()
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", DraftKey);
+            var envelope = string.IsNullOrWhiteSpace(raw) ? null : JsonSerializer.Deserialize<DraftEnvelope>(raw);
+            if (envelope?.Model == null)
+            {
+                _showDraftBanner = false;
+                return;
+            }
+
+            model = envelope.Model;
+            _showDraftBanner = false;
+
+            // Re-hydrate the address cascade dropdowns for the restored PSGC codes.
+            if (model.PsgcCodeRegion > 0)
+                await LoadFormProvincesAsync(model.PsgcCodeRegion);
+            if (model.PsgcCodeProvince > 0)
+                await LoadFormMunicipalitiesAsync(model.PsgcCodeProvince);
+            if (model.PsgcCodeMunicipality > 0)
+                await LoadFormBarangaysAsync(model.PsgcCodeMunicipality);
+
+            ApplyEligibilityRules();
+            toast.ShowSuccess("Draft restored.");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to restore draft: {ex.Message}");
+        }
+    }
+
+    private async Task DiscardDraftAsync()
+    {
+        await ClearDraftAsync();
+        _showDraftBanner = false;
+    }
+
+    private async Task ClearDraftAsync()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.removeItem", DraftKey); }
+        catch { /* best-effort */ }
+        _lastSavedDraftJson = null;
+        _lastDraftSavedAt = null;
+    }
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_draftWatchHandle is not null)
+            {
+                await JS.InvokeVoidAsync("draftInterop.unwatchFormActivity", _draftWatchHandle);
+                await _draftWatchHandle.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException) { /* circuit/page already gone */ }
+        _draftDotNetRef?.Dispose();
     }
     private string PaymentStatusLabel(int status) => status switch
     {
@@ -1940,6 +2145,7 @@
                 toast.ShowSuccess("Record updated successfully.");
             }
 
+            await ClearDraftAsync();
             State.Invalidate();
             Navigation.NavigateTo("/beneficiary-records");
         }
@@ -2101,6 +2307,7 @@
                 _softDuplicates.Clear();
                 _pendingDto = null;
                 _showSoftDuplicateModal = false;
+                await ClearDraftAsync();
                 ResetForm();
                 return;
             }

@@ -331,11 +331,21 @@
     <script src="js/viewerKey.js"></script>
     <script src="js/scrollInterop.js"></script>
     <script src="js/feedInterop.js"></script>
+    <script src="js/draftInterop.js"></script>
+    <script src="js/hardReload.js"></script>
     <script src="js/chatInterop.js?v=4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="_framework/blazor.webassembly.js" autostart="false"></script>
     <script>
         (function () {
+            // Set by hardReload.js right before it reloads the page, in response
+            // to the in-app "Refresh Now" button — read-and-clear once so only
+            // that one load bypasses the disk cache for every framework file
+            // (.dll/.wasm/blazor.boot.json), matching Ctrl+Shift+R. Normal
+            // reloads/navigations keep using the cache as usual.
+            const fetchCacheMode = sessionStorage.getItem('ecaForceHardReload') === '1' ? 'reload' : 'default';
+            sessionStorage.removeItem('ecaForceHardReload');
+
             let totalBytes = 0;
             let loadedBytes = 0;
             let resourceCount = 0;
@@ -373,7 +383,7 @@
                 const fileName = shortName(url);
                 updateUI(fileName);
 
-                const response = await fetch(url, { cache: 'default' });
+                const response = await fetch(url, { cache: fetchCacheMode });
                 const contentLength = response.headers.get('content-length');
                 const size = contentLength ? parseInt(contentLength, 10) : 0;
                 if (size > 0) totalBytes += size;
