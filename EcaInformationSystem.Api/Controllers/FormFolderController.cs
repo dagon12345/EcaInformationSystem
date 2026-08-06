@@ -26,9 +26,9 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<ActionResult<List<FormFolderDto>>> GetAll()
             => Ok(await _service.GetAllAsync());
 
-        // ── Admin / SuperAdmin only ─────────────────────────────────────────
+        // ── Admin / SuperAdmin / Viewer — Viewer has full access in Forms Gateway ──
         [HttpPost]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<ActionResult<FormFolderDto>> Create([FromBody] FormFolderCreateDto dto)
         {
             try { return Ok(await _service.CreateAsync(dto, CurrentUser)); }
@@ -36,7 +36,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<IActionResult> Update(Guid id, [FromBody] FormFolderUpdateDto dto)
         {
             try
@@ -49,7 +49,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpDelete("{id:guid}")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<ActionResult<int>> Delete(Guid id)
         {
             try { return Ok(await _service.DeleteAsync(id, CurrentUser)); }
@@ -57,7 +57,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpGet("activity-log")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<ActionResult<List<FormActivityLogDto>>> GetActivityLog([FromQuery] int take = 100)
             => Ok(await _service.GetActivityLogAsync(take));
     }

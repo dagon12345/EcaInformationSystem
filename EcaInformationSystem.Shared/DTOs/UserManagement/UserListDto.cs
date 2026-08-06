@@ -17,6 +17,9 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
         public string? RegionName { get; set; } // resolved name, e.g. "Caraga"
         public bool IsMfaEnabled { get; set; } = false;
         public string? BiometricUserId { get; set; }
+        public bool IsDeactivated { get; set; }
+        public DateTime? DeactivatedAt { get; set; }
+        public string? DeactivatedBy { get; set; }
         public List<JurisdictionDto> Jurisdictions { get; set; } = new();
     }
 
@@ -35,6 +38,11 @@ namespace EcaInformationSystem.Shared.DTOs.UserManagement
     }
 
     public class RejectUserRequestDto
+    {
+        public string? Remarks { get; set; }
+    }
+
+    public class DeactivateUserRequestDto
     {
         public string? Remarks { get; set; }
     }

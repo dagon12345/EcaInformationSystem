@@ -14,9 +14,7 @@
 
         public bool IsDeleted { get; set; }
 
-        // One level of nesting only — a subfolder's ParentFolderId points at a
-        // root folder; a subfolder may not itself have children (enforced in
-        // FormFolderService, not here).
+        // Self-referencing — folders can be nested arbitrarily deep.
         public Guid? ParentFolderId { get; set; }
         public FormFolder? ParentFolder { get; set; }
         public ICollection<FormFolder> ChildFolders { get; set; } = new List<FormFolder>();

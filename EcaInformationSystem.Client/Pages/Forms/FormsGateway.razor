@@ -15,7 +15,7 @@
     <div class="forms-sidebar">
         <div class="forms-sidebar-header">
             <span>Folders</span>
-            @if (_isAdmin)
+            @if (_hasFullAccess)
             {
                 <button class="btn btn-sm btn-link p-0" @onclick="OpenCreateFolderModal" title="New Folder">
                     <i class="bi bi-folder-plus"></i>
@@ -41,62 +41,58 @@
 
         <hr class="my-2" />
 
-        @foreach (var folder in RootFolders)
-        {
-            var children = SubfoldersOf(folder.Id).ToList();
-            var hasChildren = children.Count > 0;
-            var isExpanded = IsFolderExpanded(folder.Id);
+        @{
+            RenderFragment<(FormFolderDto Folder, int Depth)> FolderRow = null!;
+            FolderRow = ctx =>
+                @<text>
+                    @{
+                        var children = SubfoldersOf(ctx.Folder.Id).ToList();
+                        var hasChildren = children.Count > 0;
+                        var isExpanded = IsFolderExpanded(ctx.Folder.Id);
+                    }
+                    <div class="forms-folder-item @(ctx.Depth > 0 ? "forms-folder-item--sub" : "") @(_selectedFolderId == ctx.Folder.Id ? "active" : "")"
+                         style="padding-left:@(8 + ctx.Depth * 16)px;"
+                         @onclick="() => SelectFolder(ctx.Folder.Id, false)">
+                        @if (hasChildren)
+                        {
+                            <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") forms-folder-toggle"
+                               @onclick="() => ToggleFolderExpand(ctx.Folder.Id)" @onclick:stopPropagation="true"
+                               title="@(isExpanded ? "Hide subfolders" : "Show subfolders")"></i>
+                        }
+                        else
+                        {
+                            <span class="forms-folder-toggle-spacer"></span>
+                        }
+                        <i class="bi @(ctx.Depth == 0 ? "bi-folder-fill" : "bi-folder2") forms-folder-icon"></i>
+                        <span class="forms-folder-name text-truncate" title="@ctx.Folder.Name">@ctx.Folder.Name</span>
+                        <span class="folder-count">@ctx.Folder.DocumentCount</span>
 
-            <div class="forms-folder-item @(_selectedFolderId == folder.Id ? "active" : "")"
-                 @onclick="() => SelectFolder(folder.Id, false)">
-                @if (hasChildren)
-                {
-                    <i class="bi @(isExpanded ? "bi-chevron-down" : "bi-chevron-right") forms-folder-toggle"
-                       @onclick="() => ToggleFolderExpand(folder.Id)" @onclick:stopPropagation="true"
-                       title="@(isExpanded ? "Hide subfolders" : "Show subfolders")"></i>
-                }
-                else
-                {
-                    <span class="forms-folder-toggle-spacer"></span>
-                }
-                <i class="bi bi-folder-fill forms-folder-icon"></i>
-                <span class="forms-folder-name text-truncate" title="@folder.Name">@folder.Name</span>
-                <span class="folder-count">@folder.DocumentCount</span>
-
-                @if (_isAdmin)
-                {
-                    <div class="folder-actions" @onclick:stopPropagation="true">
-                        <i class="bi bi-folder-plus" @onclick="() => OpenCreateSubfolderModal(folder)" title="New Subfolder"></i>
-                        <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(folder)" title="Rename"></i>
-                        <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(folder)" title="Delete"></i>
-                    </div>
-                }
-            </div>
-
-            @if (hasChildren && isExpanded)
-            {
-                @foreach (var sub in children)
-                {
-                    <div class="forms-folder-item forms-folder-item--sub @(_selectedFolderId == sub.Id ? "active" : "")"
-                         @onclick="() => SelectFolder(sub.Id, false)">
-                        <span class="forms-folder-toggle-spacer"></span>
-                        <i class="bi bi-folder2 forms-folder-icon"></i>
-                        <span class="forms-folder-name text-truncate" title="@sub.Name">@sub.Name</span>
-                        <span class="folder-count">@sub.DocumentCount</span>
-
-                        @if (_isAdmin)
+                        @if (_hasFullAccess)
                         {
                             <div class="folder-actions" @onclick:stopPropagation="true">
-                                <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(sub)" title="Rename"></i>
-                                <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(sub)" title="Delete"></i>
+                                <i class="bi bi-folder-plus" @onclick="() => OpenCreateSubfolderModal(ctx.Folder)" title="New Subfolder"></i>
+                                <i class="bi bi-pencil" @onclick="() => OpenEditFolderModal(ctx.Folder)" title="Rename"></i>
+                                <i class="bi bi-trash" @onclick="() => OpenDeleteFolderConfirm(ctx.Folder)" title="Delete"></i>
                             </div>
                         }
                     </div>
-                }
-            }
+
+                    @if (hasChildren && isExpanded)
+                    {
+                        @foreach (var child in children)
+                        {
+                            @FolderRow((child, ctx.Depth + 1))
+                        }
+                    }
+                </text>;
         }
 
-        @if (_isAdmin)
+        @foreach (var folder in RootFolders)
+        {
+            @FolderRow((folder, 0))
+        }
+
+        @if (_hasFullAccess)
         {
             <hr class="my-2" />
             <button class="btn btn-sm btn-outline-secondary w-100" @onclick="() => ShowActivityLog()">
@@ -112,7 +108,7 @@
                 <h4 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Forms Gateway</h4>
                 <small class="text-muted">@GetCurrentFolderLabel()</small>
             </div>
-            @if (_isAdmin)
+            @if (_hasFullAccess)
             {
                 <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
                     <i class="bi bi-cloud-upload me-1"></i>Upload Form
@@ -125,9 +121,9 @@
             <div>
                 <strong>About this page.</strong>
                 Official NCSC files for download. Accepted file types: PDF, Word (.doc/.docx), Excel (.xls/.xlsx) — max <strong>10 MB</strong> per file.
-                @if (_isAdmin)
+                @if (_hasFullAccess)
                 {
-                    <span>As an Administrator, you can manage folders and upload, edit, or delete forms here.</span>
+                    <span>You can manage folders and upload, edit, or delete forms here.</span>
                 }
                 else
                 {
@@ -261,7 +257,7 @@
                                         }
                                     </button>
 
-                                    @if (_isAdmin)
+                                    @if (_hasFullAccess)
                                     {
                                         <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenEditModal(form)" title="Edit">
                                             <i class="bi bi-pencil"></i>
@@ -354,9 +350,9 @@
             <label class="ff-label">Folder</label>
             <select class="ff-input" @bind="_uploadFolderId">
                 <option value="">-- Uncategorized --</option>
-                @foreach (var folder in FlattenedFolderOptions())
+                @foreach (var entry in FlattenedFolderOptions())
                 {
-                    <option value="@folder.Id">@(folder.ParentFolderId.HasValue ? $"— {folder.Name}" : folder.Name)</option>
+                    <option value="@entry.Folder.Id">@(new string(' ', entry.Depth * 2))@(entry.Depth > 0 ? "— " : "")@entry.Folder.Name</option>
                 }
             </select>
         </div>
@@ -394,9 +390,9 @@
             <label class="ff-label">Folder</label>
             <select class="ff-input" @bind="_editFolderId">
                 <option value="">-- Uncategorized --</option>
-                @foreach (var folder in FlattenedFolderOptions())
+                @foreach (var entry in FlattenedFolderOptions())
                 {
-                    <option value="@folder.Id">@(folder.ParentFolderId.HasValue ? $"— {folder.Name}" : folder.Name)</option>
+                    <option value="@entry.Folder.Id">@(new string(' ', entry.Depth * 2))@(entry.Depth > 0 ? "— " : "")@entry.Folder.Name</option>
                 }
             </select>
         </div>
@@ -430,7 +426,7 @@
     </FooterTemplate>
 </HxModal>
 
-@* ── Activity Log Modal (Admin only) ── *@
+@* ── Activity Log Modal ── *@
 <HxModal @ref="_activityLogModal" Size="ModalSize.Large">
     <HeaderTemplate><h5><i class="bi bi-clock-history me-2"></i>Folder & Form Activity Log</h5></HeaderTemplate>
     <BodyTemplate>
@@ -479,7 +475,7 @@
     private List<FormDocumentDto> _displayedForms = new();
     private bool _isLoading = true;
     private bool _isSaving;
-    private bool _isAdmin;
+    private bool _hasFullAccess;
 
     private Guid? _selectedFolderId = null;
     private bool _uncategorizedOnly = false;
@@ -515,13 +511,22 @@
             _collapsedFolderIds.Remove(folderId);
     }
 
-    private IEnumerable<FormFolderDto> FlattenedFolderOptions()
+    private IEnumerable<(FormFolderDto Folder, int Depth)> FlattenedFolderOptions()
     {
         foreach (var root in RootFolders)
         {
-            yield return root;
-            foreach (var sub in SubfoldersOf(root.Id))
-                yield return sub;
+            foreach (var entry in FlattenFolderSubtree(root, 0))
+                yield return entry;
+        }
+    }
+
+    private IEnumerable<(FormFolderDto Folder, int Depth)> FlattenFolderSubtree(FormFolderDto folder, int depth)
+    {
+        yield return (folder, depth);
+        foreach (var child in SubfoldersOf(folder.Id))
+        {
+            foreach (var entry in FlattenFolderSubtree(child, depth + 1))
+                yield return entry;
         }
     }
 
@@ -548,7 +553,7 @@
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
-        _isAdmin = AuthService.IsAdmin();
+        _hasFullAccess = AuthService.IsAdmin() || AuthService.IsViewer();
         await LoadFoldersAsync();
         await LoadFormsAsync();
     }

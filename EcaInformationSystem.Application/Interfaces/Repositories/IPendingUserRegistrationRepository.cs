@@ -10,6 +10,8 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<List<PendingUserRegistration>> GetAllAsync(
            CancellationToken cancellationToken = default);
         Task AddAsync(PendingUserRegistration user, CancellationToken cancellationToken = default);
+        // Hard delete — removes the account and its jurisdictions/profile picture.
+        Task DeleteAsync(Guid userId, CancellationToken cancellationToken = default);
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
         // ── Jurisdiction ────────────────────────────────────────────────────
         Task<List<PdoJurisdiction>> GetJurisdictionsByUserIdAsync(Guid userId);

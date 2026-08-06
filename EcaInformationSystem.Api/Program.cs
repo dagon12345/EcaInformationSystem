@@ -127,6 +127,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("SuperAdminOnly",
         policy => policy.RequireRole("SuperAdmin"));
 
+    // ✅ Finance — same user-management privileges as SuperAdmin (approve/reject/
+    // assign roles/jurisdictions, deactivate or delete accounts)
+    options.AddPolicy("SuperAdminOrFinance",
+        policy => policy.RequireRole("SuperAdmin", "Finance"));
+
     // ✅ Admin — all operational features
     options.AddPolicy("AdminOnly",
         policy => policy.RequireRole("Admin", "SuperAdmin"));
@@ -134,6 +139,10 @@ builder.Services.AddAuthorization(options =>
     // ✅ PDO — can create and assign ref numbers
     options.AddPolicy("AdminOrPDO",
         policy => policy.RequireRole("Admin", "PDO", "SuperAdmin"));
+
+    // ✅ Viewer — "view and upload only" role, plus Admins, can upload Forms Gateway documents
+    options.AddPolicy("AdminOrViewer",
+        policy => policy.RequireRole("Admin", "Viewer", "SuperAdmin"));
 });
 // ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>

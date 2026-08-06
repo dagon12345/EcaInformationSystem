@@ -90,6 +90,40 @@ namespace EcaInformationSystem.Application.Services
 
             await _repo.SaveChangesAsync();
         }
+        public async Task DeactivateAsync(Guid userId, string? remarks, string deactivatedBy)
+        {
+            var user = await _repo.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            user.IsDeactivated = true;
+            user.DeactivatedAt = DateTime.UtcNow;
+            user.DeactivatedBy = deactivatedBy;
+            if (!string.IsNullOrWhiteSpace(remarks))
+                user.Remarks = remarks;
+
+            await _repo.SaveChangesAsync();
+        }
+
+        public async Task ReactivateAsync(Guid userId, string reactivatedBy)
+        {
+            var user = await _repo.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            user.IsDeactivated = false;
+            user.DeactivatedAt = null;
+            user.DeactivatedBy = null;
+
+            await _repo.SaveChangesAsync();
+        }
+
+        public async Task DeleteAsync(Guid userId)
+        {
+            _ = await _repo.GetByIdAsync(userId)
+                ?? throw new KeyNotFoundException("User not found.");
+
+            await _repo.DeleteAsync(userId);
+        }
+
         public async Task AssignJurisdictionsAsync(Guid userId, List<int> municipalityCodes, string assignedBy)
         {
             var user = await _repo.GetByIdAsync(userId)
@@ -171,6 +205,9 @@ namespace EcaInformationSystem.Application.Services
                  : (u.Region.HasValue ? $"Region {u.Region.Value}" : "Not set"),
                  IsMfaEnabled = u.IsMfaEnabled,
                  BiometricUserId = u.BiometricUserId,
+                 IsDeactivated = u.IsDeactivated,
+                 DeactivatedAt = u.DeactivatedAt,
+                 DeactivatedBy = u.DeactivatedBy,
                  Jurisdictions = u.Jurisdictions.Select(j => new JurisdictionDto
                  {
                      Id = j.Id,

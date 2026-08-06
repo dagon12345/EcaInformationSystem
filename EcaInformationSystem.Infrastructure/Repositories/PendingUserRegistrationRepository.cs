@@ -61,6 +61,29 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
+        public async Task DeleteAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            // Explicit cleanup rather than relying on cascade — PdoJurisdiction has a
+            // configured cascade FK, but UserProfilePicture does not (PendingUserRegistrations
+            // has no DB-level PK constraint), so it would otherwise orphan.
+            var jurisdictions = await _context.PdoJurisdictions
+                .Where(x => x.UserId == userId)
+                .ToListAsync(cancellationToken);
+            _context.PdoJurisdictions.RemoveRange(jurisdictions);
+
+            var picture = await _context.UserProfilePictures
+                .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+            if (picture is not null)
+                _context.UserProfilePictures.Remove(picture);
+
+            var user = await _context.PendingUserRegistrations
+                .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+            if (user is not null)
+                _context.PendingUserRegistrations.Remove(user);
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
              => await _context.SaveChangesAsync(cancellationToken);
     }

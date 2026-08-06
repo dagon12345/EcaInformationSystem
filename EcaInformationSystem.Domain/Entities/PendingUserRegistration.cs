@@ -43,6 +43,11 @@ namespace EcaInformationSystem.Domain.Entities
         // Links this user to their ZKTeco device PIN (AttendanceLog.BiometricUserId) for DTR generation.
         [MaxLength(50)]
         public string? BiometricUserId { get; set; }
+        // Disables login without discarding approval history/role — used when
+        // an employee resigns or is otherwise offboarded; reversible.
+        public bool IsDeactivated { get; set; } = false;
+        public DateTime? DeactivatedAt { get; set; }
+        public string? DeactivatedBy { get; set; }
         public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
             = new List<PdoJurisdiction>();
     }

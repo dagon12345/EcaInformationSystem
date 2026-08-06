@@ -9,7 +9,7 @@ namespace EcaInformationSystem.Api.Controllers
 {
     [ApiController]
     [Route("api/user-management")]
-    [Authorize(Policy = "SuperAdminOnly")]  // ✅ only SuperAdmin touches this
+    [Authorize(Policy = "SuperAdminOrFinance")]  // ✅ SuperAdmin and Finance have equal access here
     public class UserManagementController : ControllerBase
     {
         private readonly IUserManagementService _service;
@@ -59,6 +59,48 @@ namespace EcaInformationSystem.Api.Controllers
                 var rejectedBy = User.Identity?.Name ?? "SuperAdmin";
                 await _service.RejectAsync(id, dto.Remarks, rejectedBy);
                 return Ok(new { message = "User rejected." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+        // ── Deactivate (reversible login lock — e.g. employee resigned) ───────
+        [HttpPost("{id:guid}/deactivate")]
+        public async Task<IActionResult> Deactivate(
+            Guid id, [FromBody] DeactivateUserRequestDto dto)
+        {
+            try
+            {
+                var deactivatedBy = User.Identity?.Name ?? "SuperAdmin";
+                await _service.DeactivateAsync(id, dto.Remarks, deactivatedBy);
+                return Ok(new { message = "User deactivated." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+        // ── Reactivate ──────────────────────────────────────────────────────
+        [HttpPost("{id:guid}/reactivate")]
+        public async Task<IActionResult> Reactivate(Guid id)
+        {
+            try
+            {
+                var reactivatedBy = User.Identity?.Name ?? "SuperAdmin";
+                await _service.ReactivateAsync(id, reactivatedBy);
+                return Ok(new { message = "User reactivated." });
+            }
+            catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
+        // ── Permanently delete the account ─────────────────────────────────
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            try
+            {
+                await _service.DeleteAsync(id);
+                return Ok(new { message = "User deleted." });
             }
             catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
             catch (Exception ex) { return BadRequest(ex.Message); }

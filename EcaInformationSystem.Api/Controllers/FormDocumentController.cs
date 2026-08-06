@@ -39,7 +39,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("upload")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         [RequestSizeLimit(10 * 1024 * 1024)]
         public async Task<ActionResult<FormDocumentDto>> Upload(
             [FromForm] UploadFormDocumentRequest request)
@@ -56,7 +56,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}/file")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         [RequestSizeLimit(10 * 1024 * 1024)]
         public async Task<ActionResult<FormDocumentDto>> ReplaceFile(Guid id, [FromForm] ReplaceFileRequest request)
         {
@@ -66,7 +66,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<IActionResult> UpdateMetadata(Guid id, [FromBody] FormDocumentUpdateDto dto)
         {
             try
@@ -79,7 +79,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpDelete("{id:guid}")]
-        [Authorize(Policy = "AdminOnly")]
+        [Authorize(Policy = "AdminOrViewer")]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

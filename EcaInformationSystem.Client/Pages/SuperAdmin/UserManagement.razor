@@ -44,7 +44,7 @@
             <div>
                 <strong>Access Denied</strong>
                 <p class="mb-0 small">
-                    This page is restricted to Super Administrators only.
+                    This page is restricted to Super Administrators and Finance only.
                 </p>
             </div>
         </div>
@@ -256,9 +256,18 @@
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge @GetStatusBadgeClass(user.ApprovalStatus)">
-                                                @GetStatusLabel(user.ApprovalStatus)
-                                            </span>
+                                            @if (user.IsDeactivated)
+                                            {
+                                                <span class="badge bg-dark" title="@(user.DeactivatedAt.HasValue ? $"Deactivated {user.DeactivatedAt.Value.ToLocalTime():MMM dd, yyyy} by {user.DeactivatedBy}" : "Deactivated")">
+                                                    <i class="bi bi-slash-circle me-1"></i>Deactivated
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @GetStatusBadgeClass(user.ApprovalStatus)">
+                                                    @GetStatusLabel(user.ApprovalStatus)
+                                                </span>
+                                            }
                                         </td>
                                         <td>
                                             <small>
@@ -288,6 +297,18 @@
                                                             <i class="bi bi-geo-alt me-1"></i>Jurisdiction
                                                         </button>
                                                     }
+                                                    @if (user.IsDeactivated)
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-success" @onclick="() => ReactivateAsync(user)">
+                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Reactivate
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-warning" @onclick="() => OpenDeactivateModal(user)">
+                                                            <i class="bi bi-slash-circle me-1"></i>Deactivate
+                                                        </button>
+                                                    }
                                                 }
                                                 @if (user.IsMfaEnabled)
                                                 {
@@ -295,6 +316,9 @@
                                                         Reset MFA
                                                     </button>
                                                 }
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenDeleteUserModal(user)" title="Permanently delete this account">
+                                                    <i class="bi bi-trash me-1"></i>Delete
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -549,6 +573,78 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── Deactivate Modal ─────────────────────────────────────────────────────── *@
+<HxModal @ref="_deactivateModal">
+    <HeaderTemplate>
+        <h5 class="modal-title text-warning"><i class="bi bi-slash-circle me-2"></i>Deactivate User</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedUser is not null)
+        {
+            <p>
+                You are about to deactivate
+                <strong>@_selectedUser.FullName</strong> (<code>@_selectedUser.UserName</code>).
+                They will no longer be able to log in, but their role and history are kept
+                — you can reactivate this account at any time.
+            </p>
+            <div class="mb-0">
+                <label class="form-label fw-semibold">Reason (optional)</label>
+                <textarea class="form-control" rows="2" @bind="_deactivateRemarks"
+                          placeholder="e.g. Resigned effective ..."></textarea>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deactivateModal.HideAsync()">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Warning" @onclick="ConfirmDeactivateAsync" Disabled="@_isSaving">
+            @if (_isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <span>Yes, Deactivate</span>
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Delete User Modal (CAUTION — permanent) ─────────────────────────────── *@
+<HxModal @ref="_deleteUserModal">
+    <HeaderTemplate>
+        <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Delete User</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedUser is not null)
+        {
+            <p>
+                You're about to permanently delete <strong>@_selectedUser.FullName</strong>
+                (<code>@_selectedUser.UserName</code>). This removes their account, role,
+                and jurisdiction assignments and <u>cannot be undone</u>.
+            </p>
+            <p class="text-muted small mb-2">
+                If you just need to disable their login (e.g. an employee on leave), use
+                <strong>Deactivate</strong> instead — it's reversible.
+            </p>
+            <p class="text-muted small mb-2">Type the username below to confirm.</p>
+            <input class="form-control" @bind="_deleteUserConfirmText" @bind:event="oninput"
+                   placeholder="@_selectedUser.UserName" />
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deleteUserModal.HideAsync()">
+            Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmDeleteUserAsync"
+                  Disabled="@(_isSaving || _deleteUserConfirmText != _selectedUser?.UserName)">
+            @if (_isSaving)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <i class="bi bi-trash me-1"></i>Delete Permanently
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @* ── Jurisdiction Modal ───────────────────────────────────────────────────── *@
 <HxModal @ref="_jurisdictionModal" Size="ModalSize.ExtraLarge" Scrollable="true">
     <HeaderTemplate>
@@ -729,6 +825,14 @@
     // ── Reject modal ──────────────────────────────────────────────────────────
     private HxModal _rejectModal = default!;
     private string? _rejectRemarks;
+
+    // ── Deactivate modal ──────────────────────────────────────────────────────
+    private HxModal _deactivateModal = default!;
+    private string? _deactivateRemarks;
+
+    // ── Delete user modal ─────────────────────────────────────────────────────
+    private HxModal _deleteUserModal = default!;
+    private string _deleteUserConfirmText = string.Empty;
 
     // ── Jurisdiction modal ────────────────────────────────────────────────────
     private HxModal _jurisdictionModal = default!;
@@ -1018,7 +1122,7 @@
         if (!firstRender) return;
 
         await AuthService.InitAsync();
-        _authorized = AuthService.IsSuperAdmin();
+        _authorized = AuthService.IsSuperAdmin() || AuthService.IsFinance();
         _initialized = true; // ✅ now the markup knows we've checked
 
         if (_authorized)
@@ -1136,6 +1240,82 @@
             {
                 toast.ShowSuccess($"{_selectedUser.FullName} rejected.");
                 await _rejectModal.HideAsync();
+                await LoadUsersAsync();
+            }
+            else { toast.ShowError(await response.Content.ReadAsStringAsync()); }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+        finally { _isSaving = false; }
+    }
+
+    // ── Deactivate / Reactivate ─────────────────────────────────────────────────
+    private async Task OpenDeactivateModal(UserListDto user)
+    {
+        _selectedUser = user;
+        _deactivateRemarks = null;
+        await _deactivateModal.ShowAsync();
+    }
+
+    private async Task ConfirmDeactivateAsync()
+    {
+        if (_selectedUser is null) return;
+        try
+        {
+            _isSaving = true;
+            var response = await Http.PostAsJsonAsync(
+                $"api/user-management/{_selectedUser.Id}/deactivate",
+                new DeactivateUserRequestDto { Remarks = _deactivateRemarks });
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess($"{_selectedUser.FullName} deactivated.");
+                await _deactivateModal.HideAsync();
+                await LoadUsersAsync();
+            }
+            else { toast.ShowError(await response.Content.ReadAsStringAsync()); }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+        finally { _isSaving = false; }
+    }
+
+    private async Task ReactivateAsync(UserListDto user)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Reactivate {user.UserName}? They will be able to log in again.");
+        if (!confirmed) return;
+
+        try
+        {
+            var response = await Http.PostAsync($"api/user-management/{user.Id}/reactivate", null);
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess($"{user.FullName} reactivated.");
+                await LoadUsersAsync();
+            }
+            else { toast.ShowError(await response.Content.ReadAsStringAsync()); }
+        }
+        catch (Exception ex) { toast.ShowError($"Error: {ex.Message}"); }
+    }
+
+    // ── Delete ────────────────────────────────────────────────────────────────
+    private Task OpenDeleteUserModal(UserListDto user)
+    {
+        _selectedUser = user;
+        _deleteUserConfirmText = string.Empty;
+        return _deleteUserModal.ShowAsync();
+    }
+
+    private async Task ConfirmDeleteUserAsync()
+    {
+        if (_selectedUser is null) return;
+        try
+        {
+            _isSaving = true;
+            var response = await Http.DeleteAsync($"api/user-management/{_selectedUser.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess($"{_selectedUser.FullName} deleted.");
+                await _deleteUserModal.HideAsync();
                 await LoadUsersAsync();
             }
             else { toast.ShowError(await response.Content.ReadAsStringAsync()); }

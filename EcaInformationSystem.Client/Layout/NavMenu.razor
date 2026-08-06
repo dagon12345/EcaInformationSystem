@@ -107,24 +107,29 @@
         </NavLink>
     }
 
-    @* ── Administration section — SuperAdmin only ── *@
-    @* ── Administration section — SuperAdmin only ── *@
-    @if (_isSuperAdmin)
+    @* ── Administration section — User Management: SuperAdmin + Finance;
+       Conversation Oversight / System Updates stay SuperAdmin only ── *@
+    @if (_isSuperAdmin || _isFinance)
     {
         <div class="nav-section-label">Administration</div>
-        <NavLink class="nav-item" href="user-management">
-            <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
-            <span class="nav-label">User Management</span>
-        </NavLink>
-        @* ✅ NEW *@
-        <NavLink class="nav-item" href="chat-oversight">
-            <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
-            <span class="nav-label">Conversation Oversight</span>
-        </NavLink>
-        <NavLink class="nav-item" href="system-updates">
-            <span class="nav-icon"><i class="bi bi-arrow-repeat"></i></span>
-            <span class="nav-label">System Updates</span>
-        </NavLink>
+        @if (_isSuperAdmin || _isFinance)
+        {
+            <NavLink class="nav-item" href="user-management">
+                <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+                <span class="nav-label">User Management</span>
+            </NavLink>
+        }
+        @if (_isSuperAdmin)
+        {
+            <NavLink class="nav-item" href="chat-oversight">
+                <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
+                <span class="nav-label">Conversation Oversight</span>
+            </NavLink>
+            <NavLink class="nav-item" href="system-updates">
+                <span class="nav-icon"><i class="bi bi-arrow-repeat"></i></span>
+                <span class="nav-label">System Updates</span>
+            </NavLink>
+        }
     }
 
     <div class="nav-section-label mt-2">System</div>
@@ -396,6 +401,7 @@
             ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
             ("Log a Document Batch (Document Tracking)", _isViewer || _isAdmin),
             ("Act on a Document Batch tagged to you", true), // any role, once it's actually tagged to them
+            ("Manage Users (Approve/Deactivate/Delete)", _isFinance || _isSuperAdmin),
             ("Publish System Updates", _isSuperAdmin), // SuperAdmin only — broadcasts the refresh banner
         };
 

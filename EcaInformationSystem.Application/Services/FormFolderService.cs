@@ -66,10 +66,6 @@ namespace EcaInformationSystem.Application.Services
             {
                 parent = await _folderRepo.GetByIdAsync(dto.ParentFolderId.Value)
                     ?? throw new KeyNotFoundException("Parent folder not found.");
-
-                // Only one level of nesting — a subfolder can't itself have subfolders.
-                if (parent.ParentFolderId.HasValue)
-                    throw new InvalidOperationException("A subfolder cannot contain another subfolder.");
             }
 
             var folder = new FormFolder

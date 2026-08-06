@@ -15,6 +15,14 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<UserListDto?> GetUserByIdAsync(Guid id);
         Task ApproveAsync(Guid userId, string role, string? remarks, string approvedBy);
         Task RejectAsync(Guid userId, string? remarks, string rejectedBy);
+
+        // Deactivate/Reactivate — reversible login lock, e.g. for a resigned
+        // employee; approval history and role are preserved.
+        Task DeactivateAsync(Guid userId, string? remarks, string deactivatedBy);
+        Task ReactivateAsync(Guid userId, string reactivatedBy);
+
+        // Permanent removal of the account (and its jurisdictions/profile picture).
+        Task DeleteAsync(Guid userId);
         Task AssignJurisdictionsAsync(Guid userId, List<int> municipalityCodes,
             string assignedBy);
         Task<List<int>> GetJurisdictionCodesAsync(Guid userId);

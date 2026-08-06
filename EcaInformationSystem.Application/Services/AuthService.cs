@@ -98,6 +98,11 @@ namespace EcaInformationSystem.Application.Services
             {
                 return AuthResult.Failed("Invalid username or password.");
             }
+
+            if (user.IsDeactivated)
+            {
+                return AuthResult.Failed("This account has been deactivated. Contact your administrator.");
+            }
             var verifyResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
             if (verifyResult == PasswordVerificationResult.Failed)
             {
