@@ -21,14 +21,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             await _context.Logs.AddAsync(log);
 
-            // Live leaderboard push — skip the same activity this repo already
-            // excludes from the tier count itself (logins, bulk import/update
-            // rows), so a 40k-row Excel import doesn't spam every connected
-            // client with 40k SignalR events for activity that isn't even counted.
-            if (log.Category != "Login" &&
-                !(log.UserName ?? string.Empty).StartsWith("System") &&
+            // Live leaderboard push — skip the same bulk activity this repo
+            // already excludes from the tier count itself, so a 40k-row Excel
+            // import doesn't spam every connected client with 40k SignalR
+            // events for activity that isn't even counted. Logins DO qualify
+            // now, same as the count query below.
+            if (!(log.UserName ?? string.Empty).StartsWith("System") &&
                 !log.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
-                !log.Activity.StartsWith(CommonConstants.ExcelUpdate))
+                !log.Activity.StartsWith(CommonConstants.ExcelUpdate) &&
+                !log.Activity.StartsWith("New payment record") &&
+                !log.Activity.StartsWith("Reference number assigned:") &&
+                !log.Activity.StartsWith("Bulk update:") &&
+                !log.Activity.StartsWith("Bulk CO Status update") &&
+                !log.Activity.StartsWith("CGP Number assigned:"))
             {
                 await _tierBroadcaster.NotifyTransactionRecordedAsync(log.UserName);
             }
@@ -142,16 +147,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
-        // Excludes Category "Login" (signing in isn't "work") and bulk-import
-        // activity (one Log row is written PER ROW imported/updated via Excel,
-        // so a single 40k-row import would otherwise dwarf everyone's real,
-        // one-click-at-a-time activity). Powers the gamified transaction tier
-        // badge, which should only reflect genuine individual edits.
+        // Excludes bulk-operation activity — anything where a service loops over
+        // many records and writes one Log row PER RECORD, so a single bulk action
+        // doesn't dwarf everyone else's real, one-click-at-a-time activity.
+        // Logins now DO count (per request) — signing in is still activity.
+        // Bulk activity prefixes covered here, all from loops in
+        // BeneficiaryInformationService: Excel import/update, bulk payment
+        // history, bulk ref-number assignment, bulk eligibility/batch-code
+        // update, bulk CO status update, and CGP number assignment (payroll
+        // generation — also excluded defensively even though it's logged
+        // under the non-real "System (Payroll Generation)" username).
         private IQueryable<Log> TransactionLogsQuery() =>
             _context.Logs.AsNoTracking().Where(l =>
-                l.Category != "Login" &&
                 !l.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
-                !l.Activity.StartsWith(CommonConstants.ExcelUpdate));
+                !l.Activity.StartsWith(CommonConstants.ExcelUpdate) &&
+                !l.Activity.StartsWith("New payment record") &&
+                !l.Activity.StartsWith("Reference number assigned:") &&
+                !l.Activity.StartsWith("Bulk update:") &&
+                !l.Activity.StartsWith("Bulk CO Status update") &&
+                !l.Activity.StartsWith("CGP Number assigned:"));
 
         public async Task<int> CountUserTransactionsAsync(string userName)
         {
