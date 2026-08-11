@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -110,6 +111,40 @@ builder.Services
                     context.Token = accessToken;
                 }
                 return Task.CompletedTask;
+            },
+
+            // ✅ NEW — active-session revocation check. Tokens are otherwise fully
+            // stateless, so this is what lets a user log a device out remotely before
+            // its natural 8h expiry. Cached for a short window so the common case
+            // (non-revoked token) doesn't cost a DB round-trip on every request.
+            OnTokenValidated = async context =>
+            {
+                var jti = context.Principal?.FindFirst(
+                    System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+
+                if (string.IsNullOrEmpty(jti))
+                {
+                    context.Fail("Invalid token.");
+                    return;
+                }
+
+                var cache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+                var cacheKey = $"revoked-session:{jti}";
+
+                if (!cache.TryGetValue(cacheKey, out bool isRevoked))
+                {
+                    var sessionRepository = context.HttpContext.RequestServices
+                        .GetRequiredService<EcaInformationSystem.Application.Interfaces.Repositories.IUserSessionRepository>();
+                    var session = await sessionRepository.GetByJtiAsync(jti);
+                    isRevoked = session == null || session.RevokedAt != null;
+
+                    cache.Set(cacheKey, isRevoked, TimeSpan.FromSeconds(30));
+                }
+
+                if (isRevoked)
+                {
+                    context.Fail("Session has been revoked.");
+                }
             }
         };
     });

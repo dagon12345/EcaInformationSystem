@@ -254,6 +254,51 @@ namespace EcaInformationSystem.Client.Services
             _cachedRegionCode = ParseRegionFromToken(newToken);
         }
 
+        // ✅ NEW — Active Sessions (Profile page): list/revoke devices logged into this account.
+        public async Task<List<SessionDto>> GetSessionsAsync()
+        {
+            try
+            {
+                var http = await GetAuthorizedClientAsync();
+                var sessions = await http.GetFromJsonAsync<List<SessionDto>>("api/usersessions");
+                return sessions ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool success, string message)> RevokeSessionAsync(Guid sessionId)
+        {
+            try
+            {
+                var http = await GetAuthorizedClientAsync();
+                var response = await http.PostAsync($"api/usersessions/{sessionId}/revoke", null);
+                var body = await response.Content.ReadFromJsonAsync<MessageResponse>();
+                return (response.IsSuccessStatusCode, body?.Message ?? "Something went wrong. Please try again.");
+            }
+            catch (Exception)
+            {
+                return (false, "Unable to reach the server. Please try again.");
+            }
+        }
+
+        public async Task<(bool success, string message)> RevokeOtherSessionsAsync()
+        {
+            try
+            {
+                var http = await GetAuthorizedClientAsync();
+                var response = await http.PostAsync("api/usersessions/revoke-others", null);
+                var body = await response.Content.ReadFromJsonAsync<MessageResponse>();
+                return (response.IsSuccessStatusCode, body?.Message ?? "Something went wrong. Please try again.");
+            }
+            catch (Exception)
+            {
+                return (false, "Unable to reach the server. Please try again.");
+            }
+        }
+
         public async Task<HttpClient> GetAuthorizedClientAsync()
         {
             var token = await _js.InvokeAsync<string?>("localStorage.getItem", "authToken");

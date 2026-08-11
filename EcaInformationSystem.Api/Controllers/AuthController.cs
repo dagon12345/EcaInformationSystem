@@ -19,12 +19,19 @@ namespace EcaInformationSystem.Api.Controllers
             _passwordResetService = passwordResetService;
         }
 
+        // ✅ NEW — same IP-resolution approach as the login rate limiter (Program.cs)
+        private string GetClientIp() =>
+            HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        private string GetUserAgent() =>
+            Request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua : "unknown";
+
         [HttpPost("login")]
         [AllowAnonymous]
         [EnableRateLimiting("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var result = await _authService.LoginAsync(request);
+            var result = await _authService.LoginAsync(request, GetClientIp(), GetUserAgent());
 
             if (result.MfaRequired) // ✅ NEW — distinct from Success/Failed
             {
@@ -71,7 +78,7 @@ namespace EcaInformationSystem.Api.Controllers
         [EnableRateLimiting("login")] // same throttle — 6-digit codes are guessable without it
         public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaRequest request)
         {
-            var result = await _authService.VerifyMfaAndIssueTokenAsync(request.UserId, request.Code);
+            var result = await _authService.VerifyMfaAndIssueTokenAsync(request.UserId, request.Code, GetClientIp(), GetUserAgent());
             if (!result.Success) return Unauthorized(new { message = result.Message });
 
             return Ok(new { result.Token, result.FullName, result.UserName });

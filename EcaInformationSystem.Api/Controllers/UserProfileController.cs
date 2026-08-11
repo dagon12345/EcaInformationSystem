@@ -42,7 +42,8 @@ namespace EcaInformationSystem.Api.Controllers
             // FullName/Position are embedded in the JWT — reissue so the client's
             // stored token (and everything decoded from it) reflects the edit
             // immediately, without asking the user to log out and back in.
-            var reissued = await _authService.ReissueTokenAsync(userId);
+            var currentJti = User.FindFirst("jti")?.Value;
+            var reissued = await _authService.ReissueTokenAsync(userId, currentJti);
 
             return Ok(new { profile, token = reissued.Token });
         }

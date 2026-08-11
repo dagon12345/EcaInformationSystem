@@ -14,15 +14,21 @@ public class TokenService
         _config = config;
     }
 
+    // ✅ NEW — lets callers (e.g. AuthService, to stamp UserSession.ExpiresAt) compute
+    // the same expiry GenerateToken uses, without duplicating the config parsing.
+    public DateTime GetExpiry() =>
+        DateTime.UtcNow.AddHours(double.Parse(_config["Jwt:ExpiryHours"] ?? "8"));
+
     // ✅ Added 'position' parameter — distinct from 'role'. Role gates
     // permissions (Admin/PDO/Viewer); Position is the real job title
     // ("Project Development Officer I") that belongs on signature lines.
     public string GenerateToken(
         Guid userId,   // ✅ NEW — needed so chat entities can resolve SenderId reliably
         string userName,
-        string fullName, 
-        string position, 
-        string role, 
+        string fullName,
+        string position,
+        string role,
+        string jti, // ✅ NEW — caller generates this so it can also be persisted as a UserSession record
         List<int>? jurisdictionCodes = null,
         int? region = null) // ✅ NEW
     {
@@ -39,7 +45,7 @@ public class TokenService
                 new("FullName",                 fullName),
                 new("Position",                 position),
                 new(ClaimTypes.Role,            role),
-                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new(JwtRegisteredClaimNames.Jti, jti),
                 new(JwtRegisteredClaimNames.Iat,
                     DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
                     ClaimValueTypes.Integer64)

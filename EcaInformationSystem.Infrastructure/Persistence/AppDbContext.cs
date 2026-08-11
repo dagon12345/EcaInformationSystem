@@ -24,6 +24,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
             public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
             public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
+            public DbSet<UserSession> UserSessions => Set<UserSession>();
 
             // ✅ NEW — Chat feature
             public DbSet<ChatRoom> ChatRooms => Set<ChatRoom>();
@@ -326,6 +327,13 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                         entity.HasIndex(x => x.UserId);
                         entity.HasIndex(x => x.PsgcCodeMunicipality);
+                  });
+
+                  modelBuilder.Entity<UserSession>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.HasIndex(x => x.Jti).IsUnique();
+                        entity.HasIndex(x => x.UserId);
                   });
 
                   modelBuilder.Entity<PendingUserRegistration>(entity =>

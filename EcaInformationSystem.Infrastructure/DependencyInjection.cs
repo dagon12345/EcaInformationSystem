@@ -47,6 +47,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IBarangayRepository, BarangayRepository>();
             services.AddScoped<IPendingUserRegistrationRepository, PendingUserRegistrationRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
+            services.AddScoped<IUserSessionRepository, UserSessionRepository>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
             services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();

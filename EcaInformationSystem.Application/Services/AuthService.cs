@@ -1,4 +1,5 @@
-﻿using EcaInformationSystem.Application.Common.Models;
+﻿using EcaInformationSystem.Application.Common;
+using EcaInformationSystem.Application.Common.Models;
 using EcaInformationSystem.Application.DTOs.Auth;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
@@ -19,22 +20,32 @@ namespace EcaInformationSystem.Application.Services
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
         private readonly IDataProtector _mfaProtector; // ✅ NEW
         private readonly ILogRepository _logRepository;
+        private readonly IUserSessionRepository _userSessionRepository; // ✅ NEW — active session tracking
 
         private const int MaxFailedAttempts = 5;
         public AuthService(IPendingUserRegistrationRepository pendingUserRegistrationRepository,
-            TokenService tokenService, IDataProtectionProvider dataProtectionProvider, ILogRepository logRepository)
+            TokenService tokenService, IDataProtectionProvider dataProtectionProvider, ILogRepository logRepository,
+            IUserSessionRepository userSessionRepository)
         {
             _pendingUserRegistrationRepository = pendingUserRegistrationRepository;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
             _tokenService = tokenService;
             _mfaProtector = dataProtectionProvider.CreateProtector("MfaSecrets");
             _logRepository = logRepository;
+            _userSessionRepository = userSessionRepository;
         }
-        public async Task<AuthResult> ReissueTokenAsync(Guid userId)
+        // ✅ CHANGED — reissue keeps the SAME session record (just rotates its Jti/expiry)
+        // instead of spawning a new one, since a profile edit isn't a new device login.
+        public async Task<AuthResult> ReissueTokenAsync(Guid userId, string? currentJti = null)
         {
             var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
                 ?? throw new KeyNotFoundException("User not found.");
-            return await IssueTokenAsync(user);
+
+            var existingSession = !string.IsNullOrWhiteSpace(currentJti)
+                ? await _userSessionRepository.GetByJtiAsync(currentJti)
+                : null;
+
+            return await IssueTokenAsync(user, existingSession);
         }
 
         public async Task<bool> IsMfaEnabledAsync(Guid userId)
@@ -77,7 +88,7 @@ namespace EcaInformationSystem.Application.Services
             user.MfaPromptShown = true;
             await _pendingUserRegistrationRepository.SaveChangesAsync();
         }
-        public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+        public async Task<AuthResult> LoginAsync(LoginRequest request, string ipAddress, string userAgent, CancellationToken cancellationToken = default)
         {
             var user = await _pendingUserRegistrationRepository.GetByUserNameAsync(request.UserName, cancellationToken);
             if (user == null)
@@ -137,7 +148,7 @@ namespace EcaInformationSystem.Application.Services
                 return AuthResult.NeedsMfa(user.Id.ToString());
             }
 
-            return await IssueTokenAsync(user);
+            return await IssueTokenAsync(user, existingSession: null, ipAddress, userAgent);
         }
 
         public async Task<AuthResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -236,7 +247,7 @@ namespace EcaInformationSystem.Application.Services
         }
 
         // ✅ NEW — second step of login: verify TOTP code, then issue the JWT
-        public async Task<AuthResult> VerifyMfaAndIssueTokenAsync(string userId, string code)
+        public async Task<AuthResult> VerifyMfaAndIssueTokenAsync(string userId, string code, string ipAddress, string userAgent)
         {
             if (!Guid.TryParse(userId, out var parsedId))
                 return AuthResult.Failed("Invalid request.");
@@ -252,7 +263,7 @@ namespace EcaInformationSystem.Application.Services
             if (!isValid)
                 return AuthResult.Failed("Invalid or expired code.");
 
-            return await IssueTokenAsync(user);
+            return await IssueTokenAsync(user, existingSession: null, ipAddress, userAgent);
         }
         private static readonly HashSet<string> AllowedSelfRegisterRoles = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -260,19 +271,49 @@ namespace EcaInformationSystem.Application.Services
             // Admin and SuperAdmin deliberately excluded — those must be created
             // through the SuperAdmin user management page, not open registration.
         };
-        // ✅ NEW — extracted so both LoginAsync (non-MFA path) and VerifyMfaAndIssueTokenAsync can use it
-        private async Task<AuthResult> IssueTokenAsync(PendingUserRegistration user)
+        // ✅ CHANGED — now also tracks the UserSession record behind this token.
+        // If `existingSession` is supplied (profile-edit reissue), its Jti/expiry are
+        // rotated in place rather than creating a brand-new "device" entry. Otherwise a
+        // fresh UserSession row is created from ipAddress/userAgent (a real new login).
+        private async Task<AuthResult> IssueTokenAsync(
+            PendingUserRegistration user,
+            UserSession? existingSession,
+            string ipAddress = "unknown",
+            string userAgent = "unknown")
         {
+            var jti = Guid.NewGuid().ToString();
             var token = _tokenService.GenerateToken(
                 user.Id,
                 user.UserName,
                 user.FullName,
                 user.Position,
                 user.Role,
+                jti,
                 user.Role == "PDO"
                     ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
                     : null,
                 user.Region);
+
+            var expiresAt = _tokenService.GetExpiry();
+
+            if (existingSession != null)
+            {
+                existingSession.Jti = jti;
+                existingSession.ExpiresAt = expiresAt;
+                existingSession.LastActiveAt = DateTime.UtcNow;
+            }
+            else
+            {
+                await _userSessionRepository.AddAsync(new UserSession
+                {
+                    UserId = user.Id,
+                    Jti = jti,
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent,
+                    DeviceLabel = DeviceLabelParser.Parse(userAgent),
+                    ExpiresAt = expiresAt
+                });
+            }
 
             var result = AuthResult.Passed(
                 "Login successful.",
@@ -296,6 +337,7 @@ namespace EcaInformationSystem.Application.Services
                 Category = "Login"
             });
             await _logRepository.SaveChangesAsync();
+            await _userSessionRepository.SaveChangesAsync();
 
             return result;
         }

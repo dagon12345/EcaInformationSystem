@@ -2,6 +2,7 @@
 @page "/profile/{UserId:guid}"
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.Auth
 @using EcaInformationSystem.Shared.Helpers
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
@@ -232,6 +233,57 @@
                         </div>
                     </div>
                 </div>
+
+                @* ── Active Sessions — devices currently logged into this account ── *@
+                <div class="sys-card mt-3">
+                    <div class="sys-card-header d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-laptop me-2"></i>Active Sessions</span>
+                        @if (_sessions.Count(s => !s.IsCurrent) > 0)
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="RequestRevokeOtherSessions" disabled="@_isRevokingSessions">
+                                <i class="bi bi-box-arrow-right me-1"></i>Log out all other devices
+                            </button>
+                        }
+                    </div>
+                    <div class="sys-card-body">
+                        @if (_isLoadingSessions)
+                        {
+                            <div class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Loading sessions...</div>
+                        }
+                        else if (_sessions.Count == 0)
+                        {
+                            <div class="small text-muted">No active sessions found.</div>
+                        }
+                        else
+                        {
+                            @foreach (var session in _sessions)
+                            {
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 @(session != _sessions.Last() ? "border-bottom" : "")">
+                                    <div>
+                                        <div class="fw-semibold">
+                                            @session.DeviceLabel
+                                            @if (session.IsCurrent)
+                                            {
+                                                <span class="badge bg-primary ms-2" style="font-size:10px;">This device</span>
+                                            }
+                                        </div>
+                                        <div class="small text-muted">
+                                            IP @session.IpAddress &middot;
+                                            Signed in @session.LoginAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt") &middot;
+                                            Last active @session.LastActiveAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                        </div>
+                                    </div>
+                                    @if (!session.IsCurrent)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RequestRevokeSession(session)" disabled="@_isRevokingSessions">
+                                            Log out
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
             </div>
         </div>
     }
@@ -396,7 +448,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CancelPendingAction" disabled="@_isPendingActionBusy">Cancel</button>
-                    <button class="btn @(_pendingAction == "removePicture" ? "btn-danger" : "btn-primary")"
+                    <button class="btn @(_pendingAction is "removePicture" or "revokeSession" or "revokeOthers" ? "btn-danger" : "btn-primary")"
                             @onclick="ConfirmPendingActionAsync" disabled="@_isPendingActionBusy">
                         @if (_isPendingActionBusy)
                         {
@@ -404,7 +456,14 @@
                         }
                         else
                         {
-                            <span>@(_pendingAction == "removePicture" ? "Yes, Remove Picture" : "Yes, Save Changes")</span>
+                            <span>
+                                @(_pendingAction switch
+                                {
+                                    "removePicture" => "Yes, Remove Picture",
+                                    "revokeSession" or "revokeOthers" => "Yes, Log Out",
+                                    _ => "Yes, Save Changes"
+                                })
+                            </span>
                         }
                     </button>
                 </div>
@@ -440,11 +499,16 @@
     private string? _mfaError;
     private bool _isDisablingMfa;
 
-    // "save" or "removePicture" — null means no confirmation dialog showing.
+    // "save", "removePicture", "revokeSession", or "revokeOthers" — null means no confirmation dialog showing.
     private string? _pendingAction;
     private string _pendingActionTitle = string.Empty;
     private string _pendingActionMessage = string.Empty;
     private bool _isPendingActionBusy;
+
+    private List<SessionDto> _sessions = new();
+    private bool _isLoadingSessions;
+    private bool _isRevokingSessions;
+    private Guid? _pendingSessionId;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -477,6 +541,7 @@
                 }
 
                 _myTier = await TierClient.GetMyTierAsync();
+                await LoadSessionsAsync();
             }
             else
             {
@@ -652,11 +717,90 @@
             {
                 await RemovePictureAsync();
             }
+            else if (_pendingAction == "revokeSession" && _pendingSessionId.HasValue)
+            {
+                await RevokeSessionAsync(_pendingSessionId.Value);
+            }
+            else if (_pendingAction == "revokeOthers")
+            {
+                await RevokeOtherSessionsAsync();
+            }
         }
         finally
         {
             _isPendingActionBusy = false;
             _pendingAction = null;
+            _pendingSessionId = null;
+        }
+    }
+
+    private async Task LoadSessionsAsync()
+    {
+        _isLoadingSessions = true;
+        try
+        {
+            _sessions = await AuthService.GetSessionsAsync();
+        }
+        finally
+        {
+            _isLoadingSessions = false;
+        }
+    }
+
+    private void RequestRevokeSession(SessionDto session)
+    {
+        _pendingAction = "revokeSession";
+        _pendingSessionId = session.Id;
+        _pendingActionTitle = "Log Out This Device?";
+        _pendingActionMessage = $"This immediately ends the session on \"{session.DeviceLabel}\" (IP {session.IpAddress}). Continue?";
+    }
+
+    private void RequestRevokeOtherSessions()
+    {
+        _pendingAction = "revokeOthers";
+        _pendingActionTitle = "Log Out All Other Devices?";
+        _pendingActionMessage = "This immediately ends every session on this account except the one you're using right now. Continue?";
+    }
+
+    private async Task RevokeSessionAsync(Guid sessionId)
+    {
+        _isRevokingSessions = true;
+        try
+        {
+            var (success, message) = await AuthService.RevokeSessionAsync(sessionId);
+            if (!success)
+            {
+                Toast.ShowError(message);
+                return;
+            }
+
+            Toast.ShowSuccess("Session logged out.");
+            await LoadSessionsAsync();
+        }
+        finally
+        {
+            _isRevokingSessions = false;
+        }
+    }
+
+    private async Task RevokeOtherSessionsAsync()
+    {
+        _isRevokingSessions = true;
+        try
+        {
+            var (success, message) = await AuthService.RevokeOtherSessionsAsync();
+            if (!success)
+            {
+                Toast.ShowError(message);
+                return;
+            }
+
+            Toast.ShowSuccess("All other devices have been logged out.");
+            await LoadSessionsAsync();
+        }
+        finally
+        {
+            _isRevokingSessions = false;
         }
     }
 
