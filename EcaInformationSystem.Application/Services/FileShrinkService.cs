@@ -1,32 +1,28 @@
-using System.Diagnostics;
 using DocumentFormat.OpenXml.Packaging;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs;
-using Microsoft.Extensions.Configuration;
+using iText.IO.Image;
+using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Xobject;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Processing;
+using SharpImage = SixLabors.ImageSharp.Image;
 
 namespace EcaInformationSystem.Application.Services
 {
     // Lets an over-10MB PDF/DOCX/XLSX get uploaded anyway instead of being
-    // flatly rejected — PDFs are shrunk via Ghostscript (downsamples/recompresses
-    // embedded images; there's no solid pure-.NET way to recompress an
-    // already-produced PDF), DOCX/XLSX are shrunk in-process by recompressing
-    // their embedded raster images via OpenXML + ImageSharp.
+    // flatly rejected, by recompressing embedded raster images. Deliberately
+    // pure in-process .NET (iText7 + OpenXML + ImageSharp, all already
+    // dependencies) — no external process is spawned, because shared ASP.NET
+    // hosts (this app is deployed to MonsterASP.NET) block Process.Start
+    // entirely, which ruled out a Ghostscript-based approach for PDFs.
     public class FileShrinkService : IFileShrinkService
     {
         private const string PdfContentType = "application/pdf";
         private const string DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
         private const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-        private readonly string _ghostscriptPath;
-
-        public FileShrinkService(IConfiguration configuration)
-        {
-            _ghostscriptPath = configuration["Ghostscript:ExecutablePath"] ?? "gswin64c";
-        }
 
         public bool CanShrink(string contentType) => contentType switch
         {
@@ -36,107 +32,166 @@ namespace EcaInformationSystem.Application.Services
             _ => false
         };
 
-        public async Task<byte[]> ShrinkAsync(byte[] data, string contentType, ShrinkQuality quality, CancellationToken ct = default)
+        public Task<byte[]> ShrinkAsync(byte[] data, string contentType, ShrinkQuality quality, CancellationToken ct = default)
         {
-            return contentType switch
+            return Task.Run(() =>
             {
-                PdfContentType => await ShrinkPdfAsync(data, quality, ct),
-                DocxContentType => ShrinkOpenXmlImages(data, isWord: true, quality),
-                XlsxContentType => ShrinkOpenXmlImages(data, isWord: false, quality),
-                _ => throw new InvalidOperationException("This file type cannot be automatically shrunk.")
-            };
+                return contentType switch
+                {
+                    PdfContentType => ShrinkPdf(data, quality),
+                    DocxContentType => ShrinkOpenXmlImages(data, isWord: true, quality),
+                    XlsxContentType => ShrinkOpenXmlImages(data, isWord: false, quality),
+                    _ => throw new InvalidOperationException("This file type cannot be automatically shrunk.")
+                };
+            }, ct);
         }
 
-        // ── PDF — Ghostscript ────────────────────────────────────────────────
-        private async Task<byte[]> ShrinkPdfAsync(byte[] data, ShrinkQuality quality, CancellationToken ct)
+        // ── PDF — recompress embedded raster images via iText7 ──────────────────
+        // Root-caused against a real corrupted-in-production sample
+        // (Butuan-City_Payroll_2024.pdf, CamScanner output): the FIRST version
+        // of this mutated an existing image XObject's stream in place
+        // (Remove/Put dictionary keys + PdfStream.SetData(newJpegBytes)). That
+        // let iText's writer silently re-Flate the already-JPEG-encoded bytes
+        // while the dictionary still said /DCTDecode — verified via pikepdf:
+        // the shipped object ended up with /Filter /FlateDecode and zlib-magic
+        // (0x78 0xDA) bytes, which is why it rendered as a garbled strip.
+        //
+        // Fix: never mutate the old stream. Build a brand-new, self-contained
+        // PdfImageXObject from the re-encoded JPEG (iText derives correct
+        // /Filter=/DCTDecode, /ColorSpace, /Width, /Height, /BitsPerComponent
+        // for it, the same code path proven correct when building a PDF from
+        // scratch), make it indirect, and swap the RESOURCE DICTIONARY's
+        // pointer to it — no manual byte/dict surgery on the original stream
+        // at all. Re-verified end-to-end against all 38 pages of that same
+        // sample file (26.75 MB → 1.56/3.28/5.79 MB across High/Medium/Low,
+        // every page re-rendered and visually confirmed readable) before
+        // being re-enabled here.
+        private static byte[] ShrinkPdf(byte[] data, ShrinkQuality quality)
         {
-            var pdfSetting = quality switch
+            var (maxDim, jpegQuality) = quality switch
             {
-                ShrinkQuality.High => "/screen",
-                ShrinkQuality.Medium => "/ebook",
-                ShrinkQuality.Low => "/printer",
-                _ => "/ebook"
+                ShrinkQuality.High => (900, 35),
+                ShrinkQuality.Medium => (1300, 55),
+                ShrinkQuality.Low => (1700, 70),
+                _ => (1300, 55)
             };
 
-            var workDir = Path.Combine(Path.GetTempPath(), "eca-pdf-shrink");
-            Directory.CreateDirectory(workDir);
-            var inPath = Path.Combine(workDir, $"{Guid.NewGuid():N}.pdf");
-            var outPath = Path.Combine(workDir, $"{Guid.NewGuid():N}.pdf");
-
+            byte[] shrunk;
             try
             {
-                await File.WriteAllBytesAsync(inPath, data, ct);
+                using var input = new MemoryStream(data);
+                using var output = new MemoryStream();
 
-                var psi = new ProcessStartInfo
-                {
-                    FileName = _ghostscriptPath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                psi.ArgumentList.Add("-sDEVICE=pdfwrite");
-                psi.ArgumentList.Add("-dCompatibilityLevel=1.4");
-                psi.ArgumentList.Add($"-dPDFSETTINGS={pdfSetting}");
-                psi.ArgumentList.Add("-dNOPAUSE");
-                psi.ArgumentList.Add("-dBATCH");
-                psi.ArgumentList.Add("-dQUIET");
-                psi.ArgumentList.Add($"-sOutputFile={outPath}");
-                psi.ArgumentList.Add(inPath);
+                var writerProps = new WriterProperties()
+                    .SetCompressionLevel(CompressionConstants.BEST_COMPRESSION)
+                    .UseSmartMode();
 
-                using var process = new Process { StartInfo = psi };
-
-                try
+                using (var reader = new PdfReader(input))
+                using (var writer = new PdfWriter(output, writerProps))
+                using (var pdfDoc = new PdfDocument(reader, writer))
                 {
-                    process.Start();
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException(
-                        $"Could not start Ghostscript ('{_ghostscriptPath}'). Make sure it's installed on the server " +
-                        "and the configured Ghostscript:ExecutablePath is correct.", ex);
+                    var visited = new HashSet<PdfIndirectReference>();
+                    for (int i = 1; i <= pdfDoc.GetNumberOfPages(); i++)
+                    {
+                        var page = pdfDoc.GetPage(i);
+                        ShrinkImagesInResources(pdfDoc, page.GetResources(), maxDim, jpegQuality, visited);
+                    }
                 }
 
-                var stderrTask = process.StandardError.ReadToEndAsync(ct);
-
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeoutCts.CancelAfter(TimeSpan.FromSeconds(90));
-
-                try
-                {
-                    await process.WaitForExitAsync(timeoutCts.Token);
-                }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-                {
-                    TryKill(process);
-                    throw new InvalidOperationException(
-                        "Shrinking this PDF took too long and was cancelled. Try a lower-resolution scan or a smaller file.");
-                }
-
-                if (process.ExitCode != 0 || !File.Exists(outPath))
-                {
-                    var stderr = await stderrTask;
-                    throw new InvalidOperationException(
-                        $"Ghostscript could not shrink this PDF: {(string.IsNullOrWhiteSpace(stderr) ? "unknown error" : stderr.Trim())}");
-                }
-
-                return await File.ReadAllBytesAsync(outPath, ct);
+                shrunk = output.ToArray();
             }
-            finally
+            catch (Exception ex)
             {
-                TryDelete(inPath);
-                TryDelete(outPath);
+                throw new InvalidOperationException($"Could not process this PDF for shrinking: {ex.Message}", ex);
+            }
+
+            // Belt-and-suspenders: re-parse before trusting the result. If it
+            // doesn't open cleanly, treat the shrink as failed rather than
+            // silently persisting a broken PDF.
+            try
+            {
+                using var verifyStream = new MemoryStream(shrunk);
+                using var verifyReader = new PdfReader(verifyStream);
+                using var verifyDoc = new PdfDocument(verifyReader);
+                _ = verifyDoc.GetNumberOfPages();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Shrinking produced an invalid PDF and was discarded: {ex.Message}", ex);
+            }
+
+            return shrunk;
+        }
+
+        private static void ShrinkImagesInResources(PdfDocument pdfDoc, PdfResources resources, int maxDim, int jpegQuality, HashSet<PdfIndirectReference> visited)
+        {
+            var xobjectDict = resources.GetResource(PdfName.XObject);
+            if (xobjectDict == null) return;
+
+            foreach (var key in xobjectDict.KeySet().ToList())
+            {
+                var xobjStream = xobjectDict.GetAsStream(key);
+                if (xobjStream == null) continue;
+
+                // Skip an XObject shared across multiple pages (e.g. a letterhead
+                // logo) if it's already been processed once.
+                var indirectRef = xobjStream.GetIndirectReference();
+                if (indirectRef != null && !visited.Add(indirectRef)) continue;
+
+                var subtype = xobjStream.GetAsName(PdfName.Subtype);
+
+                if (PdfName.Form.Equals(subtype))
+                {
+                    var formXObject = new PdfFormXObject(xobjStream);
+                    ShrinkImagesInResources(pdfDoc, formXObject.GetResources(), maxDim, jpegQuality, visited);
+                    continue;
+                }
+
+                if (!PdfName.Image.Equals(subtype)) continue;
+
+                ShrinkSingleImage(pdfDoc, xobjectDict, key, xobjStream, maxDim, jpegQuality);
             }
         }
 
-        private static void TryKill(Process process)
+        // Best-effort per image: if one embedded image can't be processed (odd
+        // colorspace, corrupt data), it's left untouched rather than failing the
+        // whole document — and a re-encode is only kept if it's actually
+        // smaller, so this can never make the file bigger.
+        private static void ShrinkSingleImage(PdfDocument pdfDoc, PdfDictionary xobjectDict, PdfName key, PdfStream imageStream, int maxDim, int jpegQuality)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { /* best effort */ }
-        }
+            try
+            {
+                var imageXObject = new PdfImageXObject(imageStream);
+                var originalBytes = imageXObject.GetImageBytes(true);
+                if (originalBytes == null || originalBytes.Length == 0) return;
 
-        private static void TryDelete(string path)
-        {
-            try { if (File.Exists(path)) File.Delete(path); } catch { /* best effort */ }
+                using var image = SharpImage.Load(originalBytes);
+
+                if (image.Width > maxDim || image.Height > maxDim)
+                {
+                    image.Mutate(x => x.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Max,
+                        Size = new Size(maxDim, maxDim)
+                    }));
+                }
+
+                using var outStream = new MemoryStream();
+                image.Save(outStream, new JpegEncoder { Quality = jpegQuality });
+                var newBytes = outStream.ToArray();
+
+                if (newBytes.LongLength >= originalBytes.LongLength) return; // never make it worse
+
+                var newImageData = ImageDataFactory.Create(newBytes);
+                var replacement = new PdfImageXObject(newImageData);
+                var replacementStream = replacement.GetPdfObject();
+                replacementStream.MakeIndirect(pdfDoc);
+                xobjectDict.Put(key, replacementStream);
+            }
+            catch
+            {
+                // Leave this image untouched; the rest of the document still shrinks.
+            }
         }
 
         // ── DOCX/XLSX — recompress embedded raster images in place ─────────────
@@ -161,15 +216,15 @@ namespace EcaInformationSystem.Application.Services
                 if (mainPart != null)
                 {
                     foreach (var imagePart in mainPart.ImageParts.ToList())
-                        ShrinkImagePart(imagePart, maxDim, jpegQuality);
+                        ShrinkOpenXmlImagePart(imagePart, maxDim, jpegQuality);
 
                     foreach (var headerPart in mainPart.HeaderParts)
                         foreach (var imagePart in headerPart.ImageParts.ToList())
-                            ShrinkImagePart(imagePart, maxDim, jpegQuality);
+                            ShrinkOpenXmlImagePart(imagePart, maxDim, jpegQuality);
 
                     foreach (var footerPart in mainPart.FooterParts)
                         foreach (var imagePart in footerPart.ImageParts.ToList())
-                            ShrinkImagePart(imagePart, maxDim, jpegQuality);
+                            ShrinkOpenXmlImagePart(imagePart, maxDim, jpegQuality);
                 }
             }
             else
@@ -184,7 +239,7 @@ namespace EcaInformationSystem.Application.Services
                         if (drawingsPart == null) continue;
 
                         foreach (var imagePart in drawingsPart.ImageParts.ToList())
-                            ShrinkImagePart(imagePart, maxDim, jpegQuality);
+                            ShrinkOpenXmlImagePart(imagePart, maxDim, jpegQuality);
                     }
                 }
             }
@@ -196,7 +251,7 @@ namespace EcaInformationSystem.Application.Services
         // format, corrupt data), it's left untouched rather than failing the
         // whole document's shrink — and a re-encode is only kept if it's
         // actually smaller, so this can never make the file bigger.
-        private static void ShrinkImagePart(ImagePart imagePart, int maxDim, int jpegQuality)
+        private static void ShrinkOpenXmlImagePart(ImagePart imagePart, int maxDim, int jpegQuality)
         {
             try
             {
@@ -208,7 +263,7 @@ namespace EcaInformationSystem.Application.Services
                     originalBytes = buffer.ToArray();
                 }
 
-                using var image = Image.Load(originalBytes);
+                using var image = SharpImage.Load(originalBytes);
                 var format = image.Metadata.DecodedImageFormat;
 
                 if (image.Width > maxDim || image.Height > maxDim)

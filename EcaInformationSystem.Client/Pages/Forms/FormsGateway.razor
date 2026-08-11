@@ -118,15 +118,41 @@
     @* ── Main Panel ── *@
     <div class="forms-main">
         <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-            <div>
+            <div class="flex-grow-1" style="min-width:0;">
                 <h4 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Forms Gateway</h4>
-                <small class="text-muted">@GetCurrentFolderLabel()</small>
+                @if (_selectedFolderId.HasValue && !_uncategorizedOnly)
+                {
+                    <nav class="forms-breadcrumb" aria-label="Folder path">
+                        <span class="forms-breadcrumb-item forms-breadcrumb-root" @onclick="() => SelectFolder(null, false)">
+                            <i class="bi bi-house-door-fill"></i>Main
+                        </span>
+                        @foreach (var crumb in GetFolderPath(_selectedFolderId.Value))
+                        {
+                            <i class="bi bi-chevron-right forms-breadcrumb-sep"></i>
+                            <span class="forms-breadcrumb-item @(crumb.Id == _selectedFolderId ? "active" : "")"
+                                  title="@crumb.Name"
+                                  @onclick="() => SelectFolder(crumb.Id, false)">
+                                @crumb.Name
+                            </span>
+                        }
+                    </nav>
+                }
+                else
+                {
+                    <small class="text-muted">@GetCurrentFolderLabel()</small>
+                }
             </div>
             @if (_hasFullAccess)
             {
-                <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
-                    <i class="bi bi-cloud-upload me-1"></i>Upload Form
-                </button>
+                <div class="d-flex gap-2 flex-shrink-0">
+                    <button class="sys-btn sys-btn-outline" @onclick="OpenCreateFolderInCurrentContext">
+                        <i class="bi bi-folder-plus me-1"></i>
+                        @(_selectedFolderId.HasValue && !_uncategorizedOnly ? "New Subfolder" : "New Folder")
+                    </button>
+                    <button class="sys-btn sys-btn-save" @onclick="OpenUploadModal">
+                        <i class="bi bi-cloud-upload me-1"></i>Upload Form
+                    </button>
+                </div>
             }
         </div>
 
@@ -735,9 +761,36 @@
     {
         _selectedFolderId = folderId;
         _uncategorizedOnly = uncategorized;
+
+        if (folderId.HasValue)
+        {
+            // Auto-expand the selected folder and all its ancestors in the
+            // sidebar tree, so its children are immediately visible without an
+            // extra chevron click — especially useful when jumping several
+            // levels deep at once via the breadcrumb trail above.
+            foreach (var ancestor in GetFolderPath(folderId.Value))
+                _expandedFolderIds.Add(ancestor.Id);
+        }
+
         _isLoading = true;
         await ApplyCurrentViewAsync();
         _isLoading = false;
+    }
+
+    // Root-to-leaf chain of ancestor folders (inclusive of folderId itself) —
+    // powers both the breadcrumb trail and the sidebar auto-expand above.
+    private List<FormFolderDto> GetFolderPath(Guid folderId)
+    {
+        var path = new List<FormFolderDto>();
+        var current = _folders.FirstOrDefault(f => f.Id == folderId);
+        while (current != null)
+        {
+            path.Insert(0, current);
+            current = current.ParentFolderId.HasValue
+                ? _folders.FirstOrDefault(f => f.Id == current.ParentFolderId.Value)
+                : null;
+        }
+        return path;
     }
 
     private string GetCurrentFolderLabel()
@@ -793,6 +846,23 @@
     }
 
     // ── Folder CRUD ──────────────────────────────────────────────────────────
+
+    // Mirrors the sidebar's "+" (top-level) / per-row folder-plus icon
+    // (subfolder) actions, but reachable from inside the main panel too — so
+    // creating a folder doesn't require going back to the sidebar first while
+    // browsing several levels deep.
+    private Task OpenCreateFolderInCurrentContext()
+    {
+        if (_selectedFolderId.HasValue && !_uncategorizedOnly)
+        {
+            var current = _folders.FirstOrDefault(f => f.Id == _selectedFolderId.Value);
+            if (current != null)
+                return OpenCreateSubfolderModal(current);
+        }
+
+        return OpenCreateFolderModal();
+    }
+
     private Task OpenCreateFolderModal()
     {
         _editingFolder = null;
