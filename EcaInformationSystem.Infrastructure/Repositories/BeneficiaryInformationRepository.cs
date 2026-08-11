@@ -3178,18 +3178,39 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
                 query = query.Where(b => b.ModeOfPayment == filter.FilterModeOfPayment.Value);
 
+            // Statuses other than Paid (2) typically have no meaningful payment date
+            // (Unpaid/Pending/N-A records are often never given one). If the user's
+            // Payment Status filter explicitly includes one of those alongside a date
+            // range, don't let the date range silently exclude them — scope the date
+            // range to Paid rows only in that case. Otherwise (no non-Paid status
+            // explicitly selected) keep the strict behavior: a null PaymentDate fails
+            // the range, same as before.
+            bool datesShouldExemptNonPaid = filter.PaymentStatuses != null && filter.PaymentStatuses.Any(s => s != 2);
+
             if (filter.PaymentDate.HasValue)
             {
                 var start = filter.PaymentDate.Value.Date;
                 var end = start.AddDays(1);
-                query = query.Where(b => b.PaymentDate >= start && b.PaymentDate < end);
+                query = datesShouldExemptNonPaid
+                    ? query.Where(b => b.PaymentStatus != 2 || (b.PaymentDate >= start && b.PaymentDate < end))
+                    : query.Where(b => b.PaymentDate >= start && b.PaymentDate < end);
             }
 
             if (filter.PaymentDateFrom.HasValue)
-                query = query.Where(b => b.PaymentDate >= filter.PaymentDateFrom.Value.Date);
+            {
+                var from = filter.PaymentDateFrom.Value.Date;
+                query = datesShouldExemptNonPaid
+                    ? query.Where(b => b.PaymentStatus != 2 || b.PaymentDate >= from)
+                    : query.Where(b => b.PaymentDate >= from);
+            }
 
             if (filter.PaymentDateTo.HasValue)
-                query = query.Where(b => b.PaymentDate < filter.PaymentDateTo.Value.Date.AddDays(1));
+            {
+                var to = filter.PaymentDateTo.Value.Date.AddDays(1);
+                query = datesShouldExemptNonPaid
+                    ? query.Where(b => b.PaymentStatus != 2 || b.PaymentDate < to)
+                    : query.Where(b => b.PaymentDate < to);
+            }
 
             if (!string.IsNullOrWhiteSpace(filter.ComplianceMode))
             {
