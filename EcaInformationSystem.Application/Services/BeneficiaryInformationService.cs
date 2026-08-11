@@ -96,15 +96,13 @@ namespace EcaInformationSystem.Application.Services
             if (paymentStatus != 0 && paymentStatus != 1 && paymentStatus != 2 && paymentStatus != 3)
                 throw new Exception(CommonConstants.InvalidPaymentStatus);
 
-            // AFTER
-            // ✅ CHANGED — Unpaid now also requires (and keeps) a date, since "unpaid as of
-            // this date" is meaningful data too. Mode of Payment and Payroll period stay
-            // Paid-only, since no money actually moved for an Unpaid entry.
-            if ((paymentStatus == 1 || paymentStatus == 2) && !paymentDate.HasValue)
-            {
-                var label = paymentStatus == 2 ? "Payment" : "Unpaid";
-                throw new Exception($"{label} Date is required when status is {(paymentStatus == 2 ? "Paid" : "Unpaid")}.");
-            }
+            // ✅ CHANGED — Payment Date is no longer required at this shared layer.
+            // Bulk office transactions are frequently recorded before the exact date
+            // is known, so leaving it blank here now means "leave whatever date this
+            // beneficiary already had" (see the repository, which carries the prior
+            // date forward per-beneficiary) instead of forcing a value or wiping it.
+            // The individual "Record Payment" UI flow still requires a date — that's
+            // enforced client-side before this method is ever called for that flow.
 
             if (paymentStatus == 2 && !modeOfPayment.HasValue)
                 throw new Exception("Mode of Payment is required when status is Paid.");

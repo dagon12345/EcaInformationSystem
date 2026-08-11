@@ -516,8 +516,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     FiscalYear = fiscalYear,
                     PaymentStatus = paymentStatus,
                     ModeOfPayment = paymentStatus == 2 ? (modeOfPayment ?? 0) : 0,
-                    // ✅ CHANGED — keep the date for Unpaid too, not just Paid
-                    PaymentDate = (paymentStatus == 1 || paymentStatus == 2) ? paymentDate : null,
+                    // ✅ CHANGED — keep the date for Unpaid too, not just Paid. If the
+                    // bulk action left Payment Date blank, carry forward THIS
+                    // beneficiary's existing date instead of wiping it — same
+                    // "don't touch what wasn't provided" rule as bulk eligibility
+                    // updates. b.PaymentDate here is still their PRIOR value; it only
+                    // gets overwritten to the new value a few lines down.
+                    PaymentDate = (paymentStatus == 1 || paymentStatus == 2) ? (paymentDate ?? b.PaymentDate) : null,
                     Remarks = remarks,
                     DateCreated = DateTime.UtcNow,
                     CreatedBy = userName

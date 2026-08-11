@@ -2515,13 +2515,13 @@ else
             <ul class="mb-0">
                 <li>Period: <strong>Q@(bulkPayrollQuarterOnly) @(_bulkFiscalYear)</strong></li>
                 <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
-                <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
+                <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
             </ul>
         }
         else if (bulkPaymentStatus == 1)
         {
             <ul class="mb-0">
-                <li>Unpaid Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "—")</strong></li>
+                <li>Unpaid Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
             </ul>
         }
         <p class="mt-2 mb-0 text-muted small">
@@ -2685,10 +2685,10 @@ private async Task SetCurrentPaymentHistoryEntryAsync()
 private async Task OpenBulkPaymentHistoryModal()
 {
     if (bulkPaymentStatus == null || !checkedIds.Any()) return;
-    if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-    { toast.ShowError("Payment Date is required when status is Paid."); return; }
-    if (bulkPaymentStatus == 1 && bulkPaymentDate == null)
-    { toast.ShowError("Unpaid Date is required when status is Unpaid."); return; }
+    // ✅ CHANGED — Payment Date is no longer required for bulk updates (office
+    // transactions are often batched before the exact date is known). Leaving
+    // it blank now just carries forward each grantee's existing date instead
+    // of being blocked or wiping it — see BulkAddPaymentHistoryAsync.
     if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
     { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
     if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
@@ -2737,14 +2737,8 @@ private async Task DeletePaymentHistoryEntryAsync()
 }
 private async Task ExecuteBulkAddPaymentHistoryAsync()
 {
-    if (bulkPaymentStatus == 2 && bulkPaymentDate == null)
-    { 
-         toast.ShowError("Payment Date is required when status is Paid."); return;
-    }
-    if (bulkPaymentStatus == 1 && bulkPaymentDate == null)
-    { 
-         toast.ShowError("Unpaid Date is required when status is Unpaid."); return;
-    }
+    // ✅ CHANGED — Payment Date is no longer required for bulk updates; see
+    // OpenBulkPaymentHistoryModal above and BulkAddPaymentHistoryAsync.
     if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
     {
         toast.ShowError("Mode of Payment is required when status is Paid.");
