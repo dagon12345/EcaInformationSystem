@@ -13,5 +13,11 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<SeniorCitizenDirectoryDto> UpdateAsync(UpsertSeniorCitizenDirectoryDto dto, string userName, int regionCode);
         Task DeleteAsync(Guid id, string userName, int regionCode);
         Task<List<SeniorCitizenDirectoryHistoryDto>> GetHistoryAsync(Guid id, int regionCode);
+
+        // ── Excel import ──────────────────────────────────────────────────
+        Task<List<string>> GetExcelSheetNamesAsync(Stream fileStream);
+        Task<SeniorCitizenDirectoryPreviewResultDto> PreviewImportAsync(Stream fileStream, string sheetName, int regionCode);
+        Task<SeniorCitizenDirectoryImportResultDto> ConfirmImportAsync(Stream fileStream, string sheetName, int regionCode, string userName, HashSet<int> skipRows);
+        byte[] GenerateImportTemplate();
     }
 }

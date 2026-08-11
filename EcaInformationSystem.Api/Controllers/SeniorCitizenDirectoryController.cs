@@ -5,6 +5,9 @@ using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using System;
+using System.IO;
+using System.Linq;
 
 namespace EcaInformationSystem.Api.Controllers
 {
@@ -131,6 +134,118 @@ namespace EcaInformationSystem.Api.Controllers
             {
                 return BadRequest(ex.Message);
             }
+        }
+
+        // ── Excel import ──────────────────────────────────────────────────
+
+        [HttpPost("import/sheets")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> GetImportSheets([FromForm] ImportSeniorCitizenDirectoryExcelSheetRequestDto request)
+        {
+            var fileError = ValidateExcelFile(request.File);
+            if (fileError is not null)
+                return BadRequest(fileError);
+
+            try
+            {
+                using var stream = request.File.OpenReadStream();
+                var sheetNames = await _service.GetExcelSheetNamesAsync(stream);
+                if (!sheetNames.Any())
+                    return BadRequest("The uploaded file has no worksheets.");
+
+                return Ok(sheetNames);
+            }
+            catch (Exception)
+            {
+                return BadRequest("Could not read that file. Make sure it's a valid, uncorrupted .xlsx workbook.");
+            }
+        }
+
+        [HttpPost("import/preview")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> PreviewImport(IFormFile file, [FromForm] string sheetName)
+        {
+            var regionCode = GetRegionCodeFromClaims();
+            if (regionCode is null)
+                return BadRequest("No region is assigned to this account.");
+
+            var fileError = ValidateExcelFile(file);
+            if (fileError is not null)
+                return BadRequest(fileError);
+
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var result = await _service.PreviewImportAsync(stream, sheetName, regionCode.Value);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpPost("import/confirm")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> ConfirmImport(IFormFile file, [FromForm] string sheetName, [FromForm] string? skipRowsJson)
+        {
+            var regionCode = GetRegionCodeFromClaims();
+            if (regionCode is null)
+                return BadRequest("No region is assigned to this account.");
+
+            var fileError = ValidateExcelFile(file);
+            if (fileError is not null)
+                return BadRequest(fileError);
+
+            try
+            {
+                var skipRows = string.IsNullOrWhiteSpace(skipRowsJson)
+                    ? new HashSet<int>()
+                    : System.Text.Json.JsonSerializer.Deserialize<HashSet<int>>(skipRowsJson) ?? new HashSet<int>();
+
+                var userName = User.Identity?.Name ?? "System";
+
+                using var stream = file.OpenReadStream();
+                var result = await _service.ConfirmImportAsync(stream, sheetName, regionCode.Value, userName, skipRows);
+
+                foreach (var id in result.ImportedIds)
+                {
+                    await BroadcastAsync(id, "Created", userName, regionCode.Value);
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // Guards against non-Excel files, empty uploads, and oversized uploads before
+        // they ever reach ClosedXML — a bad extension or a corrupted file otherwise
+        // surfaces as an opaque exception deep inside the parsing/preview logic.
+        private static string? ValidateExcelFile(IFormFile? file)
+        {
+            if (file is null || file.Length == 0)
+                return "Please select a file to upload.";
+
+            if (file.Length > 20 * 1024 * 1024)
+                return "File is too large. The maximum upload size is 20 MB.";
+
+            var extension = Path.GetExtension(file.FileName);
+            if (!string.Equals(extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
+                return "Only .xlsx Excel files are supported.";
+
+            return null;
+        }
+
+        [HttpGet("download-import-template")]
+        public IActionResult DownloadImportTemplate()
+        {
+            var bytes = _service.GenerateImportTemplate();
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"SeniorCitizenDirectory_Template_{DateTime.Now:yyyy-MM-dd}.xlsx");
         }
 
         private int? GetRegionCodeFromClaims()

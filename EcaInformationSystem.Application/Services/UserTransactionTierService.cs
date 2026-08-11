@@ -1,5 +1,6 @@
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
 
@@ -36,17 +37,17 @@ namespace EcaInformationSystem.Application.Services
         }
 
         // Powers the "Transaction Tier" card on someone ELSE's profile page —
-        // reuses the same ranked counts the leaderboard is built from so the
+        // reuses the same merged counts the leaderboard is built from so the
         // rank shown there always matches the leaderboard's #position.
         public async Task<UserTransactionTierDto?> GetTierByUserIdAsync(Guid userId)
         {
             var user = await _userRepo.GetByIdAsync(userId);
             if (user is null) return null;
 
-            var counts = await _logRepo.GetTransactionCountsByUserAsync();
-            var index = counts.FindIndex(c => string.Equals(c.UserName, user.UserName, StringComparison.OrdinalIgnoreCase));
+            var ranked = await GetMergedRankedCountsAsync();
+            var index = ranked.FindIndex(m => m.User.Id == userId);
             var rank = index >= 0 ? index + 1 : (int?)null;
-            var count = index >= 0 ? counts[index].Count : 0;
+            var count = index >= 0 ? ranked[index].Count : 0;
 
             var current = TransactionTierHelper.GetCurrentTier(count);
             var next = TransactionTierHelper.GetNextTier(count);
@@ -67,33 +68,77 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<List<UserLeaderboardEntryDto>> GetLeaderboardAsync(string requestingUserName, int top = 100)
         {
-            var counts = await _logRepo.GetTransactionCountsByUserAsync();
-            var users = await _userRepo.GetAllAsync();
-            var userLookup = users.ToDictionary(u => u.UserName, u => u, StringComparer.OrdinalIgnoreCase);
+            var ranked = await GetMergedRankedCountsAsync();
 
             var rank = 0;
-            return counts
+            return ranked
                 .Take(top)
-                .Select(c =>
+                .Select(m =>
                 {
                     rank++;
-                    userLookup.TryGetValue(c.UserName, out var user);
-                    var tier = TransactionTierHelper.GetCurrentTier(c.Count);
+                    var tier = TransactionTierHelper.GetCurrentTier(m.Count);
 
                     return new UserLeaderboardEntryDto
                     {
                         Rank = rank,
-                        UserId = user?.Id,
-                        UserName = c.UserName,
-                        DisplayName = user?.FullName ?? c.UserName,
-                        Position = user?.Position,
-                        TransactionCount = c.Count,
+                        UserId = m.User.Id,
+                        UserName = m.User.UserName,
+                        DisplayName = string.IsNullOrWhiteSpace(m.User.FullName) ? m.User.UserName : m.User.FullName,
+                        Position = m.User.Position,
+                        TransactionCount = m.Count,
                         TierLevel = tier.Level,
                         TierName = tier.Name,
-                        IsMe = string.Equals(c.UserName, requestingUserName, StringComparison.OrdinalIgnoreCase)
+                        IsMe = string.Equals(m.User.UserName, requestingUserName, StringComparison.OrdinalIgnoreCase)
                     };
                 })
                 .ToList();
+        }
+
+        // `Log.UserName` isn't a foreign key — it's a free-text column, and
+        // different call sites across the codebase write different things into
+        // it for the same person (their login UserName in most places, but
+        // their FullName display string in a few, e.g. Document Tracking's
+        // activity log). Grouping directly on that raw string, like the
+        // repository-level query does, therefore risks splitting one person's
+        // activity into two separate leaderboard rows — and any raw name that
+        // matches no account at all (e.g. because that account was later
+        // hard-deleted) would show up as an orphaned "ghost" entry.
+        //
+        // This resolves every raw (UserName, Count) pair to the actual account
+        // it belongs to — trying the login UserName first, then falling back to
+        // FullName (only when that FullName is unique across accounts, so two
+        // different people who happen to share a display name never get merged
+        // into each other) — and merges counts for the same account together.
+        // Anything left unresolved belongs to no current account and is dropped
+        // rather than shown as deleted-user noise.
+        private async Task<List<(PendingUserRegistration User, int Count)>> GetMergedRankedCountsAsync()
+        {
+            var counts = await _logRepo.GetTransactionCountsByUserAsync();
+            var users = await _userRepo.GetAllAsync();
+
+            var byUserName = users.ToDictionary(u => u.UserName, u => u, StringComparer.OrdinalIgnoreCase);
+            var byFullName = users
+                .Where(u => !string.IsNullOrWhiteSpace(u.FullName))
+                .GroupBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() == 1)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var merged = new Dictionary<Guid, (PendingUserRegistration User, int Count)>();
+
+            foreach (var c in counts)
+            {
+                if (!byUserName.TryGetValue(c.UserName, out var user) &&
+                    !byFullName.TryGetValue(c.UserName, out user))
+                {
+                    continue; // no current account matches this raw name — dropped
+                }
+
+                merged[user.Id] = merged.TryGetValue(user.Id, out var existing)
+                    ? (user, existing.Count + c.Count)
+                    : (user, c.Count);
+            }
+
+            return merged.Values.OrderByDescending(m => m.Count).ToList();
         }
     }
 }

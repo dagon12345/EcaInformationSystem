@@ -29,6 +29,8 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IChatService, ChatService>();
             services.AddScoped<IChatAttachmentService, ChatAttachmentService>();
             services.AddScoped<IFormDocumentService, FormDocumentService>();
+            services.AddSingleton<IFileShrinkService, FileShrinkService>();
+            services.AddSingleton<IShrinkPreviewCache, ShrinkPreviewCache>();
             services.AddScoped<IFormFolderService, FormFolderService>();
             services.AddScoped<IPostService, PostService>();
             services.AddScoped<IPostImageProcessingService, PostImageProcessingService>();

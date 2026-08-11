@@ -65,7 +65,21 @@
                         }
                         <i class="bi @(ctx.Depth == 0 ? "bi-folder-fill" : "bi-folder2") forms-folder-icon"></i>
                         <span class="forms-folder-name text-truncate" title="@ctx.Folder.Name">@ctx.Folder.Name</span>
-                        <span class="folder-count">@ctx.Folder.DocumentCount</span>
+                        @{
+                            var subfolderTotal = GetTotalSubfolderCount(ctx.Folder.Id);
+                            var fileTotal = GetTotalFileCount(ctx.Folder.Id);
+                        }
+                        <span class="folder-count-group">
+                            @if (subfolderTotal > 0)
+                            {
+                                <span class="folder-count-badge" title="@subfolderTotal subfolder(s)">
+                                    <i class="bi bi-folder2"></i>@subfolderTotal
+                                </span>
+                            }
+                            <span class="folder-count-badge" title="@fileTotal file(s) (including subfolders)">
+                                <i class="bi bi-file-earmark"></i>@fileTotal
+                            </span>
+                        </span>
 
                         @if (_hasFullAccess)
                         {
@@ -162,10 +176,23 @@
             <div class="forms-subfolder-tiles mb-3">
                 @foreach (var sub in SubfoldersOf(_selectedFolderId.Value))
                 {
+                    var subSubfolderTotal = GetTotalSubfolderCount(sub.Id);
+                    var subFileTotal = GetTotalFileCount(sub.Id);
+
                     <div class="forms-subfolder-tile" @onclick="() => SelectFolder(sub.Id, false)">
                         <i class="bi bi-folder2"></i>
                         <span class="text-truncate" title="@sub.Name">@sub.Name</span>
-                        <span class="folder-count">@sub.DocumentCount</span>
+                        <span class="folder-count-group">
+                            @if (subSubfolderTotal > 0)
+                            {
+                                <span class="folder-count-badge" title="@subSubfolderTotal subfolder(s)">
+                                    <i class="bi bi-folder2"></i>@subSubfolderTotal
+                                </span>
+                            }
+                            <span class="folder-count-badge" title="@subFileTotal file(s) (including subfolders)">
+                                <i class="bi bi-file-earmark"></i>@subFileTotal
+                            </span>
+                        </span>
                         <i class="bi bi-chevron-right forms-subfolder-tile-arrow"></i>
                     </div>
                 }
@@ -367,14 +394,86 @@
         <div class="mb-2">
             <label class="ff-label">File <span class="req">*</span></label>
             <InputFile OnChange="OnFileSelected" class="form-control" />
-            <small class="text-muted">PDF, Word, or Excel — max 10 MB.</small>
+            <small class="text-muted">
+                PDF, Word, or Excel — up to 10 MB. Larger PDF/DOCX/XLSX files (up to 50 MB) can be
+                automatically shrunk below 10 MB; other file types over 10 MB can't be.
+            </small>
         </div>
+
+        @if (_shrinkRequired && _uploadFile != null)
+        {
+            <div class="shrink-quality-panel">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-arrows-angle-contract text-warning"></i>
+                    <strong>'@_uploadFile.Name' is @FormatFileSize(_uploadFile.Size) — over the 10 MB limit.</strong>
+                </div>
+                <p class="text-muted small mb-2">
+                    Choose how much to shrink it before uploading. Higher shrinkage means a smaller
+                    file but lower quality; lower shrinkage keeps more quality but reduces the size less.
+                </p>
+                <label class="shrink-quality-option">
+                    <input type="radio" name="shrinkQuality" checked="@(_shrinkQuality == ShrinkQuality.High)"
+                           @onchange="() => SetShrinkQualityAsync(ShrinkQuality.High)" />
+                    <span><strong>High shrinkage</strong> — smallest file, lowest quality. Best when the file just needs to fit.</span>
+                </label>
+                <label class="shrink-quality-option">
+                    <input type="radio" name="shrinkQuality" checked="@(_shrinkQuality == ShrinkQuality.Medium)"
+                           @onchange="() => SetShrinkQualityAsync(ShrinkQuality.Medium)" />
+                    <span><strong>Medium shrinkage</strong> — balanced size and quality. Recommended for most files.</span>
+                </label>
+                <label class="shrink-quality-option">
+                    <input type="radio" name="shrinkQuality" checked="@(_shrinkQuality == ShrinkQuality.Low)"
+                           @onchange="() => SetShrinkQualityAsync(ShrinkQuality.Low)" />
+                    <span><strong>Low shrinkage</strong> — best quality, smallest reduction in size.</span>
+                </label>
+
+                <div class="shrink-preview-result">
+                    @if (_isPreviewingShrink)
+                    {
+                        <span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Estimating result...</span>
+                    }
+                    else if (_previewResult != null)
+                    {
+                        @if (_previewResult.MeetsLimit)
+                        {
+                            <span class="text-success">
+                                <i class="bi bi-check-circle-fill me-1"></i>
+                                Estimated result: <strong>@FormatFileSize(_previewResult.ShrunkSizeBytes)</strong>
+                                (from @FormatFileSize(_previewResult.OriginalSizeBytes)) — fits under 10 MB.
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-danger">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                Estimated result: <strong>@FormatFileSize(_previewResult.ShrunkSizeBytes)</strong> —
+                                still over 10 MB at this quality. Try a higher shrinkage level.
+                            </span>
+                        }
+                    }
+                </div>
+            </div>
+        }
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => _uploadModal.HideAsync()">Cancel</HxButton>
-        <HxButton Color="ThemeColor.Primary" @onclick="SubmitUploadAsync" Disabled="@_isSaving">
+        <HxButton Color="ThemeColor.Primary" @onclick="SubmitUploadAsync" Disabled="@(_isSaving || _isPreviewingShrink)">
             @(_isSaving ? "Uploading..." : "Upload")
         </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Upload/Replace Error Modal — blocking dialog so a failed upload (e.g.
+     over the 10 MB limit, or a dropped connection) is never silent. ── *@
+<HxModal @ref="_uploadErrorModal">
+    <HeaderTemplate>
+        <h5 class="text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Upload Failed</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-0">@_uploadErrorMessage</p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Primary" @onclick="() => _uploadErrorModal.HideAsync()">OK</HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -469,7 +568,17 @@
 </HxModal>
 
 @code {
+    // Final stored-size ceiling — matches the server. HardCeilingBytes is the
+    // absolute cutoff before a shrink is even attempted (also server-matched).
     private const long MaxFileSizeBytes = 10 * 1024 * 1024;
+    private const long HardCeilingBytes = 50 * 1024 * 1024;
+
+    private static readonly HashSet<string> ShrinkableContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    };
 
     private List<FormFolderDto> _folders = new();
     private List<FormDocumentDto> _displayedForms = new();
@@ -502,13 +611,36 @@
     private IEnumerable<FormFolderDto> RootFolders => _folders.Where(f => f.ParentFolderId == null);
     private IEnumerable<FormFolderDto> SubfoldersOf(Guid parentId) => _folders.Where(f => f.ParentFolderId == parentId);
 
-    // Folders whose subfolder list is currently collapsed — expanded by default.
-    private readonly HashSet<Guid> _collapsedFolderIds = new();
-    private bool IsFolderExpanded(Guid folderId) => !_collapsedFolderIds.Contains(folderId);
+    // Folders whose subfolder list is currently expanded — collapsed by default,
+    // so a folder tree with many nested subfolders doesn't dump everything open
+    // at once (see FormsGateway redesign — deep trees were unreadable expanded).
+    private readonly HashSet<Guid> _expandedFolderIds = new();
+    private bool IsFolderExpanded(Guid folderId) => _expandedFolderIds.Contains(folderId);
     private void ToggleFolderExpand(Guid folderId)
     {
-        if (!_collapsedFolderIds.Add(folderId))
-            _collapsedFolderIds.Remove(folderId);
+        if (!_expandedFolderIds.Add(folderId))
+            _expandedFolderIds.Remove(folderId);
+    }
+
+    // Recursive totals (own files/subfolders + every descendant's) — the API's
+    // per-folder DocumentCount is direct-children-only, which read as "0" or
+    // misleadingly low for folders whose files all live a level or two down.
+    private int GetTotalFileCount(Guid folderId)
+    {
+        var folder = _folders.FirstOrDefault(f => f.Id == folderId);
+        var count = folder?.DocumentCount ?? 0;
+        foreach (var child in SubfoldersOf(folderId))
+            count += GetTotalFileCount(child.Id);
+        return count;
+    }
+
+    private int GetTotalSubfolderCount(Guid folderId)
+    {
+        var children = SubfoldersOf(folderId).ToList();
+        var count = children.Count;
+        foreach (var child in children)
+            count += GetTotalSubfolderCount(child.Id);
+        return count;
     }
 
     private IEnumerable<(FormFolderDto Folder, int Depth)> FlattenedFolderOptions()
@@ -535,12 +667,18 @@
     private HxModal _editModal = default!;
     private HxModal _deleteModal = default!;
     private HxModal _activityLogModal = default!;
+    private HxModal _uploadErrorModal = default!;
+    private string _uploadErrorMessage = string.Empty;
 
     private string _uploadTitle = string.Empty;
     private string? _uploadCategory;
     private string? _uploadDescription;
     private Guid? _uploadFolderId;
     private IBrowserFile? _uploadFile;
+    private bool _shrinkRequired;
+    private ShrinkQuality _shrinkQuality = ShrinkQuality.Medium;
+    private bool _isPreviewingShrink;
+    private ShrinkPreviewResultDto? _previewResult;
 
     private FormDocumentDto? _targetForm;
     private FormDocumentUpdateDto _editDto = new();
@@ -781,25 +919,103 @@
         _uploadDescription = null;
         _uploadFolderId = _selectedFolderId; // pre-select current folder for convenience
         _uploadFile = null;
+        _shrinkRequired = false;
+        _shrinkQuality = ShrinkQuality.Medium;
+        _previewResult = null;
+        _isPreviewingShrink = false;
         return _uploadModal.ShowAsync();
     }
 
-    private void OnFileSelected(InputFileChangeEventArgs e)
+    // Pops a blocking, must-acknowledge modal instead of a toast — a toast
+    // auto-dismisses after 6s and was easy to miss entirely for a large-file
+    // upload failure, which is exactly the "silent failure" this fixes.
+    private Task ShowUploadErrorAsync(string message)
     {
-        if (e.File.Size > MaxFileSizeBytes)
+        _uploadErrorMessage = message;
+        return _uploadErrorModal.ShowAsync();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _shrinkRequired = false;
+        _previewResult = null;
+
+        if (e.File.Size > HardCeilingBytes)
         {
-            toast.ShowError($"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — max allowed is 10 MB.");
+            await ShowUploadErrorAsync(
+                $"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — the absolute maximum is {FormatFileSize(HardCeilingBytes)}, " +
+                "even with shrinking. Please reduce it yourself before uploading.");
             _uploadFile = null;
             return;
         }
+
+        if (e.File.Size > MaxFileSizeBytes)
+        {
+            if (!ShrinkableContentTypes.Contains(e.File.ContentType))
+            {
+                await ShowUploadErrorAsync(
+                    $"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — the maximum is 10 MB, and this file type " +
+                    "can't be automatically shrunk. Please reduce it manually, or save it as a PDF/DOCX/XLSX first.");
+                _uploadFile = null;
+                return;
+            }
+
+            _shrinkRequired = true;
+            _shrinkQuality = ShrinkQuality.Medium;
+            _uploadFile = e.File;
+            await RunShrinkPreviewAsync();
+            return;
+        }
+
         _uploadFile = e.File;
     }
 
-    private void OnReplaceFileSelected(InputFileChangeEventArgs e)
+    private async Task SetShrinkQualityAsync(ShrinkQuality quality)
+    {
+        _shrinkQuality = quality;
+        await RunShrinkPreviewAsync();
+    }
+
+    // Shrinks the file server-side for the currently selected quality and shows
+    // the resulting size — without saving anything — so the user can see what
+    // they'll get before committing to the upload.
+    private async Task RunShrinkPreviewAsync()
+    {
+        if (_uploadFile == null || !_shrinkRequired) return;
+
+        _previewResult = null;
+        _isPreviewingShrink = true;
+        StateHasChanged();
+
+        try
+        {
+            await using var stream = _uploadFile.OpenReadStream(HardCeilingBytes);
+            var (success, error, result) = await FormService.PreviewShrinkAsync(
+                stream, _uploadFile.Name, _uploadFile.ContentType, _shrinkQuality);
+
+            if (success)
+                _previewResult = result;
+            else
+                toast.ShowError(error ?? "Could not estimate the shrink result.");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Could not estimate the shrink result: {ex.Message}");
+        }
+        finally
+        {
+            _isPreviewingShrink = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnReplaceFileSelected(InputFileChangeEventArgs e)
     {
         if (e.File.Size > MaxFileSizeBytes)
         {
-            toast.ShowError($"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — max allowed is 10 MB.");
+            await ShowUploadErrorAsync(
+                $"'{e.File.Name}' is {FormatFileSize(e.File.Size)} — the maximum allowed upload size is 10 MB. " +
+                "Please choose a smaller file, or compress it before uploading.");
             _replaceFile = null;
             return;
         }
@@ -819,16 +1035,59 @@
             return;
         }
 
+        if (_shrinkRequired)
+        {
+            if (_isPreviewingShrink)
+            {
+                toast.ShowError("Still estimating the shrink result — please wait a moment and try again.");
+                return;
+            }
+            if (_previewResult == null)
+            {
+                toast.ShowError("Please wait for the shrink estimate before uploading.");
+                return;
+            }
+            if (!_previewResult.MeetsLimit)
+            {
+                toast.ShowError("This file is still over the 10 MB limit at the selected quality — choose a higher shrinkage level.");
+                return;
+            }
+        }
+
         _isSaving = true;
         try
         {
-            await using var stream = _uploadFile.OpenReadStream(MaxFileSizeBytes);
+            // A shrink was already previewed — confirm using the cached
+            // shrunk bytes by token rather than re-sending/re-shrinking the file.
+            if (_shrinkRequired && _previewResult != null)
+            {
+                var (success, error, document) = await FormService.UploadFromPreviewAsync(
+                    _previewResult.PreviewToken, _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId);
 
-            var (success, error) = await FormService.UploadAsync(
+                if (success)
+                {
+                    toast.ShowSuccess(document?.PreShrinkSizeBytes is long preSize
+                        ? $"Form uploaded — shrunk from {FormatFileSize(preSize)} to {FormatFileSize(document.FileSizeBytes)}."
+                        : "Form uploaded successfully.");
+                    await _uploadModal.HideAsync();
+                    await LoadFoldersAsync();
+                    await LoadFormsAsync();
+                }
+                else
+                {
+                    await ShowUploadErrorAsync(error ?? "Upload failed for an unknown reason. Please try again.");
+                }
+
+                return;
+            }
+
+            await using var stream = _uploadFile.OpenReadStream(HardCeilingBytes);
+
+            var (success2, error2, document2) = await FormService.UploadAsync(
                 stream, _uploadFile.Name, _uploadFile.ContentType,
-                _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId);
+                _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId, null);
 
-            if (success)
+            if (success2)
             {
                 toast.ShowSuccess("Form uploaded successfully.");
                 await _uploadModal.HideAsync();
@@ -837,10 +1096,34 @@
             }
             else
             {
-                toast.ShowError(error ?? "Upload failed.");
+                await ShowUploadErrorAsync(error2 ?? "Upload failed for an unknown reason. Please try again.");
             }
         }
+        catch (Exception ex)
+        {
+            // Covers both an IBrowserFile.OpenReadStream size-guard rejection
+            // (the file slipped past OnFileSelected's check, e.g. right at the
+            // boundary) and a network-level failure (e.g. the connection was
+            // reset because the server's own request-size limit kicked in) —
+            // previously both were uncaught and failed completely silently.
+            await ShowUploadErrorAsync(DescribeUploadException(ex, _uploadFile));
+        }
         finally { _isSaving = false; }
+    }
+
+    private string DescribeUploadException(Exception ex, IBrowserFile? file)
+    {
+        var sizeNote = file != null ? $" ('{file.Name}', {FormatFileSize(file.Size)})" : string.Empty;
+        return ex switch
+        {
+            IOException or InvalidOperationException =>
+                $"The file{sizeNote} could not be uploaded — it's too large. The maximum allowed size is 10 MB.",
+            System.Net.Http.HttpRequestException =>
+                $"Upload failed{sizeNote} — the connection was interrupted. This can happen when a file is too large or the network drops mid-upload. Please try again.",
+            TaskCanceledException =>
+                $"The upload timed out{sizeNote}. Please check your connection and try again with a smaller file if the problem continues.",
+            _ => $"Upload failed{sizeNote}: {ex.Message}"
+        };
     }
 
     // ── Edit / Delete Form ──────────────────────────────────────────────────

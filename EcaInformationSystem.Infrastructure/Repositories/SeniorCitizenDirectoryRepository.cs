@@ -72,6 +72,24 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     && !e.IsDeleted
                     && (excludeId == null || e.Id != excludeId.Value));
 
+        public async Task<int?> GetProvinceCodeByNameAsync(string name, int regionCode)
+        {
+            var normalized = name.Trim().ToLower();
+            return await _context.Provinces.AsNoTracking()
+                .Where(p => p.PsgcCodeRegion == regionCode && p.Name != null && p.Name.ToLower() == normalized)
+                .Select(p => (int?)p.PsgcCodeProvince)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<int?> GetMunicipalityCodeByNameAsync(string name, int provinceCode)
+        {
+            var normalized = name.Trim().ToLower();
+            return await _context.Municipalities.AsNoTracking()
+                .Where(m => m.PsgcCodeProvince == provinceCode && m.Name != null && m.Name.ToLower() == normalized)
+                .Select(m => (int?)m.PsgcCodeMunicipality)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task AddAsync(SeniorCitizenDirectoryEntry entry) =>
             await _context.SeniorCitizenDirectoryEntries.AddAsync(entry);
 

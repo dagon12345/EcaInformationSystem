@@ -88,9 +88,10 @@ namespace EcaInformationSystem.Client.Services
             return query.ToList();
         }
 
-        public async Task<(bool Success, string? Error)> UploadAsync(
+        public async Task<(bool Success, string? Error, FormDocumentDto? Document)> UploadAsync(
             Stream fileStream, string fileName, string contentType,
-            string title, string? description, string? category, Guid? folderId)
+            string title, string? description, string? category, Guid? folderId,
+            ShrinkQuality? shrinkQuality = null)
         {
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -101,12 +102,90 @@ namespace EcaInformationSystem.Client.Services
             if (!string.IsNullOrWhiteSpace(description)) content.Add(new StringContent(description), "description");
             if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
             if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
+            if (shrinkQuality.HasValue) content.Add(new StringContent(shrinkQuality.Value.ToString()), "shrinkQuality");
 
-            var response = await _http.PostAsync("api/formdocument/upload", content);
-            if (response.IsSuccessStatusCode) { InvalidateAll(); return (true, null); }
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.PostAsync("api/formdocument/upload", content);
+            }
+            catch (Exception ex)
+            {
+                // The server enforces a request-size limit at the framework level
+                // (RequestSizeLimit), which aborts the connection mid-stream rather
+                // than returning a normal HTTP response — that surfaces here as an
+                // HttpRequestException/TaskCanceledException, not a status code, so
+                // it has to be caught explicitly instead of falling through to the
+                // IsSuccessStatusCode check below.
+                return (false, $"The upload connection was interrupted: {ex.Message}. This can happen when the file is too large or the network drops mid-upload.", null);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                InvalidateAll();
+                var dto = await response.Content.ReadFromJsonAsync<FormDocumentDto>();
+                return (true, null, dto);
+            }
 
             var error = await response.Content.ReadAsStringAsync();
-            return (false, error);
+            return (false, error, null);
+        }
+
+        // Shrinks the file server-side for the chosen quality WITHOUT saving it,
+        // so the UI can show "estimated result: X MB" before the user commits.
+        // The result includes a PreviewToken — pass it to UploadFromPreviewAsync
+        // to confirm without re-sending or re-shrinking the file.
+        public async Task<(bool Success, string? Error, ShrinkPreviewResultDto? Result)> PreviewShrinkAsync(
+            Stream fileStream, string fileName, string contentType, ShrinkQuality quality)
+        {
+            using var content = new MultipartFormDataContent();
+            using var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+
+            content.Add(streamContent, "file", fileName);
+            content.Add(new StringContent(quality.ToString()), "quality");
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.PostAsync("api/formdocument/shrink-preview", content);
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Preview failed: {ex.Message}", null);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ShrinkPreviewResultDto>();
+                return (true, null, result);
+            }
+
+            return (false, await response.Content.ReadAsStringAsync(), null);
+        }
+
+        // Confirms an already-previewed shrink result by token — no file bytes
+        // are sent again, the server already has them cached.
+        public async Task<(bool Success, string? Error, FormDocumentDto? Document)> UploadFromPreviewAsync(
+            Guid previewToken, string title, string? description, string? category, Guid? folderId)
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(previewToken.ToString()), "previewToken");
+            content.Add(new StringContent(title), "title");
+            if (!string.IsNullOrWhiteSpace(description)) content.Add(new StringContent(description), "description");
+            if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
+            if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
+
+            var response = await _http.PostAsync("api/formdocument/upload", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                InvalidateAll();
+                var dto = await response.Content.ReadFromJsonAsync<FormDocumentDto>();
+                return (true, null, dto);
+            }
+
+            return (false, await response.Content.ReadAsStringAsync(), null);
         }
 
         public async Task<(bool Success, string? Error)> UpdateMetadataAsync(Guid id, FormDocumentUpdateDto dto)
