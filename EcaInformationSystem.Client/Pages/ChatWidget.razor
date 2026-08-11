@@ -7,6 +7,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject NavbarFlyoutCoordinator FlyoutCoordinator
 @implements IDisposable
 
 
@@ -25,7 +26,7 @@
     }
     @if (!Inline)
     {
-        <button class="chat-toggle-btn @(ChatState.TotalUnreadCount > 0 && !ChatState.IsWidgetOpen ? "chat-toggle-btn--attention" : "")" @onclick="ChatState.ToggleWidget">
+        <button class="chat-toggle-btn @(ChatState.TotalUnreadCount > 0 && !ChatState.IsWidgetOpen ? "chat-toggle-btn--attention" : "")" @onclick="ToggleChatWidget">
             <i class="bi @(ChatState.IsWidgetOpen ? "bi-x-lg" : "bi-chat-dots-fill")"></i>
             <span class="chat-toggle-btn-label">@(ChatState.IsWidgetOpen ? "Close" : "Messages")</span>
             @if (!ChatState.IsWidgetOpen && ChatState.TotalUnreadCount > 0)
@@ -308,9 +309,25 @@
     private Guid _pendingDeleteRoomId;
     private bool _isDeletingConversation;
 
+    // ✅ NEW — wraps ChatState.ToggleWidget so opening this panel also tells
+    // other navbar flyouts (Sticky Notes) to close, preventing both panels
+    // from visually stacking on top of each other in the same corner.
+    private void ToggleChatWidget()
+    {
+        ChatState.ToggleWidget();
+        if (ChatState.IsWidgetOpen) FlyoutCoordinator.NotifyOpened("chat");
+    }
+
+    private void HandleOtherPanelOpened(string panelId)
+    {
+        if (panelId == "chat" || !ChatState.IsWidgetOpen) return;
+        ChatState.CloseWidget();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         ChatState.OnChange += HandleChatStateChanged;
+        FlyoutCoordinator.OnOpened += HandleOtherPanelOpened;
         _dotNetRef = DotNetObjectReference.Create(this);
         var token = await AuthService.GetTokenAsync();
         if (!string.IsNullOrWhiteSpace(token))
@@ -514,6 +531,7 @@
     public void Dispose()
     {
         ChatState.OnChange -= HandleChatStateChanged;
+        FlyoutCoordinator.OnOpened -= HandleOtherPanelOpened;
         _dotNetRef?.Dispose();
         _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
     }

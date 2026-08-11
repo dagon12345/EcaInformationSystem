@@ -41,6 +41,7 @@ builder.Services.AddHxServices();
 builder.Services.AddHxMessenger();
 builder.Services.AddSingleton<ChatClientService>();
 builder.Services.AddScoped<ChatStateService>();
+builder.Services.AddScoped<NavbarFlyoutCoordinator>();
 builder.Services.AddScoped<FormDocumentClientService>();
 builder.Services.AddScoped<FormFolderClientService>();
 builder.Services.AddScoped<StickyNoteClientService>();

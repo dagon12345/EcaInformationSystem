@@ -1358,35 +1358,41 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
-        public async Task ReplaceBeneficiaryAsync(Guid outgoingId, Guid incomingId, DateTime? replacementDate, string? remarks, string userName)
+        public async Task ReplaceBeneficiaryAsync(Guid outgoingHistoryId, Guid incomingHistoryId, DateTime? replacementDate, string? remarks, string userName)
         {
-            if (outgoingId == Guid.Empty || incomingId == Guid.Empty)
-                throw new Exception("Both the outgoing and replacement grantee are required.");
+            if (outgoingHistoryId == Guid.Empty || incomingHistoryId == Guid.Empty)
+                throw new Exception("Both the outgoing and replacement payment records are required.");
 
-            if (outgoingId == incomingId)
-                throw new Exception("A grantee cannot replace themself.");
+            if (outgoingHistoryId == incomingHistoryId)
+                throw new Exception("A payment record cannot replace itself.");
 
-            await _repo.ReplaceBeneficiaryAsync(outgoingId, incomingId, replacementDate, remarks);
+            var (outgoing, incoming) = await _repo.ReplaceBeneficiaryAsync(outgoingHistoryId, incomingHistoryId, replacementDate, remarks);
 
-            await AddLogAsync(outgoingId, "Replacement Status → Replaced (slot handed over)", userName);
-            await AddLogAsync(incomingId, "Replacement Status → Is Replacement (took over a slot)", userName);
+            await AddLogAsync(outgoing.BeneficiaryInformationId,
+                $"Payment record ({PeriodLabel(outgoing.PayrollQuarter, outgoing.FiscalYear)}) replacement status → Replaced (slot handed over)", userName);
+            await AddLogAsync(incoming.BeneficiaryInformationId,
+                $"Payment record ({PeriodLabel(incoming.PayrollQuarter, incoming.FiscalYear)}) replacement status → Is Replacement (took over a slot)", userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
 
-        public async Task UndoReplacementAsync(Guid beneficiaryId, string userName)
+        public async Task UndoReplacementAsync(Guid historyId, string userName)
         {
-            if (beneficiaryId == Guid.Empty)
+            if (historyId == Guid.Empty)
                 throw new Exception(CommonConstants.NoRecordsSelected);
 
-            await _repo.UndoReplacementAsync(beneficiaryId);
+            var entry = await _repo.UndoReplacementAsync(historyId);
 
-            await AddLogAsync(beneficiaryId, "Replacement Status cleared", userName);
+            await AddLogAsync(entry.BeneficiaryInformationId,
+                $"Payment record ({PeriodLabel(entry.PayrollQuarter, entry.FiscalYear)}) replacement status cleared", userName);
 
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+
+        private static string PeriodLabel(int? payrollQuarter, int? fiscalYear) =>
+            $"Q{payrollQuarter?.ToString() ?? "-"} {fiscalYear?.ToString() ?? ""}".Trim();
 
         public async Task<List<BeneficiaryLookupDto>> SearchBeneficiaryLookupAsync(string? search, Guid excludeId)
             => await _repo.SearchBeneficiaryLookupAsync(search, excludeId);

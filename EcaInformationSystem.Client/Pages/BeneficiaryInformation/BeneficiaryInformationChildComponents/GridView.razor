@@ -425,7 +425,6 @@
                                         <th>Compliant</th>
                                         <th>CO Findings</th>
                                         <th>CO Status</th>
-                                        <th title="Internal-only status for grantee slot hand-overs">Replacement Status</th>
                                         <th>Docs</th>
                                         <th>Actions</th>
                                     </tr>
@@ -572,6 +571,13 @@
                 <i class="bi bi-clock-history"></i> ×@item.PaymentHistoryCount
             </span>
         }
+        @if (item.CurrentEntryReplacementStatus is 1 or 2)
+        {
+            <span class="tbl-badge @GetReplacementStatusBadgeClass(item.CurrentEntryReplacementStatus) payment-cell-count"
+                  title="@(item.CurrentEntryReplacementStatus == 1 ? "This grantee's current payment record was replaced — see Payment History" : "This grantee's current payment record is a replacement — see Payment History")">
+                <i class="bi bi-arrow-left-right"></i> @(item.CurrentEntryReplacementStatus == 1 ? "Replaced" : "Replacement")
+            </span>
+        }
     </div>
     @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
     {
@@ -687,28 +693,6 @@
                                                     }
                                                 </td>
                                                 <td>
-                                                    @{
-                                                        var replLabel = GetReplacementStatusLabel(item.ReplacementStatus, item.ReplacedByName, item.ReplacesName);
-                                                    }
-                                                    @if (item.ReplacementStatus is 1 or 2)
-                                                    {
-                                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(item.ReplacementStatus)" title="@replLabel">
-                                                            @Highlight(replLabel)
-                                                        </span>
-                                                        @if (item.ReplacementDate.HasValue)
-                                                        {
-                                                            <br />
-                                                            <small class="text-muted" style="font-size:10px;">
-                                                                @item.ReplacementDate.Value.ToString("MMM dd, yyyy")
-                                                            </small>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted small">—</span>
-                                                    }
-                                                </td>
-                                                <td>
                                                     @if (item.HasDocuments)
                                                     {
                                                         <span class="tbl-badge yes-b" title="Has attached documents">
@@ -729,21 +713,6 @@
              PsgcCodeMunicipality="@item.PsgcCodeMunicipality"
              LastName="@item.LastName"
              FirstName="@item.FirstName" />
-                                                        @if (_isAdmin)
-                                                        {
-                                                            @if (item.ReplacementStatus is 1 or 2)
-                                                            {
-                                                                <button class="btn-details" title="Undo Replacement Status" @onclick='() => OpenUndoReplacementModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
-                                                                    <i class="bi bi-arrow-counterclockwise"></i> Undo
-                                                                </button>
-                                                            }
-                                                            else
-                                                            {
-                                                                <button class="btn-details" title="Mark this grantee's slot as replaced" @onclick='() => OpenReplaceModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
-                                                                    <i class="bi bi-arrow-left-right"></i> Replace
-                                                                </button>
-                                                            }
-                                                        }
                                                     </div>
                                                </td>
                                             </tr>
@@ -867,6 +836,13 @@
                                     {
                                         <span class="tbl-badge yes-b"><i class="bi bi-paperclip me-1"></i>PDF</span>
                                     }
+                                    @if (item.CurrentEntryReplacementStatus is 1 or 2)
+                                    {
+                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(item.CurrentEntryReplacementStatus)"
+                                              title="See Payment History for details">
+                                            <i class="bi bi-arrow-left-right"></i> @(item.CurrentEntryReplacementStatus == 1 ? "Replaced" : "Replacement")
+                                        </span>
+                                    }
                                     @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
 {
                                         <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
@@ -909,35 +885,11 @@
                                     </div>
                                 }
 
-                                @if (item.ReplacementStatus is 1 or 2)
-                                {
-                                    <div class="beneficiary-card-co-status">
-                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(item.ReplacementStatus)">
-                                            @GetReplacementStatusLabel(item.ReplacementStatus, item.ReplacedByName, item.ReplacesName)
-                                        </span>
-                                    </div>
-                                }
-
                               <div class="d-flex gap-1">
                                   <button class="btn-details" @onclick="() => OpenDetailsPanel(item)">
                                       <i class="bi bi-info-circle"></i> Details
                                   </button>
                                   <QuickUpload BeneficiaryId="@item.Id" PsgcCodeMunicipality="@item.PsgcCodeMunicipality" />
-                                  @if (_isAdmin)
-                                  {
-                                      @if (item.ReplacementStatus is 1 or 2)
-                                      {
-                                          <button class="btn-details" @onclick='() => OpenUndoReplacementModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
-                                              <i class="bi bi-arrow-counterclockwise"></i> Undo
-                                          </button>
-                                      }
-                                      else
-                                      {
-                                          <button class="btn-details" @onclick='() => OpenReplaceModal(item.Id, $"{item.LastName}, {item.FirstName}")'>
-                                              <i class="bi bi-arrow-left-right"></i> Replace
-                                          </button>
-                                      }
-                                  }
                               </div>
                             </div>
                         }
@@ -1077,15 +1029,15 @@
 
 <HxModal @ref="replaceModal">
     <HeaderTemplate>
-        <h5 class="modal-title">Replace Grantee's Slot</h5>
+        <h5 class="modal-title">Replace Payment Record</h5>
     </HeaderTemplate>
     <BodyTemplate>
         <p class="mb-2">
-            <strong>@_replaceOutgoingName</strong> will be marked
-            <span class="tbl-badge no-g">Replaced</span> and handed over to the grantee you select below.
+            <strong>@_replaceOutgoingLabel</strong> will be marked
+            <span class="tbl-badge no-g">Replaced</span> and handed over to a payment record you select below.
         </p>
         <div class="mb-2">
-            <label class="ff-label">Search Replacement Grantee</label>
+            <label class="ff-label">Step 1 — Search Replacement Grantee</label>
             <input class="form-control form-control-sm" placeholder="Type a name or batch code..."
                    value="@_replaceSearchTerm" @oninput="OnReplaceSearchInput" />
         </div>
@@ -1102,8 +1054,8 @@
                 @foreach (var candidate in _replacementCandidates)
                 {
                     <button type="button"
-                            class="list-group-item list-group-item-action @(_selectedReplacementId == candidate.Id ? "active" : "")"
-                            @onclick="() => _selectedReplacementId = candidate.Id">
+                            class="list-group-item list-group-item-action @(_selectedReplacementBeneficiaryId == candidate.Id ? "active" : "")"
+                            @onclick="() => SelectReplacementBeneficiaryAsync(candidate)">
                         <div class="d-flex justify-content-between align-items-center">
                             <span>@candidate.FullName</span>
                             @if (!string.IsNullOrWhiteSpace(candidate.BatchCode))
@@ -1124,6 +1076,47 @@
             <p class="text-muted small">No matching grantees found.</p>
         }
 
+        @if (_selectedReplacementBeneficiaryId.HasValue)
+        {
+            <div class="mb-2">
+                <label class="ff-label">Step 2 — Select their Payment Record</label>
+                @if (_isLoadingIncomingHistory)
+                {
+                    <div class="text-center py-2">
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                        <span class="ms-2 text-muted small">Loading payment history...</span>
+                    </div>
+                }
+                else if (!_incomingPaymentHistory.Any())
+                {
+                    <p class="text-muted small">This grantee has no payment records yet.</p>
+                }
+                else
+                {
+                    <div class="list-group mb-2" style="max-height:220px; overflow-y:auto;">
+                        @foreach (var candidateEntry in _incomingPaymentHistory)
+                        {
+                            var alreadyLinked = candidateEntry.ReplacementStatus is 1 or 2;
+                            <button type="button" disabled="@alreadyLinked"
+                                    class="list-group-item list-group-item-action @(_selectedIncomingHistoryId == candidateEntry.Id ? "active" : "")"
+                                    @onclick="() => _selectedIncomingHistoryId = candidateEntry.Id">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>@PeriodLabel(candidateEntry.PayrollQuarter, candidateEntry.FiscalYear)</span>
+                                    <span class="tbl-badge @GetPaymentBadgeClass(candidateEntry.PaymentStatus)">
+                                        @GetPaymentStatusText(candidateEntry.PaymentStatus)
+                                    </span>
+                                </div>
+                                @if (alreadyLinked)
+                                {
+                                    <small class="text-muted">Already has a Replacement Status — pick another entry.</small>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
         <div class="mb-2">
             <label class="ff-label">Replacement Date</label>
             <input type="date" class="form-control form-control-sm" @bind="_replacementDate" />
@@ -1136,7 +1129,7 @@
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => replaceModal.HideAsync()">Cancel</HxButton>
         <HxButton Color="ThemeColor.Primary" @onclick="ExecuteReplaceAsync"
-                  Disabled="@(_selectedReplacementId == null || IsReplacing)">
+                  Disabled="@(_selectedIncomingHistoryId == null || IsReplacing)">
             @if (IsReplacing)
             {
                 <span>Replacing...</span>
@@ -1155,8 +1148,8 @@
     </HeaderTemplate>
     <BodyTemplate>
         <p>
-            Clear the Replacement Status for <strong>@_undoReplacementName</strong>
-            (and its linked grantee)? Both records will return to Not Replaced.
+            Clear the Replacement Status for the <strong>@_undoReplacementLabel</strong> payment record
+            (and its linked record)? Both will return to Not Replaced.
         </p>
     </BodyTemplate>
     <FooterTemplate>
@@ -1396,6 +1389,34 @@ else
                             <span class="text-muted">Remarks:</span> @entry.Remarks
                         </div>
                     }
+
+                    @* ── Replacement Status — moved here from the beneficiary level.
+                         Shows both the link (who/what this entry is tied to) AND that
+                         linked entry's Payment Status, so it's visible at a glance. ── *@
+                    @if (entry.ReplacementStatus is 1 or 2)
+                    {
+                        <div class="mt-1" style="font-size:11px;">
+                            <span class="tbl-badge @GetReplacementStatusBadgeClass(entry.ReplacementStatus)">
+                                @GetReplacementStatusLabel(entry.ReplacementStatus, entry.LinkedBeneficiaryName, entry.LinkedPeriodLabel, entry.LinkedPaymentStatusLabel)
+                            </span>
+                            @if (entry.ReplacementDate.HasValue)
+                            {
+                                <span class="text-muted ms-1">on @entry.ReplacementDate.Value.ToString("MMM dd, yyyy")</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(entry.ReplacementRemarks))
+                            {
+                                <div class="text-muted">Remarks: @entry.ReplacementRemarks</div>
+                            }
+                            @if (_isAdmin)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="font-size:11px;"
+                                        @onclick="() => OpenUndoReplacementModal(entry)">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+                                </button>
+                            }
+                        </div>
+                    }
+
                   @if (_isAdmin)
                     {
                         <div class="d-flex gap-2 mt-1">
@@ -1414,6 +1435,13 @@ else
                                     @onclick="() => ConfirmDeletePaymentHistory(entry)">
                                 <i class="bi bi-trash me-1"></i>Delete
                             </button>
+                            @if (entry.ReplacementStatus is not (1 or 2))
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0" style="font-size:11px;"
+                                        @onclick="() => OpenReplaceModal(entry)">
+                                    <i class="bi bi-arrow-left-right me-1"></i>Mark as Replaced
+                                </button>
+                            }
                         </div>
                     }
                   </div>
@@ -1529,54 +1557,6 @@ else
                                                                                                                          <span class="fw-semibold text-primary">@detailCoDuration</span>
                                                                                                                      </div>
                                                                                                                  }
-                                                                                                            </div>
-
-                                                                                                            <h6 class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
-                                                                                                                <span><i class="bi bi-arrow-left-right me-1"></i>Replacement Status</span>
-                                                                                                                @if (_isAdmin)
-                                                                                                                {
-                                                                                                                    @if (selectedDetails!.ReplacementStatus is 1 or 2)
-                                                                                                                    {
-                                                                                                                        <HxButton Color="ThemeColor.Secondary" Size="ButtonSize.Small" @onclick='() => OpenUndoReplacementModal(selectedDetails.Id, $"{selectedDetails.LastName}, {selectedDetails.FirstName}")'>
-                                                                                                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
-                                                                                                                        </HxButton>
-                                                                                                                    }
-                                                                                                                    else
-                                                                                                                    {
-                                                                                                                        <HxButton Color="ThemeColor.Primary" Size="ButtonSize.Small" @onclick='() => OpenReplaceModal(selectedDetails.Id, $"{selectedDetails.LastName}, {selectedDetails.FirstName}")'>
-                                                                                                                            <i class="bi bi-arrow-left-right me-1"></i>Replace
-                                                                                                                        </HxButton>
-                                                                                                                    }
-                                                                                                                }
-                                                                                                            </h6>
-                                                                                                            <div class="row g-2 mb-4">
-                                                                                                                <div class="col-6">
-                                                                                                                    <small class="text-muted d-block">Status</small>
-                                                                                                                    @if (selectedDetails!.ReplacementStatus is 1 or 2)
-                                                                                                                    {
-                                                                                                                        <span class="tbl-badge @GetReplacementStatusBadgeClass(selectedDetails.ReplacementStatus)">
-                                                                                                                            @GetReplacementStatusLabel(selectedDetails.ReplacementStatus, selectedDetails.ReplacedByName, selectedDetails.ReplacesName)
-                                                                                                                        </span>
-                                                                                                                    }
-                                                                                                                    else
-                                                                                                                    {
-                                                                                                                        <span class="text-muted">—</span>
-                                                                                                                    }
-                                                                                                                </div>
-                                                                                                                @if (selectedDetails.ReplacementDate.HasValue)
-                                                                                                                {
-                                                                                                                    <div class="col-6">
-                                                                                                                        <small class="text-muted d-block">Date</small>
-                                                                                                                        <span>@selectedDetails.ReplacementDate.Value.ToString("MMMM dd, yyyy")</span>
-                                                                                                                    </div>
-                                                                                                                }
-                                                                                                                @if (!string.IsNullOrWhiteSpace(selectedDetails.ReplacementRemarks))
-                                                                                                                {
-                                                                                                                    <div class="col-12">
-                                                                                                                        <small class="text-muted d-block">Remarks</small>
-                                                                                                                        <span>@selectedDetails.ReplacementRemarks</span>
-                                                                                                                    </div>
-                                                                                                                }
                                                                                                             </div>
 
                                                                                                             <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">
@@ -2621,17 +2601,20 @@ else
     private bool IsBulkUpdatingCoStatus;
     private HxModal bulkCoStatusModal = default!;
 
-    // ── Replacement Status ──────────────────────────────────────────────
+    // ── Replacement Status — now per Payment History entry, not per beneficiary ──
     private HxModal replaceModal = default!;
     private HxModal undoReplacementModal = default!;
     private bool IsReplacing;
-    private Guid _replaceOutgoingId;
-    private string _replaceOutgoingName = string.Empty;
-    private Guid _undoReplacementId;
-    private string _undoReplacementName = string.Empty;
+    private Guid _replaceOutgoingHistoryId;
+    private string _replaceOutgoingLabel = string.Empty;
+    private Guid _undoHistoryId;
+    private string _undoReplacementLabel = string.Empty;
     private string _replaceSearchTerm = string.Empty;
     private bool _isSearchingReplacement;
-    private Guid? _selectedReplacementId;
+    private Guid? _selectedReplacementBeneficiaryId;
+    private List<PaymentHistoryDto> _incomingPaymentHistory = new();
+    private bool _isLoadingIncomingHistory;
+    private Guid? _selectedIncomingHistoryId;
     private DateTime _replacementDate = DateTime.Today;
     private string? _replacementRemarks;
     private List<BeneficiaryLookupDto> _replacementCandidates = new();
@@ -3273,14 +3256,16 @@ public void Dispose()
     }
 
     // ── Replacement Status ──────────────────────────────────────────────
-    private async Task OpenReplaceModal(Guid outgoingId, string outgoingName)
+    private async Task OpenReplaceModal(PaymentHistoryDto outgoingEntry)
     {
-        if (!_isAdmin) return;
-        _replaceOutgoingId = outgoingId;
-        _replaceOutgoingName = outgoingName;
+        if (!_isAdmin || selectedDetails == null) return;
+        _replaceOutgoingHistoryId = outgoingEntry.Id;
+        _replaceOutgoingLabel = $"{selectedDetails.LastName}, {selectedDetails.FirstName} — {PeriodLabel(outgoingEntry.PayrollQuarter, outgoingEntry.FiscalYear)}";
         _replaceSearchTerm = string.Empty;
         _replacementCandidates = new();
-        _selectedReplacementId = null;
+        _selectedReplacementBeneficiaryId = null;
+        _incomingPaymentHistory = new();
+        _selectedIncomingHistoryId = null;
         _replacementDate = DateTime.Today;
         _replacementRemarks = null;
         await replaceModal.ShowAsync();
@@ -3305,7 +3290,9 @@ public void Dispose()
             StateHasChanged();
             await Task.Delay(300, cts.Token);
 
-            var url = $"api/beneficiary/replacement-lookup?excludeId={_replaceOutgoingId}" +
+            // ✅ excludeId still keeps the outgoing beneficiary out of their own
+            // candidate list — WHICH of their entries is used is chosen in step 2.
+            var url = $"api/beneficiary/replacement-lookup?excludeId={selectedDetails?.Id}" +
                       (string.IsNullOrWhiteSpace(term) ? "" : $"&search={Uri.EscapeDataString(term)}");
             var result = await Http.GetFromJsonAsync<List<BeneficiaryLookupDto>>(url, cts.Token);
 
@@ -3322,25 +3309,50 @@ public void Dispose()
         }
     }
 
+    // ✅ NEW — step 2 of the Replace flow: once a candidate grantee is picked,
+    // load THEIR payment history so the user can choose which specific entry
+    // (quarter/year) is the incoming side of the replacement link.
+    private async Task SelectReplacementBeneficiaryAsync(BeneficiaryLookupDto candidate)
+    {
+        _selectedReplacementBeneficiaryId = candidate.Id;
+        _selectedIncomingHistoryId = null;
+        _incomingPaymentHistory = new();
+
+        try
+        {
+            _isLoadingIncomingHistory = true;
+            StateHasChanged();
+            var result = await Http.GetFromJsonAsync<List<PaymentHistoryDto>>($"api/beneficiary/payment-history/{candidate.Id}");
+            _incomingPaymentHistory = result ?? new();
+        }
+        catch (Exception ex) { toast.ShowError($"Failed to load payment history: {ex.Message}"); }
+        finally
+        {
+            _isLoadingIncomingHistory = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task ExecuteReplaceAsync()
     {
-        if (_selectedReplacementId == null) return;
+        if (_selectedIncomingHistoryId == null) return;
 
         try
         {
             IsReplacing = true;
-            var request = new ReplaceBeneficiaryRequestDto
+            var request = new ReplacePaymentHistoryRequestDto
             {
-                OutgoingBeneficiaryId = _replaceOutgoingId,
-                IncomingBeneficiaryId = _selectedReplacementId.Value,
+                OutgoingPaymentHistoryId = _replaceOutgoingHistoryId,
+                IncomingPaymentHistoryId = _selectedIncomingHistoryId.Value,
                 ReplacementDate = _replacementDate,
                 Remarks = _replacementRemarks
             };
             var response = await Http.PostAsJsonAsync("api/beneficiary/replace", request);
 
-            await HandleApiResponseAsync(response, "Replacement Status updated for both grantees.", async () =>
+            await HandleApiResponseAsync(response, "Replacement Status updated for both payment records.", async () =>
             {
                 await replaceModal.HideAsync();
+                if (selectedDetails != null) await LoadPaymentHistoryAsync(selectedDetails.Id);
                 State.Invalidate();
                 await State.LoadAsync();
             });
@@ -3349,11 +3361,11 @@ public void Dispose()
         finally { IsReplacing = false; }
     }
 
-    private async Task OpenUndoReplacementModal(Guid beneficiaryId, string name)
+    private async Task OpenUndoReplacementModal(PaymentHistoryDto entry)
     {
         if (!_isAdmin) return;
-        _undoReplacementId = beneficiaryId;
-        _undoReplacementName = name;
+        _undoHistoryId = entry.Id;
+        _undoReplacementLabel = PeriodLabel(entry.PayrollQuarter, entry.FiscalYear);
         await undoReplacementModal.ShowAsync();
     }
 
@@ -3362,11 +3374,12 @@ public void Dispose()
         try
         {
             IsReplacing = true;
-            var response = await Http.PostAsync($"api/beneficiary/undo-replacement/{_undoReplacementId}", null);
+            var response = await Http.PostAsync($"api/beneficiary/undo-replacement/{_undoHistoryId}", null);
 
             await HandleApiResponseAsync(response, "Replacement Status cleared.", async () =>
             {
                 await undoReplacementModal.HideAsync();
+                if (selectedDetails != null) await LoadPaymentHistoryAsync(selectedDetails.Id);
                 State.Invalidate();
                 await State.LoadAsync();
             });
@@ -3375,12 +3388,18 @@ public void Dispose()
         finally { IsReplacing = false; }
     }
 
-    private string GetReplacementStatusLabel(int? status, string? replacedByName, string? replacesName) => status switch
+    private string GetReplacementStatusLabel(int? status, string? linkedName, string? linkedPeriod, string? linkedPaymentStatus)
     {
-        1 => $"Replaced by {(string.IsNullOrWhiteSpace(replacedByName) ? "—" : replacedByName)}",
-        2 => $"Replacement for {(string.IsNullOrWhiteSpace(replacesName) ? "—" : replacesName)}",
-        _ => "-"
-    };
+        var who = string.IsNullOrWhiteSpace(linkedName) ? "—" : linkedName;
+        var period = string.IsNullOrWhiteSpace(linkedPeriod) ? "" : $" · {linkedPeriod}";
+        var payStatus = string.IsNullOrWhiteSpace(linkedPaymentStatus) ? "" : $" · {linkedPaymentStatus}";
+        return status switch
+        {
+            1 => $"Replaced by {who}{period}{payStatus}",
+            2 => $"Replacement for {who}{period}{payStatus}",
+            _ => "-"
+        };
+    }
 
     private string GetReplacementStatusBadgeClass(int? status) => status switch
     {
@@ -3388,6 +3407,9 @@ public void Dispose()
         2 => "yes-g",
         _ => "pending"
     };
+
+    private static string PeriodLabel(int? payrollQuarter, int? fiscalYear) =>
+        $"Q{payrollQuarter?.ToString() ?? "-"} {fiscalYear?.ToString() ?? ""}".Trim();
 
     private void OnBulkBatchInput(ChangeEventArgs e)
     {

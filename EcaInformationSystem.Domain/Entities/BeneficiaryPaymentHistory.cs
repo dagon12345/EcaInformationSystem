@@ -34,6 +34,22 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime? DateModified { get; set; }
         public string? ModifiedBy { get; set; }
 
+        // ── Replacement Status — moved here from BeneficiaryInformation. A
+        // replacement is about ONE specific payment history entry (e.g. "their
+        // Q1 2026 payout was handed to grantee B's Q1 2026 entry"), not the whole
+        // beneficiary. null/0 = Not Replaced (default). 1 = Replaced — this
+        // entry's payout was handed over, ReplacedByPaymentHistoryId points to
+        // the incoming entry. 2 = Is Replacement — this entry took over another
+        // entry's payout, ReplacesPaymentHistoryId points back to the outgoing
+        // entry. Both sides are updated together so the link stays symmetric.
+        // Plain Guid?, no FK/nav mapping — same pattern the old beneficiary-level
+        // fields used, avoids multi-cascade-path issues on a self-referencing table.
+        public int? ReplacementStatus { get; set; }
+        public Guid? ReplacedByPaymentHistoryId { get; set; }
+        public Guid? ReplacesPaymentHistoryId { get; set; }
+        public DateTime? ReplacementDate { get; set; }
+        public string? ReplacementRemarks { get; set; }
+
         [Timestamp]
         public byte[] RowVersion { get; set; } = default!;
     }

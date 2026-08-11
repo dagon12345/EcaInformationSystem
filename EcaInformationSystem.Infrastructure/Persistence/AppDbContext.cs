@@ -175,9 +175,6 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasIndex(x => new { x.IsDeleted, x.CoStatus, x.IsEligible })
                         .HasDatabaseName("IX_Beneficiary_CoStatus_Eligible");
 
-                        entity.HasIndex(x => new { x.IsDeleted, x.ReplacementStatus })
-                        .HasDatabaseName("IX_Beneficiary_ReplacementStatus");
-
                         entity.HasIndex(x => new { x.IsDeleted, x.Quarter, x.Batch, x.RefYear })
                         .HasDatabaseName("IX_Beneficiary_RefNumber");
 
@@ -579,6 +576,10 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                         entity.HasIndex(x => new { x.FiscalYear, x.PayrollQuarter, x.PaymentStatus })
                         .HasDatabaseName("IX_PaymentHistory_FiscalYear_Quarter_Status");
+
+                        // ✅ NEW — Replacement Status moved here from BeneficiaryInformation
+                        entity.HasIndex(x => new { x.BeneficiaryInformationId, x.ReplacementStatus })
+                        .HasDatabaseName("IX_PaymentHistory_Beneficiary_ReplacementStatus");
 
                         entity.Property(x => x.CreatedBy).HasMaxLength(256);
                         entity.Property(x => x.ModifiedBy).HasMaxLength(256);

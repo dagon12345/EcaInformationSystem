@@ -564,7 +564,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Select(b => b.CurrentPaymentHistoryId)
                 .FirstOrDefaultAsync();
 
-            return await _context.BeneficiaryPaymentHistories
+            var entries = await _context.BeneficiaryPaymentHistories
                 .AsNoTracking()
                 .Where(h => h.BeneficiaryInformationId == beneficiaryId)
                 // ✅ CHANGED — sort strictly by when the entry was added (DateCreated),
@@ -585,9 +585,75 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CreatedBy = h.CreatedBy,
                     DateModified = h.DateModified,
                     ModifiedBy = h.ModifiedBy,
-                    IsCurrent = h.Id == currentId
+                    IsCurrent = h.Id == currentId,
+                    ReplacementStatus = h.ReplacementStatus,
+                    ReplacementDate = h.ReplacementDate,
+                    ReplacementRemarks = h.ReplacementRemarks
                 })
                 .ToListAsync();
+
+            await ResolveReplacementLinksAsync(entries);
+            return entries;
+        }
+
+        // ✅ NEW — resolves each entry's linked Replacement Status entry (whichever
+        // one of ReplacedByPaymentHistoryId/ReplacesPaymentHistoryId is set) into
+        // display-only fields: the linked beneficiary's name, its quarter/year, and
+        // its Payment Status label — so the UI can show both sides of a replacement
+        // link (who/what it's linked to, and what that linked entry's payment
+        // status is) without a second round trip.
+        private async Task ResolveReplacementLinksAsync(List<PaymentHistoryDto> entries)
+        {
+            if (!entries.Any(e => e.ReplacementStatus is 1 or 2)) return;
+
+            // PaymentHistoryDto doesn't carry the raw ReplacedBy/Replaces ids —
+            // fetch them alongside in one small query keyed by entry Id.
+            var entryIds = entries.Select(e => e.Id).ToList();
+
+            var linkMap = await _context.BeneficiaryPaymentHistories
+                .AsNoTracking()
+                .Where(h => entryIds.Contains(h.Id))
+                .Select(h => new { h.Id, h.ReplacedByPaymentHistoryId, h.ReplacesPaymentHistoryId })
+                .ToDictionaryAsync(h => h.Id);
+
+            var targetIds = linkMap.Values
+                .SelectMany(x => new[] { x.ReplacedByPaymentHistoryId, x.ReplacesPaymentHistoryId })
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+
+            if (!targetIds.Any()) return;
+
+            var targets = await _context.BeneficiaryPaymentHistories
+                .AsNoTracking()
+                .Where(h => targetIds.Contains(h.Id))
+                .Select(h => new
+                {
+                    h.Id,
+                    h.PayrollQuarter,
+                    h.FiscalYear,
+                    h.PaymentStatus,
+                    BeneficiaryName = h.Beneficiary!.LastName + ", " + h.Beneficiary.FirstName
+                })
+                .ToDictionaryAsync(h => h.Id);
+
+            foreach (var entry in entries)
+            {
+                if (!linkMap.TryGetValue(entry.Id, out var link)) continue;
+
+                var targetId = entry.ReplacementStatus == 1 ? link.ReplacedByPaymentHistoryId
+                    : entry.ReplacementStatus == 2 ? link.ReplacesPaymentHistoryId
+                    : null;
+
+                if (!targetId.HasValue || !targets.TryGetValue(targetId.Value, out var target)) continue;
+
+                entry.LinkedBeneficiaryName = target.BeneficiaryName;
+                entry.LinkedPeriodLabel = target.PayrollQuarter.HasValue || target.FiscalYear.HasValue
+                    ? $"Q{(target.PayrollQuarter?.ToString() ?? "-")} {target.FiscalYear?.ToString() ?? ""}".Trim()
+                    : null;
+                entry.LinkedPaymentStatusLabel = PaymentStatusLabelFor(target.PaymentStatus);
+            }
         }
         // Fallback fuzzy name search. Only call this when the normal exact/Contains
         // search already returned zero results and the search term looks name-like
@@ -1047,6 +1113,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 IsCompliant = filter.IsCompliant,
                 ComplianceMode = filter.ComplianceMode,
                 CoStatus = filter.CoStatus,
+                ReplacementStatus = filter.ReplacementStatus, // ✅ FIXED — was missing, so the scan silently ignored this filter and scanned everything
                 FindingStatus = filter.FindingStatus,
                 Sex = filter.Sex,
                 FilterModeOfPayment = filter.FilterModeOfPayment,
@@ -1061,6 +1128,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FilterRegionRoman = filter.FilterRegionRoman,
                 FilterPayrollQuarter = filter.FilterPayrollQuarter,   // ✅ new — this was the actual bug
                 FilterPayrollQuarters = filter.FilterPayrollQuarters, // ✅ new
+                FilterFiscalYear = filter.FilterFiscalYear, // ✅ FIXED — same gap as ReplacementStatus, was silently dropped
                 DateAddedFrom = filter.DateAddedFrom,
                 DateAddedTo = filter.DateAddedTo,
                 DateEndorsedFrom = filter.DateEndorsedFrom,
@@ -1324,15 +1392,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     on b.Id equals finding.BeneficiaryInformationId into findingJoin
                 from finding in findingJoin.DefaultIfEmpty()
 
-                    // ✅ NEW — Replacement Status linked grantee names
-                join replacedBy in _context.BeneficiaryInformations
-                    on b.ReplacedByBeneficiaryId equals replacedBy.Id into replacedByJoin
-                from replacedBy in replacedByJoin.DefaultIfEmpty()
-
-                join replaces in _context.BeneficiaryInformations
-                    on b.ReplacesBeneficiaryId equals replaces.Id into replacesJoin
-                from replaces in replacesJoin.DefaultIfEmpty()
-
                 where b.Id == id && !b.IsDeleted
 
                 select new BeneficiaryInformationDto
@@ -1393,13 +1452,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = b.CoStatus,
                     CoDateEndorsed = b.CoDateEndorsed,
                     CoDateApproved = b.CoDateApproved,
-                    ReplacementStatus = b.ReplacementStatus,
-                    ReplacedByBeneficiaryId = b.ReplacedByBeneficiaryId,
-                    ReplacedByName = replacedBy != null ? replacedBy.LastName + ", " + replacedBy.FirstName : null,
-                    ReplacesBeneficiaryId = b.ReplacesBeneficiaryId,
-                    ReplacesName = replaces != null ? replaces.LastName + ", " + replaces.FirstName : null,
-                    ReplacementDate = b.ReplacementDate,
-                    ReplacementRemarks = b.ReplacementRemarks,
                     IsDeleted = b.IsDeleted,
                     RowVersion = b.RowVersion,
 
@@ -1758,77 +1810,85 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     $"{conflictedNames}. Please refresh and try again.", ex);
             }
         }
-        public async Task ReplaceBeneficiaryAsync(Guid outgoingId, Guid incomingId, DateTime? replacementDate, string? remarks)
+        // ✅ CHANGED — Replacement Status now lives on the specific payment history
+        // entry being handed over, not the whole beneficiary (a grantee can have
+        // several entries across quarters, only one of which is actually replaced).
+        public async Task<(BeneficiaryPaymentHistory Outgoing, BeneficiaryPaymentHistory Incoming)> ReplaceBeneficiaryAsync(Guid outgoingHistoryId, Guid incomingHistoryId, DateTime? replacementDate, string? remarks)
         {
-            var pair = await _context.BeneficiaryInformations
-                .Where(x => (x.Id == outgoingId || x.Id == incomingId) && !x.IsDeleted)
+            var pair = await _context.BeneficiaryPaymentHistories
+                .Where(x => x.Id == outgoingHistoryId || x.Id == incomingHistoryId)
                 .ToListAsync();
 
-            var outgoing = pair.FirstOrDefault(x => x.Id == outgoingId)
-                ?? throw new Exception("The grantee to be replaced was not found.");
-            var incoming = pair.FirstOrDefault(x => x.Id == incomingId)
-                ?? throw new Exception("The replacement grantee was not found.");
+            var outgoing = pair.FirstOrDefault(x => x.Id == outgoingHistoryId)
+                ?? throw new Exception("The payment record to be replaced was not found.");
+            var incoming = pair.FirstOrDefault(x => x.Id == incomingHistoryId)
+                ?? throw new Exception("The replacement payment record was not found.");
 
             if (outgoing.ReplacementStatus.HasValue && outgoing.ReplacementStatus.Value != 0)
-                throw new Exception("This grantee already has a Replacement Status set. Undo it first before assigning a new one.");
+                throw new Exception("This payment record already has a Replacement Status set. Undo it first before assigning a new one.");
             if (incoming.ReplacementStatus.HasValue && incoming.ReplacementStatus.Value != 0)
-                throw new Exception("The selected replacement grantee already has a Replacement Status set. Undo it first before assigning a new one.");
+                throw new Exception("The selected replacement payment record already has a Replacement Status set. Undo it first before assigning a new one.");
 
             var date = replacementDate ?? DateTime.Now;
 
             outgoing.ReplacementStatus = 1; // Replaced
-            outgoing.ReplacedByBeneficiaryId = incoming.Id;
+            outgoing.ReplacedByPaymentHistoryId = incoming.Id;
             outgoing.ReplacementDate = date;
             outgoing.ReplacementRemarks = remarks;
 
             incoming.ReplacementStatus = 2; // Is Replacement
-            incoming.ReplacesBeneficiaryId = outgoing.Id;
+            incoming.ReplacesPaymentHistoryId = outgoing.Id;
             incoming.ReplacementDate = date;
             incoming.ReplacementRemarks = remarks;
 
             await _context.SaveChangesAsync();
+            return (outgoing, incoming);
         }
 
-        public async Task UndoReplacementAsync(Guid beneficiaryId)
+        public async Task<BeneficiaryPaymentHistory> UndoReplacementAsync(Guid historyId)
         {
-            var beneficiary = await _context.BeneficiaryInformations
-                .FirstOrDefaultAsync(x => x.Id == beneficiaryId && !x.IsDeleted)
-                ?? throw new Exception("Beneficiary not found.");
+            var entry = await _context.BeneficiaryPaymentHistories
+                .FirstOrDefaultAsync(x => x.Id == historyId)
+                ?? throw new Exception("Payment record not found.");
 
-            if (!beneficiary.ReplacementStatus.HasValue || beneficiary.ReplacementStatus.Value == 0)
-                throw new Exception("This grantee has no Replacement Status to undo.");
+            if (!entry.ReplacementStatus.HasValue || entry.ReplacementStatus.Value == 0)
+                throw new Exception("This payment record has no Replacement Status to undo.");
 
-            var linkedId = beneficiary.ReplacementStatus == 1
-                ? beneficiary.ReplacedByBeneficiaryId
-                : beneficiary.ReplacesBeneficiaryId;
+            var linkedId = entry.ReplacementStatus == 1
+                ? entry.ReplacedByPaymentHistoryId
+                : entry.ReplacesPaymentHistoryId;
 
             var linked = linkedId.HasValue
-                ? await _context.BeneficiaryInformations.FirstOrDefaultAsync(x => x.Id == linkedId.Value)
+                ? await _context.BeneficiaryPaymentHistories.FirstOrDefaultAsync(x => x.Id == linkedId.Value)
                 : null;
 
-            beneficiary.ReplacementStatus = null;
-            beneficiary.ReplacedByBeneficiaryId = null;
-            beneficiary.ReplacesBeneficiaryId = null;
-            beneficiary.ReplacementDate = null;
-            beneficiary.ReplacementRemarks = null;
+            entry.ReplacementStatus = null;
+            entry.ReplacedByPaymentHistoryId = null;
+            entry.ReplacesPaymentHistoryId = null;
+            entry.ReplacementDate = null;
+            entry.ReplacementRemarks = null;
 
             if (linked != null)
             {
                 linked.ReplacementStatus = null;
-                linked.ReplacedByBeneficiaryId = null;
-                linked.ReplacesBeneficiaryId = null;
+                linked.ReplacedByPaymentHistoryId = null;
+                linked.ReplacesPaymentHistoryId = null;
                 linked.ReplacementDate = null;
                 linked.ReplacementRemarks = null;
             }
 
             await _context.SaveChangesAsync();
+            return entry;
         }
 
         public async Task<List<BeneficiaryLookupDto>> SearchBeneficiaryLookupAsync(string? search, Guid excludeId)
         {
+            // ✅ CHANGED — no longer excludes beneficiaries with an existing
+            // Replacement Status; that's now a per-payment-history-entry concern,
+            // handled when the caller picks which of this beneficiary's entries
+            // to use (a beneficiary can have both replaced and non-replaced entries).
             var query = _context.BeneficiaryInformations.AsNoTracking()
-                .Where(b => !b.IsDeleted && b.Id != excludeId
-                    && (b.ReplacementStatus == null || b.ReplacementStatus == 0));
+                .Where(b => !b.IsDeleted && b.Id != excludeId);
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1848,8 +1908,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     BatchCode = b.BatchCode,
                     MunicipalityName = _context.Municipalities
                         .Where(m => m.PsgcCodeMunicipality == b.Municipality)
-                        .Select(m => m.Name).FirstOrDefault(),
-                    ReplacementStatus = b.ReplacementStatus
+                        .Select(m => m.Name).FirstOrDefault()
                 })
                 .ToListAsync();
         }
@@ -1934,11 +1993,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.CoStatus,
                     x.b.CoDateEndorsed,
                     x.b.CoDateApproved,
-                    x.b.ReplacementStatus,
-                    x.b.ReplacedByBeneficiaryId,
-                    x.b.ReplacesBeneficiaryId,
-                    x.b.ReplacementDate,
-                    x.b.ReplacementRemarks,
                     x.b.RowVersion,
                     x.b.DateEndorsed,
                     x.b.DateApplied,
@@ -1995,22 +2049,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .ToDictionaryAsync(h => h.Id)
                 : new Dictionary<Guid, BeneficiaryPaymentHistory>();
 
-            // ── Replacement Status: resolve linked grantee names for this page ──
-            var linkedBeneficiaryIds = pageRaw
-                .SelectMany(x => new[] { x.ReplacedByBeneficiaryId, x.ReplacesBeneficiaryId })
-                .Where(id => id.HasValue)
-                .Select(id => id!.Value)
-                .Distinct()
-                .ToList();
-
-            var linkedNameLookup = linkedBeneficiaryIds.Any()
-                ? await _context.BeneficiaryInformations
-                    .AsNoTracking()
-                    .Where(b => linkedBeneficiaryIds.Contains(b.Id))
-                    .Select(b => new { b.Id, b.LastName, b.FirstName })
-                    .ToDictionaryAsync(b => b.Id, b => $"{b.LastName}, {b.FirstName}")
-                : new Dictionary<Guid, string>();
-
             // ── Step 3: merge in memory ──
             var items = pageRaw.Select(x =>
             {
@@ -2044,6 +2082,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PayrollQuarter = current?.PayrollQuarter,
                     FiscalYear = current?.FiscalYear,
                     PaymentStatus = current?.PaymentStatus ?? 0,
+                    CurrentEntryReplacementStatus = current?.ReplacementStatus,
                     ModeOfPayment = current?.ModeOfPayment ?? 0,
                     PaymentHistoryCount = historyCounts.TryGetValue(x.Id, out var c) ? c : 0,
                     PaymentHistorySummary = summaryByBeneficiary.TryGetValue(x.Id, out var s) ? s : null,
@@ -2054,15 +2093,6 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoStatus = x.CoStatus,
                     CoDateEndorsed = x.CoDateEndorsed,
                     CoDateApproved = x.CoDateApproved,
-                    ReplacementStatus = x.ReplacementStatus,
-                    ReplacedByBeneficiaryId = x.ReplacedByBeneficiaryId,
-                    ReplacedByName = x.ReplacedByBeneficiaryId.HasValue
-                        ? linkedNameLookup.GetValueOrDefault(x.ReplacedByBeneficiaryId.Value) : null,
-                    ReplacesBeneficiaryId = x.ReplacesBeneficiaryId,
-                    ReplacesName = x.ReplacesBeneficiaryId.HasValue
-                        ? linkedNameLookup.GetValueOrDefault(x.ReplacesBeneficiaryId.Value) : null,
-                    ReplacementDate = x.ReplacementDate,
-                    ReplacementRemarks = x.ReplacementRemarks,
                     HasDocuments = x.HasDocuments,
                     EligibilityRemarksPreview = x.EligibilityRemarksPreview,
                     AssessmentRemarksPreview = x.AssessmentRemarksPreview,
@@ -2650,11 +2680,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 }
             }
             // ── Replacement Status Filter ────────────────────────────────────────────
+            // ✅ CHANGED — Replacement Status now lives on BeneficiaryPaymentHistory,
+            // not the beneficiary itself. "Not Replaced" (0) = no history entry with
+            // a non-zero status; 1/2 = at least one entry with that exact status.
             if (filter.ReplacementStatus.HasValue && filter.ReplacementStatus.Value >= 0)
             {
                 query = filter.ReplacementStatus.Value == 0
-                    ? query.Where(x => x.Beneficiary.ReplacementStatus == null || x.Beneficiary.ReplacementStatus == 0)
-                    : query.Where(x => x.Beneficiary.ReplacementStatus == filter.ReplacementStatus.Value);
+                    ? query.Where(x => !_context.BeneficiaryPaymentHistories.Any(h =>
+                        h.BeneficiaryInformationId == x.Beneficiary.Id &&
+                        h.ReplacementStatus != null && h.ReplacementStatus != 0))
+                    : query.Where(x => _context.BeneficiaryPaymentHistories.Any(h =>
+                        h.BeneficiaryInformationId == x.Beneficiary.Id &&
+                        h.ReplacementStatus == filter.ReplacementStatus.Value));
             }
             // ── Quarter Filter ────────────────────────────────────────────────────────
             if (filter.FilterQuarter.HasValue)
@@ -3247,11 +3284,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     : query.Where(b => b.CoStatus == filter.CoStatus.Value);
             }
 
+            // ✅ CHANGED — Replacement Status now lives on BeneficiaryPaymentHistory,
+            // not the beneficiary itself. "Not Replaced" (0) = no history entry with
+            // a non-zero status; 1/2 = at least one entry with that exact status.
             if (filter.ReplacementStatus.HasValue && filter.ReplacementStatus.Value >= 0)
             {
                 query = filter.ReplacementStatus.Value == 0
-                    ? query.Where(b => b.ReplacementStatus == null || b.ReplacementStatus == 0)
-                    : query.Where(b => b.ReplacementStatus == filter.ReplacementStatus.Value);
+                    ? query.Where(b => !_context.BeneficiaryPaymentHistories.Any(h =>
+                        h.BeneficiaryInformationId == b.Id &&
+                        h.ReplacementStatus != null && h.ReplacementStatus != 0))
+                    : query.Where(b => _context.BeneficiaryPaymentHistories.Any(h =>
+                        h.BeneficiaryInformationId == b.Id &&
+                        h.ReplacementStatus == filter.ReplacementStatus.Value));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.LastName))

@@ -424,14 +424,14 @@ namespace EcaInformationSystem.Api.Controllers
         }
         [HttpPost("replace")]
         [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> ReplaceBeneficiary([FromBody] ReplaceBeneficiaryRequestDto dto)
+        public async Task<IActionResult> ReplaceBeneficiary([FromBody] ReplacePaymentHistoryRequestDto dto)
         {
             try
             {
                 var userName = User.Identity?.Name ?? "System";
                 await _service.ReplaceBeneficiaryAsync(
-                    dto.OutgoingBeneficiaryId,
-                    dto.IncomingBeneficiaryId,
+                    dto.OutgoingPaymentHistoryId,
+                    dto.IncomingPaymentHistoryId,
                     dto.ReplacementDate,
                     dto.Remarks,
                     userName);
@@ -442,14 +442,14 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
-        [HttpPost("undo-replacement/{id:guid}")]
+        [HttpPost("undo-replacement/{historyId:guid}")]
         [Authorize(Policy = "AdminOnly")]
-        public async Task<IActionResult> UndoReplacement(Guid id)
+        public async Task<IActionResult> UndoReplacement(Guid historyId)
         {
             try
             {
                 var userName = User.Identity?.Name ?? "System";
-                await _service.UndoReplacementAsync(id, userName);
+                await _service.UndoReplacementAsync(historyId, userName);
                 return Ok();
             }
             catch (Exception ex)

@@ -43,6 +43,12 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? PayrollQuarter { get; set; }
         public int? FiscalYear { get; set; }
         public int PaymentStatus { get; set; }
+        // ✅ NEW — Replacement Status of the CURRENT payment history entry (the
+        // same entry PaymentStatus/PayrollQuarter/FiscalYear above are sourced
+        // from). Lets the grid show a quick-glance indicator without a column of
+        // its own; full replacement detail (who/what it's linked to) still lives
+        // in the Payment History section of the offcanvas.
+        public int? CurrentEntryReplacementStatus { get; set; }
         public int ModeOfPayment { get; set; }
         public bool IsEligible { get; set; }
         public bool IsCompliant { get; set; }
@@ -50,13 +56,6 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? CoStatus { get; set; }
         public DateTime? CoDateEndorsed { get; set; }
         public DateTime? CoDateApproved { get; set; }
-        public int? ReplacementStatus { get; set; }
-        public Guid? ReplacedByBeneficiaryId { get; set; }
-        public string? ReplacedByName { get; set; }
-        public Guid? ReplacesBeneficiaryId { get; set; }
-        public string? ReplacesName { get; set; }
-        public DateTime? ReplacementDate { get; set; }
-        public string? ReplacementRemarks { get; set; }
         public DateTime? PaymentDate { get; set; }
         public int PaymentHistoryCount { get; set; }
         public string? PaymentHistorySummary { get; set; }   // ✅ new — hover tooltip text

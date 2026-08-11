@@ -1341,7 +1341,13 @@
    layout so it sits and behaves the same as the Messages toggle next to it. ── */
 .notes-widget-floating-container {
     position: relative;
-    z-index: 1050;
+    /* ✅ FIXED — was 1050 (above .offcanvas's 1045), so this floating toggle/panel
+       stayed visible ON TOP of an open offcanvas (e.g. the beneficiary details
+       panel), overlapping its header/close button. Offcanvas is deliberately
+       kept "LOW" (see the Z-INDEX FIX comment near .offcanvas) so modals can
+       render above it — this just needs to stay below offcanvas too, so an
+       open offcanvas fully covers it instead of colliding with it. */
+    z-index: 1030;
 }
 
 .notes-toggle-btn {
@@ -2689,7 +2695,10 @@
    pagination and other bottom-of-page controls. */
 .chat-widget-container {
     position: relative;
-    z-index: 1050;
+    /* ✅ FIXED — was 1050 (above .offcanvas's 1045), so the floating toggle/panel
+       stayed visible ON TOP of an open offcanvas, overlapping it. See the
+       matching note on .notes-widget-floating-container. */
+    z-index: 1030;
 }
 
 .chat-toggle-btn {
@@ -4564,7 +4573,11 @@
         right: 8px;
         width: auto;
         height: min(480px, calc(100vh - 88px));
-        z-index: 1500;
+        /* ✅ FIXED — was 1500 (well above .offcanvas's 1045); position:fixed
+           starts its own stacking context so the parent container's z-index
+           doesn't apply here — needs its own explicit value below offcanvas
+           too, same reasoning as the desktop fix above. */
+        z-index: 1030;
     }
 
     .notes-floating-panel {
@@ -4574,7 +4587,7 @@
         right: 8px;
         width: auto;
         height: min(480px, calc(100vh - 88px));
-        z-index: 1500;
+        z-index: 1030;
     }
 }
 

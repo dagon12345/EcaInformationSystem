@@ -3,6 +3,7 @@
 @inject StickyNoteClientService StickyNotes
 @inject IJSRuntime JS
 @inject ToastService Toast
+@inject NavbarFlyoutCoordinator FlyoutCoordinator
 @implements IDisposable
 
 @* ── Floating "Sticky Notes" toggle + panel, same click-to-open behavior as
@@ -250,10 +251,14 @@
     {
         _isOpen = !_isOpen;
 
-        // Cheap even on every open — StickyNoteClientService caches the result
-        // and only re-fetches once that cache has been invalidated by a save/delete.
         if (_isOpen)
         {
+            // ✅ Tell other navbar flyouts (Messages) to close so panels don't
+            // visually stack on top of each other.
+            FlyoutCoordinator.NotifyOpened("notes");
+
+            // Cheap even on every open — StickyNoteClientService caches the result
+            // and only re-fetches once that cache has been invalidated by a save/delete.
             await LoadNotesAsync();
         }
     }
@@ -261,6 +266,14 @@
     protected override void OnInitialized()
     {
         _dotNetRef = DotNetObjectReference.Create(this);
+        FlyoutCoordinator.OnOpened += HandleOtherPanelOpened;
+    }
+
+    private void HandleOtherPanelOpened(string panelId)
+    {
+        if (panelId == "notes" || !_isOpen) return;
+        _isOpen = false;
+        InvokeAsync(StateHasChanged);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -457,6 +470,7 @@
 
     public void Dispose()
     {
+        FlyoutCoordinator.OnOpened -= HandleOtherPanelOpened;
         _dotNetRef?.Dispose();
         _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
     }
