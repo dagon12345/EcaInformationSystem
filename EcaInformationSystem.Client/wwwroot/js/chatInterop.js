@@ -83,12 +83,15 @@
             this._notificationAudio.play().catch(() => { /* autoplay still blocked, non-fatal */ });
         } catch { /* non-fatal */ }
     },
-    _outsideClickHandler: null,
+    // ✅ CHANGED — keyed by containerId so multiple independent floating widgets
+    // (Messages, Sticky Notes, ...) can each register their own outside-click
+    // listener without stomping on one another's handler.
+    _outsideClickHandlers: {},
 
     registerOutsideClick: function (containerId, dotNetRef) {
-        this.unregisterOutsideClick();
+        this.unregisterOutsideClick(containerId);
 
-        this._outsideClickHandler = function (event) {
+        const handler = function (event) {
             const container = document.getElementById(containerId);
             if (!container) return;
 
@@ -103,15 +106,17 @@
             }
         };
 
+        this._outsideClickHandlers[containerId] = handler;
         setTimeout(() => {
-            document.addEventListener('click', this._outsideClickHandler);
+            document.addEventListener('click', handler);
         }, 0);
     },
 
-    unregisterOutsideClick: function () {
-        if (this._outsideClickHandler) {
-            document.removeEventListener('click', this._outsideClickHandler);
-            this._outsideClickHandler = null;
+    unregisterOutsideClick: function (containerId) {
+        const handler = this._outsideClickHandlers[containerId];
+        if (handler) {
+            document.removeEventListener('click', handler);
+            delete this._outsideClickHandlers[containerId];
         }
     },
 

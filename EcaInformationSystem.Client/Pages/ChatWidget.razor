@@ -379,7 +379,7 @@
         }
         else if (!ChatState.IsWidgetOpen && _wasOpen)
         {
-            await JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick");
+            await JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
         }
 
         _wasOpen = ChatState.IsWidgetOpen;
@@ -515,6 +515,6 @@
     {
         ChatState.OnChange -= HandleChatStateChanged;
         _dotNetRef?.Dispose();
-        _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick");
+        _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
     }
 }

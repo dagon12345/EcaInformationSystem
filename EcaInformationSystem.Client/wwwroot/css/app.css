@@ -1336,6 +1336,57 @@
 .notes-widget-empty i { font-size: 24px; color: #d1d5db; display: block; margin-bottom: 8px; }
 .notes-widget-empty p { margin: 0; font-size: 12px; }
 
+/* ── Navbar floating "Sticky Notes" widget — StickyNotesWidget.razor.
+   Mirrors .chat-widget-container/.chat-toggle-btn/.chat-widget-panel's
+   layout so it sits and behaves the same as the Messages toggle next to it. ── */
+.notes-widget-floating-container {
+    position: relative;
+    z-index: 1050;
+}
+
+.notes-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #495057;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+    .notes-toggle-btn:hover,
+    .notes-toggle-btn--active {
+        background: #e9ecef;
+    }
+
+    .notes-toggle-btn i {
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+.notes-floating-panel {
+    position: absolute;
+    top: 46px; /* opens downward from the navbar toggle, same as chat */
+    right: 0;
+    width: 340px;
+    height: 480px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+    .notes-floating-panel .notes-widget-list {
+        flex: 1;
+        max-height: none; /* panel's own fixed height governs scrolling instead */
+    }
+
 /* ── Individual sticky note card ─────────────────────────────────────── */
 .sticky-note-card {
     border-radius: 10px;
@@ -4507,6 +4558,16 @@
    it always renders fully on-screen regardless of where the toggle sits. ── */
 @media (max-width: 768px) {
     .chat-widget-container:not(.chat-widget-container--inline) .chat-widget-panel {
+        position: fixed;
+        top: 64px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        height: min(480px, calc(100vh - 88px));
+        z-index: 1500;
+    }
+
+    .notes-floating-panel {
         position: fixed;
         top: 64px;
         left: 8px;

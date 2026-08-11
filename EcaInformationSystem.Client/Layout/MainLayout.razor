@@ -41,6 +41,12 @@
                     </div>
                     <div class="navbar-actions">
 
+                        @* ── Sticky Notes — floating toggle + panel, same click-to-open
+                             behavior as Messages below. The Feed page (PostFeed.razor) keeps
+                             its own always-visible sidebar copy; this is a second entry point
+                             so the user can glimpse/manage their notes from anywhere. ── *@
+                        <StickyNotesWidget />
+
                         @* ── Messages — floating toggle + panel (ChatWidget's non-inline mode),
                              same click-to-open behavior as the bell. Was previously an always-
                              visible sidebar on the Feed page; now it's reachable from anywhere. ── *@

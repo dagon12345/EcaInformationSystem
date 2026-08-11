@@ -1,0 +1,463 @@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject StickyNoteClientService StickyNotes
+@inject IJSRuntime JS
+@inject ToastService Toast
+@implements IDisposable
+
+@* ── Floating "Sticky Notes" toggle + panel, same click-to-open behavior as
+     ChatWidget's navbar instance. My Sticky Notes still lives on the Feed
+     page (PostFeed.razor) too — this is a second, independent entry point so
+     notes/tasks stay one click away from anywhere in the system. ── *@
+<div class="notes-widget-floating-container" id="@_widgetContainerId">
+    <button class="notes-toggle-btn @(_isOpen ? "notes-toggle-btn--active" : "")" @onclick="ToggleWidget"
+            title="@(_isOpen ? "Close" : "Sticky Notes")">
+        <i class="bi @(_isOpen ? "bi-x-lg" : "bi-stickies-fill")"></i>
+    </button>
+
+    @if (_isOpen)
+    {
+        <div class="notes-floating-panel">
+            <div class="notes-widget-header">
+                <div class="notes-widget-title"><i class="bi bi-stickies-fill"></i><span>My Sticky Notes</span></div>
+                <div class="notes-widget-header-actions">
+                    <button class="notes-add-btn" @onclick="OpenCreateNote" title="New note">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="notes-widget-filters">
+                <input type="text" class="notes-search-input" placeholder="Search notes..."
+                       value="@_notesSearchTerm" @oninput="e => _notesSearchTerm = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            <div class="notes-widget-list">
+                @if (_notesLoading)
+                {
+                    <div class="notes-widget-empty"><span class="spinner-border spinner-border-sm"></span></div>
+                }
+                else if (!FilteredNotes.Any())
+                {
+                    <div class="notes-widget-empty">
+                        <i class="bi bi-journal-plus"></i>
+                        <p>@(_notes.Any() ? "No notes match your filter." : "No notes yet — click + to add one.")</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var note in FilteredNotes)
+                    {
+                        <div class="sticky-note-card sticky-note--@note.Color sticky-note-card--clickable" @onclick="() => OpenEditNote(note)">
+                            <div class="sticky-note-top">
+                                <div class="sticky-note-title text-truncate" title="@note.Title">@note.Title</div>
+                                <div class="sticky-note-actions" @onclick:stopPropagation="true">
+                                    @if (_confirmDeleteNoteId == note.Id)
+                                    {
+                                        <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Confirm delete" @onclick="() => ConfirmDeleteNoteAsync(note.Id)">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                        <button class="sticky-note-icon-btn" title="Cancel" @onclick="CancelDeleteNote">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="sticky-note-icon-btn sticky-note-icon-btn--danger" title="Delete" @onclick="() => AskDeleteNote(note.Id)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+
+                            @{ var noteLines = ParseNoteLines(note.Content); }
+                            @if (noteLines.Count > 0)
+                            {
+                                <div class="sticky-note-lines">
+                                    @foreach (var line in noteLines)
+                                    {
+                                        @if (line.Kind == NoteLineKind.Checklist)
+                                        {
+                                            <label class="sticky-note-checklist-item @(line.Checked ? "sticky-note-checklist-item--done" : "")" @onclick:stopPropagation="true">
+                                                <input type="checkbox" checked="@line.Checked" @onchange="() => ToggleContentChecklistLineAsync(note, line.LineIndex)" />
+                                                <span>@line.Text</span>
+                                            </label>
+                                        }
+                                        else if (line.Kind == NoteLineKind.Bullet)
+                                        {
+                                            <div class="sticky-note-bullet-item">@line.Text</div>
+                                        }
+                                        else
+                                        {
+                                            <p class="sticky-note-content-line">@line.Text</p>
+                                        }
+                                    }
+                                </div>
+                            }
+
+                            <div class="sticky-note-time">@GetRelativeNoteTime(note)</div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (_showNoteModal)
+{
+    <div class="modal-backdrop-custom" @onclick="RequestCloseNoteModal">
+        <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
+            <div class="modal-panel-header">
+                <strong>@(_noteDraft.Id.HasValue ? "Edit" : "New") Note</strong>
+                <button class="btn-close" @onclick="RequestCloseNoteModal"></button>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Title</label>
+                <input class="form-control" @bind="_noteDraft.Title" maxlength="150" placeholder="e.g. Payroll follow-ups" />
+            </div>
+
+            <div class="mb-2">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label class="form-label small fw-bold mb-0">Content</label>
+                    <div class="note-format-toolbar">
+                        <button type="button" class="note-format-btn" title="Bullet list — select lines first"
+                                @onclick='() => ToggleLineFormatAsync("- ")'>
+                            <i class="bi bi-list-ul"></i>
+                        </button>
+                        <button type="button" class="note-format-btn" title="Checklist — select lines first"
+                                @onclick='() => ToggleLineFormatAsync("- [ ] ")'>
+                            <i class="bi bi-check2-square"></i>
+                        </button>
+                    </div>
+                </div>
+                <textarea id="@_noteContentTextareaId" class="form-control" rows="6" maxlength="4000"
+                          @bind="_noteDraft.Content" placeholder="Write your note — select a line and click the bullet/checklist button above to format it..."></textarea>
+                <div class="note-format-hint">Select one or more lines, then click a button above to turn them into a bullet or checklist item. Click again to undo.</div>
+            </div>
+
+            <div class="mt-3">
+                <label class="form-label small fw-bold d-block">Color</label>
+                <div class="note-color-swatches">
+                    @foreach (var color in NoteColors)
+                    {
+                        <button type="button" class="note-color-swatch note-color-swatch--@color @(_noteDraft.Color == color ? "note-color-swatch--selected" : "")"
+                                title="@color" @onclick="() => _noteDraft.Color = color"></button>
+                    }
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="RequestCloseNoteModal">Cancel</button>
+                <button class="btn btn-sm btn-primary" @onclick="SaveNoteAsync" disabled="@_isSavingNote">
+                    @(_isSavingNote ? "Saving..." : "Save")
+                </button>
+            </div>
+
+            @if (_showNoteDiscardConfirm)
+            {
+                <div class="discard-confirm-overlay" @onclick:stopPropagation="true">
+                    <div class="discard-confirm-box">
+                        <div class="fw-semibold mb-1">Discard unsaved changes?</div>
+                        <p class="text-muted small mb-2">Your note hasn't been saved.</p>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="CancelNoteDiscard">Keep editing</button>
+                            <button class="btn btn-sm btn-danger" @onclick="ConfirmNoteDiscard">Discard</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] NoteColors = { "yellow", "pink", "blue", "green", "purple", "orange" };
+
+    private readonly string _widgetContainerId = $"notes-widget-{Guid.NewGuid():N}";
+    private DotNetObjectReference<StickyNotesWidget>? _dotNetRef;
+    private bool _isOpen;
+    private bool _wasOpen;
+
+    private List<StickyNoteDto> _notes = new();
+    private bool _notesLoading;
+    private string _notesSearchTerm = string.Empty;
+    private bool _showNoteModal;
+    private bool _isSavingNote;
+    private StickyNoteUpsertDto _noteDraft = new();
+    private string _noteOpenSnapshot = string.Empty;
+    private bool _showNoteDiscardConfirm;
+    private Guid? _confirmDeleteNoteId;
+    private readonly string _noteContentTextareaId = $"note-content-{Guid.NewGuid():N}";
+
+    // Same "- text" bullet / "- [ ] text" checklist inline-formatting scheme
+    // as the Feed page's copy of this widget (PostFeed.razor) — kept as a
+    // separate copy rather than a shared helper, same way ChatWidget/Profile
+    // each keep their own small GetInitials/AvatarUrl helpers.
+    private enum NoteLineKind { Plain, Bullet, Checklist }
+    private record NoteLine(int LineIndex, NoteLineKind Kind, bool Checked, string Text);
+
+    private static readonly System.Text.RegularExpressions.Regex ChecklistLineRegex =
+        new(@"^- \[( |x|X)\] (.*)$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static List<NoteLine> ParseNoteLines(string? content)
+    {
+        var result = new List<NoteLine>();
+        if (string.IsNullOrWhiteSpace(content)) return result;
+
+        var rawLines = content.Replace("\r\n", "\n").Split('\n');
+        for (int i = 0; i < rawLines.Length; i++)
+        {
+            var line = rawLines[i];
+            if (line.Length == 0) continue;
+
+            var checklistMatch = ChecklistLineRegex.Match(line);
+            if (checklistMatch.Success)
+            {
+                var isChecked = checklistMatch.Groups[1].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+                result.Add(new NoteLine(i, NoteLineKind.Checklist, isChecked, checklistMatch.Groups[2].Value));
+            }
+            else if (line.StartsWith("- "))
+            {
+                result.Add(new NoteLine(i, NoteLineKind.Bullet, false, line[2..]));
+            }
+            else
+            {
+                result.Add(new NoteLine(i, NoteLineKind.Plain, false, line));
+            }
+        }
+        return result;
+    }
+
+    private IEnumerable<StickyNoteDto> FilteredNotes => _notes.Where(n =>
+        string.IsNullOrWhiteSpace(_notesSearchTerm) ||
+        n.Title.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ||
+        (n.Content?.Contains(_notesSearchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private async Task LoadNotesAsync()
+    {
+        _notesLoading = true;
+        try { _notes = await StickyNotes.GetMineAsync(); }
+        catch { _notes = new(); }
+        finally { _notesLoading = false; }
+    }
+
+    private static string GetRelativeNoteTime(StickyNoteDto note)
+        => (note.UpdatedAt ?? note.CreatedAt).ToLocalTime().ToString("MMM dd, h:mm tt");
+
+    private async Task ToggleWidget()
+    {
+        _isOpen = !_isOpen;
+
+        // Cheap even on every open — StickyNoteClientService caches the result
+        // and only re-fetches once that cache has been invalidated by a save/delete.
+        if (_isOpen)
+        {
+            await LoadNotesAsync();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_isOpen && !_wasOpen)
+        {
+            await JS.InvokeVoidAsync("chatInterop.registerOutsideClick", _widgetContainerId, _dotNetRef);
+        }
+        else if (!_isOpen && _wasOpen)
+        {
+            await JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
+        }
+
+        _wasOpen = _isOpen;
+    }
+
+    [JSInvokable]
+    public void OnClickOutside()
+    {
+        if (_isOpen)
+        {
+            _isOpen = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenCreateNote()
+    {
+        _noteDraft = new StickyNoteUpsertDto { Color = "yellow" };
+        _showNoteModal = true;
+        _noteOpenSnapshot = SerializeNoteDraft();
+    }
+
+    private void OpenEditNote(StickyNoteDto note)
+    {
+        _noteDraft = new StickyNoteUpsertDto
+        {
+            Id = note.Id,
+            Title = note.Title,
+            Content = note.Content,
+            Color = note.Color
+        };
+        _showNoteModal = true;
+        _noteOpenSnapshot = SerializeNoteDraft();
+    }
+
+    private string SerializeNoteDraft() => System.Text.Json.JsonSerializer.Serialize(_noteDraft);
+    private bool NoteIsDirty => SerializeNoteDraft() != _noteOpenSnapshot;
+
+    private void RequestCloseNoteModal()
+    {
+        if (NoteIsDirty)
+        {
+            _showNoteDiscardConfirm = true;
+        }
+        else
+        {
+            CloseNoteModal();
+        }
+    }
+
+    private void CancelNoteDiscard() => _showNoteDiscardConfirm = false;
+
+    private void ConfirmNoteDiscard()
+    {
+        _showNoteDiscardConfirm = false;
+        CloseNoteModal();
+    }
+
+    private void CloseNoteModal()
+    {
+        _showNoteModal = false;
+        _showNoteDiscardConfirm = false;
+    }
+
+    private async Task ToggleLineFormatAsync(string marker)
+    {
+        var selection = await JS.InvokeAsync<TextareaSelection>("feedInterop.getTextareaSelection", _noteContentTextareaId);
+
+        var content = _noteDraft.Content ?? string.Empty;
+        var lines = content.Replace("\r\n", "\n").Split('\n');
+
+        int offset = 0, startLine = 0, endLine = 0;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var lineEnd = offset + lines[i].Length;
+            if (selection.Start >= offset && selection.Start <= lineEnd) startLine = i;
+            if (selection.End >= offset && selection.End <= lineEnd) endLine = i;
+            offset = lineEnd + 1;
+        }
+        if (endLine < startLine) endLine = startLine;
+
+        bool AlreadyMarked(string line) => line.StartsWith(marker, StringComparison.Ordinal);
+        bool allAlreadyMarked = true;
+        for (int i = startLine; i <= endLine; i++)
+        {
+            if (lines[i].Length == 0) continue;
+            if (!AlreadyMarked(lines[i])) { allAlreadyMarked = false; break; }
+        }
+
+        for (int i = startLine; i <= endLine; i++)
+        {
+            if (lines[i].Length == 0) continue;
+
+            var stripped = ChecklistLineRegex.IsMatch(lines[i])
+                ? ChecklistLineRegex.Match(lines[i]).Groups[2].Value
+                : lines[i].StartsWith("- ", StringComparison.Ordinal)
+                    ? lines[i][2..]
+                    : lines[i];
+
+            lines[i] = allAlreadyMarked ? stripped : marker + stripped;
+        }
+
+        _noteDraft.Content = string.Join('\n', lines);
+    }
+
+    private class TextareaSelection
+    {
+        public int Start { get; set; }
+        public int End { get; set; }
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_noteDraft.Title))
+        {
+            Toast.ShowError("Title is required.");
+            return;
+        }
+
+        _isSavingNote = true;
+        try
+        {
+            var (success, note, error) = await StickyNotes.UpsertAsync(_noteDraft);
+            if (!success || note is null)
+            {
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save note." : error);
+                return;
+            }
+
+            var existingIndex = _notes.FindIndex(n => n.Id == note.Id);
+            if (existingIndex >= 0) _notes[existingIndex] = note;
+            else _notes.Insert(0, note);
+
+            _showNoteModal = false;
+            Toast.ShowSuccess("Note saved.");
+        }
+        finally
+        {
+            _isSavingNote = false;
+        }
+    }
+
+    private void AskDeleteNote(Guid id) => _confirmDeleteNoteId = id;
+    private void CancelDeleteNote() => _confirmDeleteNoteId = null;
+
+    private async Task ConfirmDeleteNoteAsync(Guid id)
+    {
+        var ok = await StickyNotes.DeleteAsync(id);
+        if (ok) _notes.RemoveAll(n => n.Id == id);
+        _confirmDeleteNoteId = null;
+    }
+
+    private async Task ToggleContentChecklistLineAsync(StickyNoteDto note, int lineIndex)
+    {
+        var lines = (note.Content ?? string.Empty).Replace("\r\n", "\n").Split('\n');
+        if (lineIndex < 0 || lineIndex >= lines.Length) return;
+
+        var match = ChecklistLineRegex.Match(lines[lineIndex]);
+        if (!match.Success) return;
+
+        var nowChecked = !match.Groups[1].Value.Trim().Equals("x", StringComparison.OrdinalIgnoreCase);
+        lines[lineIndex] = $"- [{(nowChecked ? "x" : " ")}] {match.Groups[2].Value}";
+        var updatedContent = string.Join('\n', lines);
+
+        var previousContent = note.Content;
+        note.Content = updatedContent;
+        StateHasChanged();
+
+        var dto = new StickyNoteUpsertDto { Id = note.Id, Title = note.Title, Content = updatedContent, Color = note.Color };
+        var (success, updated, error) = await StickyNotes.UpsertAsync(dto);
+        if (success && updated is not null)
+        {
+            var idx = _notes.FindIndex(n => n.Id == note.Id);
+            if (idx >= 0) _notes[idx] = updated;
+        }
+        else
+        {
+            note.Content = previousContent;
+            Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to update checklist item." : error);
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        _ = JS.InvokeVoidAsync("chatInterop.unregisterOutsideClick", _widgetContainerId);
+    }
+}
