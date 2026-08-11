@@ -14,5 +14,9 @@ namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
         public DateTime RelayedAt { get; set; }
         public DateTime? AcceptedAt { get; set; }
         public string? Note { get; set; }
+
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
+        public string? RaisedByRole { get; set; }
     }
 }

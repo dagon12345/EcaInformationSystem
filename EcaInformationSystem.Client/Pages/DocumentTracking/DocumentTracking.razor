@@ -136,6 +136,11 @@
                                 {
                                     <span class="dt-pill dt-pill-finding"><i class="bi bi-flag-fill me-1"></i>@batch.FindingCount finding(s)</span>
                                 }
+                                @{ var relayFindingCount = batch.Transfers.Count(t => t.IsFinding); }
+                                @if (relayFindingCount > 0)
+                                {
+                                    <span class="dt-pill dt-pill-finding"><i class="bi bi-flag-fill me-1"></i>@relayFindingCount batch finding(s)</span>
+                                }
                             </div>
                         </div>
                         <div class="dt-card-header-side">
@@ -240,6 +245,20 @@
                                 {
                                     <div class="dt-transfer-entry">
                                         <span class="dt-status-pill @StatusPillClass(t.Status) dt-status-pill-sm">@t.StatusLabel (@t.FromUserName)</span>
+                                        @if (t.IsFinding)
+                                        {
+                                            <span class="dt-finding-badge" title="@t.FindingJustification">
+                                                <i class="bi bi-flag-fill"></i> Finding
+                                                @if (!string.IsNullOrWhiteSpace(t.RaisedByRole))
+                                                {
+                                                    <small class="d-block text-muted">by @t.FromUserName (@t.RaisedByRole)</small>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(t.FindingJustification))
+                                                {
+                                                    <small class="d-block text-muted">"@t.FindingJustification"</small>
+                                                }
+                                            </span>
+                                        }
                                         <span class="dt-transfer-text">
                                             Sent to <strong>@t.ToUserName</strong>
                                             <small class="text-muted ms-1">@t.RelayedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</small>
@@ -251,6 +270,12 @@
                                         @if (!string.IsNullOrWhiteSpace(t.Note))
                                         {
                                             <div class="dt-transfer-note">"@t.Note"</div>
+                                        }
+                                        @if (_isSuperAdmin || t.FromUserId == _currentUserId)
+                                        {
+                                            <button type="button" class="dt-link-btn" @onclick="() => OpenEditTransferModal(batch.Id, t)">
+                                                <i class="bi bi-pencil-fill me-1"></i>Correct typo
+                                            </button>
                                         }
                                     </div>
                                 }
@@ -422,6 +447,23 @@
                         <label>Note (optional)</label>
                         <textarea class="form-control" rows="2" @bind="_createNote"></textarea>
                     </div>
+                    <div class="dt-field">
+                        <label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                            <input type="checkbox" @bind="_createIsFinding" />
+                            <span><i class="bi bi-flag-fill text-warning me-1"></i>Flag this as a finding (optional)</span>
+                        </label>
+                        <div class="text-muted small">
+                            E.g. a missing attachment noticed while logging this batch.
+                        </div>
+                    </div>
+                    @if (_createIsFinding)
+                    {
+                        <div class="dt-field">
+                            <label>Finding Justification <span class="text-danger">*</span></label>
+                            <textarea class="form-control" rows="2" @bind="_createFindingJustification"
+                                      placeholder="Explain the finding — what's wrong, and what's needed to resolve it."></textarea>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -466,6 +508,10 @@
                     <div class="dt-review-grid mt-2">
                         <div><span class="dt-review-label">Endorsed To</span><span>@ReviewRecipientLabel()</span></div>
                         <div><span class="dt-review-label">Note</span><span>@(string.IsNullOrWhiteSpace(_createNote) ? "—" : _createNote)</span></div>
+                        @if (_createIsFinding)
+                        {
+                            <div><span class="dt-review-label">Finding</span><span><i class="bi bi-flag-fill text-warning me-1"></i>@_createFindingJustification</span></div>
+                        }
                     </div>
                 }
             </div>
@@ -552,6 +598,27 @@
                     <label>Note @(_actionType == DtAction.ReturnToPdoFindings ? "(finding details)" : "(optional)")</label>
                     <textarea class="form-control" rows="2" @bind="_actionNote"></textarea>
                 </div>
+                @if (_actionType != DtAction.ReturnToPdoFindings)
+                {
+                    <div class="dt-field">
+                        <label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                            <input type="checkbox" @bind="_actionIsFinding" />
+                            <span><i class="bi bi-flag-fill text-warning me-1"></i>Flag this as a finding (optional)</span>
+                        </label>
+                        <div class="text-muted small">
+                            Use this for an issue with the batch itself — e.g. a missing attachment — not tied to a
+                            specific grantee. Whoever raises it is recorded automatically, along with their role.
+                        </div>
+                    </div>
+                    @if (_actionIsFinding)
+                    {
+                        <div class="dt-field">
+                            <label>Finding Justification <span class="text-danger">*</span></label>
+                            <textarea class="form-control" rows="2" @bind="_actionFindingJustification"
+                                      placeholder="Explain the finding — what's wrong, and what's needed to resolve it."></textarea>
+                        </div>
+                    }
+                }
             </div>
             <div class="dt-modal-footer">
                 <button class="dt-btn dt-btn-outline" @onclick="CloseActionModal">Cancel</button>
@@ -600,6 +667,53 @@
                         <span class="spinner-border spinner-border-sm"></span>
                     }
                     Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Admin/SuperAdmin: correct a typo in a relay history entry's note/finding ── *@
+@if (_editTransferId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseEditTransferModal">
+        <div class="dt-modal" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-pencil-fill me-2"></i>Correct Relay Entry</span>
+                <button class="dt-modal-close" @onclick="CloseEditTransferModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                <p class="text-muted small">
+                    Fixes a typo in this relay entry's note or finding — it doesn't change who it
+                    was sent to/from or the batch's workflow stage.
+                </p>
+                <div class="dt-field">
+                    <label>Note (optional)</label>
+                    <textarea class="form-control" rows="2" @bind="_editTransferNote"></textarea>
+                </div>
+                <div class="dt-field">
+                    <label class="d-flex align-items-center gap-2 mb-0" style="cursor:pointer;">
+                        <input type="checkbox" @bind="_editTransferIsFinding" />
+                        <span><i class="bi bi-flag-fill text-warning me-1"></i>This is a finding</span>
+                    </label>
+                </div>
+                @if (_editTransferIsFinding)
+                {
+                    <div class="dt-field">
+                        <label>Finding Justification <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="2" @bind="_editTransferFindingJustification"
+                                  placeholder="Explain the finding — what's wrong, and what's needed to resolve it."></textarea>
+                    </div>
+                }
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseEditTransferModal">Cancel</button>
+                <button class="dt-btn dt-btn-primary" @onclick="SubmitEditTransferAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Save Correction
                 </button>
             </div>
         </div>
@@ -777,6 +891,8 @@
     private List<CreateDocumentGranteeRowDto> _createRows = new();
     private Guid _createRecipientUserId;
     private string? _createNote;
+    private bool _createIsFinding;
+    private string? _createFindingJustification;
     private string _currentRegionLabel = string.Empty;
 
     // ── Relay action modal state ────────────────────────────────────────
@@ -784,11 +900,20 @@
     private DtAction _actionType;
     private Guid _actionToUserId;
     private string? _actionNote;
+    private bool _actionIsFinding;
+    private string? _actionFindingJustification;
     private HashSet<Guid> _actionSelectedRowIds = new();
 
     // ── Admin/SuperAdmin: reassign a wrongly-tagged recipient ────────────
     private Guid? _reassignBatchId;
     private Guid _reassignToUserId;
+
+    // ── Admin/SuperAdmin: correct a typo in a relay history entry ────────
+    private Guid? _editTransferBatchId;
+    private Guid? _editTransferId;
+    private string? _editTransferNote;
+    private bool _editTransferIsFinding;
+    private string? _editTransferFindingJustification;
 
     // ── SuperAdmin: delete confirm + edit modal state ────────────────────
     private Guid? _deleteConfirmBatchId;
@@ -935,6 +1060,8 @@
         _createRows = new() { new CreateDocumentGranteeRowDto() };
         _createRecipientUserId = Guid.Empty;
         _createNote = null;
+        _createIsFinding = false;
+        _createFindingJustification = null;
         _municipalities = new();
         _createReviewMode = false;
         _createReviewRows = new();
@@ -1028,6 +1155,11 @@
             Toast.ShowError("Please tag who this batch is endorsed to.");
             return Task.CompletedTask;
         }
+        if (_createIsFinding && string.IsNullOrWhiteSpace(_createFindingJustification))
+        {
+            Toast.ShowError("Please explain the finding — a justification is required when flagging one.");
+            return Task.CompletedTask;
+        }
         var validRows = _createRows
             .Where(r => !string.IsNullOrWhiteSpace(r.FirstName) && !string.IsNullOrWhiteSpace(r.LastName))
             .ToList();
@@ -1064,7 +1196,9 @@
             DateReceived = _createDateReceived,
             Rows = _createReviewRows,
             RecipientUserId = _createRecipientUserId,
-            Note = _createNote
+            Note = _createNote,
+            IsFinding = _createIsFinding,
+            FindingJustification = _createFindingJustification
         };
 
         _busy = true;
@@ -1139,6 +1273,8 @@
         _actionType = action;
         _actionToUserId = Guid.Empty;
         _actionNote = null;
+        _actionIsFinding = false;
+        _actionFindingJustification = null;
         _actionSelectedRowIds = new();
     }
 
@@ -1176,6 +1312,12 @@
             return;
         }
 
+        if (_actionIsFinding && string.IsNullOrWhiteSpace(_actionFindingJustification))
+        {
+            Toast.ShowError("Please explain the finding — a justification is required when flagging one.");
+            return;
+        }
+
         var batchId = _actionBatchId.Value;
         string url;
         object body;
@@ -1184,19 +1326,19 @@
         {
             case DtAction.ReturnToViewer:
                 url = $"api/document-tracking/{batchId}/return-to-viewer";
-                body = new RelayNoteDto { Note = _actionNote };
+                body = new RelayNoteDto { Note = _actionNote, IsFinding = _actionIsFinding, FindingJustification = _actionFindingJustification };
                 break;
             case DtAction.DistributeToPdo:
                 url = $"api/document-tracking/{batchId}/distribute-to-pdo";
-                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote, IsFinding = _actionIsFinding, FindingJustification = _actionFindingJustification };
                 break;
             case DtAction.EndorseToFinance:
                 url = $"api/document-tracking/{batchId}/endorse-to-finance";
-                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote, IsFinding = _actionIsFinding, FindingJustification = _actionFindingJustification };
                 break;
             case DtAction.ForwardToViewerScanning:
                 url = $"api/document-tracking/{batchId}/forward-to-viewer-scanning";
-                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote };
+                body = new RelayDocumentDto { ToUserId = _actionToUserId, Note = _actionNote, IsFinding = _actionIsFinding, FindingJustification = _actionFindingJustification };
                 break;
             case DtAction.ReturnToPdoFindings:
                 url = $"api/document-tracking/{batchId}/return-to-pdo-findings";
@@ -1260,6 +1402,63 @@
             {
                 Toast.ShowSuccess("Recipient corrected.");
                 _reassignBatchId = null;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Correct a typo in a relay history entry (Admin/SuperAdmin: any
+    // entry; everyone else: only one they raised themselves — enforced
+    // server-side too). ───────────────────────────────────────────────────
+    private void OpenEditTransferModal(Guid batchId, DocumentTransferDto transfer)
+    {
+        _editTransferBatchId = batchId;
+        _editTransferId = transfer.Id;
+        _editTransferNote = transfer.Note;
+        _editTransferIsFinding = transfer.IsFinding;
+        _editTransferFindingJustification = transfer.FindingJustification;
+    }
+
+    private void CloseEditTransferModal()
+    {
+        _editTransferBatchId = null;
+        _editTransferId = null;
+    }
+
+    private async Task SubmitEditTransferAsync()
+    {
+        if (!_editTransferBatchId.HasValue || !_editTransferId.HasValue) return;
+
+        if (_editTransferIsFinding && string.IsNullOrWhiteSpace(_editTransferFindingJustification))
+        {
+            Toast.ShowError("Please explain the finding — a justification is required when flagging one.");
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var response = await Http.PutAsJsonAsync(
+                $"api/document-tracking/{_editTransferBatchId.Value}/transfers/{_editTransferId.Value}",
+                new UpdateTransferNoteDto
+                {
+                    Note = _editTransferNote,
+                    IsFinding = _editTransferIsFinding,
+                    FindingJustification = _editTransferFindingJustification
+                });
+
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Correction saved.");
+                CloseEditTransferModal();
                 await LoadBatchesAsync();
             }
             else

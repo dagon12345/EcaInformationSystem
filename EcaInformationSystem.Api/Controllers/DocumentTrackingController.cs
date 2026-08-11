@@ -46,7 +46,7 @@ namespace EcaInformationSystem.Api.Controllers
 
             try
             {
-                var result = await _service.CreateAsync(dto, RequireUserId(), GetFullName());
+                var result = await _service.CreateAsync(dto, RequireUserId(), GetFullName(), GetRole());
                 await NotifyIfHandedOffAsync(result);
                 await BroadcastChangedAsync(result.Id);
                 return Ok(result);
@@ -71,15 +71,15 @@ namespace EcaInformationSystem.Api.Controllers
 
         [HttpPost("{id:guid}/return-to-viewer")]
         public async Task<IActionResult> ReturnToViewer(Guid id, [FromBody] RelayNoteDto? dto)
-            => await RunAsync(() => _service.ReturnToViewerAsync(id, RequireUserId(), GetFullName(), dto?.Note), notifyOnHandoff: true);
+            => await RunAsync(() => _service.ReturnToViewerAsync(id, RequireUserId(), GetFullName(), dto?.Note, dto?.IsFinding ?? false, dto?.FindingJustification, GetRole()), notifyOnHandoff: true);
 
         [HttpPost("{id:guid}/distribute-to-pdo")]
         public async Task<IActionResult> DistributeToPdo(Guid id, [FromBody] RelayDocumentDto dto)
-            => await RunAsync(() => _service.DistributeToPdoAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+            => await RunAsync(() => _service.DistributeToPdoAsync(id, RequireUserId(), GetFullName(), dto, GetRole()), notifyOnHandoff: true);
 
         [HttpPost("{id:guid}/endorse-to-finance")]
         public async Task<IActionResult> EndorseToFinance(Guid id, [FromBody] RelayDocumentDto dto)
-            => await RunAsync(() => _service.EndorseToFinanceAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+            => await RunAsync(() => _service.EndorseToFinanceAsync(id, RequireUserId(), GetFullName(), dto, GetRole()), notifyOnHandoff: true);
 
         [HttpPost("{id:guid}/return-to-pdo-findings")]
         public async Task<IActionResult> ReturnToPdoForFindings(Guid id, [FromBody] ReturnForFindingsDto dto)
@@ -87,7 +87,7 @@ namespace EcaInformationSystem.Api.Controllers
 
         [HttpPost("{id:guid}/forward-to-viewer-scanning")]
         public async Task<IActionResult> ForwardToViewerForScanning(Guid id, [FromBody] RelayDocumentDto dto)
-            => await RunAsync(() => _service.ForwardToViewerForScanningAsync(id, RequireUserId(), GetFullName(), dto), notifyOnHandoff: true);
+            => await RunAsync(() => _service.ForwardToViewerForScanningAsync(id, RequireUserId(), GetFullName(), dto, GetRole()), notifyOnHandoff: true);
 
         [HttpPost("{id:guid}/complete")]
         public async Task<IActionResult> Complete(Guid id, [FromBody] RelayNoteDto? dto)
@@ -106,6 +106,17 @@ namespace EcaInformationSystem.Api.Controllers
                 return Forbid();
 
             return await RunAsync(() => _service.ReassignRecipientAsync(id, dto.ToUserId, RequireUserId(), GetFullName()), notifyOnHandoff: true);
+        }
+
+        // Correct a typo in a relay history entry's Note or finding
+        // justification, without disturbing who it was sent to/from. Only
+        // SuperAdmin can correct any entry (any side of the hand-off);
+        // everyone else — including plain Admin — can only correct/clear an
+        // entry they raised themselves — enforced in the service.
+        [HttpPut("{id:guid}/transfers/{transferId:guid}")]
+        public async Task<IActionResult> UpdateTransfer(Guid id, Guid transferId, [FromBody] UpdateTransferNoteDto dto)
+        {
+            return await RunAsync(() => _service.UpdateTransferAsync(id, transferId, dto, RequireUserId(), GetFullName(), User.IsInRole("SuperAdmin"), GetRole()));
         }
 
         // ── SuperAdmin-only overrides — full CRUD regardless of who currently
@@ -231,5 +242,10 @@ namespace EcaInformationSystem.Api.Controllers
         private string GetFullName() => User.FindFirst("FullName")?.Value
             ?? User.FindFirst(ClaimTypes.Name)?.Value
             ?? "Unknown";
+
+        // Each account has exactly one role claim — used to automatically tag
+        // WHO (in what capacity) raised a batch/relay-level finding, without
+        // requiring the user to pick/confirm it themselves.
+        private string? GetRole() => User.FindFirst(ClaimTypes.Role)?.Value;
     }
 }

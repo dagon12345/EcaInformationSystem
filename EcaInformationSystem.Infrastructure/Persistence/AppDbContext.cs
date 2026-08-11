@@ -993,6 +993,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.FromUserName).HasMaxLength(200);
                         entity.Property(x => x.ToUserName).HasMaxLength(200);
                         entity.Property(x => x.Note).HasMaxLength(1000);
+                        entity.Property(x => x.FindingJustification).HasMaxLength(1000);
+                        entity.Property(x => x.RaisedByRole).HasMaxLength(50);
                   });
 
                   // ═══════════════════════════════════════════════════════════════════

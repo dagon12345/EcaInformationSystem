@@ -8,15 +8,15 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<DocumentBatchDto?> GetByIdAsync(Guid id);
         Task<List<UserLookupDto>> GetTaggableUsersAsync();
 
-        Task<DocumentBatchDto> CreateAsync(CreateDocumentBatchDto dto, Guid callerId, string callerName);
+        Task<DocumentBatchDto> CreateAsync(CreateDocumentBatchDto dto, Guid callerId, string callerName, string? callerRole = null);
 
         Task<DocumentBatchDto> AcceptAsync(Guid batchId, Guid callerId, string callerName);
 
-        Task<DocumentBatchDto> ReturnToViewerAsync(Guid batchId, Guid callerId, string callerName, string? note);
-        Task<DocumentBatchDto> DistributeToPdoAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto);
-        Task<DocumentBatchDto> EndorseToFinanceAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto);
+        Task<DocumentBatchDto> ReturnToViewerAsync(Guid batchId, Guid callerId, string callerName, string? note, bool isFinding = false, string? findingJustification = null, string? callerRole = null);
+        Task<DocumentBatchDto> DistributeToPdoAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null);
+        Task<DocumentBatchDto> EndorseToFinanceAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null);
         Task<DocumentBatchDto> ReturnToPdoForFindingsAsync(Guid batchId, Guid callerId, string callerName, ReturnForFindingsDto dto);
-        Task<DocumentBatchDto> ForwardToViewerForScanningAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto);
+        Task<DocumentBatchDto> ForwardToViewerForScanningAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null);
         Task<DocumentBatchDto> CompleteAsync(Guid batchId, Guid callerId, string callerName, string? note);
 
         Task<DocumentBatchDto> ResolveFindingAsync(Guid batchId, Guid rowId, Guid callerId, string callerName, bool isSuperAdmin = false);
@@ -31,5 +31,10 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // ── Admin/SuperAdmin — correct a wrongly-tagged recipient without
         // otherwise disturbing the batch's current workflow stage. ─────────
         Task<DocumentBatchDto> ReassignRecipientAsync(Guid batchId, Guid newRecipientUserId, Guid callerId, string callerName);
+
+        // Only SuperAdmin can correct any relay history entry's Note/finding;
+        // any other role (including plain Admin) can only correct/clear the
+        // entry they raised themselves.
+        Task<DocumentBatchDto> UpdateTransferAsync(Guid batchId, Guid transferId, UpdateTransferNoteDto dto, Guid callerId, string callerName, bool isSuperAdmin, string? callerRole = null);
     }
 }

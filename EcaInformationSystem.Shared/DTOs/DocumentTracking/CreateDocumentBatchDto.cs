@@ -12,5 +12,7 @@ namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
         // Who the Viewer/Admin/SuperAdmin is initially endorsing this batch to.
         public Guid RecipientUserId { get; set; }
         public string? Note { get; set; }
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
     }
 }

@@ -48,8 +48,10 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
         }
 
-        public async Task<DocumentBatchDto> CreateAsync(CreateDocumentBatchDto dto, Guid callerId, string callerName)
+        public async Task<DocumentBatchDto> CreateAsync(CreateDocumentBatchDto dto, Guid callerId, string callerName, string? callerRole = null)
         {
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
             if (dto.Rows is null || dto.Rows.Count == 0)
                 throw new InvalidOperationException("At least one grantee row is required.");
 
@@ -104,7 +106,10 @@ namespace EcaInformationSystem.Application.Services
                 ToUserName = recipientName,
                 RelayedAt = now,
                 AcceptedAt = null,
-                Note = dto.Note
+                Note = dto.Note,
+                IsFinding = dto.IsFinding,
+                FindingJustification = dto.IsFinding ? dto.FindingJustification : null,
+                RaisedByRole = dto.IsFinding ? callerRole : null
             });
 
             await LogActivityAsync(callerName, batch, $"Logged a new document batch and endorsed it to {recipientName}");
@@ -140,36 +145,42 @@ namespace EcaInformationSystem.Application.Services
             return MapToDto(batch);
         }
 
-        public async Task<DocumentBatchDto> ReturnToViewerAsync(Guid batchId, Guid callerId, string callerName, string? note)
+        public async Task<DocumentBatchDto> ReturnToViewerAsync(Guid batchId, Guid callerId, string callerName, string? note, bool isFinding = false, string? findingJustification = null, string? callerRole = null)
         {
+            EnsureFindingHasJustification(isFinding, findingJustification);
+
             var batch = await LoadAsync(batchId);
             EnsureHolderAccepted(batch, callerId);
             EnsureStatus(batch, DocumentTrackingStatus.EndorsedByViewer);
 
             Advance(batch, DocumentTrackingStatus.ReturnedToViewer, callerId, callerName,
-                batch.CreatedByUserId, batch.CreatedByName, note);
+                batch.CreatedByUserId, batch.CreatedByName, note, isFinding, findingJustification, callerRole);
 
             await LogActivityAsync(callerName, batch, "Returned a document batch to the Viewer");
             await _repo.SaveChangesAsync();
             return MapToDto(batch);
         }
 
-        public async Task<DocumentBatchDto> DistributeToPdoAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto)
+        public async Task<DocumentBatchDto> DistributeToPdoAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
         {
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
             var batch = await LoadAsync(batchId);
             EnsureHolderAccepted(batch, callerId);
             EnsureStatus(batch, DocumentTrackingStatus.ReturnedToViewer);
 
             var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.DistributedToPdo, callerId, callerName, dto.ToUserId, toName, dto.Note);
+            Advance(batch, DocumentTrackingStatus.DistributedToPdo, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
 
             await LogActivityAsync(callerName, batch, $"Distributed a document batch to PDO {toName}");
             await _repo.SaveChangesAsync();
             return MapToDto(batch);
         }
 
-        public async Task<DocumentBatchDto> EndorseToFinanceAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto)
+        public async Task<DocumentBatchDto> EndorseToFinanceAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
         {
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
             var batch = await LoadAsync(batchId);
             EnsureHolderAccepted(batch, callerId);
             if (batch.CurrentStatus != DocumentTrackingStatus.DistributedToPdo
@@ -179,7 +190,7 @@ namespace EcaInformationSystem.Application.Services
             }
 
             var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.EndorsedToFinance, callerId, callerName, dto.ToUserId, toName, dto.Note);
+            Advance(batch, DocumentTrackingStatus.EndorsedToFinance, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
 
             await LogActivityAsync(callerName, batch, $"Endorsed a document batch to Finance {toName}");
             await _repo.SaveChangesAsync();
@@ -216,14 +227,16 @@ namespace EcaInformationSystem.Application.Services
             return MapToDto(batch);
         }
 
-        public async Task<DocumentBatchDto> ForwardToViewerForScanningAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto)
+        public async Task<DocumentBatchDto> ForwardToViewerForScanningAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
         {
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
             var batch = await LoadAsync(batchId);
             EnsureHolderAccepted(batch, callerId);
             EnsureStatus(batch, DocumentTrackingStatus.EndorsedToFinance);
 
             var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.ForwardedToViewerForScanning, callerId, callerName, dto.ToUserId, toName, dto.Note);
+            Advance(batch, DocumentTrackingStatus.ForwardedToViewerForScanning, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
 
             await LogActivityAsync(callerName, batch, $"Forwarded a document batch to Viewer {toName} for scanning");
             await _repo.SaveChangesAsync();
@@ -406,6 +419,45 @@ namespace EcaInformationSystem.Application.Services
             return MapToDto(batch);
         }
 
+        // Only SuperAdmin can correct ANY relay history entry's Note/finding.
+        // Every other role (including plain Admin) can only correct/clear the
+        // entry THEY raised (their own FromUserId) — e.g. fixing a typo, or
+        // unchecking "finding" to withdraw one they flagged by mistake.
+        // Doesn't touch who it was sent to/from or the batch's workflow stage.
+        // RaisedByRole is only (re)stamped when this edit is what newly turns
+        // the entry into a finding — otherwise the original raiser's role is
+        // preserved.
+        public async Task<DocumentBatchDto> UpdateTransferAsync(Guid batchId, Guid transferId, UpdateTransferNoteDto dto, Guid callerId, string callerName, bool isSuperAdmin, string? callerRole = null)
+        {
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
+            var batch = await LoadAsync(batchId);
+            var transfer = batch.Transfers.FirstOrDefault(t => t.Id == transferId)
+                ?? throw new InvalidOperationException("Relay history entry not found.");
+
+            if (!isSuperAdmin && transfer.FromUserId != callerId)
+                throw new InvalidOperationException("You can only correct a note or finding that you raised yourself.");
+
+            transfer.Note = dto.Note;
+
+            if (dto.IsFinding)
+            {
+                if (!transfer.IsFinding)
+                    transfer.RaisedByRole = callerRole;
+                transfer.FindingJustification = dto.FindingJustification;
+            }
+            else
+            {
+                transfer.FindingJustification = null;
+                transfer.RaisedByRole = null;
+            }
+            transfer.IsFinding = dto.IsFinding;
+
+            await LogActivityAsync(callerName, batch, "Corrected a relay history entry's note/finding");
+            await _repo.SaveChangesAsync();
+            return MapToDto(batch);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────────
 
         private async Task<DocumentBatch> LoadAsync(Guid batchId)
@@ -430,12 +482,21 @@ namespace EcaInformationSystem.Application.Services
                 throw new InvalidOperationException("This document is not in the right stage for that action.");
         }
 
+        // A finding flag with no explanation is useless to whoever receives it —
+        // require a justification whenever "flag as a finding" is checked.
+        private static void EnsureFindingHasJustification(bool isFinding, string? note)
+        {
+            if (isFinding && string.IsNullOrWhiteSpace(note))
+                throw new InvalidOperationException("Please explain the finding — a justification is required when flagging one.");
+        }
+
         private void Advance(
             DocumentBatch batch,
             DocumentTrackingStatus newStatus,
             Guid fromUserId, string fromUserName,
             Guid toUserId, string toUserName,
-            string? note)
+            string? note,
+            bool isFinding = false, string? findingJustification = null, string? raisedByRole = null)
         {
             var now = DateTime.UtcNow;
 
@@ -456,7 +517,10 @@ namespace EcaInformationSystem.Application.Services
                 ToUserName = toUserName,
                 RelayedAt = now,
                 AcceptedAt = null,
-                Note = note
+                Note = note,
+                IsFinding = isFinding,
+                FindingJustification = isFinding ? findingJustification : null,
+                RaisedByRole = isFinding ? raisedByRole : null
             });
 
             batch.CurrentStatus = newStatus;
@@ -541,7 +605,10 @@ namespace EcaInformationSystem.Application.Services
                         ToUserName = t.ToUserName,
                         RelayedAt = t.RelayedAt,
                         AcceptedAt = t.AcceptedAt,
-                        Note = t.Note
+                        Note = t.Note,
+                        IsFinding = t.IsFinding,
+                        FindingJustification = t.FindingJustification,
+                        RaisedByRole = t.RaisedByRole
                     }).ToList()
             };
         }

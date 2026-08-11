@@ -8,6 +8,8 @@ namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
     {
         public Guid ToUserId { get; set; }
         public string? Note { get; set; }
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
     }
 
     // Finance's "send back to PDO for findings" action — flags specific
@@ -23,5 +25,17 @@ namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
     public class RelayNoteDto
     {
         public string? Note { get; set; }
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
+    }
+
+    // Admin/SuperAdmin — correct a typo in an existing relay history entry's
+    // Note/finding, without disturbing who it was sent to/from or the batch's
+    // workflow stage.
+    public class UpdateTransferNoteDto
+    {
+        public string? Note { get; set; }
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
     }
 }
