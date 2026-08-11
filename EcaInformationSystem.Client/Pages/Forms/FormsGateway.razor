@@ -296,6 +296,22 @@
                                 </div>
 
                                 <div class="form-card-actions">
+                                    @if (form.ContentType == "application/pdf")
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary flex-grow-1" @onclick="() => PreviewAsync(form)"
+                                                disabled="@(_previewLoadingId == form.Id)">
+                                            @if (_previewLoadingId == form.Id)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                <span>Opening...</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-eye me-1"></i>
+                                                <span>Preview</span>
+                                            }
+                                        </button>
+                                    }
                                     <button class="btn btn-sm btn-primary flex-grow-1" @onclick="() => DownloadAsync(form)"
                                             disabled="@_downloadingFormIds.Contains(form.Id)">
                                         @if (_downloadingFormIds.Contains(form.Id))
@@ -593,6 +609,52 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── PDF Preview Overlay — view in-browser instead of downloading first.
+     Same pattern/CSS as BeneficiaryDocumentUpload's viewer. ── *@
+@if (_previewDoc != null)
+{
+    <div class="doc-viewer-overlay" @onclick="ClosePreviewAsync">
+        <div class="doc-viewer-card" @onclick:stopPropagation="true">
+            <div class="doc-viewer-toolbar">
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                <span class="text-truncate flex-grow-1 small">@_previewDoc.Title</span>
+
+                @if (_previewBlobUrl != null)
+                {
+                    <div class="doc-viewer-zoom-controls">
+                        <button class="doc-viewer-zoom-btn" @onclick="PreviewZoomOut" disabled="@(_previewZoom <= 50)" title="Zoom out">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <span class="doc-viewer-zoom-label">@_previewZoom%</span>
+                        <button class="doc-viewer-zoom-btn" @onclick="PreviewZoomIn" disabled="@(_previewZoom >= 300)" title="Zoom in">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="doc-viewer-zoom-btn" @onclick="PreviewZoomReset" title="Reset zoom">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                    </div>
+                }
+
+                <HxButton Size="ButtonSize.Small" Color="ThemeColor.None"
+                          CssClass="btn-close btn-close-white ms-1"
+                          OnClick="ClosePreviewAsync" />
+            </div>
+            @if (_previewBlobUrl != null)
+            {
+                <iframe @key="@($"{_previewDoc.Id}-{_previewZoom}")"
+                        src="@($"{_previewBlobUrl}#zoom={_previewZoom}")" class="doc-viewer-frame"></iframe>
+            }
+            else
+            {
+                <div class="d-flex align-items-center justify-content-center flex-grow-1 py-5">
+                    <span class="spinner-border text-primary me-2"></span>
+                    <span class="text-muted small">Loading preview...</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 @code {
     // Final stored-size ceiling — matches the server. HardCeilingBytes is the
     // absolute cutoff before a shrink is even attempted (also server-matched).
@@ -713,6 +775,12 @@
 
     private List<FormActivityLogDto> _activityLogs = new();
     private readonly HashSet<Guid> _downloadingFormIds = new();
+
+    // ── PDF preview ──────────────────────────────────────────────────────────
+    private FormDocumentDto? _previewDoc;
+    private string? _previewBlobUrl;
+    private int _previewZoom = 100;
+    private Guid? _previewLoadingId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1282,6 +1350,72 @@
             _downloadingFormIds.Remove(form.Id);
             StateHasChanged();
         }
+    }
+
+    // View in-browser instead of forcing a download first — fetches the same
+    // bytes as Download, but hands them to the browser's native PDF renderer
+    // via a blob URL in an iframe rather than saving to disk.
+    private async Task PreviewAsync(FormDocumentDto form)
+    {
+        if (_previewLoadingId.HasValue) return;
+        _previewLoadingId = form.Id;
+        StateHasChanged();
+
+        try
+        {
+            var result = await FormService.DownloadAsync(form.Id, form.OriginalFileName);
+            if (result == null)
+            {
+                toast.ShowError("Could not load the preview.");
+                return;
+            }
+
+            _previewDoc = form;
+            _previewZoom = 100;
+            StateHasChanged();
+
+            var base64 = Convert.ToBase64String(result.Value.Data);
+            _previewBlobUrl = await JS.InvokeAsync<string>("createPdfBlobUrl", base64);
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Could not load the preview: {ex.Message}");
+            _previewDoc = null;
+        }
+        finally
+        {
+            _previewLoadingId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClosePreviewAsync()
+    {
+        _previewDoc = null;
+        var urlToRevoke = _previewBlobUrl;
+        _previewBlobUrl = null;
+        StateHasChanged();
+
+        if (!string.IsNullOrEmpty(urlToRevoke))
+        {
+            await Task.Delay(500);
+            try { await JS.InvokeVoidAsync("revokeBlobUrl", urlToRevoke); } catch { }
+        }
+    }
+
+    private void PreviewZoomIn()
+    {
+        _previewZoom = Math.Min(300, _previewZoom + 25);
+    }
+
+    private void PreviewZoomOut()
+    {
+        _previewZoom = Math.Max(50, _previewZoom - 25);
+    }
+
+    private void PreviewZoomReset()
+    {
+        _previewZoom = 100;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
