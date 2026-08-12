@@ -34,6 +34,21 @@ namespace EcaInformationSystem.Client.Services
             return (true, await response.Content.ReadFromJsonAsync<FocalInviteResultDto>(), null);
         }
 
+        public async Task<List<FocalInviteSummaryDto>> GetMyPendingInvitesAsync()
+        {
+            try { return await _http.GetFromJsonAsync<List<FocalInviteSummaryDto>>("api/auth/my-focal-invites") ?? new(); }
+            catch { return new(); }
+        }
+
+        public async Task<(bool Success, FocalInviteResultDto? Result, string? Error)> RegenerateInviteLinkAsync(Guid inviteId)
+        {
+            var response = await _http.PostAsync($"api/auth/focal-invite/{inviteId}/regenerate", null);
+            if (!response.IsSuccessStatusCode)
+                return (false, null, await response.Content.ReadAsStringAsync());
+
+            return (true, await response.Content.ReadFromJsonAsync<FocalInviteResultDto>(), null);
+        }
+
         public async Task<FocalInvitePreviewDto?> PreviewInviteAsync(string code)
         {
             try { return await _http.GetFromJsonAsync<FocalInvitePreviewDto>($"api/auth/focal-invite/{Uri.EscapeDataString(code)}"); }

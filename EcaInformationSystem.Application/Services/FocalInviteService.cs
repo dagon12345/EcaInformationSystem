@@ -214,6 +214,50 @@ namespace EcaInformationSystem.Application.Services
             return await _authService.ReissueTokenAsync(user.Id);
         }
 
+        public async Task<List<FocalInviteSummaryDto>> GetMyPendingInvitesAsync(Guid callerId)
+        {
+            var invites = await _inviteRepo.GetByInviterAsync(callerId);
+
+            return invites
+                .Where(i => i.Status == 0 && i.ExpiresAt >= DateTime.UtcNow)
+                .Select(i => new FocalInviteSummaryDto
+                {
+                    Id = i.Id,
+                    FullName = i.FullName,
+                    ContactNote = i.ContactNote,
+                    MunicipalityNames = string.Join(", ", i.Jurisdictions.Select(j => j.MunicipalityName).Distinct()),
+                    CreatedAt = i.CreatedAt,
+                    ExpiresAt = i.ExpiresAt
+                })
+                .ToList();
+        }
+
+        public async Task<FocalInviteResultDto> RegenerateInviteLinkAsync(Guid inviteId, Guid callerId, string callerRole)
+        {
+            var invite = await _inviteRepo.GetByIdAsync(inviteId)
+                ?? throw new InvalidOperationException("Invite not found.");
+
+            // A PDO may only regenerate their own invites; Admin/SuperAdmin
+            // can regenerate any, same override they already have on creation.
+            if (callerRole == "PDO" && invite.InvitedByUserId != callerId)
+                throw new UnauthorizedAccessException("You can only regenerate an invite you created.");
+
+            if (invite.Status != 0)
+                throw new InvalidOperationException("This invite has already been used or is no longer valid.");
+
+            var plainCode = GenerateCode();
+            invite.CodeHash = HashCode(plainCode);
+            invite.ExpiresAt = DateTime.UtcNow.AddDays(CodeValidityDays);
+            await _inviteRepo.SaveChangesAsync();
+
+            return new FocalInviteResultDto
+            {
+                InviteId = invite.Id,
+                Code = plainCode,
+                ExpiresAt = invite.ExpiresAt
+            };
+        }
+
         private static string GenerateCode()
         {
             var bytes = RandomNumberGenerator.GetBytes(CodeLength);

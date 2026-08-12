@@ -36,6 +36,21 @@ namespace EcaInformationSystem.Shared.DTOs.Auth
         public DateTime ExpiresAt { get; set; }
     }
 
+    // A pending invite the inviter created earlier — the plain code itself is
+    // never retrievable (only its hash is stored), so this is deliberately
+    // just enough to recognize which invite it was; getting the link back
+    // requires regenerating it (see RegenerateFocalInviteLink), which issues
+    // a fresh code and invalidates the old one.
+    public class FocalInviteSummaryDto
+    {
+        public Guid Id { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? ContactNote { get; set; }
+        public string MunicipalityNames { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+    }
+
     // What the public accept-invite page shows before asking for a password.
     public class FocalInvitePreviewDto
     {

@@ -24,16 +24,103 @@
                 <span class="page-header-sub">PDOs and their partner-LGU focal contacts, grouped by province — call anyone who's online.</span>
             </div>
         </div>
-        @if (_canInvite)
-        {
-            <button class="btn btn-primary btn-sm" @onclick="OpenInviteModal">
-                <i class="bi bi-person-plus-fill me-1"></i>Invite Focal
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _showHelp = !_showHelp">
+                <i class="bi bi-question-circle me-1"></i>How it works
             </button>
-        }
+            @if (_canInvite)
+            {
+                <button class="btn btn-outline-secondary btn-sm" @onclick="OpenPendingInvitesModal">
+                    <i class="bi bi-link-45deg me-1"></i>Pending Invites
+                </button>
+                <button class="btn btn-primary btn-sm" @onclick="OpenInviteModal">
+                    <i class="bi bi-person-plus-fill me-1"></i>Invite Focal
+                </button>
+            }
+        </div>
     </div>
+
+    @if (_showHelp)
+    {
+        <div class="alert alert-light border small mb-3 py-2">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="d-flex flex-column gap-1">
+                    <div><i class="bi bi-telephone-fill text-primary me-2"></i><strong>Calling</strong> — a green dot means online. Click the phone icon to call them, free, browser to browser.</div>
+                    @if (_canInvite)
+                    {
+                        <div><i class="bi bi-person-plus-fill text-primary me-2"></i><strong>Inviting a Focal</strong> — pick their one municipality, then copy the link and send it yourself. It's valid for 7 days.</div>
+                        <div><i class="bi bi-link-45deg text-primary me-2"></i><strong>Lost the link?</strong> Open <em>Pending Invites</em> and press <em>Get Link</em> — this makes a new link and cancels the old one.</div>
+                    }
+                </div>
+                <button class="btn-close btn-sm" @onclick="() => _showHelp = false"></button>
+            </div>
+        </div>
+    }
 
     <DirectoryListing Groups="_groups" Loading="_loading" />
 </div>
+
+@if (_showPendingInvitesModal)
+{
+    <div class="modal-backdrop-custom" @onclick="ClosePendingInvitesModal">
+    <div class="modal-panel" style="width:480px;" @onclick:stopPropagation="true">
+        <div class="modal-panel-header">
+            <strong>Pending Invites</strong>
+            <button class="btn-close" @onclick="ClosePendingInvitesModal"></button>
+        </div>
+
+        @if (_regeneratedResult is not null)
+        {
+            <p class="small text-muted">
+                New link for <strong>@_regeneratedForName</strong> — the old link no longer works.
+                It expires @_regeneratedResult.ExpiresAt.ToLocalTime().ToString("MMM dd, yyyy").
+            </p>
+            <div class="input-group input-group-sm mb-2">
+                <input class="form-control" value="@_regeneratedResult.InviteUrl" readonly />
+                <button class="btn btn-outline-secondary" @onclick="CopyRegeneratedLinkAsync"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-sm btn-primary" @onclick="() => _regeneratedResult = null">Back to list</button>
+            </div>
+        }
+        else if (_loadingPendingInvites)
+        {
+            <div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>
+        }
+        else if (!_pendingInvites.Any())
+        {
+            <div class="text-center text-muted small py-4">
+                <i class="bi bi-inbox" style="font-size:24px;"></i>
+                <p class="mt-2 mb-0">No pending invites — a sent invite disappears from here once it's accepted, expires, or you regenerate it.</p>
+            </div>
+        }
+        else
+        {
+            <p class="small text-muted">
+                A link isn't stored anywhere after you close its "Invite Focal" dialog — if it wasn't
+                copied or your browser closed before you sent it, regenerate a fresh one here (this
+                invalidates the old link, so only the new one will work).
+            </p>
+            <div class="list-group">
+                @foreach (var invite in _pendingInvites)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                        <div class="overflow-hidden">
+                            <div class="fw-bold text-truncate">@invite.FullName</div>
+                            <div class="small text-muted text-truncate">@invite.MunicipalityNames</div>
+                            <div class="small text-muted">Expires @invite.ExpiresAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary flex-shrink-0" disabled="@_isRegenerating"
+                                @onclick="() => RegenerateAsync(invite.Id, invite.FullName)">
+                            Get Link
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    </div>
+}
 
 @if (_showInviteModal)
 {
@@ -137,6 +224,7 @@
     private List<ProvinceDirectoryGroupDto> _groups = new();
     private bool _loading = true;
     private bool _canInvite;
+    private bool _showHelp;
 
     private bool _showInviteModal;
     private string _inviteName = string.Empty;
@@ -149,6 +237,13 @@
     private FocalMunicipalitySelection? _selectedMunicipality;
     private bool _isSubmittingInvite;
     private FocalInviteResultDto? _inviteResult;
+
+    private bool _showPendingInvitesModal;
+    private bool _loadingPendingInvites;
+    private List<FocalInviteSummaryDto> _pendingInvites = new();
+    private bool _isRegenerating;
+    private FocalInviteResultDto? _regeneratedResult;
+    private string _regeneratedForName = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -258,6 +353,53 @@
         try
         {
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteResult.InviteUrl);
+            toast.ShowSuccess("Link copied.");
+        }
+        catch { }
+    }
+
+    private async Task OpenPendingInvitesModal()
+    {
+        _regeneratedResult = null;
+        _showPendingInvitesModal = true;
+        _loadingPendingInvites = true;
+        try { _pendingInvites = await FocalInviteClient.GetMyPendingInvitesAsync(); }
+        catch { _pendingInvites = new(); }
+        finally { _loadingPendingInvites = false; }
+    }
+
+    private void ClosePendingInvitesModal()
+    {
+        _showPendingInvitesModal = false;
+        _regeneratedResult = null;
+    }
+
+    private async Task RegenerateAsync(Guid inviteId, string fullName)
+    {
+        _isRegenerating = true;
+        try
+        {
+            var (success, result, error) = await FocalInviteClient.RegenerateInviteLinkAsync(inviteId);
+            if (!success || result is null)
+            {
+                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to regenerate link." : error);
+                return;
+            }
+
+            result.InviteUrl = $"{Navigation.BaseUri.TrimEnd('/')}/focal-invite/{result.Code}";
+            _regeneratedResult = result;
+            _regeneratedForName = fullName;
+            _pendingInvites.RemoveAll(i => i.Id == inviteId);
+        }
+        finally { _isRegenerating = false; }
+    }
+
+    private async Task CopyRegeneratedLinkAsync()
+    {
+        if (_regeneratedResult is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _regeneratedResult.InviteUrl);
             toast.ShowSuccess("Link copied.");
         }
         catch { }

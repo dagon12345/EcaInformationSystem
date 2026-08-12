@@ -120,8 +120,20 @@ window.voiceCallInterop = {
 
         this._pc.ontrack = (event) => {
             const audioEl = document.getElementById('remoteCallAudio');
-            if (audioEl && audioEl.srcObject !== event.streams[0]) {
+            if (!audioEl) return;
+            if (audioEl.srcObject !== event.streams[0]) {
                 audioEl.srcObject = event.streams[0];
+            }
+            // The `autoplay` attribute only reliably kicks in the first time
+            // this element ever plays. On later calls it's already been
+            // played-and-paused once (hangUp() sets srcObject back to null),
+            // and re-attaching a new stream to an element in that state does
+            // NOT reliably resume playback in Chrome/Edge — hence "first call
+            // has audio, every call after is silent." Explicitly (re)starting
+            // playback here fixes that regardless of the element's history.
+            const playPromise = audioEl.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => { /* will retry on the next ontrack firing */ });
             }
         };
     },
@@ -166,7 +178,7 @@ window.voiceCallInterop = {
             this._pc = null;
         }
         const audioEl = document.getElementById('remoteCallAudio');
-        if (audioEl) audioEl.srcObject = null;
+        if (audioEl) { audioEl.pause(); audioEl.srcObject = null; }
         this._dotNetRef = null;
     }
 };

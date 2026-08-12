@@ -201,6 +201,35 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
 
+        [HttpGet("my-focal-invites")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> GetMyFocalInvites()
+        {
+            var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+            return Ok(await _focalInviteService.GetMyPendingInvitesAsync(userId));
+        }
+
+        [HttpPost("focal-invite/{id:guid}/regenerate")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> RegenerateFocalInvite(Guid id)
+        {
+            var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+            var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+            try
+            {
+                var result = await _focalInviteService.RegenerateInviteLinkAsync(id, userId, role);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpGet("focal-invite/{code}")]
         [AllowAnonymous]
         public async Task<IActionResult> PreviewFocalInvite(string code)
