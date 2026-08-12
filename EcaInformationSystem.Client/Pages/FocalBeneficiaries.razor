@@ -1,0 +1,287 @@
+@page "/focal-beneficiaries"
+@layout FocalLayout
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject FocalBeneficiaryClientService FocalBeneficiaryClient
+@inject ToastService toast
+
+<PageTitle>Grantee List</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 d-flex align-items-center">
+        <div class="page-header-icon">
+            <i class="bi bi-people-fill"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Grantee List</h5>
+            <span class="page-header-sub">
+                @if (!string.IsNullOrWhiteSpace(_municipalityName))
+                {
+                    <text>View only — @_municipalityName@(string.IsNullOrWhiteSpace(_provinceName) ? "" : $", {_provinceName}")</text>
+                }
+                else
+                {
+                    <text>View only.</text>
+                }
+            </span>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+        <div>
+            <label class="form-label small fw-bold mb-1">Search name</label>
+            <input class="form-control form-control-sm" style="width:220px;" @bind="_searchName" @bind:event="oninput"
+                   placeholder="Last, first name..." />
+        </div>
+        <div>
+            <label class="form-label small fw-bold mb-1">Payment status</label>
+            <select class="form-select form-select-sm" style="width:180px;" @bind="_paymentStatus">
+                <option value="">Any</option>
+                <option value="1">Unpaid</option>
+                <option value="2">Paid</option>
+                <option value="3">Pending</option>
+            </select>
+        </div>
+        <button class="btn btn-sm btn-primary" @onclick="ApplyFilterAsync">Apply Filter</button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilterAsync">Clear</button>
+    </div>
+
+    @if (!_loading)
+    {
+        <div class="text-muted small mb-2">
+            @(_totalCount == 1 ? "1 grantee" : $"{_totalCount} grantees") found@(HasActiveFilter ? " matching this filter" : "")
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (!_items.Any())
+    {
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-inbox" style="font-size:32px;"></i>
+            <p class="mt-2">No grantees found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Birthdate</th>
+                        <th>Barangay</th>
+                        <th>Age</th>
+                        <th>Sex</th>
+                        <th>Compliant</th>
+                        <th>Finding</th>
+                        <th>Payment Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        <tr style="cursor:pointer;" @onclick="() => OpenDetailAsync(item.Id)">
+                            <td>@item.FullName</td>
+                            <td>@item.BirthDate.ToString("MMM dd, yyyy")</td>
+                            <td>@item.BarangayName</td>
+                            <td>@item.Age</td>
+                            <td>@item.SexLabel</td>
+                            <td title="@item.AssessmentRemarksPreview">
+                                <span class="badge @(item.IsCompliant ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                                    @item.ComplianceLabel
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(item.AssessmentRemarksPreview))
+                                {
+                                    <i class="bi bi-info-circle ms-1 text-muted" title="@item.AssessmentRemarksPreview"></i>
+                                }
+                            </td>
+                            <td title="@item.FindingRemarksPreview">
+                                @item.FindingLabel
+                                @if (!string.IsNullOrWhiteSpace(item.FindingRemarksPreview))
+                                {
+                                    <i class="bi bi-info-circle ms-1 text-muted" title="@item.FindingRemarksPreview"></i>
+                                }
+                            </td>
+                            <td>@item.PaymentStatusLabel</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_totalPages > 1)
+        {
+            <div class="d-flex justify-content-center gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-secondary" disabled="@(_pageNumber <= 1)" @onclick="() => GoToPageAsync(_pageNumber - 1)">Previous</button>
+                <span class="align-self-center small text-muted">Page @_pageNumber of @_totalPages</span>
+                <button class="btn btn-sm btn-outline-secondary" disabled="@(_pageNumber >= _totalPages)" @onclick="() => GoToPageAsync(_pageNumber + 1)">Next</button>
+            </div>
+        }
+    }
+</div>
+
+<HxOffcanvas @ref="_detailOffcanvas" Size="OffcanvasSize.Regular">
+    <HeaderTemplate>
+        <h5 class="offcanvas-title mb-0">@(_selectedDetail?.LastName), @(_selectedDetail?.FirstName)</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedDetail is null)
+        {
+            <div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>
+        }
+        else
+        {
+            <dl class="row small mb-0">
+                <dt class="col-5">Full name</dt>
+                <dd class="col-7">@_selectedDetail.LastName, @_selectedDetail.FirstName @_selectedDetail.MiddleName @_selectedDetail.Extension</dd>
+
+                <dt class="col-5">Birth date</dt>
+                <dd class="col-7">@_selectedDetail.BirthDate.ToString("MMM dd, yyyy") (@_selectedDetail.Age)</dd>
+
+                <dt class="col-5">Sex</dt>
+                <dd class="col-7">@_selectedDetail.SexLabel</dd>
+
+                <dt class="col-5">Civil status</dt>
+                <dd class="col-7">@_selectedDetail.CivilStatusLabel</dd>
+
+                <dt class="col-5">Barangay</dt>
+                <dd class="col-7">@_selectedDetail.BarangayName</dd>
+
+                <dt class="col-5">Municipality</dt>
+                <dd class="col-7">@_selectedDetail.MunicipalityName, @_selectedDetail.ProvinceName</dd>
+
+                <dt class="col-5">Batch code</dt>
+                <dd class="col-7">@_selectedDetail.BatchCode</dd>
+
+                <dt class="col-5">OSCA ID</dt>
+                <dd class="col-7">@_selectedDetail.OscaIdNumber</dd>
+
+                <dt class="col-5">Milestone year</dt>
+                <dd class="col-7">@_selectedDetail.MilestoneYear</dd>
+
+                <dt class="col-5">Payment status</dt>
+                <dd class="col-7">@_selectedDetail.PaymentStatusLabel</dd>
+
+                <dt class="col-5">Compliant</dt>
+                <dd class="col-7">
+                    <span class="badge @(_selectedDetail.IsCompliant ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
+                        @_selectedDetail.ComplianceLabel
+                    </span>
+                </dd>
+                @if (!string.IsNullOrWhiteSpace(_selectedDetail.AssessmentRemarks))
+                {
+                    <dt class="col-5">Why</dt>
+                    <dd class="col-7 text-muted">@_selectedDetail.AssessmentRemarks</dd>
+                }
+
+                <dt class="col-5">Finding</dt>
+                <dd class="col-7">@_selectedDetail.FindingLabel</dd>
+                @if (!string.IsNullOrWhiteSpace(_selectedDetail.FindingRemarks))
+                {
+                    <dt class="col-5">Why</dt>
+                    <dd class="col-7 text-muted">@_selectedDetail.FindingRemarks</dd>
+                }
+            </dl>
+        }
+    </BodyTemplate>
+</HxOffcanvas>
+
+@code {
+    private List<FocalBeneficiaryListItemDto> _items = new();
+    private bool _loading = true;
+    private string _municipalityName = string.Empty;
+    private string _provinceName = string.Empty;
+
+    private string _searchName = string.Empty;
+    private string _paymentStatus = string.Empty;
+    private int _pageNumber = 1;
+    private int _totalPages = 1;
+    private int _totalCount;
+    private const int PageSize = 20;
+
+    // Reflects the filter actually applied (via "Apply Filter"), not
+    // whatever's currently typed but not yet submitted.
+    private string _appliedSearchName = string.Empty;
+    private string _appliedPaymentStatus = string.Empty;
+    private bool HasActiveFilter => !string.IsNullOrWhiteSpace(_appliedSearchName) || !string.IsNullOrWhiteSpace(_appliedPaymentStatus);
+
+    private HxOffcanvas _detailOffcanvas = default!;
+    private FocalBeneficiaryDetailDto? _selectedDetail;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var filter = new FocalBeneficiaryFilterDto
+        {
+            SearchName = string.IsNullOrWhiteSpace(_searchName) ? null : _searchName,
+            PaymentStatus = int.TryParse(_paymentStatus, out var ps) ? ps : null,
+            PageNumber = _pageNumber,
+            PageSize = PageSize
+        };
+
+        var page = await FocalBeneficiaryClient.GetPagedAsync(filter);
+        _items = page?.Items.Items ?? new();
+        _totalPages = page?.Items.TotalPages ?? 1;
+        _totalCount = page?.Items.TotalCount ?? 0;
+        _municipalityName = page?.MunicipalityName ?? string.Empty;
+        _provinceName = page?.ProvinceName ?? string.Empty;
+
+        _loading = false;
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        _pageNumber = 1;
+        _appliedSearchName = _searchName;
+        _appliedPaymentStatus = _paymentStatus;
+        await LoadAsync();
+    }
+
+    private async Task ClearFilterAsync()
+    {
+        _searchName = string.Empty;
+        _paymentStatus = string.Empty;
+        _appliedSearchName = string.Empty;
+        _appliedPaymentStatus = string.Empty;
+        _pageNumber = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _pageNumber = page;
+        await LoadAsync();
+    }
+
+    private async Task OpenDetailAsync(Guid id)
+    {
+        _selectedDetail = null;
+        await _detailOffcanvas.ShowAsync();
+
+        try
+        {
+            _selectedDetail = await FocalBeneficiaryClient.GetDetailAsync(id);
+            if (_selectedDetail is null)
+            {
+                toast.ShowError("Couldn't load this record. Please try again.");
+                await _detailOffcanvas.HideAsync();
+            }
+        }
+        catch
+        {
+            toast.ShowError("Couldn't load this record. Please try again.");
+            await _detailOffcanvas.HideAsync();
+        }
+
+        StateHasChanged();
+    }
+}

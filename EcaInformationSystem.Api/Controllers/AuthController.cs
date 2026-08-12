@@ -13,10 +13,12 @@ namespace EcaInformationSystem.Api.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IPasswordResetService _passwordResetService; // ✅ NEW — add to constructor
-        public AuthController(IAuthService authService, IPasswordResetService passwordResetService)
+        private readonly IFocalInviteService _focalInviteService;
+        public AuthController(IAuthService authService, IPasswordResetService passwordResetService, IFocalInviteService focalInviteService)
         {
             _authService = authService;
             _passwordResetService = passwordResetService;
+            _focalInviteService = focalInviteService;
         }
 
         // ✅ NEW — same IP-resolution approach as the login rate limiter (Program.cs)
@@ -166,6 +168,52 @@ namespace EcaInformationSystem.Api.Controllers
             var success = await _passwordResetService.ResetPasswordAsync(dto.UserName, dto.Code, dto.NewPassword);
             if (!success) return BadRequest(new { message = "Invalid or expired code." });
             return Ok(new { message = "Password reset successfully. You can now log in." });
+        }
+
+        // ── Provincial Focal onboarding — PDO-initiated invite, call-only accounts ──
+
+        [HttpGet("my-jurisdictions")]
+        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        public async Task<IActionResult> GetMyJurisdictions()
+        {
+            var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+            return Ok(await _focalInviteService.GetMyJurisdictionsAsync(userId));
+        }
+
+        [HttpPost("invite-focal")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> InviteFocal([FromBody] Shared.DTOs.Auth.CreateFocalInviteRequest request)
+        {
+            var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+            var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+            try
+            {
+                // ✅ InviteUrl is deliberately left for the client to fill in from its
+                // own origin (NavigationManager.BaseUri) — the API's own host/port
+                // (Request.Host) can differ from wherever the Blazor app is actually
+                // served (e.g. separate dev ports for Api vs. the Client dev server).
+                var result = await _focalInviteService.CreateInviteAsync(userId, role, request);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("focal-invite/{code}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> PreviewFocalInvite(string code)
+            => Ok(await _focalInviteService.PreviewInviteAsync(code));
+
+        [HttpPost("accept-focal-invite")]
+        [AllowAnonymous]
+        [EnableRateLimiting("login")] // code-guessing surface, same protection as MFA verify/password reset
+        public async Task<IActionResult> AcceptFocalInvite([FromBody] Shared.DTOs.Auth.AcceptFocalInviteRequest request)
+        {
+            var result = await _focalInviteService.AcceptInviteAsync(request, GetClientIp(), GetUserAgent());
+            if (!result.Success) return BadRequest(new { message = result.Message });
+            return Ok(new { result.Token, result.FullName, result.UserName });
         }
     }
 }

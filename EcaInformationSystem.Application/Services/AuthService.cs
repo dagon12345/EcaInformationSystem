@@ -289,7 +289,7 @@ namespace EcaInformationSystem.Application.Services
                 user.Position,
                 user.Role,
                 jti,
-                user.Role == "PDO"
+                user.Role == "PDO" || user.Role == "Focal"
                     ? user.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList()
                     : null,
                 user.Region);

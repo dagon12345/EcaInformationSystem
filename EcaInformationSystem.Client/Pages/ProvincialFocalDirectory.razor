@@ -1,0 +1,265 @@
+@page "/provincial-focals"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.Auth
+@inject AuthService AuthService
+@inject DirectoryClientService DirectoryClient
+@inject FocalInviteClientService FocalInviteClient
+@inject ToastService toast
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Provincial Focals</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <div class="page-header-icon">
+                <i class="bi bi-diagram-3-fill"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">Provincial Focals</h5>
+                <span class="page-header-sub">PDOs and their partner-LGU focal contacts, grouped by province — call anyone who's online.</span>
+            </div>
+        </div>
+        @if (_canInvite)
+        {
+            <button class="btn btn-primary btn-sm" @onclick="OpenInviteModal">
+                <i class="bi bi-person-plus-fill me-1"></i>Invite Focal
+            </button>
+        }
+    </div>
+
+    <DirectoryListing Groups="_groups" Loading="_loading" />
+</div>
+
+@if (_showInviteModal)
+{
+    <div class="modal-backdrop-custom" @onclick="CloseInviteModal">
+    <div class="modal-panel" style="width:420px;" @onclick:stopPropagation="true">
+        <div class="modal-panel-header">
+            <strong>Invite a Focal</strong>
+            <button class="btn-close" @onclick="CloseInviteModal"></button>
+        </div>
+
+        @if (_inviteResult is null)
+        {
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Focal's name</label>
+                <input class="form-control" @bind="_inviteName" maxlength="200" placeholder="Full name" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Contact note (optional)</label>
+                <input class="form-control" @bind="_inviteContact" maxlength="200" placeholder="Phone/email, for your own reference" />
+            </div>
+            @if (_isPdo)
+            {
+                <div class="mb-2">
+                    <label class="form-label small fw-bold d-block">Which municipality do they cover? (one only)</label>
+                    @if (!_myJurisdictions.Any())
+                    {
+                        <div class="text-muted small">You have no assigned jurisdictions to invite a focal for.</div>
+                    }
+                    else
+                    {
+                        @foreach (var j in _myJurisdictions)
+                        {
+                            <label class="d-flex align-items-center gap-2 small mb-1">
+                                <input type="radio" name="focalMunicipality" checked="@(_selectedMunicipality?.PsgcCodeMunicipality == j.PsgcCodeMunicipality)"
+                                       @onchange="() => SelectMunicipality(j.PsgcCodeMunicipality, j.MunicipalityName, j.ProvinceName)" />
+                                <span>@j.MunicipalityName, @j.ProvinceName</span>
+                            </label>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Province</label>
+                    <select class="form-select" @onchange="OnProvinceSelectedAsync">
+                        <option value="">Select a province...</option>
+                        @foreach (var p in _allProvinces)
+                        {
+                            <option value="@p.PsgcCodeProvince">@p.Name</option>
+                        }
+                    </select>
+                </div>
+                @if (_provinceMunicipalities.Any())
+                {
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold d-block">Municipality (one only)</label>
+                        <div class="focal-municipality-scroll">
+                            @foreach (var m in _provinceMunicipalities)
+                            {
+                                <label class="d-flex align-items-center gap-2 small mb-1">
+                                    <input type="radio" name="focalMunicipality" checked="@(_selectedMunicipality?.PsgcCodeMunicipality == m.PsgcCodeMunicipality)"
+                                           @onchange="() => SelectMunicipality(m.PsgcCodeMunicipality, m.Name, _selectedProvinceName)" />
+                                    <span>@m.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (_selectedMunicipality is not null)
+                {
+                    <div class="text-muted small mb-2">Selected: @_selectedMunicipality.MunicipalityName, @_selectedMunicipality.ProvinceName</div>
+                }
+            }
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CloseInviteModal">Cancel</button>
+                <button class="btn btn-sm btn-primary" @onclick="SubmitInviteAsync" disabled="@_isSubmittingInvite">
+                    @(_isSubmittingInvite ? "Creating..." : "Create Invite")
+                </button>
+            </div>
+        }
+        else
+        {
+            <p class="small text-muted">
+                Send this link to <strong>@_inviteName</strong> — it expires @_inviteResult.ExpiresAt.ToLocalTime().ToString("MMM dd, yyyy").
+                They'll set their own username/password when they open it.
+            </p>
+            <div class="input-group input-group-sm mb-2">
+                <input class="form-control" value="@_inviteResult.InviteUrl" readonly />
+                <button class="btn btn-outline-secondary" @onclick="CopyInviteLinkAsync"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-sm btn-primary" @onclick="CloseInviteModal">Done</button>
+            </div>
+        }
+    </div>
+    </div>
+}
+
+@code {
+    private List<ProvinceDirectoryGroupDto> _groups = new();
+    private bool _loading = true;
+    private bool _canInvite;
+
+    private bool _showInviteModal;
+    private string _inviteName = string.Empty;
+    private string _inviteContact = string.Empty;
+    private bool _isPdo;
+    private List<MyJurisdictionDto> _myJurisdictions = new();
+    private List<ProvinceLookupDto> _allProvinces = new();
+    private List<MunicipalityLookupDto> _provinceMunicipalities = new();
+    private string _selectedProvinceName = string.Empty;
+    private FocalMunicipalitySelection? _selectedMunicipality;
+    private bool _isSubmittingInvite;
+    private FocalInviteResultDto? _inviteResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isPdo = AuthService.IsPDO();
+        _canInvite = AuthService.IsAdmin() || _isPdo;
+        await LoadDirectoryAsync();
+    }
+
+    private async Task LoadDirectoryAsync()
+    {
+        _loading = true;
+        try { _groups = await DirectoryClient.GetProvincialAsync(); }
+        catch { _groups = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenInviteModal()
+    {
+        _inviteName = string.Empty;
+        _inviteContact = string.Empty;
+        _selectedMunicipality = null;
+        _provinceMunicipalities = new();
+        _selectedProvinceName = string.Empty;
+        _inviteResult = null;
+        _showInviteModal = true;
+
+        if (_isPdo)
+        {
+            if (!_myJurisdictions.Any())
+            {
+                try { _myJurisdictions = await FocalInviteClient.GetMyJurisdictionsAsync(); }
+                catch { _myJurisdictions = new(); }
+            }
+        }
+        else if (!_allProvinces.Any())
+        {
+            try { _allProvinces = (await FocalInviteClient.GetAllProvincesAsync()).OrderBy(p => p.Name).ToList(); }
+            catch { _allProvinces = new(); }
+        }
+    }
+
+    private void CloseInviteModal() => _showInviteModal = false;
+
+    private async Task OnProvinceSelectedAsync(ChangeEventArgs e)
+    {
+        _provinceMunicipalities = new();
+        var value = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(value) || !int.TryParse(value, out var code)) return;
+
+        _selectedProvinceName = _allProvinces.FirstOrDefault(p => p.PsgcCodeProvince == code)?.Name ?? string.Empty;
+        try { _provinceMunicipalities = (await FocalInviteClient.GetMunicipalitiesByProvinceAsync(code)).OrderBy(m => m.Name).ToList(); }
+        catch { _provinceMunicipalities = new(); }
+    }
+
+    private void SelectMunicipality(int psgcCode, string municipalityName, string provinceName)
+    {
+        // A focal covers exactly one municipality — selecting another one
+        // replaces the previous choice rather than adding to it.
+        _selectedMunicipality = new FocalMunicipalitySelection
+        {
+            PsgcCodeMunicipality = psgcCode,
+            MunicipalityName = municipalityName,
+            ProvinceName = provinceName
+        };
+    }
+
+    private async Task SubmitInviteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_inviteName))
+        {
+            toast.ShowError("Name is required.");
+            return;
+        }
+        if (_selectedMunicipality is null)
+        {
+            toast.ShowError("Select the municipality this focal covers.");
+            return;
+        }
+
+        _isSubmittingInvite = true;
+        try
+        {
+            var request = new CreateFocalInviteRequest
+            {
+                FullName = _inviteName,
+                ContactNote = string.IsNullOrWhiteSpace(_inviteContact) ? null : _inviteContact,
+                Municipalities = new List<FocalMunicipalitySelection> { _selectedMunicipality }
+            };
+            var (success, result, error) = await FocalInviteClient.CreateInviteAsync(request);
+            if (!success || result is null)
+            {
+                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to create invite." : error);
+                return;
+            }
+
+            // Built from this browser's own origin — the API's Request.Host can
+            // differ from wherever the Blazor app is actually served.
+            result.InviteUrl = $"{Navigation.BaseUri.TrimEnd('/')}/focal-invite/{result.Code}";
+            _inviteResult = result;
+        }
+        finally { _isSubmittingInvite = false; }
+    }
+
+    private async Task CopyInviteLinkAsync()
+    {
+        if (_inviteResult is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _inviteResult.InviteUrl);
+            toast.ShowSuccess("Link copied.");
+        }
+        catch { }
+    }
+}

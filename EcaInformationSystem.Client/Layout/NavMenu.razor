@@ -105,6 +105,24 @@
         <span class="nav-label">Senior Citizens Directory</span>
     </NavLink>
 
+    @* ── Provincial Focals — visible to everyone including Focal accounts (that's
+       the whole point, they need to find people to call); inviting is gated
+       inside the page to PDO/Admin/SuperAdmin ── *@
+    <NavLink class="nav-item" href="provincial-focals">
+        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+        <span class="nav-label">Provincial Focals</span>
+    </NavLink>
+
+    @* ── Call Logs — SuperAdmin/Admin see every call; PDO sees only their own
+       (enforced server-side too). Not shown to Finance/Viewer/Focal. ── *@
+    @if (_isSuperAdmin || _isAdmin || _isPdo)
+    {
+        <NavLink class="nav-item" href="call-logs">
+            <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
+            <span class="nav-label">Call Logs</span>
+        </NavLink>
+    }
+
     @* ── Attendance Management — SuperAdmin/Finance: link users to their
        biometric device and review all DTRs ── *@
     @if (_isSuperAdmin || _isFinance)
@@ -453,6 +471,7 @@
         "PDO" => "legend-role-badge--pdo",
         "Finance" => "legend-role-badge--finance",
         "Viewer" => "legend-role-badge--viewer",
+        "Focal" => "legend-role-badge--viewer", // call-only, never actually renders (FocalLayout is used instead)
         _ => "legend-role-badge--viewer"
     };
 
@@ -463,6 +482,7 @@
         "PDO" => "bi-person-badge-fill",
         "Finance" => "bi-cash-stack",
         "Viewer" => "bi-eye-fill",
+        "Focal" => "bi-telephone-fill",
         _ => "bi-person-fill"
     };
 
@@ -473,6 +493,7 @@
         "PDO" => "Project Development Officer",
         "Finance" => "Finance",
         "Viewer" => "Viewer",
+        "Focal" => "Provincial Focal",
         _ => role
     };
 

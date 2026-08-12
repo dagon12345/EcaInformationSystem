@@ -1,0 +1,129 @@
+@* Browser-to-browser voice calling — rendered once globally from MainLayout
+   so an incoming call can be answered from any page, not just while chat is
+   open. Reacts entirely to VoiceCallStateService; ChatWidget's header button
+   is the only trigger that starts a call. *@
+@using EcaInformationSystem.Client.Services
+@inject VoiceCallStateService CallState
+@inject VoiceCallLogClientService VoiceCallLogClient
+@implements IDisposable
+
+<audio id="remoteCallAudio" autoplay style="display:none;"></audio>
+
+@if (CallState.CurrentState == VoiceCallState.Ringing)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-panel voice-call-modal">
+            <div class="voice-call-avatar">@GetInitials(CallState.RemoteUserName)</div>
+            <div class="voice-call-name">@CallState.RemoteUserName</div>
+            <div class="voice-call-subtitle">Incoming call…</div>
+            <div class="voice-call-actions">
+                <button type="button" class="voice-call-btn voice-call-btn--reject" @onclick="() => CallState.RejectIncomingCallAsync()">
+                    <i class="bi bi-telephone-x-fill"></i>
+                </button>
+                <button type="button" class="voice-call-btn voice-call-btn--accept" @onclick="() => CallState.AcceptIncomingCallAsync()">
+                    <i class="bi bi-telephone-fill"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else if (CallState.CurrentState == VoiceCallState.Dialing)
+{
+    <div class="voice-call-bar">
+        <div class="voice-call-avatar voice-call-avatar--sm">@GetInitials(CallState.RemoteUserName)</div>
+        <span>Calling @CallState.RemoteUserName…</span>
+        <button type="button" class="voice-call-icon-btn voice-call-icon-btn--danger" title="Cancel" @onclick="() => CallState.CancelDialingAsync()">
+            <i class="bi bi-telephone-x-fill"></i>
+        </button>
+    </div>
+}
+else if (CallState.CurrentState == VoiceCallState.InCall)
+{
+    <div class="voice-call-bar voice-call-bar--active">
+        <div class="voice-call-avatar voice-call-avatar--sm">@GetInitials(CallState.RemoteUserName)</div>
+        <div class="voice-call-bar-info">
+            <span class="voice-call-bar-name">@CallState.RemoteUserName</span>
+            <span class="voice-call-bar-timer">@FormatElapsed(CallState.Elapsed)</span>
+        </div>
+        <button type="button" class="voice-call-icon-btn @(CallState.IsMuted ? "voice-call-icon-btn--active" : "")"
+                title="@(CallState.IsMuted ? "Unmute" : "Mute")" @onclick="() => CallState.ToggleMuteAsync()">
+            <i class="bi @(CallState.IsMuted ? "bi-mic-mute-fill" : "bi-mic-fill")"></i>
+        </button>
+        <button type="button" class="voice-call-icon-btn voice-call-icon-btn--danger" title="Hang up" @onclick="() => CallState.HangUpAsync()">
+            <i class="bi bi-telephone-x-fill"></i>
+        </button>
+    </div>
+}
+else if (CallState.LastEndedCallLogId.HasValue)
+{
+    @* Call just ended — offer to log what was discussed. Skipping this is
+       fine: the call is already permanently recorded with an empty note. *@
+    <div class="modal-backdrop-custom">
+        <div class="modal-panel voice-call-notes-modal">
+            <div class="modal-panel-header">
+                <strong>Call ended — @CallState.LastEndedRemoteName</strong>
+                <button class="btn-close" @onclick="SkipNotes"></button>
+            </div>
+            <label class="form-label small fw-bold">What did you talk about? (optional)</label>
+            <textarea class="form-control" rows="3" maxlength="2000" placeholder="Agenda / notes for this call..."
+                      @bind="_notesDraft"></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SkipNotes">Skip</button>
+                <button class="btn btn-sm btn-primary" @onclick="SaveNotesAsync" disabled="@_isSavingNotes">
+                    @(_isSavingNotes ? "Saving..." : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _notesDraft = string.Empty;
+    private bool _isSavingNotes;
+
+    private void SkipNotes()
+    {
+        _notesDraft = string.Empty;
+        CallState.DismissCallSummary();
+    }
+
+    private async Task SaveNotesAsync()
+    {
+        if (!CallState.LastEndedCallLogId.HasValue) return;
+
+        _isSavingNotes = true;
+        try
+        {
+            await VoiceCallLogClient.UpdateNotesAsync(CallState.LastEndedCallLogId.Value, _notesDraft);
+        }
+        finally
+        {
+            _isSavingNotes = false;
+            _notesDraft = string.Empty;
+            CallState.DismissCallSummary();
+        }
+    }
+    protected override void OnInitialized()
+    {
+        CallState.OnChanged += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    private static string FormatElapsed(TimeSpan span)
+        => span.Hours > 0 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"mm\:ss");
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+             : name.Length >= 2 ? name[..2].ToUpper()
+             : name.ToUpper();
+    }
+
+    public void Dispose()
+    {
+        CallState.OnChanged -= HandleChanged;
+    }
+}

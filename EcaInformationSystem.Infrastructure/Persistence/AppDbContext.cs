@@ -45,6 +45,9 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<PostImage> PostImages => Set<PostImage>();
             public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = default!;
             public DbSet<PasswordResetRequest> PasswordResetRequests => Set<PasswordResetRequest>();
+            public DbSet<FocalInvite> FocalInvites => Set<FocalInvite>();
+            public DbSet<VoiceCallLog> VoiceCallLogs => Set<VoiceCallLog>();
+            public DbSet<FocalInviteJurisdiction> FocalInviteJurisdictions => Set<FocalInviteJurisdiction>();
             public DbSet<Activity> Activities => Set<Activity>();
             public DbSet<BeneficiaryFamilyMember> BeneficiaryFamilyMembers => Set<BeneficiaryFamilyMember>();
             public DbSet<BeneficiaryPhoneNumber> BeneficiaryPhoneNumbers => Set<BeneficiaryPhoneNumber>();
@@ -676,6 +679,41 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasIndex(x => x.Status);
                         entity.HasIndex(x => x.UserName);
                   });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // FOCAL INVITE (PDO-initiated onboarding for external partner-LGU
+                  // contacts — call-only accounts, see AuthPolicies "Focal" exclusion)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<FocalInvite>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.HasIndex(x => x.InvitedByUserId);
+                        entity.HasIndex(x => x.Status);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // VOICE CALL LOG (browser-to-browser call audit trail — see VoiceCallHub)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<VoiceCallLog>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.HasIndex(x => x.CallerId);
+                        entity.HasIndex(x => x.CalleeId);
+                        entity.HasIndex(x => x.StartedAt);
+                  });
+
+                  modelBuilder.Entity<FocalInviteJurisdiction>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasOne(x => x.FocalInvite)
+                        .WithMany(x => x.Jurisdictions)
+                        .HasForeignKey(x => x.FocalInviteId)
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasIndex(x => x.FocalInviteId);
+                  });
+
                   // ═══════════════════════════════════════════════════════════════════
                   // ACTIVITY CALENDAR FEATURE
                   // ═══════════════════════════════════════════════════════════════════

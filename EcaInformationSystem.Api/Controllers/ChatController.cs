@@ -11,7 +11,7 @@ namespace EcaInformationSystem.API.Controllers
 {
     [ApiController]
     [Route("api/chat")]
-    [Authorize]
+    [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
     public class ChatController : ControllerBase
     {
         private readonly IChatService _chatService;
@@ -93,7 +93,12 @@ namespace EcaInformationSystem.API.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        // Powers the "start a new conversation" picker — Focal accounts don't
+        // get to browse/start new conversations at all (their one DM with
+        // their PDO is auto-created), so this stays on the stricter
+        // CookieOrJwt policy rather than the controller's Focal-inclusive one.
         [HttpGet("users")]
+        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
         public async Task<IActionResult> GetUsersForNewConversation()
         {
             var (userId, _, _) = GetCurrentUser();
@@ -104,8 +109,14 @@ namespace EcaInformationSystem.API.Controllers
         [HttpGet("rooms")]
         public async Task<IActionResult> GetMyRooms()
         {
-            var (userId, _, region) = GetCurrentUser();
+            var (userId, role, region) = GetCurrentUser();
             var rooms = await _chatService.GetMyRoomsAsync(userId, region);
+
+            // Same Focal narrowing as ChatHub.OnConnectedAsync — only their
+            // one Direct room with their PDO, never Global/Regional.
+            if (role == "Focal")
+                rooms = rooms.Where(r => r.Type == "Direct").ToList();
+
             return Ok(rooms);
         }
 

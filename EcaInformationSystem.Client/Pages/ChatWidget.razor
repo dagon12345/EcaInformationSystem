@@ -8,6 +8,7 @@
 @inject NavigationManager Navigation
 @inject HttpClient Http
 @inject NavbarFlyoutCoordinator FlyoutCoordinator
+@inject VoiceCallStateService CallState
 @implements IDisposable
 
 
@@ -188,8 +189,11 @@
                             {
                                 <span class="chat-room-unread">@room.UnreadCount</span>
                             }
-                            @* ✅ NEW — delete only for Direct rooms, stops the click from also opening the room *@
-                            @if (room.Type == "Direct")
+                            @* Delete only for Direct rooms, stops the click from also opening the
+                               room — and never for a Focal, who must keep their one auto-created
+                               DM with their PDO (they can still delete individual message bubbles,
+                               just not the conversation itself). *@
+                            @if (room.Type == "Direct" && ChatState.CurrentUserRole != "Focal")
                             {
                                 <button class="chat-room-delete-btn" title="Delete conversation"
                                         @onclick="() => OpenDeleteConfirmModal(room.Id)" @onclick:stopPropagation="true">
@@ -246,6 +250,14 @@
                             </small>
                         }
                     </div>
+                    @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
+                    {
+                        <button type="button" class="chat-call-btn" title="Voice call"
+                                disabled="@(!ChatState.IsUserOnline(ChatState.ActiveRoom.OtherUserId.Value) || CallState.CurrentState != VoiceCallState.Idle)"
+                                @onclick="() => CallState.StartCallAsync(ChatState.ActiveRoom.OtherUserId!.Value, ChatState.ActiveRoom.DisplayName)">
+                            <i class="bi bi-telephone-fill"></i>
+                        </button>
+                    }
                 </div>
 
                 <ChatMessageList CurrentUserId="@_currentUserId" />
@@ -342,6 +354,7 @@
                     _currentUserId = Guid.Parse(sub);
                     ChatState.CurrentUserId = _currentUserId;
                 }
+                ChatState.CurrentUserRole = jwt.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
             }
         }
 

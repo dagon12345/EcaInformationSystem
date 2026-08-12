@@ -12,6 +12,8 @@
 @inject BeneficiaryStateService State
 @inject IConfiguration Configuration
 @inject ChatClientService ChatClientService
+@inject VoiceCallClientService VoiceCallClientService
+@inject VoiceCallStateService VoiceCallState
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
@@ -51,6 +53,11 @@
                              same click-to-open behavior as the bell. Was previously an always-
                              visible sidebar on the Feed page; now it's reachable from anywhere. ── *@
                         <ChatWidget />
+
+                        @* ── Browser-to-browser voice calls between logged-in users —
+                             renders incoming-call/dialing/in-call overlays globally so a
+                             call can be answered from any page. ── *@
+                        <VoiceCallWidget />
 
                         @* ── Single notification bell — duplicates, calendar, uploads ── *@
                         <UnifiedNotificationBell @ref="_notificationBell" />
@@ -269,6 +276,20 @@
         await AuthService.InitAsync();
         _userRole = AuthService.GetRole();
 
+        // Focal accounts never see the real staff shell (NavMenu's nav
+        // sections, permission legend, DAR/DTR links, etc.). Server-side
+        // AuthPolicies already blocks them from every controller that shell
+        // links to; this redirect just keeps the UI itself honest by sending
+        // them to their own FocalLayout pages instead. Every Focal-accessible
+        // route is named with a "focal-" prefix (focal-home, focal-call-logs,
+        // focal-beneficiaries, ...) so new ones don't need a matching edit here.
+        var currentPath = new Uri(Navigation.Uri).AbsolutePath.Trim('/');
+        if (_userRole == "Focal" && !currentPath.StartsWith("focal-", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/focal-home", true);
+            return;
+        }
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
@@ -290,6 +311,21 @@
                 catch
                 {
                     // Non-fatal — widget can show disconnected state
+                }
+            }
+
+            if (!VoiceCallClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "voiceCallHub").ToString();
+                    await VoiceCallClientService.ConnectAsync(hubUrl);
+                    VoiceCallState.Initialize();
+                }
+                catch
+                {
+                    // Non-fatal — voice calling just won't be available this session
                 }
             }
 
@@ -394,6 +430,7 @@
         "Admin" => "bg-danger",
         "PDO" => "bg-primary",
         "Viewer" => "bg-secondary",
+        "Focal" => "bg-info", // call-only, never actually renders (FocalLayout is used instead)
         _ => "bg-secondary"
     };
 
@@ -403,6 +440,7 @@
         "Admin" => "bi-shield-fill-check",
         "PDO" => "bi-person-badge-fill",
         "Viewer" => "bi-eye-fill",
+        "Focal" => "bi-telephone-fill",
         _ => "bi-person-fill"
     };
 
@@ -412,6 +450,7 @@
         "Admin" => "Administrator",
         "PDO" => "Project Development Officer",
         "Viewer" => "Viewer",
+        "Focal" => "Provincial Focal",
         _ => role
     };
 

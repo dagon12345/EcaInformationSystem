@@ -6,6 +6,7 @@ using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Infrastructure;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
@@ -76,6 +77,7 @@ builder.Services.AddSignalR(options =>
 });
 builder.Services.AddSingleton<IUserIdProvider, ChatUserIdProvider>();
 builder.Services.AddSingleton<ChatPresenceTracker>();
+builder.Services.AddSingleton<EcaInformationSystem.Api.Hubs.VoiceCallTracker>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -106,7 +108,7 @@ builder.Services
                 // every other endpoint keeps using the normal Authorization header.
                 var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) &&
-                    (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/biometricStatusHub")))
+                    (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/biometricStatusHub") || path.StartsWithSegments("/voiceCallHub")))
                 {
                     context.Token = accessToken;
                 }
@@ -152,11 +154,32 @@ builder.Services
 // In Program.cs — replace the AddAuthorization block
 builder.Services.AddAuthorization(options =>
 {
+    // 🔒 "Focal" is a deliberately call-only role (external partner-LGU contacts,
+    // onboarded via PDO-invite — see FocalInviteService) that must NEVER reach
+    // beneficiary/financial/document data. Most controllers in this API use a
+    // bare [Authorize] (→ the default policy) or [Authorize(Policy = CookieOrJwt)],
+    // neither of which used to check role — so instead of auditing every one of
+    // those controllers one by one, both are hardened here to exclude Focal by
+    // default. Endpoints Focals DO need (voice calling, the provincial directory)
+    // opt back in explicitly via the AnyAuthenticatedIncludingFocal policy below.
+    bool NotFocal(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext ctx) => !ctx.User.IsInRole("Focal");
+
     options.AddPolicy(AuthPolicies.CookieOrJwt, policy =>
     {
         policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme);
         policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(NotFocal);
     });
+
+    options.DefaultPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .RequireAssertion(NotFocal)
+        .Build();
+
+    // ✅ Explicit opt-in for the small set of endpoints Focal accounts are
+    // allowed to reach — everyone authenticated, including Focal.
+    options.AddPolicy("AnyAuthenticatedIncludingFocal",
+        policy => policy.RequireAuthenticatedUser());
 
     // ✅ SuperAdmin — user management only
     options.AddPolicy("SuperAdminOnly",
@@ -178,6 +201,18 @@ builder.Services.AddAuthorization(options =>
     // ✅ Viewer — "view and upload only" role, plus Admins, can upload Forms Gateway documents
     options.AddPolicy("AdminOrViewer",
         policy => policy.RequireRole("Admin", "Viewer", "SuperAdmin"));
+
+    // ✅ Call Logs — SuperAdmin/Admin see every call, PDO/Focal see only their
+    // own (enforced again in VoiceCallLogService, not just here). Deliberately
+    // excludes Finance/Viewer.
+    options.AddPolicy("CallLogViewers",
+        policy => policy.RequireRole("SuperAdmin", "Admin", "PDO", "Focal"));
+
+    // ✅ Focal's read-only, single-municipality grantee view — kept exclusive
+    // to Focal (not staff too) so this narrower, less-audited surface can't
+    // become an accidental bypass path for anyone else.
+    options.AddPolicy("FocalOnly",
+        policy => policy.RequireRole("Focal"));
 });
 // ─── CORS ────────────────────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
@@ -419,5 +454,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/chatHub");
+app.MapHub<EcaInformationSystem.Api.Hubs.VoiceCallHub>("/voiceCallHub");
 
 app.Run();

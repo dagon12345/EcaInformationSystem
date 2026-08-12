@@ -1,0 +1,112 @@
+@* Shared call-log table — used by both the staff-facing /call-logs page
+   (under MainLayout) and the Focal-only /focal-call-logs page (under
+   FocalLayout), same split pattern as DirectoryListing.razor. Delete only
+   ever renders when a row's CanDelete is true, which the server already
+   only sets for SuperAdmin — no extra role-hiding needed here. *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject VoiceCallLogClientService VoiceCallLogClient
+@inject ToastService toast
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (!_logs.Any())
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-telephone" style="font-size:32px;"></i>
+        <p class="mt-2">No calls logged yet.</p>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Caller</th>
+                    <th>Callee</th>
+                    <th>Started</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in _logs)
+                {
+                    <tr>
+                        <td>@log.CallerName</td>
+                        <td>@log.CalleeName</td>
+                        <td>@log.StartedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</td>
+                        <td>@(log.DurationSeconds.HasValue ? FormatDuration(log.DurationSeconds.Value) : "—")</td>
+                        <td>
+                            <span class="badge @StatusBadgeClass(log.Status)">@log.StatusLabel</span>
+                        </td>
+                        <td class="text-truncate" style="max-width:320px;">
+                            @(string.IsNullOrWhiteSpace(log.Notes) ? "—" : log.Notes)
+                        </td>
+                        <td class="text-end">
+                            @if (log.CanDelete)
+                            {
+                                @if (_confirmDeleteId == log.Id)
+                                {
+                                    <button class="btn btn-sm btn-danger me-1" @onclick="() => ConfirmDeleteAsync(log.Id)">Confirm</button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmDeleteId = null">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => _confirmDeleteId = log.Id">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<VoiceCallLogDto> _logs = new();
+    private bool _loading = true;
+    private Guid? _confirmDeleteId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _logs = await VoiceCallLogClient.GetLogsAsync(); }
+        catch { _logs = new(); }
+        finally { _loading = false; }
+    }
+
+    private async Task ConfirmDeleteAsync(Guid id)
+    {
+        var ok = await VoiceCallLogClient.DeleteAsync(id);
+        if (ok)
+        {
+            _logs.RemoveAll(l => l.Id == id);
+        }
+        else
+        {
+            toast.ShowError("Failed to delete call log.");
+        }
+        _confirmDeleteId = null;
+    }
+
+    private static string StatusBadgeClass(int status) => status switch
+    {
+        1 => "bg-warning-subtle text-warning-emphasis", // Declined
+        2 => "bg-secondary-subtle text-secondary-emphasis", // Missed/Not Answered
+        _ => "bg-success-subtle text-success-emphasis" // Completed
+    };
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return span.Hours > 0 ? $"{span.Hours}h {span.Minutes}m {span.Seconds}s" : $"{span.Minutes}m {span.Seconds}s";
+    }
+}

@@ -1,0 +1,20 @@
+@page "/focal-call-logs"
+@layout FocalLayout
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>My Call Log</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 d-flex align-items-center">
+        <div class="page-header-icon">
+            <i class="bi bi-clock-history"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">My Call Log</h5>
+            <span class="page-header-sub">Calls you've made or received, and any notes you added.</span>
+        </div>
+    </div>
+
+    <VoiceCallLogListing />
+</div>

@@ -1,0 +1,120 @@
+@* Shared province/people grid — used by both the staff-facing Provincial
+   Focals page (under MainLayout) and the Focal-only home page (under
+   FocalLayout), so the listing/call-button logic exists in exactly one
+   place instead of being duplicated across the two shells.
+
+   Online status updates live via VoiceCallHub's "VoiceCallPresenceChanged"
+   broadcast (same pattern ChatHub already uses for its own presence dot) —
+   no page refresh needed to see someone come online/offline. ── *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject VoiceCallStateService CallState
+@inject VoiceCallClientService VoiceCallClient
+@inject ToastService toast
+@implements IDisposable
+
+@if (Loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (!Groups.Any())
+{
+    <div class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size:32px;"></i>
+        <p class="mt-2">No provinces with assigned PDOs/focals yet.</p>
+    </div>
+}
+else
+{
+    <div class="focal-directory-grid">
+        @foreach (var group in Groups)
+        {
+            <div class="focal-province-card">
+                <div class="focal-province-header">@group.ProvinceName</div>
+                @foreach (var person in group.People)
+                {
+                    <div class="focal-person-row @(_recentlyChangedIds.Contains(person.UserId) ? "focal-person-row--live" : "")">
+                        <span class="focal-person-dot @(person.IsOnline ? "focal-person-dot--online" : "")"></span>
+                        <div class="focal-person-info">
+                            <div class="focal-person-name">
+                                @person.FullName
+                                @if (_recentlyChangedIds.Contains(person.UserId) && person.IsOnline)
+                                {
+                                    <i class="bi bi-lightning-charge-fill focal-person-live-icon" title="Just came online"></i>
+                                }
+                            </div>
+                            <div class="focal-person-role">@person.Role</div>
+                            @if (!string.IsNullOrWhiteSpace(person.MunicipalityName))
+                            {
+                                <div class="focal-person-municipality">@person.MunicipalityName</div>
+                            }
+                        </div>
+                        <button type="button" class="focal-call-btn" title="Voice call"
+                                disabled="@(!person.IsOnline || CallState.CurrentState != VoiceCallState.Idle)"
+                                @onclick="() => CallState.StartCallAsync(person.UserId, person.FullName)">
+                            <i class="bi bi-telephone-fill"></i>
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<ProvinceDirectoryGroupDto> Groups { get; set; } = new();
+    [Parameter] public bool Loading { get; set; }
+
+    private HashSet<Guid> _recentlyChangedIds = new();
+
+    protected override void OnInitialized()
+    {
+        CallState.OnChanged += HandleCallStateChanged;
+        VoiceCallClient.OnPresenceChanged += HandlePresenceChanged;
+    }
+
+    private void HandleCallStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void HandlePresenceChanged(Guid userId, bool isOnline)
+    {
+        // A person can appear in more than one province group (e.g. a PDO
+        // covering multiple provinces) — update every occurrence.
+        DirectoryPersonDto? match = null;
+        foreach (var group in Groups)
+        {
+            foreach (var person in group.People.Where(p => p.UserId == userId))
+            {
+                person.IsOnline = isOnline;
+                match = person;
+            }
+        }
+
+        if (match is null) return; // this person isn't in the current directory view
+
+        _recentlyChangedIds.Add(userId);
+        if (isOnline)
+        {
+            toast.ShowSuccess($"{match.FullName} is now online.", "Provincial Directory");
+        }
+
+        InvokeAsync(StateHasChanged);
+
+        _ = ClearRecentlyChangedAfterDelayAsync(userId);
+    }
+
+    // Same 2.8s live-highlight duration used elsewhere in this app (see the
+    // transaction leaderboard's "just updated" pulse) — long enough to
+    // notice, short enough not to linger as clutter.
+    private async Task ClearRecentlyChangedAfterDelayAsync(Guid userId)
+    {
+        await Task.Delay(2800);
+        _recentlyChangedIds.Remove(userId);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        CallState.OnChanged -= HandleCallStateChanged;
+        VoiceCallClient.OnPresenceChanged -= HandlePresenceChanged;
+    }
+}

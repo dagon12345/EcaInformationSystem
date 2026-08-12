@@ -1,0 +1,35 @@
+@page "/focal-home"
+@layout FocalLayout
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject DirectoryClientService DirectoryClient
+
+<PageTitle>Provincial Directory</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 d-flex align-items-center">
+        <div class="page-header-icon">
+            <i class="bi bi-diagram-3-fill"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Provincial Directory</h5>
+            <span class="page-header-sub">Tap the call icon next to anyone who's online.</span>
+        </div>
+    </div>
+
+    <DirectoryListing Groups="_groups" Loading="_loading" />
+</div>
+
+@code {
+    private List<ProvinceDirectoryGroupDto> _groups = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _groups = await DirectoryClient.GetProvincialAsync(); }
+        catch { _groups = new(); }
+        finally { _loading = false; }
+    }
+}

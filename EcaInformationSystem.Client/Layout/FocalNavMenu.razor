@@ -1,0 +1,58 @@
+@* Minimal nav for "call-only" Focal accounts — deliberately not NavMenu.razor.
+   Just the small handful of Focal-scoped destinations plus a plain user/
+   logout footer, with none of the permission legend, jurisdiction list, or
+   tier UI that assume a real staff account. Every route here is prefixed
+   "focal-" — MainLayout's redirect guard exempts that prefix generically. *@
+<div class="sidebar-brand">
+    <NavLink href="focal-home" Match="NavLinkMatch.All">
+        <div class="brand-icon">
+            <img src="/images/ncsc-seal.png" alt="NCSC"
+                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white"
+                 onerror="this.style.display='none'" />
+        </div>
+    </NavLink>
+    <span class="brand-text">ECA-InFORMS</span>
+</div>
+
+<nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <NavLink class="nav-item" href="focal-home" Match="NavLinkMatch.All">
+        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+        <span class="nav-label">Provincial Directory</span>
+    </NavLink>
+    <NavLink class="nav-item" href="focal-beneficiaries">
+        <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+        <span class="nav-label">Grantee List</span>
+    </NavLink>
+    <NavLink class="nav-item" href="focal-call-logs">
+        <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
+        <span class="nav-label">My Call Log</span>
+    </NavLink>
+</nav>
+
+<div class="sidebar-footer">
+    <div class="user-card">
+        <div class="avatar">@GetInitials(UserName)</div>
+        <div class="user-info">
+            <div class="user-name">@UserName</div>
+            <div class="user-role">Provincial Focal</div>
+        </div>
+    </div>
+    <button class="toggle-btn" @onclick="OnToggle">
+        <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+        <span>@(Collapsed ? "Expand" : "Collapse")</span>
+    </button>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnToggle { get; set; }
+    [Parameter] public bool Collapsed { get; set; }
+    [Parameter] public string UserName { get; set; } = "Focal";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "F";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1 ? parts[0][0].ToString().ToUpper() : $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+}

@@ -9,7 +9,11 @@ using System.Security.Claims;
 
 namespace EcaInformationSystem.API.Hubs
 {
-    [Authorize]
+    // Focal accounts get in — but deliberately narrow: OnConnectedAsync skips
+    // Global/Regional auto-join for them (see below), and StartDirectConversation
+    // is blocked outright, so the only room they can ever be a member of is the
+    // one 1:1 DM auto-created with their PDO at onboarding (FocalInviteService).
+    [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
     public class ChatHub : Hub
     {
         private readonly IChatService _chatService;
@@ -40,7 +44,12 @@ namespace EcaInformationSystem.API.Hubs
         }
         public async Task DeleteDirectConversation(Guid roomId)
         {
-            var (userId, _, _) = GetCurrentUser();
+            var (userId, role, _) = GetCurrentUser();
+
+            // A Focal must keep their one auto-created DM with their PDO — server-side
+            // enforcement, since the client-side button hide is only a convenience.
+            if (role == "Focal")
+                throw new HubException("Focal accounts cannot delete this conversation.");
 
             await _chatService.ClearConversationForUserAsync(userId, roomId); // ✅ CHANGED — was DeleteDirectConversationAsync (hard delete)
 
@@ -100,6 +109,11 @@ namespace EcaInformationSystem.API.Hubs
             // no explicit "join" call needed for these, matches "auto-eligible"
             // requirement from the spec. Group name = room's Guid as string.
             var rooms = await _chatService.GetMyRoomsAsync(userId, region);
+
+            // Focal accounts never join Global/Regional group chat — only
+            // their one Direct room with their PDO.
+            if (role == "Focal")
+                rooms = rooms.Where(r => r.Type == "Direct").ToList();
 
             foreach (var room in rooms)
             {
@@ -213,7 +227,12 @@ namespace EcaInformationSystem.API.Hubs
         // since it wasn't known at OnConnectedAsync time) ─────────────────
         public async Task<ChatRoomDto> StartDirectConversation(Guid otherUserId)
         {
-            var (userId, _, _) = GetCurrentUser();
+            var (userId, role, _) = GetCurrentUser();
+
+            // Focal accounts don't get to start NEW conversations with anyone —
+            // their one DM with their PDO is already auto-created at onboarding.
+            if (role == "Focal")
+                throw new HubException("Focal accounts can only chat with their assigned PDO.");
 
             var myRoomView = await _chatService.StartDirectConversationAsync(userId, otherUserId);
 

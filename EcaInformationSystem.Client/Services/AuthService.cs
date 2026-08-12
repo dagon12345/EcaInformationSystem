@@ -163,6 +163,13 @@ namespace EcaInformationSystem.Client.Services
             }
         }
 
+        // Lets a caller outside the normal login flow (e.g. accepting a Focal
+        // invite, which auto-logs-in the moment the account is created) persist
+        // the session the exact same way a real login does — same localStorage
+        // writes, same hub connection bootstrapping.
+        public async Task PersistExternalSessionAsync(string token, string fullName, string userName)
+            => await PersistSessionAsync(new LoginResponse { Token = token, FullName = fullName, UserName = userName });
+
         // ✅ NEW — extracted so both LoginAsync and VerifyMfaAsync share the same session-writing logic
         private async Task PersistSessionAsync(LoginResponse result)
         {

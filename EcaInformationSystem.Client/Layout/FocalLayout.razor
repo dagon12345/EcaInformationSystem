@@ -1,0 +1,160 @@
+@* Separate, minimal shell for "call-only" Focal accounts — deliberately not
+   MainLayout.razor, which is the full staff shell (permission legend, tier
+   progress, DAR/DTR links, every nav section). A Focal only ever needs the
+   provincial directory and the ability to log out. *@
+@using EcaInformationSystem.Client.Pages
+@using EcaInformationSystem.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VoiceCallClientService VoiceCallClientService
+@inject VoiceCallStateService VoiceCallState
+@inject ChatClientService ChatClientService
+@inject IConfiguration Configuration
+@implements IDisposable
+
+<AuthorizeView>
+    <Authorized>
+        <SessionExpiryWarning />
+        <div class="app-shell">
+            <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
+
+            <div class="sidebar @(collapsed ? "collapsed" : "") @(mobileOpen ? "mobile-open" : "")">
+                <FocalNavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" UserName="@_displayFullName" />
+            </div>
+            <div class="main-area">
+                <div class="top-navbar">
+                    <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <div class="breadcrumb-area">
+                        <span>ECA</span>
+                        <span class="separator">›</span>
+                        <span class="current">Provincial Directory</span>
+                    </div>
+                    <div class="navbar-actions">
+                        <ChatWidget />
+                        <VoiceCallWidget />
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @onclick="RequestLogout">
+                            <i class="bi bi-box-arrow-right me-1"></i>Logout
+                        </button>
+                    </div>
+                </div>
+
+                <article class="content-area">
+                    @Body
+                </article>
+            </div>
+        </div>
+
+        @if (_showLogoutConfirm)
+        {
+            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1080;">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-warning-emphasis">
+                                <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Log Out?
+                            </h5>
+                            <button type="button" class="btn-close" @onclick="CancelLogout"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">You're about to end your current session. Are you sure you want to log out?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @onclick="CancelLogout">Cancel</button>
+                            <button class="btn btn-danger" @onclick="HandleLogout">
+                                <i class="bi bi-box-arrow-right me-1"></i>Yes, Log Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        @Body
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool collapsed = false;
+    private bool mobileOpen = false;
+    private string _displayFullName = "Focal";
+    private bool _showLogoutConfirm;
+
+    private void ToggleMobileSidebar() => mobileOpen = !mobileOpen;
+    private void CloseMobileSidebar() => mobileOpen = false;
+    private void ToggleSidebar() => collapsed = !collapsed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await AuthService.InitAsync();
+
+        // Defense in depth — a staff member navigating straight to this route
+        // shouldn't see the stripped-down Focal shell either. The real
+        // enforcement is server-side (AuthPolicies excludes Focal from
+        // everything else); this just keeps the UI honest.
+        if (AuthService.GetRole() is string role && role != "Focal")
+        {
+            Navigation.NavigateTo("/", true);
+            return;
+        }
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var fullName = authState.User.FindFirst("FullName")?.Value;
+        _displayFullName = !string.IsNullOrWhiteSpace(fullName) ? fullName : "Focal";
+
+        if (!VoiceCallClientService.IsConnected)
+        {
+            try
+            {
+                var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                var hubUrl = new Uri(new Uri(apiBase), "voiceCallHub").ToString();
+                await VoiceCallClientService.ConnectAsync(hubUrl);
+                VoiceCallState.Initialize();
+            }
+            catch
+            {
+                // Non-fatal — voice calling just won't be available this session
+            }
+        }
+
+        // MainLayout never renders for a Focal session (they're redirected
+        // straight here), so this is the only place their chat connection
+        // ever gets established — without it, <ChatWidget /> below would
+        // render with no live connection behind it.
+        if (!ChatClientService.IsConnected)
+        {
+            try
+            {
+                var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                var hubUrl = new Uri(new Uri(apiBase), "chatHub").ToString();
+                await ChatClientService.ConnectAsync(hubUrl);
+            }
+            catch
+            {
+                // Non-fatal — the chat widget can show disconnected state
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void RequestLogout() => _showLogoutConfirm = true;
+    private void CancelLogout() => _showLogoutConfirm = false;
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+        await Task.Delay(100);
+        Navigation.NavigateTo("/login", true);
+    }
+
+    public void Dispose() { }
+}

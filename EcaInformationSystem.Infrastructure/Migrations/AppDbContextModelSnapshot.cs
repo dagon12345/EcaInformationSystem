@@ -1718,6 +1718,81 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("DtrDayMarks");
                 });
 
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FocalInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ContactNote")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ResultingUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("FocalInvites");
+                });
+
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FocalInviteJurisdiction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FocalInviteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MunicipalityName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProvinceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PsgcCodeMunicipality")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FocalInviteId");
+
+                    b.ToTable("FocalInviteJurisdictions");
+                });
+
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FormActivityLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2771,6 +2846,58 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("UserSessions");
                 });
 
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.VoiceCallLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CalleeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CalleeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("CallerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CallerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("NotesUpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalleeId");
+
+                    b.HasIndex("CallerId");
+
+                    b.HasIndex("StartedAt");
+
+                    b.ToTable("VoiceCallLogs");
+                });
+
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.WfpEcaEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3052,6 +3179,17 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Navigation("DocumentBatch");
                 });
 
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FocalInviteJurisdiction", b =>
+                {
+                    b.HasOne("EcaInformationSystem.Domain.Entities.FocalInvite", "FocalInvite")
+                        .WithMany("Jurisdictions")
+                        .HasForeignKey("FocalInviteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FocalInvite");
+                });
+
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FormDocument", b =>
                 {
                     b.HasOne("EcaInformationSystem.Domain.Entities.FormFolder", "Folder")
@@ -3170,6 +3308,11 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Navigation("Rows");
 
                     b.Navigation("Transfers");
+                });
+
+            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FocalInvite", b =>
+                {
+                    b.Navigation("Jurisdictions");
                 });
 
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FormFolder", b =>

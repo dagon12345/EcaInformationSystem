@@ -1,0 +1,104 @@
+@page "/focal-invite/{Code}"
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Auth
+@inject FocalInviteClientService FocalInviteClient
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Accept Invite</PageTitle>
+
+<div class="focal-accept-page">
+    <div class="focal-accept-card">
+        @if (_loadingPreview)
+        {
+            <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+        }
+        else if (_preview is null || !_preview.IsValid)
+        {
+            <div class="text-center py-3">
+                <i class="bi bi-exclamation-circle text-danger" style="font-size:32px;"></i>
+                <p class="mt-2">@(_preview?.ErrorMessage ?? "This invite link is invalid.")</p>
+            </div>
+        }
+        else
+        {
+            <h5 class="mb-1">You've been invited</h5>
+            <p class="text-muted small mb-3">Complete your account to be reachable by voice call in the system.</p>
+
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Name</label>
+                <input class="form-control" value="@_preview.FullName" disabled />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Province(s)</label>
+                <input class="form-control" value="@string.Join(", ", _preview.ProvinceNames)" disabled />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Choose a username</label>
+                <input class="form-control" @bind="_userName" maxlength="100" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Choose a password</label>
+                <input type="password" class="form-control" @bind="_password" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="text-danger small mb-2">@_error</div>
+            }
+
+            <button class="btn btn-primary w-100 mt-2" @onclick="SubmitAsync" disabled="@_isSubmitting">
+                @(_isSubmitting ? "Creating account..." : "Activate account")
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = string.Empty;
+
+    private bool _loadingPreview = true;
+    private FocalInvitePreviewDto? _preview;
+
+    private string _userName = string.Empty;
+    private string _password = string.Empty;
+    private string? _error;
+    private bool _isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _preview = await FocalInviteClient.PreviewInviteAsync(Code);
+        _loadingPreview = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_userName) || string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Username and password are required.";
+            return;
+        }
+
+        _isSubmitting = true;
+        try
+        {
+            var (success, token, fullName, userName, error) = await FocalInviteClient.AcceptInviteAsync(new AcceptFocalInviteRequest
+            {
+                Code = Code,
+                UserName = _userName,
+                Password = _password
+            });
+
+            if (!success || string.IsNullOrWhiteSpace(token))
+            {
+                _error = error ?? "Failed to activate account.";
+                return;
+            }
+
+            await AuthService.PersistExternalSessionAsync(token, fullName ?? _preview!.FullName, userName ?? _userName);
+            Navigation.NavigateTo("/focal-home", true);
+        }
+        finally { _isSubmitting = false; }
+    }
+}

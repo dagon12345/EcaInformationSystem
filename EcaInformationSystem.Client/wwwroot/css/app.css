@@ -9289,3 +9289,212 @@ body {
         grid-template-columns: 1fr 1fr;
     }
 }
+
+.chat-call-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #eff6ff;
+    color: #1a73e8;
+    font-size: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.chat-call-btn:hover:not(:disabled) { background: #dbeafe; }
+.chat-call-btn:disabled { opacity: 0.4; }
+
+/* ── Voice call widget (browser-to-browser WebRTC) ───────────────────────── */
+.voice-call-notes-modal { width: 380px; }
+
+.voice-call-modal {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+}
+.voice-call-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #1a73e8;
+    color: #fff;
+    font-weight: 700;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+.voice-call-avatar--sm { width: 32px; height: 32px; font-size: 13px; margin-bottom: 0; flex-shrink: 0; }
+.voice-call-name { font-size: 16px; font-weight: 700; color: #1f2937; }
+.voice-call-subtitle { font-size: 13px; color: #9ca3af; margin-bottom: 8px; }
+.voice-call-actions { display: flex; gap: 24px; margin-top: 10px; }
+
+.voice-call-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    font-size: 20px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.voice-call-btn--accept { background: #34a853; }
+.voice-call-btn--accept:hover { background: #2d8f47; }
+.voice-call-btn--reject { background: #d93025; }
+.voice-call-btn--reject:hover { background: #b3261e; }
+
+.voice-call-bar {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1070;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border-radius: 999px;
+    padding: 8px 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    font-size: 13px;
+    color: #374151;
+}
+.voice-call-bar--active { background: #ecfdf3; border: 1px solid #bbf7d0; }
+.voice-call-bar-info { display: flex; flex-direction: column; line-height: 1.2; }
+.voice-call-bar-name { font-weight: 600; color: #1f2937; }
+.voice-call-bar-timer { font-size: 11px; color: #1a7f37; font-variant-numeric: tabular-nums; }
+
+.voice-call-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #f1f3f4;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.voice-call-icon-btn:hover { background: #e5e7eb; }
+.voice-call-icon-btn--active { background: #fef3c7; color: #92400e; }
+.voice-call-icon-btn--danger { background: #fee2e2; color: #d93025; }
+.voice-call-icon-btn--danger:hover { background: #fecaca; }
+
+/* ── Provincial Focal directory ──────────────────────────────────────────── */
+.focal-directory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+.focal-province-card {
+    background: #fff;
+    border: 1px solid #eceef1;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.focal-province-header {
+    font-weight: 700;
+    font-size: 14px;
+    color: #1f2937;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f3f4;
+}
+.focal-person-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+}
+.focal-person-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #d1d5db;
+    flex-shrink: 0;
+}
+.focal-person-dot--online { background: #34a853; }
+.focal-person-info { flex: 1; min-width: 0; }
+.focal-person-name { font-size: 13px; font-weight: 600; color: #1f2937; }
+.focal-person-role { font-size: 11px; color: #9ca3af; }
+.focal-person-municipality { font-size: 11px; color: #6b7280; }
+.focal-call-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: #eff6ff;
+    color: #1a73e8;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.focal-call-btn:hover:not(:disabled) { background: #dbeafe; }
+.focal-call-btn:disabled { opacity: 0.4; }
+
+/* ── Live presence pulse — briefly plays when VoiceCallHub's
+   "VoiceCallPresenceChanged" push flips someone's status, so the directory
+   visibly reacts in real time instead of silently updating the dot. ── */
+.focal-person-row--live {
+    border-radius: 8px;
+    animation: focalPresenceSweep 2.8s ease-out;
+}
+@keyframes focalPresenceSweep {
+    0% {
+        background: rgba(52, 168, 83, 0.16);
+        box-shadow: 0 0 0 1px rgba(52, 168, 83, 0.35);
+    }
+    70% {
+        background: rgba(52, 168, 83, 0.06);
+        box-shadow: none;
+    }
+    100% {
+        background: transparent;
+        box-shadow: none;
+    }
+}
+.focal-person-live-icon {
+    color: #34a853;
+    font-size: 10px;
+    margin-left: 5px;
+    animation: focalLiveIconFlash 1.4s ease-in-out infinite;
+}
+@keyframes focalLiveIconFlash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.focal-municipality-scroll {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #eceef1;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.focal-accept-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    padding: 20px;
+}
+.focal-accept-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    padding: 28px;
+    width: 400px;
+    max-width: 100%;
+}

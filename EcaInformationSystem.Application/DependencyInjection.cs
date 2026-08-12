@@ -40,6 +40,10 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IAnnualGranteeTargetService, AnnualGranteeTargetService>();
             services.AddScoped<IUserProfileService, UserProfileService>();
             services.AddScoped<IStickyNoteService, StickyNoteService>();
+            services.AddScoped<IVoiceCallLogService, VoiceCallLogService>();
+            services.AddScoped<IFocalBeneficiaryService, FocalBeneficiaryService>();
+            services.AddScoped<IFocalInviteService, FocalInviteService>();
+            services.AddScoped<IDirectoryService, DirectoryService>();
             services.AddScoped<IWfpEcaService, WfpEcaService>();
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
             services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();

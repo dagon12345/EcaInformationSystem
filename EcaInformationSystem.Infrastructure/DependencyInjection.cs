@@ -79,6 +79,8 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IUserProfileRepository, UserProfileRepository>();
             services.AddScoped<IResolvedDuplicatePairRepository, ResolvedDuplicatePairRepository>();
             services.AddScoped<IStickyNoteRepository, StickyNoteRepository>();
+            services.AddScoped<IVoiceCallLogRepository, VoiceCallLogRepository>();
+            services.AddScoped<IFocalInviteRepository, FocalInviteRepository>();
             services.AddScoped<IWfpEcaRepository, WfpEcaRepository>();
             services.AddScoped<ISeniorCitizenDirectoryRepository, SeniorCitizenDirectoryRepository>();
             services.AddScoped<IDocumentTrackingRepository, DocumentTrackingRepository>();

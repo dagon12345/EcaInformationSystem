@@ -15,6 +15,7 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
         // ── Jurisdiction ────────────────────────────────────────────────────
         Task<List<PdoJurisdiction>> GetJurisdictionsByUserIdAsync(Guid userId);
+        Task<PendingUserRegistration?> GetPdoByMunicipalityAsync(int psgcCodeMunicipality);
         Task ReplaceJurisdictionsAsync(Guid userId, List<PdoJurisdiction> jurisdictions);
         Task<List<int>> GetAssignedMunicipalityCodesAsync(Guid userId);
 

@@ -1,0 +1,19 @@
+@page "/call-logs"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Call Logs</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="page-header-bar mb-3 d-flex align-items-center">
+        <div class="page-header-icon">
+            <i class="bi bi-clock-history"></i>
+        </div>
+        <div>
+            <h5 class="page-header-title">Call Logs</h5>
+            <span class="page-header-sub">Every browser-to-browser voice call, who talked, when, and what was discussed.</span>
+        </div>
+    </div>
+
+    <VoiceCallLogListing />
+</div>

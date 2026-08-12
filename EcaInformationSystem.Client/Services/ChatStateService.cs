@@ -26,6 +26,11 @@ namespace EcaInformationSystem.Client.Services
         // the JWT, so this service can tell "did I send this" without re-parsing
         // the token itself.
         public Guid CurrentUserId { get; set; }
+        // ✅ NEW — same pattern as CurrentUserId, set once by ChatWidget from the
+        // JWT's role claim. Used client-side to hide "delete conversation" (the
+        // whole room, not a message) for Focal accounts — they must keep their
+        // one auto-created DM with their PDO.
+        public string? CurrentUserRole { get; set; }
         // ── Oversight (SuperAdmin only) ──────────────────────────────────────────
 
         public List<ChatRoomDto> OversightRooms { get; private set; } = new();

@@ -47,6 +47,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                  .Where(x => x.UserId == userId)
                  .ToListAsync();
 
+        // "The" PDO covering a municipality — a Focal has exactly one, so this
+        // takes the first active PDO match (defensive if more than one is ever
+        // assigned). Used to auto-create the Focal's 1:1 chat room on invite
+        // acceptance.
+        public async Task<PendingUserRegistration?> GetPdoByMunicipalityAsync(int psgcCodeMunicipality)
+        {
+            var pdoUserId = await _context.PdoJurisdictions
+                .Where(j => j.PsgcCodeMunicipality == psgcCodeMunicipality)
+                .Join(_context.PendingUserRegistrations.Where(u => u.Role == "PDO" && !u.IsDeactivated),
+                    j => j.UserId, u => u.Id, (j, u) => u.Id)
+                .FirstOrDefaultAsync();
+
+            return pdoUserId == default ? null : await GetByIdAsync(pdoUserId);
+        }
+
         public async Task ReplaceJurisdictionsAsync(
           Guid userId, List<PdoJurisdiction> newJurisdictions)
         {
