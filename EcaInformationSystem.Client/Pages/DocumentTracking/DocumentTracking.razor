@@ -11,12 +11,15 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Net.Http.Json
+@using System.Text.Json
 @inject HttpClient Http
 @inject AuthService AuthService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ToastService Toast
 @inject DocumentTrackingClientService DocTracking
+@inject IJSRuntime JS
 @implements IDisposable
+@implements IAsyncDisposable
 
 <PageTitle>Document Tracking</PageTitle>
 
@@ -357,7 +360,7 @@
                     }
                 </div>
             </div>
-            <div class="dt-modal-body" style="position: relative;">
+            <div class="dt-modal-body" id="doctracking-create-form-root" style="position: relative;">
                 @if (_showCreateDiscardConfirm)
                 {
                     <div class="dt-discard-confirm-overlay" @onclick:stopPropagation="true">
@@ -368,6 +371,25 @@
                                 <button class="btn btn-sm btn-outline-secondary" @onclick="CancelCreateDiscard">Keep editing</button>
                                 <button class="btn btn-sm btn-danger" @onclick="ConfirmCreateDiscard">Discard</button>
                             </div>
+                        </div>
+                    </div>
+                }
+                @if (_showCreateDraftBanner)
+                {
+                    <div class="alert alert-info d-flex justify-content-between align-items-center py-2 px-3 mb-3">
+                        <div>
+                            <i class="bi bi-clock-history me-2"></i>
+                            We found an unsaved batch from a previous session
+                            @(_createDraftSavedAt.HasValue ? $"(saved {_createDraftSavedAt.Value.ToLocalTime():MMM dd, yyyy hh:mm tt})" : "")
+                            . Would you like to restore it?
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-primary" @onclick="RestoreCreateDraftAsync">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Restore
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="DiscardCreateDraftAsync">
+                                Discard
+                            </button>
                         </div>
                     </div>
                 }
@@ -516,6 +538,12 @@
                 }
             </div>
             <div class="dt-modal-footer">
+                @if (!_createReviewMode && _lastCreateDraftSavedAt.HasValue)
+                {
+                    <span class="text-muted small me-auto align-self-center">
+                        <i class="bi bi-cloud-check me-1"></i>Draft saved @_lastCreateDraftSavedAt.Value.ToString("hh:mm:ss tt")
+                    </span>
+                }
                 @if (!_createReviewMode)
                 {
                     <button class="dt-btn dt-btn-outline" @onclick="RequestCloseCreateModal">Cancel</button>
@@ -895,6 +923,42 @@
     private string? _createFindingJustification;
     private string _currentRegionLabel = string.Empty;
 
+    // ── Create modal draft autosave — same localStorage pattern as
+    // BeneficiaryForm.razor, so a bunch of typed-in grantees don't vanish on
+    // an accidental refresh mid-entry. Only one create modal can ever be open
+    // at a time (no per-batch identity yet at this point), so a single fixed
+    // key is safe — unlike BeneficiaryForm's per-record key, there's no
+    // "which one" to disambiguate here.
+    private const string CreateDraftKey = "eca-doctracking-draft-new";
+    private const int CreateDraftDebounceMs = 1200;
+    private IJSObjectReference? _createDraftWatchHandle;
+    private DotNetObjectReference<DocumentTracking>? _createDraftDotNetRef;
+    private bool _pendingCreateDraftWatchSetup;
+    private string? _createDraftBaselineJson;
+    private string? _lastSavedCreateDraftJson;
+    private bool _showCreateDraftBanner;
+    private DateTime? _createDraftSavedAt;
+    private DateTime? _lastCreateDraftSavedAt;
+
+    private class CreateDocumentBatchDraftData
+    {
+        public int ProvinceCode { get; set; }
+        public int MunicipalityCode { get; set; }
+        public int MilestoneYear { get; set; }
+        public DateTime DateReceived { get; set; }
+        public Guid RecipientUserId { get; set; }
+        public string? Note { get; set; }
+        public bool IsFinding { get; set; }
+        public string? FindingJustification { get; set; }
+        public List<CreateDocumentGranteeRowDto> Rows { get; set; } = new();
+    }
+
+    private class CreateDocumentBatchDraftEnvelope
+    {
+        public DateTime SavedAt { get; set; }
+        public CreateDocumentBatchDraftData? Data { get; set; }
+    }
+
     // ── Relay action modal state ────────────────────────────────────────
     private Guid? _actionBatchId;
     private DtAction _actionType;
@@ -994,6 +1058,175 @@
         DocTracking.OnBatchDeleted -= HandleBatchDeletedLive;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The create modal has no routed lifecycle of its own (it's a plain
+        // conditional div, not a page) — so the JS activity watcher can only
+        // be attached once the modal's markup has actually landed in the DOM,
+        // i.e. after the render that OpenCreateModal() triggered completes.
+        if (_pendingCreateDraftWatchSetup)
+        {
+            _pendingCreateDraftWatchSetup = false;
+            await StartWatchingCreateFormActivityAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_showCreateModal)
+                await AutosaveCreateDraftAsync();
+            await StopWatchingCreateFormActivityAsync();
+        }
+        catch (JSDisconnectedException) { /* circuit/page already gone */ }
+        _createDraftDotNetRef?.Dispose();
+    }
+
+    #region Create draft autosave
+    private CreateDocumentBatchDraftData CaptureCreateDraftData() => new()
+    {
+        ProvinceCode = _createProvinceCode,
+        MunicipalityCode = _createMunicipalityCode,
+        MilestoneYear = _createMilestoneYear,
+        DateReceived = _createDateReceived,
+        RecipientUserId = _createRecipientUserId,
+        Note = _createNote,
+        IsFinding = _createIsFinding,
+        FindingJustification = _createFindingJustification,
+        Rows = _createRows
+    };
+
+    private async Task StartWatchingCreateFormActivityAsync()
+    {
+        _createDraftDotNetRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            _createDraftWatchHandle = await JS.InvokeAsync<IJSObjectReference?>(
+                "draftInterop.watchFormActivity", _createDraftDotNetRef, "doctracking-create-form-root", CreateDraftDebounceMs);
+        }
+        catch { /* form still works without local draft autosave */ }
+    }
+
+    private async Task StopWatchingCreateFormActivityAsync()
+    {
+        if (_createDraftWatchHandle is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("draftInterop.unwatchFormActivity", _createDraftWatchHandle);
+            await _createDraftWatchHandle.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { /* circuit/page already gone */ }
+        _createDraftWatchHandle = null;
+    }
+
+    [JSInvokable]
+    public async Task OnCreateFormActivityDetected() => await AutosaveCreateDraftAsync();
+
+    private async Task AutosaveCreateDraftAsync()
+    {
+        if (_showCreateDraftBanner)
+            _showCreateDraftBanner = false;
+
+        try
+        {
+            var currentJson = JsonSerializer.Serialize(CaptureCreateDraftData());
+            if (currentJson == _createDraftBaselineJson || currentJson == _lastSavedCreateDraftJson)
+                return;
+
+            var envelope = new CreateDocumentBatchDraftEnvelope { SavedAt = DateTime.UtcNow, Data = CaptureCreateDraftData() };
+            await JS.InvokeVoidAsync("localStorage.setItem", CreateDraftKey, JsonSerializer.Serialize(envelope));
+
+            _lastSavedCreateDraftJson = currentJson;
+            _lastCreateDraftSavedAt = DateTime.Now;
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { /* best-effort background autosave */ }
+    }
+
+    private async Task CheckForCreateDraftAsync()
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", CreateDraftKey);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+
+            var envelope = JsonSerializer.Deserialize<CreateDocumentBatchDraftEnvelope>(raw);
+            if (envelope?.Data == null) return;
+
+            // Ignore a blank draft (e.g. the single empty starter row with
+            // nothing else filled in) — nothing worth offering to restore.
+            var hasContent = envelope.Data.ProvinceCode != 0 || envelope.Data.MunicipalityCode != 0 ||
+                envelope.Data.MilestoneYear != 0 || envelope.Data.RecipientUserId != Guid.Empty ||
+                !string.IsNullOrWhiteSpace(envelope.Data.Note) ||
+                envelope.Data.Rows.Any(r =>
+                    !string.IsNullOrWhiteSpace(r.FirstName) || !string.IsNullOrWhiteSpace(r.LastName) ||
+                    !string.IsNullOrWhiteSpace(r.MiddleName) || !string.IsNullOrWhiteSpace(r.Extension));
+            if (!hasContent) return;
+
+            _createDraftSavedAt = envelope.SavedAt;
+            _showCreateDraftBanner = true;
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", CreateDraftKey);
+        }
+    }
+
+    private async Task RestoreCreateDraftAsync()
+    {
+        try
+        {
+            var raw = await JS.InvokeAsync<string?>("localStorage.getItem", CreateDraftKey);
+            var envelope = string.IsNullOrWhiteSpace(raw) ? null : JsonSerializer.Deserialize<CreateDocumentBatchDraftEnvelope>(raw);
+            if (envelope?.Data == null)
+            {
+                _showCreateDraftBanner = false;
+                return;
+            }
+
+            _createProvinceCode = envelope.Data.ProvinceCode;
+            _createMunicipalityCode = envelope.Data.MunicipalityCode;
+            _createMilestoneYear = envelope.Data.MilestoneYear;
+            _createDateReceived = envelope.Data.DateReceived;
+            _createRecipientUserId = envelope.Data.RecipientUserId;
+            _createNote = envelope.Data.Note;
+            _createIsFinding = envelope.Data.IsFinding;
+            _createFindingJustification = envelope.Data.FindingJustification;
+            _createRows = envelope.Data.Rows.Any() ? envelope.Data.Rows : new() { new CreateDocumentGranteeRowDto() };
+            _showCreateDraftBanner = false;
+
+            // Re-hydrate the municipality dropdown for the restored province.
+            if (_createProvinceCode > 0)
+            {
+                _municipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+                    $"api/Municipality/by-province/{_createProvinceCode}") ?? new();
+            }
+
+            Toast.ShowSuccess("Draft restored.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to restore draft: {ex.Message}");
+        }
+    }
+
+    private async Task DiscardCreateDraftAsync()
+    {
+        await ClearCreateDraftAsync();
+        _showCreateDraftBanner = false;
+    }
+
+    private async Task ClearCreateDraftAsync()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.removeItem", CreateDraftKey); }
+        catch { /* best-effort */ }
+        _lastSavedCreateDraftJson = null;
+        _lastCreateDraftSavedAt = null;
+    }
+    #endregion
+
     private async Task LoadBatchesAsync()
     {
         _loading = true;
@@ -1051,7 +1284,7 @@
     };
 
     // ── Create batch ─────────────────────────────────────────────────────
-    private void OpenCreateModal()
+    private async Task OpenCreateModal()
     {
         _createProvinceCode = 0;
         _createMunicipalityCode = 0;
@@ -1067,14 +1300,21 @@
         _createReviewRows = new();
         _showCreateModal = true;
 
+        _createDraftBaselineJson = JsonSerializer.Serialize(CaptureCreateDraftData());
+        _lastSavedCreateDraftJson = null;
+        _lastCreateDraftSavedAt = null;
+        await CheckForCreateDraftAsync();
+        _pendingCreateDraftWatchSetup = true; // picked up in OnAfterRenderAsync, once the modal markup exists
+
         _ = LoadProvincesAsync();
     }
 
-    private void CloseCreateModal()
+    private async Task CloseCreateModal()
     {
         _showCreateModal = false;
         _showCreateDiscardConfirm = false;
         _createReviewMode = false;
+        await StopWatchingCreateFormActivityAsync();
     }
 
     private bool CreateFormIsDirty() =>
@@ -1091,17 +1331,23 @@
 
     // Mirrors the Sticky Notes discard-guard in PostFeed.razor — an accidental
     // click on the backdrop shouldn't silently throw away a half-filled batch.
-    private void RequestCloseCreateModal()
+    private async Task RequestCloseCreateModal()
     {
         if (CreateFormIsDirty())
             _showCreateDiscardConfirm = true;
         else
-            CloseCreateModal();
+            await CloseCreateModal();
     }
 
     private void CancelCreateDiscard() => _showCreateDiscardConfirm = false;
 
-    private void ConfirmCreateDiscard() => CloseCreateModal();
+    // Discarding the modal means abandoning the draft too — otherwise it'd
+    // just reappear as a "restore?" prompt the next time Create is opened.
+    private async Task ConfirmCreateDiscard()
+    {
+        await ClearCreateDraftAsync();
+        await CloseCreateModal();
+    }
 
     private async Task LoadProvincesAsync()
     {
@@ -1131,8 +1377,21 @@
         }
     }
 
-    private void AddCreateRow() => _createRows.Add(new CreateDocumentGranteeRowDto());
-    private void RemoveCreateRow(int index) => _createRows.RemoveAt(index);
+    // Adding/removing a row is a button click, not an 'input'/'change' event,
+    // so the JS activity watcher never sees it — nudge the draft save directly
+    // so removing a filled-in row (or adding one before typing in it) doesn't
+    // sit unsaved until the next keystroke elsewhere.
+    private void AddCreateRow()
+    {
+        _createRows.Add(new CreateDocumentGranteeRowDto());
+        _ = AutosaveCreateDraftAsync();
+    }
+
+    private void RemoveCreateRow(int index)
+    {
+        _createRows.RemoveAt(index);
+        _ = AutosaveCreateDraftAsync();
+    }
 
     // Validates and, if everything checks out, freezes a snapshot of the valid
     // rows for review — the Viewer gets one last read-only look (name, dates,
@@ -1208,6 +1467,8 @@
             if (response.IsSuccessStatusCode)
             {
                 Toast.ShowSuccess("Document batch created and endorsed.");
+                await ClearCreateDraftAsync();
+                await StopWatchingCreateFormActivityAsync();
                 _showCreateModal = false;
                 _createReviewMode = false;
                 await LoadBatchesAsync();

@@ -106,6 +106,7 @@
                             var isLive = _recentlyUpdatedUserNames.Contains(entry.UserName);
                             var isRankedUp = _rankedUpUserNames.Contains(entry.UserName);
                             var isRankedDown = _rankedDownUserNames.Contains(entry.UserName);
+                            var delta = _deltaByUserName.TryGetValue(entry.UserName, out var d) ? d : 0;
                             <div @key="entry.UserName" class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
                                  @onclick="() => GoToProfile(entry.UserId)">
                                 <span class="tier-row-sheen"></span>
@@ -115,6 +116,14 @@
                                 <span class="tier-row-particle tier-row-particle--4"></span>
                                 <span class="tier-row-particle tier-row-particle--5"></span>
                                 <span class="tier-row-particle tier-row-particle--6"></span>
+                                @if (isLive || isRankedUp)
+                                {
+                                    <span class="tier-bolt-flash"></span>
+                                }
+                                @if (delta > 0)
+                                {
+                                    <span class="tier-count-delta">+@delta</span>
+                                }
                                 <div class="tier-leaderboard-rank">
                                     @if (entry.Rank <= 3)
                                     {
@@ -1721,6 +1730,8 @@
     // gets its own distinct climb/drop effect instead of just the count glow.
     private HashSet<string> _rankedUpUserNames = new();
     private HashSet<string> _rankedDownUserNames = new();
+    // How much a row's count just went up by — drives the floating "+N" badge.
+    private Dictionary<string, int> _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
 
     private async Task ConnectTierRealtimeAsync()
     {
@@ -1744,11 +1755,16 @@
             var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var rankedUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var rankedDown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var deltas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in _leaderboard)
             {
                 var old = previous.FirstOrDefault(p => string.Equals(p.UserName, entry.UserName, StringComparison.OrdinalIgnoreCase));
                 if (old is null || old.TransactionCount != entry.TransactionCount)
+                {
                     changed.Add(entry.UserName);
+                    var delta = entry.TransactionCount - (old?.TransactionCount ?? 0);
+                    if (delta > 0) deltas[entry.UserName] = delta;
+                }
 
                 // Only flag an actual overtake — both users need to have been
                 // ranked before (a brand-new leaderboard entry isn't "overtaking"
@@ -1768,12 +1784,14 @@
             _recentlyUpdatedUserNames = changed;
             _rankedUpUserNames = rankedUp;
             _rankedDownUserNames = rankedDown;
+            _deltaByUserName = deltas;
             StateHasChanged();
 
             await Task.Delay(2800);
             _recentlyUpdatedUserNames = new();
             _rankedUpUserNames = new();
             _rankedDownUserNames = new();
+            _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
             await InvokeAsync(StateHasChanged);
         });
     }

@@ -8056,14 +8056,12 @@ body {
     .tier-leaderboard-row:hover { background: #f8fafc; }
     .tier-leaderboard-row--clickable { cursor: pointer; }
 
-    /* ── Frosted-glass backdrop + plain drifting particles across the WHOLE
-       row — a soft, static-but-tinted glass panel (no glow/blur halos) with
-       a handful of small dots quietly floating upward behind the avatar/
-       name/count. Each row's own --tier-c1/--tier-c2 (from the .tier-xxx
-       class already on the row) tints the glass, so it stays subtle and
-       matches that user's tier without drawing attention away from the
-       actual leaderboard content. Both layers sit at z-index:-1 inside this
-       positioned row, painting behind the content automatically. ───────── */
+    /* ── Calm, static tinted backdrop for the WHOLE row — no idle motion.
+       Each row's own --tier-c1/--tier-c2 (from the .tier-xxx class already
+       on the row) tints the glass, so it stays subtle and matches that
+       user's tier. The row only actually animates when something really
+       happens — a live count update or an overtake (below) — so motion
+       always means "look, this changed," never just ambient decoration. ── */
     .tier-row-sheen {
         position: absolute;
         inset: 0;
@@ -8073,39 +8071,22 @@ body {
             color-mix(in srgb, var(--tier-c2) 15%, white) 30%,
             color-mix(in srgb, var(--tier-c1) 15%, white) 55%,
             color-mix(in srgb, var(--tier-c2) 55%, white) 100%);
-        background-size: 260% 260%;
         opacity: 0.9;
-        animation: tierRowSheenSweep 8s ease-in-out infinite, tierStormFlicker 12s linear infinite;
         pointer-events: none;
     }
-    @keyframes tierRowSheenSweep {
-        0%   { background-position: 0% 20%; }
-        50%  { background-position: 100% 80%; }
-        100% { background-position: 0% 20%; }
+    /* Top-3 rows already carry a warmer gold/silver/bronze tint — let the
+       glass read a touch stronger there to match the extra polish. */
+    .tier-leaderboard-row--rank1 .tier-row-sheen,
+    .tier-leaderboard-row--rank2 .tier-row-sheen,
+    .tier-leaderboard-row--rank3 .tier-row-sheen {
+        opacity: 1;
     }
-    /* Distant-heat-lightning idle flicker — two quick brightness spikes deep
-       in an otherwise long, quiet cycle, so the whole leaderboard reads as a
-       calm storm sitting in the background rather than a static gradient.
-       Each row is staggered a different amount (below) so they don't all
-       flash in unison. */
-    @keyframes tierStormFlicker {
-        0%, 89%, 100% { filter: brightness(1) saturate(1); }
-        90% { filter: brightness(1.55) saturate(1.3); }
-        91% { filter: brightness(0.88) saturate(1); }
-        92.5% { filter: brightness(1.75) saturate(1.4); }
-        94% { filter: brightness(1) saturate(1); }
-    }
-    .tier-leaderboard-row:nth-child(1) .tier-row-sheen { animation-delay: 0s, 0s; }
-    .tier-leaderboard-row:nth-child(2) .tier-row-sheen { animation-delay: 0s, 1.6s; }
-    .tier-leaderboard-row:nth-child(3) .tier-row-sheen { animation-delay: 0s, 3.1s; }
-    .tier-leaderboard-row:nth-child(4) .tier-row-sheen { animation-delay: 0s, 4.7s; }
-    .tier-leaderboard-row:nth-child(5) .tier-row-sheen { animation-delay: 0s, 6.2s; }
-    .tier-leaderboard-row:nth-child(6) .tier-row-sheen { animation-delay: 0s, 7.8s; }
-    .tier-leaderboard-row:nth-child(7) .tier-row-sheen { animation-delay: 0s, 2.3s; }
-    .tier-leaderboard-row:nth-child(8) .tier-row-sheen { animation-delay: 0s, 5.4s; }
-    .tier-leaderboard-row:nth-child(9) .tier-row-sheen { animation-delay: 0s, 8.9s; }
-    .tier-leaderboard-row:nth-child(10) .tier-row-sheen { animation-delay: 0s, 0.9s; }
 
+    /* Small dots drifting slowly upward behind each row, like ash/embers
+       settling from a storm — quiet and constant, purely decorative (this is
+       the "cool card appearance" ambient layer, independent of whether
+       anything actually changed). When something DOES change, they switch to
+       a faster, brighter "spark burst" for a couple seconds instead. */
     .tier-row-particle {
         position: absolute;
         bottom: -6px;
@@ -8114,8 +8095,9 @@ body {
         border-radius: 50%;
         background: color-mix(in srgb, var(--tier-c2) 85%, black 5%);
         z-index: -1;
+        opacity: 0;
         pointer-events: none;
-        animation: tierRowParticleFloat 6.5s ease-in-out infinite;
+        animation: tierAshDrift 7s ease-in-out infinite;
     }
     .tier-row-particle--1 { left: 12%; animation-duration: 6.2s; animation-delay: 0s; }
     .tier-row-particle--2 { left: 26%; animation-duration: 7.4s; animation-delay: 0.9s; }
@@ -8123,18 +8105,92 @@ body {
     .tier-row-particle--4 { left: 61%; animation-duration: 7s;   animation-delay: 2.7s; }
     .tier-row-particle--5 { left: 78%; animation-duration: 6.6s; animation-delay: 1.3s; }
     .tier-row-particle--6 { left: 92%; animation-duration: 5.9s; animation-delay: 3.4s; }
+    @keyframes tierAshDrift {
+        0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+        20%  { opacity: 0.35; }
+        80%  { opacity: 0.2; }
+        100% { transform: translateY(-52px) scale(1); opacity: 0; }
+    }
     @keyframes tierRowParticleFloat {
         0%   { transform: translateY(0) scale(0.6); opacity: 0; }
         20%  { opacity: 0.85; }
         80%  { opacity: 0.55; }
         100% { transform: translateY(-52px) scale(1); opacity: 0; }
     }
-    /* Top-3 rows already carry a warmer gold/silver/bronze tint — let the
-       glass read a touch stronger there to match the extra polish. */
-    .tier-leaderboard-row--rank1 .tier-row-sheen,
-    .tier-leaderboard-row--rank2 .tier-row-sheen,
-    .tier-leaderboard-row--rank3 .tier-row-sheen {
-        opacity: 1;
+    .tier-leaderboard-row--live .tier-row-particle,
+    .tier-leaderboard-row--rank-up .tier-row-particle {
+        animation: tierRowParticleFloat 1.6s ease-out 1;
+    }
+    .tier-leaderboard-row--live .tier-row-particle--1,
+    .tier-leaderboard-row--rank-up .tier-row-particle--1 { animation-delay: 0s; }
+    .tier-leaderboard-row--live .tier-row-particle--2,
+    .tier-leaderboard-row--rank-up .tier-row-particle--2 { animation-delay: 0.08s; }
+    .tier-leaderboard-row--live .tier-row-particle--3,
+    .tier-leaderboard-row--rank-up .tier-row-particle--3 { animation-delay: 0.16s; }
+    .tier-leaderboard-row--live .tier-row-particle--4,
+    .tier-leaderboard-row--rank-up .tier-row-particle--4 { animation-delay: 0.04s; }
+    .tier-leaderboard-row--live .tier-row-particle--5,
+    .tier-leaderboard-row--rank-up .tier-row-particle--5 { animation-delay: 0.2s; }
+    .tier-leaderboard-row--live .tier-row-particle--6,
+    .tier-leaderboard-row--rank-up .tier-row-particle--6 { animation-delay: 0.12s; }
+
+    /* ── Thunder bolt flash — a small lightning-bolt glyph that strikes near
+       the count the instant a row updates, distinct from (and more literal
+       than) the ambient glow. Built from a clipped div, no image asset. ── */
+    .tier-bolt-flash {
+        position: absolute;
+        top: 50%;
+        right: 44px;
+        width: 14px;
+        height: 22px;
+        transform: translateY(-50%) scale(0.4);
+        clip-path: polygon(60% 0%, 5% 55%, 45% 55%, 35% 100%, 95% 40%, 55% 40%);
+        background: linear-gradient(180deg, #fef9c3, #7dd3fc 60%, #818cf8);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 3;
+        filter: drop-shadow(0 0 6px rgba(125,211,252,0.9));
+        animation: tierBoltFlash 1.1s ease-out 1;
+    }
+    .tier-leaderboard-row--rank-up .tier-bolt-flash {
+        width: 20px;
+        height: 32px;
+        background: linear-gradient(180deg, #fff9db, #facc15 55%, #f59e0b);
+        filter: drop-shadow(0 0 10px rgba(250,204,21,0.95));
+        animation: tierBoltFlash 1.3s ease-out 1;
+    }
+    @keyframes tierBoltFlash {
+        0%   { opacity: 0; transform: translateY(-50%) scale(0.3) rotate(-6deg); }
+        12%  { opacity: 1; transform: translateY(-50%) scale(1.15) rotate(-6deg); }
+        20%  { opacity: 0.5; }
+        28%  { opacity: 1; }
+        45%  { opacity: 0.85; transform: translateY(-50%) scale(1) rotate(-6deg); }
+        100% { opacity: 0; transform: translateY(-50%) scale(0.9) rotate(-6deg); }
+    }
+
+    /* ── "+N" score popup — floats up from the count and fades, like a hit
+       counter, so a change reads as an instant, legible number, not just a
+       color pulse. ─────────────────────────────────────────────────────── */
+    /* Short travel distance, deliberately — the row clips its own overflow
+       (keeps the ambient ash particles contained), so the float-up can't
+       leave the row's box without getting cut off mid-animation. */
+    .tier-count-delta {
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #22c55e;
+        text-shadow: 0 0 8px rgba(34,197,94,0.6), 0 1px 0 rgba(0,0,0,0.1);
+        pointer-events: none;
+        z-index: 3;
+        animation: tierDeltaFloat 1.8s ease-out 1;
+    }
+    @keyframes tierDeltaFloat {
+        0%   { opacity: 0; transform: translateY(6px) scale(0.8); }
+        15%  { opacity: 1; transform: translateY(0) scale(1.2); }
+        35%  { transform: translateY(-3px) scale(1); }
+        100% { opacity: 0; transform: translateY(-11px) scale(1); }
     }
 
     /* ── Live update pulse — briefly plays when a SignalR "TransactionRecorded"

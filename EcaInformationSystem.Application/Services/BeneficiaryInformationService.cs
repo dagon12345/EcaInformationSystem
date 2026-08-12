@@ -319,7 +319,7 @@ namespace EcaInformationSystem.Application.Services
             // ✅ TITLE HEADER (ROW 1–9)
             // =========================
 
-            int colCount = 21; // total columns in your sheet
+            int colCount = 22; // total columns in your sheet
 
             void AddCenteredTitle(int row, string text)
             {
@@ -359,7 +359,8 @@ namespace EcaInformationSystem.Application.Services
                 CommonConstants.BirthDay, CommonConstants.BirthYear, CommonConstants.Age,
                 CommonConstants.Sex, CommonConstants.Region, CommonConstants.Province,
                 CommonConstants.Municipality, CommonConstants.Barangay, CommonConstants.ComplianceToDocumentaryRequirements,
-                CommonConstants.NameOfValidator, CommonConstants.ValidationDate, CommonConstants.Remarks
+                CommonConstants.NameOfValidator, CommonConstants.ValidationDate, CommonConstants.Remarks,
+                CommonConstants.ContactNumber
             };
 
             for (int col = 1; col <= headers.Length; col++)
@@ -368,7 +369,7 @@ namespace EcaInformationSystem.Application.Services
             }
 
             // STYLE HEADER
-            var headerRange = ws.Range(headerRow, 1, headerRow, 21);
+            var headerRange = ws.Range(headerRow, 1, headerRow, colCount);
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Font.FontColor = XLColor.White;
             headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
@@ -381,7 +382,7 @@ namespace EcaInformationSystem.Application.Services
                 ws,
                 anchorRow: 1,      // anchor to row 1 (title rows are 1-4)
                 leftCol: 1,      // col A — left edge
-                rightCol: 21,     // col U — right edge (your last column)
+                rightCol: colCount,     // right edge (last column)
                 widthPx: 60,
                 heightPx: 60,
                 offsetLeft: 4,
@@ -439,14 +440,22 @@ namespace EcaInformationSystem.Application.Services
                 ws.Cell(row, 20).Value = item.ValidationDate.ToDefaultFormat();
                 ws.Cell(row, 21).Value = item.Remarks?.ToUpperInvariant();
 
-                ws.Range(row, 1, row, 21)
+                // Mobile number — "N/A" when the grantee has none on file, same
+                // fallback convention the grid itself uses elsewhere.
+                var mobileNumbers = item.PhoneNumbers?
+                    .Where(n => !string.IsNullOrWhiteSpace(n.Number))
+                    .Select(n => n.Number)
+                    .ToList() ?? new List<string>();
+                ws.Cell(row, 22).Value = mobileNumbers.Any() ? string.Join(", ", mobileNumbers) : "N/A";
+
+                ws.Range(row, 1, row, colCount)
                     .Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
                 row++;
             }
             // ✅ ADD HERE — border entire used range
-            ws.Range(11, 1, row - 1, 21).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            ws.Range(11, 1, row - 1, 21).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            ws.Range(11, 1, row - 1, colCount).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            ws.Range(11, 1, row - 1, colCount).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             // =========================
             // ✅ AUTO FORMAT
@@ -457,7 +466,7 @@ namespace EcaInformationSystem.Application.Services
             ws.SheetView.FreezeRows(10);
 
             // Auto filter
-            ws.Range(headerRow, 1, headerRow, 21).SetAutoFilter();
+            ws.Range(headerRow, 1, headerRow, colCount).SetAutoFilter();
             // =========================
             // ✅ SIGNATURE BLOCK
             // =========================
