@@ -8075,7 +8075,7 @@ body {
             color-mix(in srgb, var(--tier-c2) 55%, white) 100%);
         background-size: 260% 260%;
         opacity: 0.9;
-        animation: tierRowSheenSweep 8s ease-in-out infinite;
+        animation: tierRowSheenSweep 8s ease-in-out infinite, tierStormFlicker 12s linear infinite;
         pointer-events: none;
     }
     @keyframes tierRowSheenSweep {
@@ -8083,6 +8083,28 @@ body {
         50%  { background-position: 100% 80%; }
         100% { background-position: 0% 20%; }
     }
+    /* Distant-heat-lightning idle flicker — two quick brightness spikes deep
+       in an otherwise long, quiet cycle, so the whole leaderboard reads as a
+       calm storm sitting in the background rather than a static gradient.
+       Each row is staggered a different amount (below) so they don't all
+       flash in unison. */
+    @keyframes tierStormFlicker {
+        0%, 89%, 100% { filter: brightness(1) saturate(1); }
+        90% { filter: brightness(1.55) saturate(1.3); }
+        91% { filter: brightness(0.88) saturate(1); }
+        92.5% { filter: brightness(1.75) saturate(1.4); }
+        94% { filter: brightness(1) saturate(1); }
+    }
+    .tier-leaderboard-row:nth-child(1) .tier-row-sheen { animation-delay: 0s, 0s; }
+    .tier-leaderboard-row:nth-child(2) .tier-row-sheen { animation-delay: 0s, 1.6s; }
+    .tier-leaderboard-row:nth-child(3) .tier-row-sheen { animation-delay: 0s, 3.1s; }
+    .tier-leaderboard-row:nth-child(4) .tier-row-sheen { animation-delay: 0s, 4.7s; }
+    .tier-leaderboard-row:nth-child(5) .tier-row-sheen { animation-delay: 0s, 6.2s; }
+    .tier-leaderboard-row:nth-child(6) .tier-row-sheen { animation-delay: 0s, 7.8s; }
+    .tier-leaderboard-row:nth-child(7) .tier-row-sheen { animation-delay: 0s, 2.3s; }
+    .tier-leaderboard-row:nth-child(8) .tier-row-sheen { animation-delay: 0s, 5.4s; }
+    .tier-leaderboard-row:nth-child(9) .tier-row-sheen { animation-delay: 0s, 8.9s; }
+    .tier-leaderboard-row:nth-child(10) .tier-row-sheen { animation-delay: 0s, 0.9s; }
 
     .tier-row-particle {
         position: absolute;
@@ -8116,19 +8138,26 @@ body {
     }
 
     /* ── Live update pulse — briefly plays when a SignalR "TransactionRecorded"
-       push causes this row's count to change, so the leaderboard visibly reacts
-       in real time instead of silently re-sorting. ────────────────────────── */
+       push causes this row's count to change. Reads as a jolt of static
+       electricity rather than a plain fade: a flicker sequence (bright, dip,
+       brighter, dip, settle) instead of one smooth ease, in a cool storm-blue/
+       violet rather than the row's own warm tier color, so it's unmistakably
+       "something just happened" and not confused with the permanent tier tint. */
     .tier-leaderboard-row--live {
-        animation: tierLiveRowSweep 2.2s ease-out;
+        animation: tierElectricPulse 1.9s ease-out;
     }
-    @keyframes tierLiveRowSweep {
+    @keyframes tierElectricPulse {
         0% {
-            background: linear-gradient(90deg, color-mix(in srgb, var(--tier-c1) 45%, white), color-mix(in srgb, var(--tier-c2) 30%, white));
-            box-shadow: 0 0 0 1.5px var(--tier-c2), 0 4px 14px color-mix(in srgb, var(--tier-c2) 35%, transparent);
+            background: linear-gradient(100deg, rgba(125,211,252,0.55), rgba(129,140,248,0.35) 45%, rgba(125,211,252,0.5));
+            box-shadow: 0 0 0 1.5px rgba(191,203,255,0.9), 0 0 22px 2px rgba(129,140,248,0.55);
         }
-        70% {
-            background: color-mix(in srgb, var(--tier-c1) 10%, white);
-            box-shadow: 0 0 0 1px color-mix(in srgb, var(--tier-c2) 40%, transparent);
+        8%  { box-shadow: 0 0 0 1px rgba(191,203,255,0.25), 0 0 4px rgba(129,140,248,0.15); }
+        14% { box-shadow: 0 0 0 2px rgba(224,231,255,1), 0 0 26px 5px rgba(129,140,248,0.7); }
+        22% { box-shadow: 0 0 0 1px rgba(191,203,255,0.2), 0 0 6px rgba(129,140,248,0.2); }
+        30% { box-shadow: 0 0 0 1.5px rgba(224,231,255,0.85), 0 0 18px 3px rgba(129,140,248,0.5); }
+        78% {
+            background: color-mix(in srgb, var(--tier-c1) 8%, transparent);
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--tier-c2) 25%, transparent);
         }
         100% {
             background: transparent;
@@ -8137,7 +8166,7 @@ body {
     }
 
     .tier-leaderboard-name--live {
-        background: linear-gradient(90deg, var(--tier-c2), var(--tier-c1), var(--tier-c2));
+        background: linear-gradient(90deg, #818cf8, #7dd3fc, #818cf8);
         background-size: 200% auto;
         -webkit-background-clip: text;
         background-clip: text;
@@ -8150,19 +8179,25 @@ body {
     }
 
     .tier-leaderboard-live-icon {
-        color: #f59e0b;
+        color: #7dd3fc;
         font-size: 11px;
         margin-left: 4px;
-        animation: tierLiveIconPulse 0.9s ease-in-out infinite;
-        -webkit-text-fill-color: #f59e0b; /* undo the text-gradient clip on the sibling name span */
+        animation: tierBoltIconFlicker 0.9s ease-in-out infinite;
+        -webkit-text-fill-color: #7dd3fc; /* undo the text-gradient clip on the sibling name span */
+        text-shadow: 0 0 6px rgba(125,211,252,0.9), 0 0 14px rgba(129,140,248,0.6);
     }
-    @keyframes tierLiveIconPulse {
-        0%, 100% { opacity: 0.4; transform: scale(0.9); }
-        50% { opacity: 1; transform: scale(1.15); }
+    /* Irregular flicker (bulb-under-strain rhythm) instead of a smooth pulse
+       — matches the electric-pulse row animation's flicker cadence. */
+    @keyframes tierBoltIconFlicker {
+        0%, 19%, 100% { opacity: 1; transform: scale(1); }
+        20% { opacity: 0.3; transform: scale(0.85); }
+        45% { opacity: 0.7; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.2); }
     }
 
     .tier-leaderboard-count--live {
-        color: var(--tier-c2);
+        color: #6366f1;
+        text-shadow: 0 0 10px rgba(129,140,248,0.5);
         animation: tierLiveCountPop 0.5s ease-out;
     }
     @keyframes tierLiveCountPop {
@@ -8200,7 +8235,8 @@ body {
         font-size: 10px !important;
     }
     .tier-leaderboard-rank-arrow--up {
-        color: #16a34a !important;
+        color: #facc15 !important;
+        text-shadow: 0 0 3px #fff, 0 0 9px rgba(250,204,21,0.9);
         animation: tierRankArrowUpBounce 1.4s ease-in-out 2;
     }
     .tier-leaderboard-rank-arrow--down {
@@ -8216,22 +8252,56 @@ body {
         50% { transform: translateY(3px); opacity: 0.8; }
     }
 
+    /* ── Overtake — "lightning strike": a genuinely bigger moment than a
+       routine count bump, since it means this person just passed someone
+       else. A hot white-violet flash slams in with a quick jitter (impact),
+       a diagonal bolt-shaped streak sweeps once across the row, then it
+       settles into a gold afterglow that fades out — distant-thunder blue
+       for "updated", electric gold strike for "overtook". ───────────────── */
     .tier-leaderboard-row--rank-up {
-        animation: tierRankUpSweep 2.8s ease-out;
+        animation: tierStrikeImpact 2.6s cubic-bezier(.18,.85,.22,1);
     }
-    @keyframes tierRankUpSweep {
+    .tier-leaderboard-row--rank-up::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.95) 49%, rgba(224,231,255,0.85) 53%, transparent 60%);
+        background-size: 260% 260%;
+        opacity: 0;
+        animation: tierBoltSweep 2.6s ease-out;
+    }
+    @keyframes tierStrikeImpact {
         0% {
-            background: linear-gradient(90deg, rgba(22,163,74,0.25), transparent);
-            box-shadow: inset 0 0 0 1.5px rgba(22,163,74,0.5);
+            background: radial-gradient(circle at 12% 50%, rgba(255,255,255,0.95), rgba(129,140,248,0.55) 40%, transparent 75%);
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 34px 6px rgba(129,140,248,0.75);
             transform: translateX(0);
         }
-        15% { transform: translateX(3px); }
-        30% { transform: translateX(0); }
+        3%  { transform: translateX(-2px); }
+        6%  { transform: translateX(2px); }
+        9%  { transform: translateX(-1px); }
+        12% {
+            transform: translateX(0);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.35), 0 0 10px rgba(129,140,248,0.3);
+        }
+        20% { box-shadow: 0 0 0 2px rgba(255,255,255,0.8), 0 0 28px 5px rgba(129,140,248,0.6); }
+        38% {
+            background: linear-gradient(90deg, rgba(250,204,21,0.32), transparent);
+            box-shadow: inset 0 0 0 1.5px rgba(250,204,21,0.65), 0 0 16px rgba(250,204,21,0.35);
+        }
         100% {
             background: transparent;
             box-shadow: none;
         }
     }
+    @keyframes tierBoltSweep {
+        0%   { background-position: 0% 0%; opacity: 0; }
+        7%   { opacity: 1; }
+        18%  { background-position: 100% 100%; opacity: 0; }
+        100% { opacity: 0; }
+    }
+
     .tier-leaderboard-row--rank-down {
         animation: tierRankDownFade 2.8s ease-out;
     }

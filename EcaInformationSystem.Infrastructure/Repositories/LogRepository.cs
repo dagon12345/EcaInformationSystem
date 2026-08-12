@@ -157,8 +157,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // update, bulk CO status update, and CGP number assignment (payroll
         // generation — also excluded defensively even though it's logged
         // under the non-real "System (Payroll Generation)" username).
+        // Leaderboard counting only looks at activity from this date onward —
+        // requested so the brand-new leaderboard/tier feature doesn't hand
+        // an unfair head start to whoever happened to make the most edits
+        // (including this feature's own testing) before it existed.
+        private static readonly DateTime TransactionCountingStartUtc = new(2026, 8, 12, 0, 0, 0, DateTimeKind.Utc);
+
         private IQueryable<Log> TransactionLogsQuery() =>
             _context.Logs.AsNoTracking().Where(l =>
+                l.CreatedAt >= TransactionCountingStartUtc &&
                 !l.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
                 !l.Activity.StartsWith(CommonConstants.ExcelUpdate) &&
                 !l.Activity.StartsWith("New payment record") &&

@@ -106,7 +106,7 @@
                             var isLive = _recentlyUpdatedUserNames.Contains(entry.UserName);
                             var isRankedUp = _rankedUpUserNames.Contains(entry.UserName);
                             var isRankedDown = _rankedDownUserNames.Contains(entry.UserName);
-                            <div class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
+                            <div @key="entry.UserName" class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
                                  @onclick="() => GoToProfile(entry.UserId)">
                                 <span class="tier-row-sheen"></span>
                                 <span class="tier-row-particle tier-row-particle--1"></span>

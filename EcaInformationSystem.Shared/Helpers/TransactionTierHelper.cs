@@ -8,17 +8,22 @@ namespace EcaInformationSystem.Shared.Helpers
     {
         public record TierDefinition(int Level, string Name, int MinCount);
 
+        // Thresholds lowered ~10-20% from their original values (25/250/1000/
+        // 5000/15000/25000/35000/50000) — the leaderboard's count now restarts
+        // from 2026-08-12 (see LogRepository.TransactionCountingStartUtc), so
+        // the old thresholds — tuned against months of accumulated history —
+        // would otherwise be unreachable for a long while under the fresh count.
         public static readonly List<TierDefinition> Tiers = new()
         {
             new(1, "Rookie",   0),
-            new(2, "Bronze",   25),
-            new(3, "Silver",   250),
-            new(4, "Gold",     1000),
-            new(5, "Platinum", 5000),
-            new(6, "Diamond",  15000),
-            new(7, "Master",   25000),
-            new(8, "Legend",   35000),
-            new(9, "God Tier", 50000),
+            new(2, "Bronze",   20),
+            new(3, "Silver",   220),
+            new(4, "Gold",     900),
+            new(5, "Platinum", 4500),
+            new(6, "Diamond",  13000),
+            new(7, "Master",   22000),
+            new(8, "Legend",   30000),
+            new(9, "God Tier", 45000),
         };
 
         public static TierDefinition GetCurrentTier(int transactionCount) =>

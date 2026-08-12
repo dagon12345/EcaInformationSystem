@@ -3358,11 +3358,69 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(b => b.BirthDate > start && b.BirthDate <= end);
             }
 
+            // ── Birthday (month + day only, year ignored) ─────────────────────────
+            // ⚠️ Was missing entirely from this method — BirthdayFrom/BirthdayTo were
+            // silently ignored by every screen that goes through BuildNarrowFilterQuery
+            // (GetPagedListAsync/CountMatchingAsync — the main grid), while the sibling
+            // BuildBeneficiaryFilteredQuery had the correct implementation all along.
+            // Ported from there verbatim (same MMDD-integer wrap-around handling).
             if (filter.SpecificBirthday.HasValue)
             {
                 var month = filter.SpecificBirthday.Value.Month;
                 var day = filter.SpecificBirthday.Value.Day;
                 query = query.Where(b => b.BirthDate.Month == month && b.BirthDate.Day == day);
+            }
+            else
+            {
+                bool hasFrom = filter.BirthdayFrom.HasValue;
+                bool hasTo = filter.BirthdayTo.HasValue;
+
+                if (hasFrom && hasTo)
+                {
+                    var fromMonth = filter.BirthdayFrom!.Value.Month;
+                    var fromDay = filter.BirthdayFrom!.Value.Day;
+                    var toMonth = filter.BirthdayTo!.Value.Month;
+                    var toDay = filter.BirthdayTo!.Value.Day;
+
+                    // MMDD integer for easy comparison e.g. March 5 = 305
+                    int fromMD = fromMonth * 100 + fromDay;
+                    int toMD = toMonth * 100 + toDay;
+
+                    bool isWrap = fromMD > toMD; // e.g. Nov(1101) → Feb(228)
+
+                    if (!isWrap)
+                    {
+                        // Normal range e.g. March 1 → August 31
+                        query = query.Where(b =>
+                            (b.BirthDate.Month * 100 + b.BirthDate.Day) >= fromMD &&
+                            (b.BirthDate.Month * 100 + b.BirthDate.Day) <= toMD);
+                    }
+                    else
+                    {
+                        // Wrap range e.g. Nov 1 → Feb 28
+                        query = query.Where(b =>
+                            (b.BirthDate.Month * 100 + b.BirthDate.Day) >= fromMD ||
+                            (b.BirthDate.Month * 100 + b.BirthDate.Day) <= toMD);
+                    }
+                }
+                else if (hasFrom)
+                {
+                    var fromMonth = filter.BirthdayFrom!.Value.Month;
+                    var fromDay = filter.BirthdayFrom!.Value.Day;
+                    int fromMD = fromMonth * 100 + fromDay;
+
+                    query = query.Where(b =>
+                        (b.BirthDate.Month * 100 + b.BirthDate.Day) >= fromMD);
+                }
+                else if (hasTo)
+                {
+                    var toMonth = filter.BirthdayTo!.Value.Month;
+                    var toDay = filter.BirthdayTo!.Value.Day;
+                    int toMD = toMonth * 100 + toDay;
+
+                    query = query.Where(b =>
+                        (b.BirthDate.Month * 100 + b.BirthDate.Day) <= toMD);
+                }
             }
 
             if (filter.MilestoneYear.HasValue)

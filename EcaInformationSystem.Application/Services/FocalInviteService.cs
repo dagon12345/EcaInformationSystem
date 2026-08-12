@@ -162,7 +162,12 @@ namespace EcaInformationSystem.Application.Services
                 Id = Guid.NewGuid(),
                 FullName = invite.FullName,
                 Position = "Provincial Focal",
-                BirthDate = DateTime.UtcNow.Date, // not meaningful for a call-only account
+                // default(DateTime) — the "never set" sentinel UserProfileService.
+                // GetUpcomingBirthdaysAsync already checks for (BirthDate == default)
+                // and skips it. Using today's date here (as a prior version did)
+                // meant every freshly-accepted Focal falsely showed up as "birthday
+                // today" on the feed the moment they registered.
+                BirthDate = default,
                 Region = null,
                 UserName = request.UserName,
                 IsActivated = true,
