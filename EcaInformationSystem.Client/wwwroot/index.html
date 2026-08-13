@@ -261,6 +261,18 @@
             return URL.createObjectURL(blob);
         };
 
+        // Faster path for PreviewAsync — takes a .NET stream reference instead of
+        // a base64 string, so the bytes arrive as a binary ArrayBuffer directly
+        // (Blazor's built-in stream interop) rather than paying for a
+        // Convert.ToBase64String on the C# side (+33% payload) followed by a
+        // synchronous atob/charCodeAt loop here that blocks the main thread and
+        // visibly stalls large PDFs.
+        window.createPdfBlobUrlFromStream = async function (streamRef) {
+            const arrayBuffer = await streamRef.arrayBuffer();
+            const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+            return URL.createObjectURL(blob);
+        };
+
         window.webcamInterop = {
             stream: null,
             async start(videoElementId) {

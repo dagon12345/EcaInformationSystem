@@ -42,7 +42,7 @@ namespace EcaInformationSystem.Application.Services
 
         public async Task<List<FormDocumentDto>> GetAllAsync()
         {
-            var docs = await _repo.GetAllAsync();
+            var docs = await _repo.GetAllForListingAsync();
             return docs.OrderByDescending(d => d.UploadedAt).Select(ToDto).ToList();
         }
 
@@ -51,7 +51,7 @@ namespace EcaInformationSystem.Application.Services
         // hundreds; revisit with a proper SQL LIKE/full-text index if this grows.
         public async Task<List<FormDocumentDto>> SearchAsync(FormDocumentSearchDto filter)
         {
-            var docs = await _repo.GetAllAsync();
+            var docs = await _repo.GetAllForListingAsync();
 
             IEnumerable<FormDocument> query = docs;
 

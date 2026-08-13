@@ -29,6 +29,33 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(x => !x.IsDeleted)
                 .ToListAsync();
 
+        // Listing/search only need metadata — projecting the columns explicitly
+        // (rather than .Include(x => x.Folder) on the full entity) keeps the
+        // multi-MB FileData column out of the query entirely, instead of
+        // fetching every file's bytes from the DB just to show a title.
+        public async Task<List<FormDocument>> GetAllForListingAsync()
+            => await _context.FormDocuments
+                .AsNoTracking()
+                .Where(x => !x.IsDeleted)
+                .Select(x => new FormDocument
+                {
+                    Id = x.Id,
+                    FolderId = x.FolderId,
+                    Folder = x.Folder,
+                    Title = x.Title,
+                    Description = x.Description,
+                    Category = x.Category,
+                    OriginalFileName = x.OriginalFileName,
+                    ContentType = x.ContentType,
+                    FileSizeBytes = x.FileSizeBytes,
+                    UploadedBy = x.UploadedBy,
+                    UploadedAt = x.UploadedAt,
+                    UpdatedBy = x.UpdatedBy,
+                    UpdatedAt = x.UpdatedAt,
+                    IsDeleted = x.IsDeleted
+                })
+                .ToListAsync();
+
         public Task UpdateAsync(FormDocument doc)
         {
             _context.FormDocuments.Update(doc);

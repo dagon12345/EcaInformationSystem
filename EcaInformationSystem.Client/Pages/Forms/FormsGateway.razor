@@ -23,8 +23,8 @@
             }
         </div>
 
-        <div class="forms-folder-item @(_selectedFolderId == null && !_uncategorizedOnly ? "active" : "")"
-             @onclick="() => SelectFolder(null, false)">
+        <div class="forms-folder-item @(_viewAllForms ? "active" : "")"
+             @onclick="SelectAllForms">
             <span class="forms-folder-toggle-spacer"></span>
             <i class="bi bi-collection forms-folder-icon"></i>
             <span class="forms-folder-name">All Forms</span>
@@ -196,11 +196,19 @@
             </button>
         </div>
 
-        @* ── Subfolder tiles — browse into a subfolder rather than seeing its files mixed in here ── *@
-        @if (_selectedFolderId.HasValue && SubfoldersOf(_selectedFolderId.Value).Any())
+        @* ── Subfolder tiles — browse into a subfolder rather than seeing its files mixed in here.
+             At the root (nothing selected, not searching), this browses the top-level folders instead
+             of dumping every form in the system onto the page. ── *@
+        @{
+            var tileFolders = _selectedFolderId.HasValue ? SubfoldersOf(_selectedFolderId.Value) : RootFolders;
+            var showTiles = _selectedFolderId.HasValue
+                ? !_uncategorizedOnly
+                : IsRootBrowse;
+        }
+        @if (showTiles && tileFolders.Any())
         {
             <div class="forms-subfolder-tiles mb-3">
-                @foreach (var sub in SubfoldersOf(_selectedFolderId.Value))
+                @foreach (var sub in tileFolders)
                 {
                     var subSubfolderTotal = GetTotalSubfolderCount(sub.Id);
                     var subFileTotal = GetTotalFileCount(sub.Id);
@@ -225,7 +233,17 @@
             </div>
         }
 
-        @if (_isLoading)
+        @if (IsRootBrowse)
+        {
+            @if (!tileFolders.Any())
+            {
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-folder2-open" style="font-size:28px;"></i>
+                    <p class="mt-2 mb-0">No folders yet — create one, or search across all forms above.</p>
+                </div>
+            }
+        }
+        else if (_isLoading)
         {
             <div class="text-center py-4">
                 <span class="spinner-border text-primary"></span>
@@ -676,8 +694,17 @@
 
     private Guid? _selectedFolderId = null;
     private bool _uncategorizedOnly = false;
+    // True only once the user explicitly clicks "All Forms" — the initial/root
+    // landing state (all three flags false) instead browses root folder tiles,
+    // so navigating here doesn't dump every form in the system onto the page.
+    private bool _viewAllForms = false;
     private int _allCount = 0;
     private int _uncategorizedCount = 0;
+
+    // Root-level "browse folders" view: nothing selected, not searching. Shows
+    // folder tiles instead of a flat list of every form.
+    private bool IsRootBrowse => _selectedFolderId == null && !_uncategorizedOnly
+        && !_viewAllForms && string.IsNullOrWhiteSpace(_searchTerm);
 
     private string _searchTerm = string.Empty;
     private System.Threading.CancellationTokenSource? _searchDebounceCts;
@@ -825,10 +852,13 @@
         StateHasChanged();
     }
 
-    private async Task SelectFolder(Guid? folderId, bool uncategorized)
+    private Task SelectAllForms() => SelectFolder(null, false, viewAll: true);
+
+    private async Task SelectFolder(Guid? folderId, bool uncategorized, bool viewAll = false)
     {
         _selectedFolderId = folderId;
         _uncategorizedOnly = uncategorized;
+        _viewAllForms = viewAll;
 
         if (folderId.HasValue)
         {
@@ -864,7 +894,8 @@
     private string GetCurrentFolderLabel()
     {
         if (_uncategorizedOnly) return "Uncategorized forms";
-        if (_selectedFolderId == null) return $"All forms ({_allCount})";
+        if (_viewAllForms) return $"All forms ({_allCount})";
+        if (_selectedFolderId == null) return "Browse a folder below, or search across all forms.";
         var f = _folders.FirstOrDefault(x => x.Id == _selectedFolderId);
         return f != null ? $"Folder: {f.Name}" : "Forms";
     }
@@ -1374,8 +1405,11 @@
             _previewZoom = 100;
             StateHasChanged();
 
-            var base64 = Convert.ToBase64String(result.Value.Data);
-            _previewBlobUrl = await JS.InvokeAsync<string>("createPdfBlobUrl", base64);
+            // DotNetStreamReference hands the bytes to JS as a binary stream
+            // instead of round-tripping through a base64 string — see
+            // createPdfBlobUrlFromStream in index.html for why that matters.
+            using var streamRef = new DotNetStreamReference(new MemoryStream(result.Value.Data));
+            _previewBlobUrl = await JS.InvokeAsync<string>("createPdfBlobUrlFromStream", streamRef);
         }
         catch (Exception ex)
         {
