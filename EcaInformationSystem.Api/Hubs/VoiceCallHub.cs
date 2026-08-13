@@ -27,6 +27,9 @@ namespace EcaInformationSystem.Api.Hubs
         {
             var (userId, name) = GetCurrentUser();
 
+            if (targetUserId == userId)
+                throw new HubException("You cannot call yourself.");
+
             if (!_tracker.IsOnline(targetUserId))
                 throw new HubException("That user is offline.");
 

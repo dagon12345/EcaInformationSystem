@@ -28,16 +28,20 @@
         <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
         <span class="nav-label">My Call Log</span>
     </NavLink>
+    <NavLink class="nav-item" href="focal-profile">
+        <span class="nav-icon"><i class="bi bi-person-circle"></i></span>
+        <span class="nav-label">My Profile</span>
+    </NavLink>
 </nav>
 
 <div class="sidebar-footer">
-    <div class="user-card">
+    <button type="button" class="user-card user-card--link" @onclick="GoToProfile" title="View your profile">
         <div class="avatar">@GetInitials(UserName)</div>
         <div class="user-info">
             <div class="user-name">@UserName</div>
             <div class="user-role">Provincial Focal</div>
         </div>
-    </div>
+    </button>
     <button class="toggle-btn" @onclick="OnToggle">
         <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
         <span>@(Collapsed ? "Expand" : "Collapse")</span>
@@ -48,6 +52,9 @@
     [Parameter] public EventCallback OnToggle { get; set; }
     [Parameter] public bool Collapsed { get; set; }
     [Parameter] public string UserName { get; set; } = "Focal";
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private void GoToProfile() => Navigation.NavigateTo("/focal-profile");
 
     private static string GetInitials(string name)
     {

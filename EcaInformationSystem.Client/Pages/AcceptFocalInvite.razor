@@ -34,12 +34,20 @@
                 <input class="form-control" value="@string.Join(", ", _preview.ProvinceNames)" disabled />
             </div>
             <div class="mb-2">
-                <label class="form-label small fw-bold">Choose a username</label>
-                <input class="form-control" @bind="_userName" maxlength="100" />
+                <label class="form-label small fw-bold">Email address (this is your username)</label>
+                <input type="email" class="form-control" @bind="_userName" @bind:event="oninput"
+                       maxlength="100" placeholder="you@example.com" />
+                <div class="form-text">
+                    Used to sign in and lets your PDO/admin identify your account at a glance — only a real email is accepted.
+                </div>
             </div>
             <div class="mb-2">
                 <label class="form-label small fw-bold">Choose a password</label>
-                <input type="password" class="form-control" @bind="_password" />
+                <input type="password" class="form-control" @bind="_password" @bind:event="oninput" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small fw-bold">Confirm password</label>
+                <input type="password" class="form-control" @bind="_confirmPassword" @bind:event="oninput" />
             </div>
 
             @if (!string.IsNullOrWhiteSpace(_error))
@@ -62,8 +70,14 @@
 
     private string _userName = string.Empty;
     private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
     private string? _error;
     private bool _isSubmitting;
+
+    // Simple shape check — the server re-validates with System.Net.Mail.MailAddress
+    // as the authoritative guard; this is just fast client-side feedback.
+    private static readonly System.Text.RegularExpressions.Regex EmailRegex =
+        new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,9 +88,21 @@
     private async Task SubmitAsync()
     {
         _error = null;
-        if (string.IsNullOrWhiteSpace(_userName) || string.IsNullOrWhiteSpace(_password))
+        var email = _userName.Trim();
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(_password))
         {
-            _error = "Username and password are required.";
+            _error = "Email and password are required.";
+            return;
+        }
+        if (!EmailRegex.IsMatch(email))
+        {
+            _error = "Enter a valid email address — it's used as your username.";
+            return;
+        }
+        if (_password != _confirmPassword)
+        {
+            _error = "Password and confirmation do not match.";
             return;
         }
 
@@ -86,8 +112,9 @@
             var (success, token, fullName, userName, error) = await FocalInviteClient.AcceptInviteAsync(new AcceptFocalInviteRequest
             {
                 Code = Code,
-                UserName = _userName,
-                Password = _password
+                UserName = email,
+                Password = _password,
+                ConfirmPassword = _confirmPassword
             });
 
             if (!success || string.IsNullOrWhiteSpace(token))

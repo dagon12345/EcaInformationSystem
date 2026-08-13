@@ -19,8 +19,12 @@ namespace EcaInformationSystem.Api.Controllers
             _authService = authService;
         }
 
+        // ✅ These four "me" endpoints only ever touch the CALLER's own record —
+        // safe to open to Focal (who is otherwise excluded from CookieOrJwt),
+        // since a Focal setting/viewing/removing their own profile picture and
+        // details can't affect anyone else's data.
         [HttpGet("me")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> GetMyProfile()
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -30,7 +34,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("me")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateProfileRequestDto request)
         {
             if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.Position))
@@ -49,7 +53,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("me/picture")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         [RequestSizeLimit(10_485_760)] // 10MB — resized/compressed server-side anyway
         public async Task<IActionResult> UploadMyPicture(IFormFile file)
         {
@@ -67,7 +71,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpDelete("me/picture")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> RemoveMyPicture()
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -82,10 +86,13 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> GetUpcomingBirthdays([FromQuery] int withinDays = 7)
             => Ok(await _profileService.GetUpcomingBirthdaysAsync(withinDays));
 
-        // Any logged-in user can view another user's basic public profile —
-        // e.g. clicking an avatar/name in Chat or the Feed.
+        // Any logged-in user (including Focal, viewing a PDO's picture/details
+        // from the Provincial Directory) can view another user's basic public
+        // profile — e.g. clicking an avatar/name in Chat, the Feed, or the
+        // Directory. Deliberately narrow data (see PublicUserProfileDto) —
+        // nothing sensitive, so opening this to Focal is safe.
         [HttpGet("{userId:guid}")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> GetPublicProfile(Guid userId)
         {
             var profile = await _profileService.GetPublicProfileAsync(userId);

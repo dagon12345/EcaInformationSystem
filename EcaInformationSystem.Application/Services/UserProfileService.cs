@@ -31,6 +31,7 @@ namespace EcaInformationSystem.Application.Services
 
             var picture = await _profileRepo.GetPictureAsync(userId);
             var regionName = await ResolveRegionNameAsync(user.Region);
+            var municipalityNames = await ResolveMunicipalityNamesAsync(userId);
 
             return new UserProfileDto
             {
@@ -42,6 +43,7 @@ namespace EcaInformationSystem.Application.Services
                 Role = user.Role,
                 Region = user.Region,
                 RegionName = regionName,
+                MunicipalityNames = municipalityNames,
                 IsMfaEnabled = user.IsMfaEnabled,
                 HasProfilePicture = picture is not null
             };
@@ -54,6 +56,7 @@ namespace EcaInformationSystem.Application.Services
 
             var picture = await _profileRepo.GetPictureAsync(userId);
             var regionName = await ResolveRegionNameAsync(user.Region);
+            var municipalityNames = await ResolveMunicipalityNamesAsync(userId);
 
             return new PublicUserProfileDto
             {
@@ -62,6 +65,7 @@ namespace EcaInformationSystem.Application.Services
                 Position = user.Position,
                 Role = user.Role,
                 RegionName = regionName,
+                MunicipalityNames = municipalityNames,
                 HasProfilePicture = picture is not null
             };
         }
@@ -104,6 +108,20 @@ namespace EcaInformationSystem.Application.Services
             if (!regionCode.HasValue) return null;
             var regions = await _regionRepo.GetAllAsync();
             return regions.FirstOrDefault(r => r.PsgcCodeRegion == regionCode.Value)?.Name;
+        }
+
+        // Municipality assignment lives on PdoJurisdiction, not on the user
+        // entity itself — same table PDO jurisdiction assignment already uses,
+        // just as relevant to a Focal (who's given exactly one at onboarding).
+        private async Task<List<string>> ResolveMunicipalityNamesAsync(Guid userId)
+        {
+            var jurisdictions = await _userRepo.GetJurisdictionsByUserIdAsync(userId);
+            return jurisdictions
+                .Where(j => !string.IsNullOrWhiteSpace(j.MunicipalityName))
+                .Select(j => j.MunicipalityName)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList();
         }
 
         public async Task<List<UpcomingBirthdayDto>> GetUpcomingBirthdaysAsync(int withinDays = 7)

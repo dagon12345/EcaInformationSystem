@@ -109,6 +109,9 @@ namespace EcaInformationSystem.Application.Services
                 BatchCode = beneficiary.BatchCode,
                 OscaIdNumber = beneficiary.OscaIdNumber,
                 MilestoneYear = beneficiary.MilestoneYear,
+                ContactNumber = PrimaryPhoneNumber(beneficiary.PhoneNumbers),
+                DateApplied = beneficiary.DateApplied,
+                DateEndorsed = beneficiary.DateEndorsed,
                 IsCompliant = beneficiary.IsCompliant,
                 ComplianceLabel = MapComplianceLabel(beneficiary.IsCompliant, beneficiary.AssessmentRemarks),
                 AssessmentRemarks = beneficiary.AssessmentRemarks,
@@ -126,6 +129,9 @@ namespace EcaInformationSystem.Application.Services
             BirthDate = b.BirthDate,
             Age = b.Age,
             SexLabel = MapSexLabel(b.Sex),
+            ContactNumber = PrimaryPhoneNumber(b.PhoneNumbers),
+            DateApplied = b.DateApplied,
+            DateEndorsed = b.DateEndorsed,
             IsCompliant = b.IsCompliant,
             ComplianceLabel = MapComplianceLabel(b.IsCompliant, b.AssessmentRemarksPreview),
             AssessmentRemarksPreview = b.AssessmentRemarksPreview,
@@ -157,6 +163,12 @@ namespace EcaInformationSystem.Application.Services
             3 => "Pending",
             _ => "Unknown"
         };
+
+        // Grantees can have multiple numbers on file — the Focal view only
+        // needs one to call, so this takes the lowest SortOrder (the "first"
+        // number as entered on the form) rather than showing the whole list.
+        private static string? PrimaryPhoneNumber(List<BeneficiaryPhoneNumberDto>? numbers) =>
+            numbers?.OrderBy(n => n.SortOrder).FirstOrDefault()?.Number;
 
         private static string MapSexLabel(int sex) => sex switch
         {

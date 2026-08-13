@@ -11,7 +11,11 @@ namespace EcaInformationSystem.Api.Controllers
 {
     [ApiController]
     [Route("api/system-updates")]
-    [Authorize]
+    // ✅ Same reasoning as SystemUpdateHub — Focal accounts need to read these
+    // notices too (GetAll/GetLatest), so this can't be the bare [Authorize]
+    // (→ DefaultPolicy, which excludes Focal). Publish stays SuperAdmin-only
+    // via its own attribute below, unaffected by this class-level change.
+    [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
     public class SystemUpdateController : ControllerBase
     {
         private readonly ISystemUpdateNoticeService _service;

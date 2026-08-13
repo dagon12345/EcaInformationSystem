@@ -1,0 +1,14 @@
+@page "/focal-profile"
+@page "/focal-profile/{UserId:guid}"
+@layout FocalLayout
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+@* With no UserId, shows the Focal's own profile. With one — reached by
+   clicking a person's avatar/name in the Provincial Directory — shows that
+   person's (read-only) public profile, same as staff's Profile.razor. *@
+<ProfileContent UserId="@UserId" />
+
+@code {
+    [Parameter] public Guid? UserId { get; set; }
+}

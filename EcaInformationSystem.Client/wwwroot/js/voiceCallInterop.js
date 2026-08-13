@@ -102,6 +102,73 @@ window.voiceCallInterop = {
         return true;
     },
 
+    // Live mic-level meter — purely cosmetic feedback so the user can SEE
+    // their own voice is actually being picked up (rather than wondering
+    // silently whether their mic works). Reads the local stream directly via
+    // an AnalyserNode, so it works even before the peer connection exists and
+    // keeps working regardless of network/ICE state. Animates a handful of
+    // bar elements straight via the DOM (not through Blazor) since this ticks
+    // on every animation frame — routing that through .NET would be wasteful.
+    _meterAnalyser: null,
+    _meterSource: null,
+    _meterRafId: null,
+    startVoiceMeter: function () {
+        this.stopVoiceMeter();
+        if (!this._localStream) return;
+        try {
+            const ctx = this._ensureAudioCtx();
+            const source = ctx.createMediaStreamSource(this._localStream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.65;
+            source.connect(analyser);
+            this._meterAnalyser = analyser;
+            this._meterSource = source;
+
+            const data = new Uint8Array(analyser.frequencyBinCount);
+
+            const tick = () => {
+                if (!this._meterAnalyser) return; // stopped
+
+                // Queried every frame, not cached — this meter is started
+                // BEFORE BeginCall() flips the UI into the "InCall" state, so
+                // #voiceWaveMeter doesn't exist in the DOM yet at startup. A
+                // one-time querySelectorAll here would capture an empty
+                // NodeList forever (bars.forEach silently doing nothing), so
+                // re-query each tick until Blazor renders the bars in.
+                const bars = document.querySelectorAll('#voiceWaveMeter .voice-wave-bar');
+
+                const track = this._localStream && this._localStream.getAudioTracks()[0];
+                const muted = !track || !track.enabled;
+
+                analyser.getByteTimeDomainData(data);
+                let sumSquares = 0;
+                for (let i = 0; i < data.length; i++) {
+                    const v = (data[i] - 128) / 128;
+                    sumSquares += v * v;
+                }
+                const rms = Math.sqrt(sumSquares / data.length);
+                const level = muted ? 0 : Math.min(1, rms * 4.5); // amplified — raw mic RMS reads very quiet
+
+                bars.forEach((bar, i) => {
+                    // Slight per-bar phase offset so it reads as a "wave" rather
+                    // than every bar moving in lockstep.
+                    const wobble = 0.55 + 0.45 * Math.sin((Date.now() / 140) + i * 0.9);
+                    const scale = level <= 0.02 ? 0.12 : Math.max(0.12, Math.min(1, level * wobble + 0.1));
+                    bar.style.transform = `scaleY(${scale})`;
+                });
+
+                this._meterRafId = requestAnimationFrame(tick);
+            };
+            tick();
+        } catch { /* meter is cosmetic only — never let it block the call */ }
+    },
+    stopVoiceMeter: function () {
+        if (this._meterRafId) { cancelAnimationFrame(this._meterRafId); this._meterRafId = null; }
+        if (this._meterSource) { try { this._meterSource.disconnect(); } catch { } this._meterSource = null; }
+        this._meterAnalyser = null;
+    },
+
     createPeerConnection: function (dotNetRef) {
         this._dotNetRef = dotNetRef;
         this._pc = new RTCPeerConnection({
@@ -169,6 +236,7 @@ window.voiceCallInterop = {
     hangUp: function () {
         this.stopRingback();
         this.stopIncomingRing();
+        this.stopVoiceMeter();
         if (this._localStream) {
             this._localStream.getTracks().forEach(track => track.stop());
             this._localStream = null;

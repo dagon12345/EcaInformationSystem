@@ -15,6 +15,12 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime BirthDate { get; set; }
         public int Age { get; set; }
         public string SexLabel { get; set; } = string.Empty;
+        // ✅ NEW — grantee's own contact number (first on file) plus the
+        // application timeline, so a Focal following up in the field knows
+        // who to call and how long the record has been sitting.
+        public string? ContactNumber { get; set; }
+        public DateTime? DateApplied { get; set; }
+        public DateTime? DateEndorsed { get; set; }
         public bool IsCompliant { get; set; }
         public string ComplianceLabel { get; set; } = string.Empty;
         public string? AssessmentRemarksPreview { get; set; }
@@ -40,6 +46,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? BatchCode { get; set; }
         public string? OscaIdNumber { get; set; }
         public int MilestoneYear { get; set; }
+        public string? ContactNumber { get; set; }
+        public DateTime? DateApplied { get; set; }
+        public DateTime? DateEndorsed { get; set; }
         public bool IsCompliant { get; set; }
         public string ComplianceLabel { get; set; } = string.Empty;
         // Why — so a Focal verifying this grantee on the ground knows what's

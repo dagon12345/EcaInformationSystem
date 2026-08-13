@@ -45,6 +45,16 @@ else if (CallState.CurrentState == VoiceCallState.InCall)
             <span class="voice-call-bar-name">@CallState.RemoteUserName</span>
             <span class="voice-call-bar-timer">@FormatElapsed(CallState.Elapsed)</span>
         </div>
+        @* ── Live mic-level bars — driven directly by JS (voiceCallInterop.js
+             startVoiceMeter), not Blazor state, since it updates every
+             animation frame. Just visual proof your mic is picking up sound. ── *@
+        <div class="voice-wave-meter @(CallState.IsMuted ? "voice-wave-meter--muted" : "")" id="voiceWaveMeter" title="Your mic level">
+            <span class="voice-wave-bar"></span>
+            <span class="voice-wave-bar"></span>
+            <span class="voice-wave-bar"></span>
+            <span class="voice-wave-bar"></span>
+            <span class="voice-wave-bar"></span>
+        </div>
         <button type="button" class="voice-call-icon-btn @(CallState.IsMuted ? "voice-call-icon-btn--active" : "")"
                 title="@(CallState.IsMuted ? "Unmute" : "Mute")" @onclick="() => CallState.ToggleMuteAsync()">
             <i class="bi @(CallState.IsMuted ? "bi-mic-mute-fill" : "bi-mic-fill")"></i>

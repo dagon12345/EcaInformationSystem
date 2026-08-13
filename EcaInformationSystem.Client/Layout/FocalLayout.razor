@@ -4,6 +4,7 @@
    provincial directory and the ability to log out. *@
 @using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.SystemUpdate
 @using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
 @inject AuthService AuthService
@@ -12,7 +13,9 @@
 @inject VoiceCallClientService VoiceCallClientService
 @inject VoiceCallStateService VoiceCallState
 @inject ChatClientService ChatClientService
+@inject SystemUpdateClientService SystemUpdateClient
 @inject IConfiguration Configuration
+@inject IJSRuntime JS
 @implements IDisposable
 
 <AuthorizeView>
@@ -73,6 +76,50 @@
                 </div>
             </div>
         }
+
+        @* ── System update prompt — Focal accounts have no notification bell,
+             so an update raised by a SuperAdmin is surfaced as its own modal
+             instead of a dropdown tab, with a one-click hard refresh
+             (equivalent to Ctrl+Shift+R) since a plain reload won't pick up
+             new cached Blazor WASM assemblies. Only appears when there's
+             actually an unseen update. ── *@
+        @if (_updateNotice is not null)
+        {
+            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1090;">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2 text-primary"></i>@_updateNotice.Title</h5>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small mb-2">
+                                The system was updated to <strong>v@(_updateNotice.Version)</strong>. Refresh now to load the latest version.
+                            </p>
+                            @foreach (var line in _updateNotice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            {
+                                <div class="small">• @line</div>
+                            }
+                            <div class="text-muted mt-2" style="font-size:11px;">
+                                <i class="bi bi-clock me-1"></i>@_updateNotice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm") · @_updateNotice.PublishedByName
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline-secondary" @onclick="DismissUpdateNotice" disabled="@_isRefreshing">Later</button>
+                            <button class="btn btn-primary" @onclick="RefreshNowAsync" disabled="@_isRefreshing">
+                                @if (_isRefreshing)
+                                {
+                                    <span>Refreshing...</span>
+                                }
+                                else
+                                {
+                                    <span><i class="bi bi-arrow-clockwise me-1"></i>Refresh Now</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </Authorized>
     <NotAuthorized>
         @Body
@@ -84,6 +131,8 @@
     private bool mobileOpen = false;
     private string _displayFullName = "Focal";
     private bool _showLogoutConfirm;
+    private SystemUpdateNoticeDto? _updateNotice;
+    private bool _isRefreshing;
 
     private void ToggleMobileSidebar() => mobileOpen = !mobileOpen;
     private void CloseMobileSidebar() => mobileOpen = false;
@@ -142,7 +191,46 @@
             }
         }
 
+        // Same reasoning as chat/voice above — MainLayout never renders for a
+        // Focal session, so nothing else establishes this connection or
+        // surfaces a raised update for them.
+        SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
+        if (!SystemUpdateClient.IsConnected)
+        {
+            try
+            {
+                var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                var hubUrl = new Uri(new Uri(apiBase), "systemUpdateHub").ToString();
+                await SystemUpdateClient.ConnectAsync(hubUrl);
+            }
+            catch
+            {
+                // Non-fatal — the update prompt just won't show live this session
+            }
+        }
+
         StateHasChanged();
+    }
+
+    private void OnUnseenSystemUpdate(SystemUpdateNoticeDto notice)
+    {
+        _updateNotice = notice;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void DismissUpdateNotice() => _updateNotice = null;
+
+    private async Task RefreshNowAsync()
+    {
+        if (_isRefreshing || _updateNotice is null) return;
+        _isRefreshing = true;
+        StateHasChanged();
+
+        await SystemUpdateClient.AcknowledgeAsync(_updateNotice.Version);
+        await Task.Delay(350);
+        // hardReload (not a plain location.reload) — forces every framework
+        // file to be re-fetched bypassing the disk cache, same as Ctrl+Shift+R.
+        await JS.InvokeVoidAsync("hardReload");
     }
 
     private void RequestLogout() => _showLogoutConfirm = true;
@@ -156,5 +244,8 @@
         Navigation.NavigateTo("/login", true);
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
+    }
 }

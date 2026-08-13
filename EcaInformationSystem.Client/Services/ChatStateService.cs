@@ -376,6 +376,15 @@ namespace EcaInformationSystem.Client.Services
             OnChange?.Invoke();
         }
 
+        // Unlike ToggleWidget, always ends in the open state — for callers
+        // (e.g. "message this person" buttons elsewhere) that want the panel
+        // visible regardless of whatever state it was already in.
+        public void OpenWidget()
+        {
+            IsWidgetOpen = true;
+            OnChange?.Invoke();
+        }
+
         public void CloseWidget()
         {
             IsWidgetOpen = false;

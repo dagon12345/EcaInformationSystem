@@ -216,6 +216,11 @@ namespace EcaInformationSystem.Client.Services
         {
             _selfRef = DotNetObjectReference.Create(this);
             await _js.InvokeVoidAsync("voiceCallInterop.startLocalAudio");
+            // Starts the live mic-level bars immediately after the mic is
+            // acquired — doesn't need to wait for the peer connection/ICE to
+            // finish, so the user gets "yes, your mic is working" feedback
+            // as soon as possible, even while still dialing/ringing.
+            await _js.InvokeVoidAsync("voiceCallInterop.startVoiceMeter");
             await _js.InvokeVoidAsync("voiceCallInterop.createPeerConnection", _selfRef);
         }
 

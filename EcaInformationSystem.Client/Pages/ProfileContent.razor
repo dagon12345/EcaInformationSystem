@@ -1,0 +1,942 @@
+@* Shared profile UI — used by both Profile.razor (staff, under MainLayout)
+   and FocalProfile.razor (Focal, under FocalLayout), same reasoning as
+   DirectoryListing.razor being shared between the staff Provincial Focal
+   Directory and FocalHome: one implementation instead of two copies that
+   drift apart. Avatar upload/remove, account details, MFA, and sessions are
+   all scoped to the caller's own account server-side, so nothing here needs
+   role checks beyond what the API already enforces. ── *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.Auth
+@using EcaInformationSystem.Shared.Helpers
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ToastService Toast
+@inject NavigationManager Navigation
+@inject TransactionTierClientService TierClient
+
+<PageTitle>@(_isSelf ? "My Profile" : _publicProfile?.FullName ?? "Profile")</PageTitle>
+
+<div class="content-area">
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon"><i class="bi bi-person-circle"></i></div>
+        <div>
+            <div class="page-header-title">@(_isSelf ? "My Profile" : "User Profile")</div>
+            <div class="page-header-sub">@(_isSelf ? "Manage your account details and security" : "Viewing another user's profile")</div>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-2 text-muted small">Loading profile...</p>
+        </div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>@_loadError</div>
+    }
+    else if (_isSelf && _myProfile is not null)
+    {
+        <div class="row g-3">
+            @* ── Avatar + identity card ── *@
+            <div class="col-lg-4">
+                <div class="sys-card">
+                    <div class="sys-card-body text-center">
+                        <div class="profile-avatar-wrap mx-auto mb-3">
+                            @if (_myProfile.HasProfilePicture && !_pictureRemoved)
+                            {
+                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" alt="" class="profile-avatar-img" style="cursor:pointer;"
+                                     title="Click to view full picture" @onclick="OpenAvatarLightbox"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="profile-avatar-fallback" style="display:none;">@GetInitials(_myProfile.FullName)</div>
+                            }
+                            else
+                            {
+                                <div class="profile-avatar-fallback">@GetInitials(_myProfile.FullName)</div>
+                            }
+                        </div>
+
+                        <InputFile OnChange="OnPictureSelectedAsync" accept="image/*" class="d-none" id="profilePictureInput" />
+                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                            <label for="profilePictureInput" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-camera me-1"></i>Change Picture
+                            </label>
+                            @if (_myProfile.HasProfilePicture && !_pictureRemoved)
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="RequestRemovePicture" disabled="@_isSavingPicture">
+                                    <i class="bi bi-trash me-1"></i>Remove
+                                </button>
+                            }
+                        </div>
+                        @if (_isSavingPicture)
+                        {
+                            <div class="small text-muted mt-2"><span class="spinner-border spinner-border-sm me-1"></span>Uploading...</div>
+                        }
+
+                        <hr />
+                        <h5 class="mb-0">@_myProfile.FullName</h5>
+                        @if (_myProfile.MunicipalityNames.Any())
+                        {
+                            <div class="text-muted small">
+                                <i class="bi bi-geo-alt-fill me-1"></i>@string.Join(", ", _myProfile.MunicipalityNames)
+                            </div>
+                        }
+                        <div class="text-muted small">@_myProfile.Position</div>
+                        <span class="badge bg-secondary mt-2">@_myProfile.Role</span>
+                    </div>
+                </div>
+
+                @* ── Transaction Tier — gamified activity ladder ── *@
+                @if (_myTier is not null)
+                {
+                    var tierVisual = TierVisuals.For(_myTier.TierLevel);
+                    <div class="sys-card mt-3 tier-card @tierVisual.CssClass">
+                        <div class="sys-card-body text-center">
+                            <div class="tier-card-icon-wrap @(_myTier.TierLevel == 9 ? "tier-card-icon-wrap--god" : "")">
+                                <i class="bi @tierVisual.Icon"></i>
+                            </div>
+                            <div class="tier-card-name">@_myTier.TierName Tier</div>
+                            <div class="tier-card-count">@_myTier.TransactionCount.ToString("N0") transaction@(_myTier.TransactionCount == 1 ? "" : "s")</div>
+
+                            @if (_myTier.NextTierMinCount.HasValue)
+                            {
+                                <div class="tier-progress-wrap">
+                                    <div class="tier-progress-track">
+                                        <div class="tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
+                                    </div>
+                                    <div class="tier-progress-label">
+                                        @((_myTier.NextTierMinCount.Value - _myTier.TransactionCount).ToString("N0")) more to reach <strong>@_myTier.NextTierName</strong>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="tier-progress-label tier-progress-label--max">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Max tier reached!
+                                </div>
+                            }
+
+                            @if (_myTier.SeasonNumber > 0)
+                            {
+                                <div class="text-muted mt-2" style="font-size:11px;">Season @_myTier.SeasonNumber — resets Sunday 11:59 PM</div>
+                            }
+                            @if (_myTier.TotalWins > 0 || _myTier.LastSeasonRank.HasValue)
+                            {
+                                <div class="tier-lastweek justify-content-center">
+                                    @if (_myTier.TotalWins > 0)
+                                    {
+                                        <span class="tier-lastweek-wins" title="Total Top-3 finishes">
+                                            <i class="bi bi-trophy-fill me-1"></i>@_myTier.TotalWins win@(_myTier.TotalWins == 1 ? "" : "s")
+                                        </span>
+                                    }
+                                    @if (_myTier.LastSeasonRank.HasValue)
+                                    {
+                                        <span class="tier-lastweek-rank">
+                                            Last week: #@_myTier.LastSeasonRank (@_myTier.LastSeasonTransactionCount?.ToString("N0"))
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_myTier.MotivationMessage))
+                            {
+                                <div class="tier-motivation text-start">
+                                    <i class="bi bi-megaphone-fill me-1"></i>@_myTier.MotivationMessage
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_myTier.TierLevel)">
+                                View full tier ladder
+                                <i class="bi bi-chevron-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @* ── Editable details ── *@
+            <div class="col-lg-8">
+                <div class="sys-card mb-3">
+                    <div class="sys-card-header"><i class="bi bi-person-lines-fill me-2"></i>Account Details</div>
+                    <div class="sys-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Username</label>
+                                <input class="form-control" value="@_myProfile.UserName" disabled readonly />
+                                <div class="form-text">Your username cannot be changed.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Region</label>
+                                <input class="form-control" value="@(_myProfile.RegionName ?? "—")" disabled readonly />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Full Name</label>
+                                <input class="form-control" @bind="_editFullName" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Position</label>
+                                <input class="form-control" @bind="_editPosition" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold">Birthday</label>
+                                <input type="date" class="form-control" @bind="_editBirthDate" />
+                            </div>
+                        </div>
+                        <div class="text-end mt-3">
+                            <button class="btn btn-primary" @onclick="RequestSaveProfile" disabled="@_isSavingProfile">
+                                @if (_isSavingProfile)
+                                {
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <span><i class="bi bi-save me-1"></i>Save Changes</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Security / MFA ── *@
+                <div class="sys-card @(!_myProfile.IsMfaEnabled ? "sys-card--mfa-warning" : "")">
+                    <div class="sys-card-header d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-shield-lock me-2"></i>Security</span>
+                        @if (!_myProfile.IsMfaEnabled)
+                        {
+                            <span class="badge bg-danger" style="font-size:10px;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure account
+                            </span>
+                        }
+                    </div>
+                    <div class="sys-card-body">
+                        @if (!_myProfile.IsMfaEnabled)
+                        {
+                            <div class="mfa-warning-note mb-3">
+                                <i class="bi bi-info-circle-fill"></i>
+                                <div>
+                                    This is the "Secure account" notice you see near your profile picture — it means
+                                    two-factor authentication isn't set up yet. Without it, your account only needs a
+                                    password to sign in. Setting up MFA below adds a one-time code from an authenticator
+                                    app for extra protection, and clears the notice everywhere it appears.
+                                </div>
+                            </div>
+                        }
+
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div>
+                                <div class="fw-semibold">Multi-Factor Authentication (MFA)</div>
+                                <div class="small text-muted">
+                                    @(_myProfile.IsMfaEnabled
+                                        ? "Enabled — an authenticator app code is required at login."
+                                        : "Not enabled on this account.")
+                                </div>
+                            </div>
+                            @if (_myProfile.IsMfaEnabled)
+                            {
+                                <button class="btn btn-outline-danger btn-sm" @onclick="RequestDisableMfa">
+                                    <i class="bi bi-shield-x me-1"></i>Turn Off MFA
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="btn btn-primary btn-sm" href="@MfaSetupUrl">
+                                    <i class="bi bi-shield-plus me-1"></i>Set Up MFA
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Active Sessions — devices currently logged into this account ── *@
+                <div class="sys-card mt-3">
+                    <div class="sys-card-header d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-laptop me-2"></i>Active Sessions</span>
+                        @if (_sessions.Count(s => !s.IsCurrent) > 0)
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="RequestRevokeOtherSessions" disabled="@_isRevokingSessions">
+                                <i class="bi bi-box-arrow-right me-1"></i>Log out all other devices
+                            </button>
+                        }
+                    </div>
+                    <div class="sys-card-body">
+                        @if (_isLoadingSessions)
+                        {
+                            <div class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Loading sessions...</div>
+                        }
+                        else if (_sessions.Count == 0)
+                        {
+                            <div class="small text-muted">No active sessions found.</div>
+                        }
+                        else
+                        {
+                            @foreach (var session in _sessions)
+                            {
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 @(session != _sessions.Last() ? "border-bottom" : "")">
+                                    <div>
+                                        <div class="fw-semibold">
+                                            @session.DeviceLabel
+                                            @if (session.IsCurrent)
+                                            {
+                                                <span class="badge bg-primary ms-2" style="font-size:10px;">This device</span>
+                                            }
+                                        </div>
+                                        <div class="small text-muted">
+                                            IP @session.IpAddress &middot;
+                                            Signed in @session.LoginAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt") &middot;
+                                            Last active @session.LastActiveAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                        </div>
+                                    </div>
+                                    @if (!session.IsCurrent)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RequestRevokeSession(session)" disabled="@_isRevokingSessions">
+                                            Log out
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (_publicProfile is not null)
+    {
+        @* ── Read-only view of someone else's profile ── *@
+        <div class="row g-3 justify-content-center">
+            <div class="col-lg-5">
+                <div class="sys-card">
+                    <div class="sys-card-body text-center">
+                        <div class="profile-avatar-wrap mx-auto mb-3">
+                            @if (_publicProfile.HasProfilePicture)
+                            {
+                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" alt="Profile picture" class="profile-avatar-img"
+                                     style="cursor:pointer;" title="Click to view full picture" @onclick="OpenAvatarLightbox" />
+                            }
+                            else
+                            {
+                                <div class="profile-avatar-fallback">@GetInitials(_publicProfile.FullName)</div>
+                            }
+                        </div>
+                        <h5 class="mb-0">@_publicProfile.FullName</h5>
+                        @if (_publicProfile.MunicipalityNames.Any())
+                        {
+                            <div class="text-muted small">
+                                <i class="bi bi-geo-alt-fill me-1"></i>@string.Join(", ", _publicProfile.MunicipalityNames)
+                            </div>
+                        }
+                        <div class="text-muted small">@_publicProfile.Position</div>
+                        @if (!string.IsNullOrWhiteSpace(_publicProfile.RegionName))
+                        {
+                            <div class="text-muted small"><i class="bi bi-geo-alt me-1"></i>@_publicProfile.RegionName</div>
+                        }
+                        <span class="badge bg-secondary mt-2">@_publicProfile.Role</span>
+                    </div>
+                </div>
+
+                @* ── Transaction Tier — this user's activity ladder + rank ── *@
+                @if (_viewedTier is not null)
+                {
+                    var tierVisual = TierVisuals.For(_viewedTier.TierLevel);
+                    <div class="sys-card mt-3 tier-card @tierVisual.CssClass">
+                        <div class="sys-card-body text-center">
+                            <div class="tier-card-icon-wrap @(_viewedTier.TierLevel == 9 ? "tier-card-icon-wrap--god" : "")">
+                                <i class="bi @tierVisual.Icon"></i>
+                            </div>
+                            <div class="tier-card-name">@_viewedTier.TierName Tier</div>
+                            @if (_viewedTier.Rank.HasValue)
+                            {
+                                <div class="tier-card-rank"><i class="bi bi-trophy-fill me-1"></i>Rank #@_viewedTier.Rank on the leaderboard</div>
+                            }
+                            <div class="tier-card-count">@_viewedTier.TransactionCount.ToString("N0") transaction@(_viewedTier.TransactionCount == 1 ? "" : "s")</div>
+
+                            @if (_viewedTier.NextTierMinCount.HasValue)
+                            {
+                                <div class="tier-progress-wrap">
+                                    <div class="tier-progress-track">
+                                        <div class="tier-progress-fill" style="width:@(_viewedTier.ProgressPercent.ToString("0.#"))%;"></div>
+                                    </div>
+                                    <div class="tier-progress-label">
+                                        @((_viewedTier.NextTierMinCount.Value - _viewedTier.TransactionCount).ToString("N0")) more to reach <strong>@_viewedTier.NextTierName</strong>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="tier-progress-label tier-progress-label--max">
+                                    <i class="bi bi-check-circle-fill me-1"></i>Max tier reached!
+                                </div>
+                            }
+
+                            @if (_viewedTier.TotalWins > 0 || _viewedTier.LastSeasonRank.HasValue)
+                            {
+                                <div class="tier-lastweek justify-content-center">
+                                    @if (_viewedTier.TotalWins > 0)
+                                    {
+                                        <span class="tier-lastweek-wins" title="Total Top-3 finishes">
+                                            <i class="bi bi-trophy-fill me-1"></i>@_viewedTier.TotalWins win@(_viewedTier.TotalWins == 1 ? "" : "s")
+                                        </span>
+                                    }
+                                    @if (_viewedTier.LastSeasonRank.HasValue)
+                                    {
+                                        <span class="tier-lastweek-rank">
+                                            Last week: #@_viewedTier.LastSeasonRank (@_viewedTier.LastSeasonTransactionCount?.ToString("N0"))
+                                        </span>
+                                    }
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_viewedTier.TierLevel)">
+                                View full tier ladder
+                                <i class="bi bi-chevron-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@* ── Avatar lightbox — click the picture to see it full size ── *@
+@if (_showAvatarLightbox)
+{
+    <div class="avatar-lightbox-backdrop" @onclick="CloseAvatarLightbox">
+        <button class="avatar-lightbox-close" @onclick="CloseAvatarLightbox" title="Close">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        <img src="@AvatarLightboxUrl" alt="Profile picture" class="avatar-lightbox-image" @onclick:stopPropagation="true" />
+    </div>
+}
+
+@* ── MFA disable confirmation (password required) ── *@
+@if (_showMfaConfirm)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Turn Off MFA?
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDisableMfa"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This removes multi-factor authentication from your account — logging in will only require your password afterward. Enter your current password to confirm.</p>
+                    <input type="password" class="form-control" placeholder="Current password"
+                           @bind="_mfaPassword" @bind:event="oninput" @onkeydown="OnMfaPasswordKeyDown" />
+                    @if (_mfaError is not null)
+                    {
+                        <div class="text-danger small mt-2">@_mfaError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDisableMfa" disabled="@_isDisablingMfa">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDisableMfaAsync" disabled="@(_isDisablingMfa || string.IsNullOrWhiteSpace(_mfaPassword))">
+                        @if (_isDisablingMfa)
+                        {
+                            <span>Working...</span>
+                        }
+                        else
+                        {
+                            <span>Yes, Turn Off MFA</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Shared caution confirmation — Save Changes / Remove Picture ── *@
+@if (_pendingAction is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>@_pendingActionTitle
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelPendingAction"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@_pendingActionMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelPendingAction" disabled="@_isPendingActionBusy">Cancel</button>
+                    <button class="btn @(_pendingAction is "removePicture" or "revokeSession" or "revokeOthers" ? "btn-danger" : "btn-primary")"
+                            @onclick="ConfirmPendingActionAsync" disabled="@_isPendingActionBusy">
+                        @if (_isPendingActionBusy)
+                        {
+                            <span>Working...</span>
+                        }
+                        else
+                        {
+                            <span>
+                                @(_pendingAction switch
+                                {
+                                    "removePicture" => "Yes, Remove Picture",
+                                    "revokeSession" or "revokeOthers" => "Yes, Log Out",
+                                    _ => "Yes, Save Changes"
+                                })
+                            </span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Tier ladder ("the legend") — modal, shared by both the "my profile"
+   and "someone else's profile" tier cards above. ── *@
+@if (_tierLadderModalLevel.HasValue)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);" @onclick="CloseTierLadderModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-list-stars me-2"></i>Tier Ladder</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTierLadderModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tier-ladder tier-ladder--modal">
+                        @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                        {
+                            var v = TierVisuals.For(t.Level);
+                            var isCurrent = t.Level == _tierLadderModalLevel.Value;
+                            <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                <i class="bi @v.Icon"></i>
+                                <span class="tier-ladder-name">@t.Name</span>
+                                <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                @if (isCurrent)
+                                {
+                                    <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? UserId { get; set; }
+    // Where the "Set Up MFA" link goes — staff (Profile.razor) use the full
+    // MainLayout /mfa-setup page; Focal (FocalProfile.razor) doesn't have
+    // access to that MainLayout-only route, so it's kept overridable.
+    [Parameter] public string MfaSetupUrl { get; set; } = "/mfa-setup";
+
+    private bool _isSelf;
+    private bool _isLoading = true;
+    private string? _loadError;
+
+    private UserProfileDto? _myProfile;
+    private PublicUserProfileDto? _publicProfile;
+    private UserTransactionTierDto? _myTier;
+    private UserTransactionTierDto? _viewedTier;
+    // Which tier level to highlight as "current" in the shared tier-ladder
+    // modal — null means the modal is closed.
+    private int? _tierLadderModalLevel;
+
+    private string _editFullName = string.Empty;
+    private string _editPosition = string.Empty;
+    private DateTime _editBirthDate = DateTime.Today;
+    private bool _isSavingProfile;
+    private bool _isSavingPicture;
+    private bool _pictureRemoved;
+    private bool _showAvatarLightbox;
+
+    private bool _showMfaConfirm;
+    private string _mfaPassword = string.Empty;
+    private string? _mfaError;
+    private bool _isDisablingMfa;
+
+    // "save", "removePicture", "revokeSession", or "revokeOthers" — null means no confirmation dialog showing.
+    private string? _pendingAction;
+    private string _pendingActionTitle = string.Empty;
+    private string _pendingActionMessage = string.Empty;
+    private bool _isPendingActionBusy;
+
+    private List<SessionDto> _sessions = new();
+    private bool _isLoadingSessions;
+    private bool _isRevokingSessions;
+    private Guid? _pendingSessionId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        _pictureRemoved = false;
+        _viewedTier = null;
+        _tierLadderModalLevel = null;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
+
+            _isSelf = UserId is null || UserId == currentUserId;
+
+            if (_isSelf)
+            {
+                _myProfile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
+                if (_myProfile is not null)
+                {
+                    _editFullName = _myProfile.FullName;
+                    _editPosition = _myProfile.Position;
+                    _editBirthDate = _myProfile.BirthDate.Date;
+                }
+
+                _myTier = await TierClient.GetMyTierAsync();
+                await LoadSessionsAsync();
+            }
+            else
+            {
+                _publicProfile = await Http.GetFromJsonAsync<PublicUserProfileDto>($"api/UserProfile/{UserId}");
+                if (_publicProfile is null) _loadError = "This user's profile could not be found.";
+                else _viewedTier = await TierClient.GetTierForUserAsync(_publicProfile.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load the profile: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (_myProfile is null) return;
+
+        if (string.IsNullOrWhiteSpace(_editFullName) || string.IsNullOrWhiteSpace(_editPosition))
+        {
+            Toast.ShowError("Name and position cannot be blank.");
+            return;
+        }
+
+        _isSavingProfile = true;
+        try
+        {
+            var request = new UpdateProfileRequestDto
+            {
+                FullName = _editFullName.Trim(),
+                Position = _editPosition.Trim(),
+                BirthDate = _editBirthDate
+            };
+
+            var response = await Http.PutAsJsonAsync("api/UserProfile/me", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to save your profile." : error);
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ProfileUpdateResponse>();
+            if (result is not null)
+            {
+                _myProfile = result.Profile;
+                await AuthService.UpdateStoredTokenAsync(result.Token);
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+            }
+
+            Toast.ShowSuccess("Profile updated.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to save your profile: {ex.Message}");
+        }
+        finally
+        {
+            _isSavingProfile = false;
+        }
+    }
+
+    private async Task OnPictureSelectedAsync(InputFileChangeEventArgs e)
+    {
+        const long maxBytes = 10 * 1024 * 1024;
+        var file = e.File;
+        if (file is null) return;
+
+        if (file.Size > maxBytes)
+        {
+            Toast.ShowError("Image is too large (max 10MB).");
+            return;
+        }
+
+        _isSavingPicture = true;
+        try
+        {
+            using var stream = file.OpenReadStream(maxBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            using var form = new MultipartFormDataContent();
+            var byteContent = new ByteArrayContent(ms.ToArray());
+            byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+                string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+            form.Add(byteContent, "file", file.Name);
+
+            var response = await Http.PostAsync("api/UserProfile/me/picture", form);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to upload picture." : error);
+                return;
+            }
+
+            if (_myProfile is not null) _myProfile.HasProfilePicture = true;
+            _pictureRemoved = false;
+            _pictureVersion++;
+            Toast.ShowSuccess("Profile picture updated.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to upload picture: {ex.Message}");
+        }
+        finally
+        {
+            _isSavingPicture = false;
+        }
+    }
+
+    private async Task RemovePictureAsync()
+    {
+        _isSavingPicture = true;
+        try
+        {
+            var response = await Http.DeleteAsync("api/UserProfile/me/picture");
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.ShowError("Failed to remove picture.");
+                return;
+            }
+
+            _pictureRemoved = true;
+            if (_myProfile is not null) _myProfile.HasProfilePicture = false;
+            Toast.ShowSuccess("Profile picture removed.");
+        }
+        finally
+        {
+            _isSavingPicture = false;
+        }
+    }
+
+    private void RequestSaveProfile()
+    {
+        if (_myProfile is null) return;
+
+        if (string.IsNullOrWhiteSpace(_editFullName) || string.IsNullOrWhiteSpace(_editPosition))
+        {
+            Toast.ShowError("Name and position cannot be blank.");
+            return;
+        }
+
+        _pendingAction = "save";
+        _pendingActionTitle = "Save Profile Changes?";
+        _pendingActionMessage = "This updates your Full Name, Position, and Birthday, and reflects immediately " +
+            "wherever your name appears — Feed, Chat, and the sidebar. Continue?";
+    }
+
+    private void RequestRemovePicture()
+    {
+        _pendingAction = "removePicture";
+        _pendingActionTitle = "Remove Profile Picture?";
+        _pendingActionMessage = "Your profile picture will be removed everywhere it appears — Feed, Chat, and the " +
+            "sidebar — and everyone will see your initials instead until you upload a new one. Continue?";
+    }
+
+    private void CancelPendingAction() => _pendingAction = null;
+
+    private async Task ConfirmPendingActionAsync()
+    {
+        _isPendingActionBusy = true;
+        try
+        {
+            if (_pendingAction == "save")
+            {
+                await SaveProfileAsync();
+            }
+            else if (_pendingAction == "removePicture")
+            {
+                await RemovePictureAsync();
+            }
+            else if (_pendingAction == "revokeSession" && _pendingSessionId.HasValue)
+            {
+                await RevokeSessionAsync(_pendingSessionId.Value);
+            }
+            else if (_pendingAction == "revokeOthers")
+            {
+                await RevokeOtherSessionsAsync();
+            }
+        }
+        finally
+        {
+            _isPendingActionBusy = false;
+            _pendingAction = null;
+            _pendingSessionId = null;
+        }
+    }
+
+    private async Task LoadSessionsAsync()
+    {
+        _isLoadingSessions = true;
+        try
+        {
+            _sessions = await AuthService.GetSessionsAsync();
+        }
+        finally
+        {
+            _isLoadingSessions = false;
+        }
+    }
+
+    private void RequestRevokeSession(SessionDto session)
+    {
+        _pendingAction = "revokeSession";
+        _pendingSessionId = session.Id;
+        _pendingActionTitle = "Log Out This Device?";
+        _pendingActionMessage = $"This immediately ends the session on \"{session.DeviceLabel}\" (IP {session.IpAddress}). Continue?";
+    }
+
+    private void RequestRevokeOtherSessions()
+    {
+        _pendingAction = "revokeOthers";
+        _pendingActionTitle = "Log Out All Other Devices?";
+        _pendingActionMessage = "This immediately ends every session on this account except the one you're using right now. Continue?";
+    }
+
+    private async Task RevokeSessionAsync(Guid sessionId)
+    {
+        _isRevokingSessions = true;
+        try
+        {
+            var (success, message) = await AuthService.RevokeSessionAsync(sessionId);
+            if (!success)
+            {
+                Toast.ShowError(message);
+                return;
+            }
+
+            Toast.ShowSuccess("Session logged out.");
+            await LoadSessionsAsync();
+        }
+        finally
+        {
+            _isRevokingSessions = false;
+        }
+    }
+
+    private async Task RevokeOtherSessionsAsync()
+    {
+        _isRevokingSessions = true;
+        try
+        {
+            var (success, message) = await AuthService.RevokeOtherSessionsAsync();
+            if (!success)
+            {
+                Toast.ShowError(message);
+                return;
+            }
+
+            Toast.ShowSuccess("All other devices have been logged out.");
+            await LoadSessionsAsync();
+        }
+        finally
+        {
+            _isRevokingSessions = false;
+        }
+    }
+
+    private void RequestDisableMfa()
+    {
+        _mfaPassword = string.Empty;
+        _mfaError = null;
+        _showMfaConfirm = true;
+    }
+
+    private void CancelDisableMfa() => _showMfaConfirm = false;
+
+    private async Task OnMfaPasswordKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_mfaPassword))
+            await ConfirmDisableMfaAsync();
+    }
+
+    private async Task ConfirmDisableMfaAsync()
+    {
+        _isDisablingMfa = true;
+        _mfaError = null;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/mfa/reset", new ResetMfaRequest { CurrentPassword = _mfaPassword });
+            if (!response.IsSuccessStatusCode)
+            {
+                _mfaError = "Incorrect password. Please try again.";
+                return;
+            }
+
+            if (_myProfile is not null) _myProfile.IsMfaEnabled = false;
+            _showMfaConfirm = false;
+            Toast.ShowSuccess("MFA has been turned off.");
+        }
+        catch (Exception ex)
+        {
+            _mfaError = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            _isDisablingMfa = false;
+        }
+    }
+
+    // Absolute URL — the API runs on a different origin than the client
+    // (Http.BaseAddress), and a plain <img src> resolves relative URLs
+    // against the PAGE's origin, not HttpClient's, so a relative path 404s.
+    // The ?v= bump forces the browser to refetch right after a new picture
+    // is uploaded — the URL is otherwise identical, so it'd keep showing a
+    // cached copy of the old one until a hard refresh.
+    private int _pictureVersion;
+    private string AvatarUrl(Guid userId, bool thumb) =>
+        $"{Http.BaseAddress}api/UserProfile/{userId}/avatar{(thumb ? "/thumb" : "")}?v={_pictureVersion}";
+
+    private string AvatarLightboxUrl => _isSelf
+        ? AvatarUrl(_myProfile!.Id, thumb: false)
+        : AvatarUrl(_publicProfile!.Id, thumb: false);
+
+    private void OpenTierLadderModal(int currentLevel) => _tierLadderModalLevel = currentLevel;
+    private void CloseTierLadderModal() => _tierLadderModalLevel = null;
+
+    private void OpenAvatarLightbox() => _showAvatarLightbox = true;
+    private void CloseAvatarLightbox() => _showAvatarLightbox = false;
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
+    private class ProfileUpdateResponse
+    {
+        public UserProfileDto Profile { get; set; } = new();
+        public string Token { get; set; } = string.Empty;
+    }
+}

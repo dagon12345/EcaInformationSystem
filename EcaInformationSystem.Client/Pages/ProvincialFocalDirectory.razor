@@ -247,6 +247,23 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.InitAsync();
+
+        // ✅ Focal accounts belong on /focal-home under FocalLayout — this page
+        // is the staff shell (MainLayout). Redirecting here immediately (rather
+        // than relying solely on MainLayout's own Focal redirect) avoids the
+        // race where this page's OnInitializedAsync and MainLayout's
+        // OnAfterRenderAsync both fire concurrently: without this, the Focal
+        // briefly sees the full staff shell and a burst of staff-only API/hub
+        // calls (transaction-tier, MFA status, documentTrackingHub,
+        // systemUpdateHub, biometricStatusHub) all 403 before the slower
+        // layout-level redirect kicks in.
+        if (AuthService.GetRole() == "Focal")
+        {
+            Navigation.NavigateTo("/focal-home", true);
+            return;
+        }
+
         // ✅ Encoder is an office-only Create/Edit/View role — no calling/directory
         // need, so this page (and its nav link — see NavMenu.razor) is off-limits.
         // Guarded here too in case they navigate to the URL directly.

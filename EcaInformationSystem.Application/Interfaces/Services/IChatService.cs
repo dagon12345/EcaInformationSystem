@@ -7,6 +7,11 @@ namespace EcaInformationSystem.Application.Interfaces.Services
     {
         Task<List<ChatRoomDto>> GetMyRoomsAsync(Guid currentUserId, int? currentUserRegion);
         Task<ChatRoomDto> StartDirectConversationAsync(Guid currentUserId, Guid otherUserId);
+        // Used by ChatHub.StartDirectConversation to check the target's role —
+        // Focal accounts may only start a NEW conversation with a PDO (see
+        // that method for the full rule), so it needs to know who it's about
+        // to create a room with before deciding.
+        Task<string?> GetUserRoleAsync(Guid userId);
 
         Task<ChatMessageDto> SendMessageAsync(Guid currentUserId, string currentUserRole, int? currentUserRegion, SendChatMessageDto dto);
         Task DeleteMessageAsync(Guid currentUserId, string currentUserRole, Guid messageId);

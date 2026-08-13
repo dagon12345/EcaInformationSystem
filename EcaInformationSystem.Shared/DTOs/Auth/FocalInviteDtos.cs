@@ -63,7 +63,11 @@ namespace EcaInformationSystem.Shared.DTOs.Auth
     public class AcceptFocalInviteRequest
     {
         public string Code { get; set; } = string.Empty;
+        // Must be a valid email address — enforced in
+        // FocalInviteService.AcceptInviteAsync — so a focal account is always
+        // identifiable by a real contact address rather than an arbitrary handle.
         public string UserName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 }

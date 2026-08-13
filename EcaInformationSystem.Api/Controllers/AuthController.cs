@@ -67,7 +67,7 @@ namespace EcaInformationSystem.Api.Controllers
 
         }
         [HttpPost("mfa/dismiss-prompt")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> DismissMfaPrompt()
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -86,7 +86,7 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(new { result.Token, result.FullName, result.UserName });
         }
         [HttpPost("mfa/setup")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> SetupMfa()
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -102,7 +102,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("mfa/confirm")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> ConfirmMfa([FromBody] ConfirmMfaRequest request)
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -119,7 +119,7 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(result);
         }
         [HttpPost("mfa/reset")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)] // requires being logged in — see note below
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")] // requires being logged in — see note below
         public async Task<IActionResult> ResetMfa([FromBody] ResetMfaRequest request)
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);
@@ -142,7 +142,7 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
         [HttpGet("mfa/status")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> GetMfaStatus()
         {
             var userId = Guid.Parse(User.FindFirst("sub")!.Value);

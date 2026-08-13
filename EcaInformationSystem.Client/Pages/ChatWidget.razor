@@ -144,9 +144,16 @@
                             <span class="btn-icon-badge">@(ChatState.UnreadMentionCount > 99 ? "99+" : ChatState.UnreadMentionCount.ToString())</span>
                         }
                     </button>
-                    <button class="btn-new-chat btn-compose" title="Compose new message" @onclick="OpenUserPicker">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
+                    @if (ChatState.CurrentUserRole != "Focal")
+                    {
+                        @* Focal accounts can't browse/start arbitrary new conversations
+                           (server-side blocked in ChatHub.StartDirectConversation to
+                           PDO/Admin only) — they message people from the Provincial
+                           Directory instead, so this picker doesn't apply to them. *@
+                        <button class="btn-new-chat btn-compose" title="Compose new message" @onclick="OpenUserPicker">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    }
                 </div>
                 <div class="chat-room-list">
                     @if (!ChatState.Rooms.Any())

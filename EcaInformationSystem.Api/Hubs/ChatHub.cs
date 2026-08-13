@@ -11,8 +11,10 @@ namespace EcaInformationSystem.API.Hubs
 {
     // Focal accounts get in — but deliberately narrow: OnConnectedAsync skips
     // Global/Regional auto-join for them (see below), and StartDirectConversation
-    // is blocked outright, so the only room they can ever be a member of is the
-    // one 1:1 DM auto-created with their PDO at onboarding (FocalInviteService).
+    // only lets them start a NEW room with a PDO or Admin (see that method) —
+    // so besides the one 1:1 DM auto-created with their PDO at onboarding
+    // (FocalInviteService), the only other rooms they can ever join are PDOs/
+    // Admins they message from the Provincial Directory.
     [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
     public class ChatHub : Hub
     {
@@ -229,10 +231,18 @@ namespace EcaInformationSystem.API.Hubs
         {
             var (userId, role, _) = GetCurrentUser();
 
-            // Focal accounts don't get to start NEW conversations with anyone —
-            // their one DM with their PDO is already auto-created at onboarding.
+            // Focal accounts don't get to start a new conversation with just
+            // anyone — but they DO need to reach the people the Provincial
+            // Directory actually shows them: PDOs (not necessarily their own
+            // assigned one, e.g. if that PDO is unavailable) and Admins (who
+            // can also appear there once jurisdiction-assigned). Everyone else
+            // (other Focals, SuperAdmin, Viewer, etc.) stays blocked.
             if (role == "Focal")
-                throw new HubException("Focal accounts can only chat with their assigned PDO.");
+            {
+                var targetRole = await _chatService.GetUserRoleAsync(otherUserId);
+                if (targetRole != "PDO" && targetRole != "Admin")
+                    throw new HubException("Focal accounts can only start a new conversation with a PDO or Admin.");
+            }
 
             var myRoomView = await _chatService.StartDirectConversationAsync(userId, otherUserId);
 

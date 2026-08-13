@@ -313,6 +313,12 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
+        public async Task<string?> GetUserRoleAsync(Guid userId)
+        {
+            var user = await _repo.GetUserByIdAsync(userId);
+            return user?.Role;
+        }
+
         public async Task<ChatRoomDto> StartDirectConversationAsync(Guid currentUserId, Guid otherUserId)
         {
             var room = await _repo.GetOrCreateDirectRoomAsync(currentUserId, otherUserId);

@@ -73,10 +73,13 @@
                 <thead>
                     <tr>
                         <th>Name</th>
+                        <th>Contact Number</th>
                         <th>Birthdate</th>
                         <th>Barangay</th>
                         <th>Age</th>
                         <th>Sex</th>
+                        <th>Date Applied</th>
+                        <th>Date Endorsed</th>
                         <th>Compliant</th>
                         <th>Finding</th>
                         <th>Payment Status</th>
@@ -87,10 +90,13 @@
                     {
                         <tr style="cursor:pointer;" @onclick="() => OpenDetailAsync(item.Id)">
                             <td>@item.FullName</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.ContactNumber) ? "—" : item.ContactNumber)</td>
                             <td>@item.BirthDate.ToString("MMM dd, yyyy")</td>
                             <td>@item.BarangayName</td>
                             <td>@item.Age</td>
                             <td>@item.SexLabel</td>
+                            <td>@(item.DateApplied?.ToString("MMM dd, yyyy") ?? "—")</td>
+                            <td>@(item.DateEndorsed?.ToString("MMM dd, yyyy") ?? "—")</td>
                             <td title="@item.AssessmentRemarksPreview">
                                 <span class="badge @(item.IsCompliant ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">
                                     @item.ComplianceLabel
@@ -145,6 +151,15 @@
 
                 <dt class="col-5">Sex</dt>
                 <dd class="col-7">@_selectedDetail.SexLabel</dd>
+
+                <dt class="col-5">Contact number</dt>
+                <dd class="col-7">@(string.IsNullOrWhiteSpace(_selectedDetail.ContactNumber) ? "—" : _selectedDetail.ContactNumber)</dd>
+
+                <dt class="col-5">Date applied</dt>
+                <dd class="col-7">@(_selectedDetail.DateApplied?.ToString("MMM dd, yyyy") ?? "—")</dd>
+
+                <dt class="col-5">Date endorsed</dt>
+                <dd class="col-7">@(_selectedDetail.DateEndorsed?.ToString("MMM dd, yyyy") ?? "—")</dd>
 
                 <dt class="col-5">Civil status</dt>
                 <dd class="col-7">@_selectedDetail.CivilStatusLabel</dd>

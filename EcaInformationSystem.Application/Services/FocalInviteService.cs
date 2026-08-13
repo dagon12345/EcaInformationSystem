@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using EcaInformationSystem.Application.Common.Models;
+using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Common.Enum;
@@ -25,18 +26,24 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPendingUserRegistrationRepository _userRepo;
         private readonly IAuthService _authService;
         private readonly IChatService _chatService;
+        private readonly IMunicipalityRepository _municipalityRepo;
+        private readonly IProvinceRepository _provinceRepo;
         private readonly PasswordHasher<PendingUserRegistration> _passwordHasher;
 
         public FocalInviteService(
             IFocalInviteRepository inviteRepo,
             IPendingUserRegistrationRepository userRepo,
             IAuthService authService,
-            IChatService chatService)
+            IChatService chatService,
+            IMunicipalityRepository municipalityRepo,
+            IProvinceRepository provinceRepo)
         {
             _inviteRepo = inviteRepo;
             _userRepo = userRepo;
             _authService = authService;
             _chatService = chatService;
+            _municipalityRepo = municipalityRepo;
+            _provinceRepo = provinceRepo;
             _passwordHasher = new PasswordHasher<PendingUserRegistration>();
         }
 
@@ -149,13 +156,29 @@ namespace EcaInformationSystem.Application.Services
                 return AuthResult.Failed("This invite link is invalid or has expired.");
 
             if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
-                return AuthResult.Failed("Username and password are required.");
+                return AuthResult.Failed("Email and password are required.");
 
-            var existing = await _userRepo.GetByUserNameAsync(request.UserName);
+            // ✅ Guard — a focal's username must be a real email address, not an
+            // arbitrary handle, so PDOs/admins can always identify who an
+            // account belongs to at a glance (Directory, User Management, etc).
+            var email = request.UserName.Trim();
+            if (!IsValidEmail(email))
+                return AuthResult.Failed("Username must be a valid email address.");
+
+            if (request.Password != request.ConfirmPassword)
+                return AuthResult.Failed("Password and confirmation do not match.");
+
+            var existing = await _userRepo.GetByUserNameAsync(email);
             if (existing != null)
-                return AuthResult.Failed("That username is already taken.");
+                return AuthResult.Failed("An account with that email already exists.");
 
             var inviter = await _userRepo.GetByIdAsync(invite.InvitedByUserId);
+
+            // ✅ A Focal's Region was always left null before, which is why
+            // their profile showed an empty Region — derive it from the one
+            // municipality they're assigned (municipality -> province -> region),
+            // same PSGC hierarchy PDO jurisdiction assignment already relies on.
+            var regionCode = await ResolveRegionCodeAsync(invite.Jurisdictions.FirstOrDefault()?.PsgcCodeMunicipality);
 
             var user = new PendingUserRegistration
             {
@@ -168,8 +191,8 @@ namespace EcaInformationSystem.Application.Services
                 // meant every freshly-accepted Focal falsely showed up as "birthday
                 // today" on the feed the moment they registered.
                 BirthDate = default,
-                Region = null,
-                UserName = request.UserName,
+                Region = regionCode,
+                UserName = email,
                 IsActivated = true,
                 ApprovalStatus = (int)ApprovalStatus.Approved, // the inviting PDO already vetted them
                 RequestedAt = DateTime.UtcNow,
@@ -263,6 +286,23 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
+        // Municipality -> Province -> Region, same fetch-all-and-filter pattern
+        // already used by UserProfileService.ResolveRegionNameAsync — these PSGC
+        // reference tables are small enough that a dedicated indexed lookup
+        // isn't warranted here.
+        private async Task<int?> ResolveRegionCodeAsync(int? municipalityCode)
+        {
+            if (!municipalityCode.HasValue) return null;
+
+            var municipalities = await _municipalityRepo.GetAllMunicipalityAsync();
+            var provinceCode = municipalities
+                .FirstOrDefault(m => m.PsgcCodeMunicipality == municipalityCode.Value)?.PsgcCodeProvince;
+            if (!provinceCode.HasValue) return null;
+
+            var provinces = await _provinceRepo.GetAllProvinceAsync();
+            return provinces.FirstOrDefault(p => p.PsgcCodeProvince == provinceCode.Value)?.PsgcCodeRegion;
+        }
+
         private static string GenerateCode()
         {
             var bytes = RandomNumberGenerator.GetBytes(CodeLength);
@@ -276,6 +316,22 @@ namespace EcaInformationSystem.Application.Services
         {
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim().ToUpperInvariant()));
             return Convert.ToHexString(bytes);
+        }
+
+        // MailAddress's parser is the standard .NET way to validate "is this
+        // shaped like a real email" without hand-rolling a fragile regex —
+        // rejects anything without both a local part and a domain.
+        private static bool IsValidEmail(string value)
+        {
+            try
+            {
+                var address = new System.Net.Mail.MailAddress(value);
+                return address.Address == value;
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
     }
 }

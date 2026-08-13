@@ -10,7 +10,10 @@
 @using EcaInformationSystem.Shared.DTOs
 @inject VoiceCallStateService CallState
 @inject VoiceCallClientService VoiceCallClient
+@inject ChatStateService ChatState
 @inject ToastService toast
+@inject NavigationManager Navigation
+@inject HttpClient Http
 @implements IDisposable
 
 @if (Loading)
@@ -34,8 +37,13 @@ else
                 @foreach (var person in group.People)
                 {
                     <div class="focal-person-row @(_recentlyChangedIds.Contains(person.UserId) ? "focal-person-row--live" : "")">
+                        <button type="button" class="focal-person-avatar-btn" title="View profile" @onclick="() => GoToProfile(person.UserId)">
+                            <img src="@AvatarUrl(person.UserId)" alt="" class="focal-person-avatar avatar-img"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <div class="focal-person-avatar focal-person-avatar-fallback" style="display:none;">@GetInitials(person.FullName)</div>
+                        </button>
                         <span class="focal-person-dot @(person.IsOnline ? "focal-person-dot--online" : "")"></span>
-                        <div class="focal-person-info">
+                        <div class="focal-person-info" style="cursor:pointer;" @onclick="() => GoToProfile(person.UserId)">
                             <div class="focal-person-name">
                                 @person.FullName
                                 @if (_recentlyChangedIds.Contains(person.UserId) && person.IsOnline)
@@ -49,8 +57,14 @@ else
                                 <div class="focal-person-municipality">@person.MunicipalityName</div>
                             }
                         </div>
-                        <button type="button" class="focal-call-btn" title="Voice call"
-                                disabled="@(!person.IsOnline || CallState.CurrentState != VoiceCallState.Idle)"
+                        @{ var isSelf = person.UserId == ChatState.CurrentUserId; }
+                        <button type="button" class="focal-call-btn focal-message-btn" title="Send a message"
+                                disabled="@isSelf"
+                                @onclick="() => MessageAsync(person.UserId)">
+                            <i class="bi bi-chat-dots-fill"></i>
+                        </button>
+                        <button type="button" class="focal-call-btn" title="@CallButtonTitle(person, isSelf)"
+                                disabled="@(isSelf || !person.IsOnline || CallState.CurrentState != VoiceCallState.Idle)"
                                 @onclick="() => CallState.StartCallAsync(person.UserId, person.FullName)">
                             <i class="bi bi-telephone-fill"></i>
                         </button>
@@ -64,8 +78,25 @@ else
 @code {
     [Parameter] public List<ProvinceDirectoryGroupDto> Groups { get; set; } = new();
     [Parameter] public bool Loading { get; set; }
+    // Staff (ProvincialFocalDirectory, under MainLayout) use the default
+    // "/profile" — Focal (FocalHome, under FocalLayout) doesn't have that
+    // route available and uses "/focal-profile" instead (see FocalProfile.razor).
+    [Parameter] public string ProfileRouteBase { get; set; } = "/profile";
 
     private HashSet<Guid> _recentlyChangedIds = new();
+
+    private void GoToProfile(Guid userId) => Navigation.NavigateTo($"{ProfileRouteBase}/{userId}");
+
+    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
+    // 404s (API is on a different origin than the client).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1 ? parts[0][0].ToString().ToUpper() : $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
 
     protected override void OnInitialized()
     {
@@ -74,6 +105,36 @@ else
     }
 
     private void HandleCallStateChanged() => InvokeAsync(StateHasChanged);
+
+    // Explains WHY the call button is greyed out — otherwise "disabled with no
+    // reason" reads as broken rather than "they're just not online right now".
+    private string CallButtonTitle(DirectoryPersonDto person, bool isSelf)
+    {
+        if (isSelf) return "You can't call yourself";
+        if (!person.IsOnline) return $"{person.FullName} is offline — they need to be logged in to receive a call";
+        if (CallState.CurrentState != VoiceCallState.Idle) return "You're already on a call";
+        return "Voice call";
+    }
+
+    // Starts (or resumes) a direct chat with this person and opens the chat
+    // widget straight into it — same flow ChatWidget's own "new chat" picker
+    // uses, just triggered from here instead.
+    private async Task MessageAsync(Guid userId)
+    {
+        try
+        {
+            await ChatState.StartAndOpenDirectConversationAsync(userId);
+            ChatState.OpenWidget();
+        }
+        catch (Exception ex)
+        {
+            // HubException.Message carries the real reason (e.g. the Focal
+            // "only a PDO" rule below) through to the client as-is — surface
+            // it instead of a generic message so it's actionable.
+            var message = ex.InnerException?.Message ?? ex.Message;
+            toast.ShowError(string.IsNullOrWhiteSpace(message) ? "Couldn't start a conversation. Please try again." : message);
+        }
+    }
 
     private void HandlePresenceChanged(Guid userId, bool isOnline)
     {

@@ -9602,6 +9602,32 @@ body {
 .voice-call-bar-name { font-weight: 600; color: #1f2937; }
 .voice-call-bar-timer { font-size: 11px; color: #1a7f37; font-variant-numeric: tabular-nums; }
 
+/* ── Live mic-level bars — heights animated straight by JS (voiceCallInterop.js
+   startVoiceMeter) via inline transform, not Blazor re-renders. ── */
+.voice-wave-meter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5px;
+    width: 22px;
+    height: 18px;
+    flex-shrink: 0;
+}
+.voice-wave-bar {
+    width: 3px;
+    height: 100%;
+    border-radius: 2px;
+    background: #16a34a;
+    transform: scaleY(0.12);
+    transform-origin: center;
+    transition: transform 0.06s linear;
+}
+.voice-wave-meter--muted .voice-wave-bar {
+    background: #cbd5e1;
+    transform: scaleY(0.12) !important;
+    transition: none;
+}
+
 .voice-call-icon-btn {
     width: 32px;
     height: 32px;
@@ -9646,6 +9672,32 @@ body {
     gap: 10px;
     padding: 6px 0;
 }
+.focal-person-avatar-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    background: transparent;
+}
+.focal-person-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.focal-person-avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e5e7eb;
+    color: #4b5563;
+    font-size: 12px;
+    font-weight: 700;
+}
 .focal-person-dot {
     width: 9px;
     height: 9px;
@@ -9672,6 +9724,10 @@ body {
 }
 .focal-call-btn:hover:not(:disabled) { background: #dbeafe; }
 .focal-call-btn:disabled { opacity: 0.4; }
+.focal-call-btn + .focal-call-btn { margin-left: 6px; }
+
+.focal-message-btn { background: #ecfdf5; color: #059669; }
+.focal-message-btn:hover:not(:disabled) { background: #d1fae5; }
 
 /* ── Live presence pulse — briefly plays when VoiceCallHub's
    "VoiceCallPresenceChanged" push flips someone's status, so the directory

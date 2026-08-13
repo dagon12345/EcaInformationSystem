@@ -15,6 +15,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public string Role { get; set; } = string.Empty;
         public int? Region { get; set; }
         public string? RegionName { get; set; }
+        // Assigned municipality/ies (from PdoJurisdiction) — mainly relevant for
+        // PDO/Focal accounts, empty for everyone else. A Focal covers exactly
+        // one, but this stays a list to match how PDO jurisdictions already work.
+        public List<string> MunicipalityNames { get; set; } = new();
 
         public bool IsMfaEnabled { get; set; }
         public bool HasProfilePicture { get; set; }
@@ -36,6 +40,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public string Position { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string? RegionName { get; set; }
+        public List<string> MunicipalityNames { get; set; } = new();
         public bool HasProfilePicture { get; set; }
     }
 }

@@ -10,7 +10,10 @@ namespace EcaInformationSystem.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+    // ✅ Every endpoint here is scoped to CurrentUserId — Focal accounts can
+    // manage their own sessions from their profile page too, same reasoning
+    // as UserProfileController's "me" endpoints.
+    [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
     public class UserSessionsController : ControllerBase
     {
         private readonly IUserSessionRepository _userSessionRepository;
