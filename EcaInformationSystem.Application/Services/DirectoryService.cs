@@ -6,7 +6,12 @@ namespace EcaInformationSystem.Application.Services
 {
     public class DirectoryService : IDirectoryService
     {
-        private static readonly string[] DirectoryRoles = { "PDO", "Focal" };
+        // ✅ "Admin" included so a SuperAdmin can optionally assign an Admin
+        // province-level jurisdictions (via UserManagementService.AssignJurisdictionsAsync)
+        // purely to segregate them into this directory by province — it does NOT
+        // restrict what an Admin can actually access (JurisdictionGuardService still
+        // gives Admin unrestricted write access regardless of this assignment).
+        private static readonly string[] DirectoryRoles = { "PDO", "Focal", "Admin" };
 
         private readonly IPendingUserRegistrationRepository _userRepo;
 

@@ -54,7 +54,7 @@ namespace EcaInformationSystem.Application.Services
             var user = await _repo.GetByIdAsync(userId)
                 ?? throw new KeyNotFoundException("User not found.");
 
-            var validRoles = new[] { "SuperAdmin", "Admin", "PDO", "Finance", "Viewer" };
+            var validRoles = new[] { "SuperAdmin", "Admin", "PDO", "Finance", "Viewer", "Encoder" };
             if (!validRoles.Contains(role))
                 throw new ArgumentException($"Invalid role: {role}");
 
@@ -129,8 +129,14 @@ namespace EcaInformationSystem.Application.Services
             var user = await _repo.GetByIdAsync(userId)
                 ?? throw new KeyNotFoundException("User not found.");
 
-            if (user.Role != "PDO")
-                throw new InvalidOperationException("Jurisdiction assignment is only applicable to PDO accounts.");
+            // ✅ PDO — jurisdiction is a hard access restriction (see JurisdictionGuardService).
+            // Admin — jurisdiction here is OPTIONAL and purely a label: it segregates
+            // that Admin into their province in the Provincial Focal Directory, it does
+            // NOT restrict their access (Admin remains unrestricted everywhere).
+            // Encoder is deliberately excluded — Encoders always have every jurisdiction
+            // implicitly, so per-municipality assignment doesn't apply to them.
+            if (user.Role != "PDO" && user.Role != "Admin")
+                throw new InvalidOperationException("Jurisdiction assignment is only applicable to PDO and Admin accounts.");
 
             var allMunicipalities = await _municipalityRepo.GetAllMunicipalityAsync();
             var allProvinces = await GetProvinceNamesAsync(municipalityCodes, allMunicipalities);

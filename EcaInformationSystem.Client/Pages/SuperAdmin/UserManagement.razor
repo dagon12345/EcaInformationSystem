@@ -297,6 +297,14 @@
                                                             <i class="bi bi-geo-alt me-1"></i>Jurisdiction
                                                         </button>
                                                     }
+                                                    @if (user.Role == "Admin")
+                                                    {
+                                                        <button class="btn btn-sm btn-outline-info"
+                                                                title="Optional — only used to segregate this Admin by province in the Provincial Focal Directory. Does not restrict their access."
+                                                                @onclick="() => OpenJurisdictionModal(user)">
+                                                            <i class="bi bi-geo-alt me-1"></i>Jurisdiction (optional)
+                                                        </button>
+                                                    }
                                                     @if (user.IsDeactivated)
                                                     {
                                                         <button class="btn btn-sm btn-outline-success" @onclick="() => ReactivateAsync(user)">
@@ -512,6 +520,7 @@
                 </label>
                 <select class="form-select" @bind="_approveRole">
                     <option value="Viewer">Viewer — view and upload only</option>
+                    <option value="Encoder">Encoder — create, edit, and view grantees only</option>
                     <option value="PDO">PDO — Project Development Officer</option>
                     <option value="Finance">Finance — WFP-ECA and document findings</option>
                     <option value="Admin">Admin — full operational access</option>
@@ -1529,6 +1538,7 @@
         "PDO" => "bg-primary",
         "Finance" => "bg-success",
         "Viewer" => "bg-secondary",
+        "Encoder" => "bg-info text-dark",
         _ => "bg-secondary"
     };
 
@@ -1560,6 +1570,8 @@
             "Finance: manages the Work Financial Plan (WFP-ECA) and handles document findings in Document Tracking.",
         "Viewer" =>
             "Read-only: view records, export Excel, upload documents.",
+        "Encoder" =>
+            "Office encoder: create, edit, and view grantee records only — no deletes, imports, payroll, or admin features. Automatically has every municipality (no jurisdiction to assign).",
         _ => string.Empty
     };
 }

@@ -198,6 +198,16 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOrPDO",
         policy => policy.RequireRole("Admin", "PDO", "SuperAdmin"));
 
+    // ✅ Encoder — narrow, office-only role: can Create and Edit a grantee
+    // record (View is already open to everyone via the default policy) and
+    // nothing else. Deliberately its OWN policy rather than added to
+    // "AdminOrPDO" above, since that policy is reused by bulk ops, imports,
+    // COE generation, document uploads, and focal invites — none of which
+    // Encoder should reach. Only apply this policy to Beneficiary
+    // Create/Update endpoints.
+    options.AddPolicy("GranteeEncodeAccess",
+        policy => policy.RequireRole("Admin", "PDO", "SuperAdmin", "Encoder"));
+
     // ✅ Viewer — "view and upload only" role, plus Admins, can upload Forms Gateway documents
     options.AddPolicy("AdminOrViewer",
         policy => policy.RequireRole("Admin", "Viewer", "SuperAdmin"));

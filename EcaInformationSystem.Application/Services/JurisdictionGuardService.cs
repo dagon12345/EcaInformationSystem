@@ -14,8 +14,11 @@ namespace EcaInformationSystem.Application.Services
         }
         public async Task<string?> CheckAsync(string userName, string role, int municipalityCode)
         {
-            // Admin and SuperAdmin have no restrictions
-            if (role == "Admin" || role == "SuperAdmin")
+            // Admin, SuperAdmin, and Encoder have no restrictions — Encoders are
+            // implicitly assigned every jurisdiction (no PdoJurisdiction rows
+            // needed) since they're an office-wide encoding role, not tied to a
+            // specific province/municipality like PDO.
+            if (role == "Admin" || role == "SuperAdmin" || role == "Encoder")
                 return null;
 
             if (role == "PDO")

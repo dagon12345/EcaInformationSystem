@@ -247,6 +247,15 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // ✅ Encoder is an office-only Create/Edit/View role — no calling/directory
+        // need, so this page (and its nav link — see NavMenu.razor) is off-limits.
+        // Guarded here too in case they navigate to the URL directly.
+        if (AuthService.IsEncoder())
+        {
+            Navigation.NavigateTo("/beneficiary-records", true);
+            return;
+        }
+
         _isPdo = AuthService.IsPDO();
         _canInvite = AuthService.IsAdmin() || _isPdo;
         await LoadDirectoryAsync();

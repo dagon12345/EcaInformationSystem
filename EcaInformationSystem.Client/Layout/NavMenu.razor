@@ -48,8 +48,8 @@
 
     <div class="nav-section-label">Records</div>
 
-    @* ── Create Record — Admin + PDO only ── *@
-    @if (_isAdmin || _isPdo)
+    @* ── Create Record — Admin + PDO + Encoder ── *@
+    @if (_isAdmin || _isPdo || _isEncoder)
     {
         <NavLink class="nav-item" href="beneficiary-create">
             <span class="nav-icon"><i class="bi bi-person-plus"></i></span>
@@ -107,11 +107,15 @@
 
     @* ── Provincial Focals — visible to everyone including Focal accounts (that's
        the whole point, they need to find people to call); inviting is gated
-       inside the page to PDO/Admin/SuperAdmin ── *@
-    <NavLink class="nav-item" href="provincial-focals">
-        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
-        <span class="nav-label">Provincial Focals</span>
-    </NavLink>
+       inside the page to PDO/Admin/SuperAdmin. Encoder is deliberately excluded —
+       they're an office-only Create/Edit/View role with no calling/directory need. ── *@
+    @if (!_isEncoder)
+    {
+        <NavLink class="nav-item" href="provincial-focals">
+            <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+            <span class="nav-label">Provincial Focals</span>
+        </NavLink>
+    }
 
     @* ── Call Logs — SuperAdmin/Admin see every call; PDO sees only their own
        (enforced server-side too). Not shown to Finance/Viewer/Focal. ── *@
@@ -238,7 +242,7 @@
                     No municipalities assigned. Contact your administrator.
                 </div>
             }
-            else if (_isAdmin)
+            else if (_isAdmin || _isEncoder)
             {
                 <div class="legend-title mt-2">
                     <i class="bi bi-geo-alt me-1"></i>Jurisdictions
@@ -328,6 +332,7 @@
     private bool _isPdo;
     private bool _isViewer;
     private bool _isFinance;
+    private bool _isEncoder;
     private bool _roleLoaded;
     private string _role = string.Empty;
     private List<int> _jurisdictions = new();
@@ -345,6 +350,7 @@
         _isPdo = AuthService.IsPDO();
         _isViewer = AuthService.IsViewer();
         _isFinance = AuthService.IsFinance();
+        _isEncoder = AuthService.IsEncoder();
         _role = AuthService.GetRole() ?? string.Empty;
         _roleLoaded = true;
 
@@ -438,9 +444,9 @@
             ("Upload PDF", true),
             ("View / Download Forms", true), // ✅ NEW — everyone
             ("Upload / Edit / Delete Forms", _isAdmin), // ✅ NEW — Admin/SuperAdmin only
-            ("Create record", _isAdmin || _isPdo),
+            ("Create record", _isAdmin || _isPdo || _isEncoder),
             ("Bulk Ref Number", _isAdmin || _isPdo),
-            ("Edit record(With Jurisdiction for PDO)", _isAdmin || _isPdo),
+            ("Edit record(With Jurisdiction for PDO)", _isAdmin || _isPdo || _isEncoder),
             ("Delete record", _isAdmin),
             ("Bulk Payment", _isAdmin),
             ("Bulk CO Status", _isAdmin),
@@ -471,6 +477,7 @@
         "PDO" => "legend-role-badge--pdo",
         "Finance" => "legend-role-badge--finance",
         "Viewer" => "legend-role-badge--viewer",
+        "Encoder" => "legend-role-badge--pdo", // shares PDO's visual — same operational tier
         "Focal" => "legend-role-badge--viewer", // call-only, never actually renders (FocalLayout is used instead)
         _ => "legend-role-badge--viewer"
     };
@@ -482,6 +489,7 @@
         "PDO" => "bi-person-badge-fill",
         "Finance" => "bi-cash-stack",
         "Viewer" => "bi-eye-fill",
+        "Encoder" => "bi-keyboard-fill",
         "Focal" => "bi-telephone-fill",
         _ => "bi-person-fill"
     };
@@ -493,6 +501,7 @@
         "PDO" => "Project Development Officer",
         "Finance" => "Finance",
         "Viewer" => "Viewer",
+        "Encoder" => "Encoder",
         "Focal" => "Provincial Focal",
         _ => role
     };

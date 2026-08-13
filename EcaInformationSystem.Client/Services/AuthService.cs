@@ -344,8 +344,8 @@ namespace EcaInformationSystem.Client.Services
 
         public bool IsInJurisdiction(int municipalityCode)
         {
-            // ✅ Admin/SuperAdmin see everything — no jurisdiction filter
-            if (_cachedRole is "Admin" or "SuperAdmin") return true;
+            // ✅ Admin/SuperAdmin/Encoder see everything — no jurisdiction filter
+            if (_cachedRole is "Admin" or "SuperAdmin" or "Encoder") return true;
             if (_cachedRole != "PDO") return false;
             return _cachedJurisdictions.Contains(municipalityCode);
         }
@@ -430,6 +430,8 @@ namespace EcaInformationSystem.Client.Services
         public bool IsPDO() => _cachedRole == "PDO";
         public bool IsViewer() => _cachedRole == "Viewer";
         public bool IsFinance() => _cachedRole == "Finance";
+        // ✅ Encoder — office-only role: Create/Edit/View a grantee record, nothing else.
+        public bool IsEncoder() => _cachedRole == "Encoder";
 
         // ── Private: parse role claim out of a JWT string ────────────────────
         private static string? ParseRoleFromToken(string? token)

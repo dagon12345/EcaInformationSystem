@@ -421,6 +421,9 @@
         "PDO" =>
             $"This action is restricted to Administrators. " +
             $"Your account ({label}) does not have permission to perform this operation.",
+        "Encoder" =>
+            $"Your account ({label}) can only Create, Edit, and View grantee records. " +
+            "Contact an administrator for anything beyond that.",
         _ => "You do not have permission to perform this action."
     };
 
@@ -430,6 +433,7 @@
         "Admin" => "bg-danger",
         "PDO" => "bg-primary",
         "Viewer" => "bg-secondary",
+        "Encoder" => "bg-primary", // shares PDO's visual — same operational tier
         "Focal" => "bg-info", // call-only, never actually renders (FocalLayout is used instead)
         _ => "bg-secondary"
     };
@@ -440,6 +444,7 @@
         "Admin" => "bi-shield-fill-check",
         "PDO" => "bi-person-badge-fill",
         "Viewer" => "bi-eye-fill",
+        "Encoder" => "bi-keyboard-fill",
         "Focal" => "bi-telephone-fill",
         _ => "bi-person-fill"
     };
@@ -450,6 +455,7 @@
         "Admin" => "Administrator",
         "PDO" => "Project Development Officer",
         "Viewer" => "Viewer",
+        "Encoder" => "Encoder",
         "Focal" => "Provincial Focal",
         _ => role
     };

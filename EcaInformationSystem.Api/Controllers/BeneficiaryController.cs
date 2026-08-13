@@ -162,7 +162,7 @@ namespace EcaInformationSystem.Api.Controllers
             => Ok(await _service.GetSummaryAsync(filter));
 
         [HttpPost("create")]
-        [Authorize(Policy = "AdminOrPDO")]
+        [Authorize(Policy = "GranteeEncodeAccess")]
         public async Task<IActionResult> Create([FromBody] CreateBeneficiaryInformationDto dto)
         {
             try
@@ -219,7 +219,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Policy = "AdminOrPDO")] // Admin and PDO can edit but the PDO have jurisdiction restrictions
+        [Authorize(Policy = "GranteeEncodeAccess")] // Admin/SuperAdmin/Encoder unrestricted; PDO has jurisdiction restrictions (see JurisdictionGuardService)
         public async Task<IActionResult> Update(Guid id, [FromBody] BeneficiaryInformationDto dto)
         {
             if (!ModelState.IsValid)
