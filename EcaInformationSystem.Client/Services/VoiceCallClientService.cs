@@ -11,7 +11,11 @@ namespace EcaInformationSystem.Client.Services
         public event Action<Guid, string>? OnIncomingCall; // (callerId, callerName)
         public event Action<Guid, Guid>? OnCallAccepted; // (accepterId, callLogId)
         public event Action<Guid>? OnCallRejected; // rejecterId
+        // Another of THIS account's own devices accepted or rejected the same
+        // incoming call — fired only on the ringing device(s) that didn't act.
+        public event Action<Guid>? OnIncomingCallDismissed; // callerId
         public event Action<Guid, Guid?>? OnCallEnded; // (enderId, callLogId)
+        public event Action<Guid>? OnCallNotesSaved; // callLogId — saved on another of this account's own devices
         public event Action<Guid, string>? OnOfferReceived; // (senderId, sdpOfferJson)
         public event Action<Guid, string>? OnAnswerReceived; // (senderId, sdpAnswerJson)
         public event Action<Guid, string>? OnIceCandidateReceived; // (senderId, candidateJson)
@@ -49,7 +53,9 @@ namespace EcaInformationSystem.Client.Services
             _hubConnection.On<Guid, string>("IncomingCall", (callerId, callerName) => OnIncomingCall?.Invoke(callerId, callerName));
             _hubConnection.On<Guid, Guid>("CallAccepted", (accepterId, logId) => OnCallAccepted?.Invoke(accepterId, logId));
             _hubConnection.On<Guid>("CallRejected", rejecterId => OnCallRejected?.Invoke(rejecterId));
+            _hubConnection.On<Guid>("IncomingCallDismissed", callerId => OnIncomingCallDismissed?.Invoke(callerId));
             _hubConnection.On<Guid, Guid?>("CallEnded", (enderId, logId) => OnCallEnded?.Invoke(enderId, logId));
+            _hubConnection.On<Guid>("CallNotesSaved", logId => OnCallNotesSaved?.Invoke(logId));
             _hubConnection.On<Guid, string>("ReceiveOffer", (senderId, sdp) => OnOfferReceived?.Invoke(senderId, sdp));
             _hubConnection.On<Guid, string>("ReceiveAnswer", (senderId, sdp) => OnAnswerReceived?.Invoke(senderId, sdp));
             _hubConnection.On<Guid, string>("ReceiveIceCandidate", (senderId, candidate) => OnIceCandidateReceived?.Invoke(senderId, candidate));

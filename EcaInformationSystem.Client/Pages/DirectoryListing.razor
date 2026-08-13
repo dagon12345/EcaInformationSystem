@@ -16,6 +16,46 @@
 @inject HttpClient Http
 @implements IDisposable
 
+@{
+    // One person row — reused for both a PDO branch's own header and each
+    // Focal nested under it, so the avatar/online-dot/message/call markup
+    // exists in exactly one place regardless of where it's rendered.
+    RenderFragment<DirectoryPersonDto> PersonRow = person =>
+        @<text>
+            <button type="button" class="focal-person-avatar-btn" title="View profile" @onclick="() => GoToProfile(person.UserId)">
+                <img src="@AvatarUrl(person.UserId)" alt="" class="focal-person-avatar avatar-img"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <div class="focal-person-avatar focal-person-avatar-fallback" style="display:none;">@GetInitials(person.FullName)</div>
+            </button>
+            <span class="focal-person-dot @(person.IsOnline ? "focal-person-dot--online" : "")"></span>
+            <div class="focal-person-info" style="cursor:pointer;" @onclick="() => GoToProfile(person.UserId)">
+                <div class="focal-person-name">
+                    @person.FullName
+                    @if (_recentlyChangedIds.Contains(person.UserId) && person.IsOnline)
+                    {
+                        <i class="bi bi-lightning-charge-fill focal-person-live-icon" title="Just came online"></i>
+                    }
+                </div>
+                <div class="focal-person-role">@person.Role</div>
+                @if (!string.IsNullOrWhiteSpace(person.MunicipalityName))
+                {
+                    <div class="focal-person-municipality">@person.MunicipalityName</div>
+                }
+            </div>
+            @{ var isSelf = person.UserId == ChatState.CurrentUserId; }
+            <button type="button" class="focal-call-btn focal-message-btn" title="Send a message"
+                    disabled="@isSelf"
+                    @onclick="() => MessageAsync(person.UserId)">
+                <i class="bi bi-chat-dots-fill"></i>
+            </button>
+            <button type="button" class="focal-call-btn" title="@CallButtonTitle(person, isSelf)"
+                    disabled="@(isSelf || !person.IsOnline || CallState.CurrentState != VoiceCallState.Idle)"
+                    @onclick="() => CallState.StartCallAsync(person.UserId, person.FullName)">
+                <i class="bi bi-telephone-fill"></i>
+            </button>
+        </text>;
+}
+
 @if (Loading)
 {
     <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
@@ -33,41 +73,64 @@ else
         @foreach (var group in Groups)
         {
             <div class="focal-province-card">
-                <div class="focal-province-header">@group.ProvinceName</div>
-                @foreach (var person in group.People)
+                <div class="focal-province-header">
+                    <i class="bi bi-geo-alt-fill me-1"></i>@group.ProvinceName
+                </div>
+
+                @if (!group.PdoBranches.Any())
                 {
-                    <div class="focal-person-row @(_recentlyChangedIds.Contains(person.UserId) ? "focal-person-row--live" : "")">
-                        <button type="button" class="focal-person-avatar-btn" title="View profile" @onclick="() => GoToProfile(person.UserId)">
-                            <img src="@AvatarUrl(person.UserId)" alt="" class="focal-person-avatar avatar-img"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="focal-person-avatar focal-person-avatar-fallback" style="display:none;">@GetInitials(person.FullName)</div>
-                        </button>
-                        <span class="focal-person-dot @(person.IsOnline ? "focal-person-dot--online" : "")"></span>
-                        <div class="focal-person-info" style="cursor:pointer;" @onclick="() => GoToProfile(person.UserId)">
-                            <div class="focal-person-name">
-                                @person.FullName
-                                @if (_recentlyChangedIds.Contains(person.UserId) && person.IsOnline)
+                    <div class="focal-branch-empty">No PDOs or focals assigned here yet.</div>
+                }
+
+                @foreach (var branch in group.PdoBranches)
+                {
+                    var isAdminBucket = branch.PdoUserId is null;
+                    var branchKey = branch.PdoUserId ?? Guid.Empty;
+                    var expanded = IsBranchExpanded(branchKey);
+
+                    <div class="focal-branch @(isAdminBucket ? "focal-branch--admin" : "")">
+                        <div class="focal-branch-header" @onclick="() => ToggleBranch(branchKey)">
+                            <i class="bi @(expanded ? "bi-chevron-down" : "bi-chevron-right") focal-branch-toggle"></i>
+
+                            @if (isAdminBucket)
+                            {
+                                <span class="focal-branch-admin-icon"><i class="bi bi-shield-fill"></i></span>
+                                <div class="focal-person-info">
+                                    <div class="focal-person-name">@branch.PdoName</div>
+                                    <div class="focal-person-role">Not tied to a specific PDO</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="focal-person-row focal-person-row--branch" @onclick:stopPropagation="true">
+                                    @{ var pdoPerson = new DirectoryPersonDto { UserId = branch.PdoUserId!.Value, FullName = branch.PdoName, Role = "PDO", IsOnline = branch.IsOnline }; }
+                                    @PersonRow(pdoPerson)
+                                </div>
+                            }
+
+                            <span class="focal-branch-count" title="@branch.Focals.Count focal(s) under this PDO">
+                                <i class="bi bi-person-fill"></i>@branch.Focals.Count
+                            </span>
+                        </div>
+
+                        @if (expanded)
+                        {
+                            <div class="focal-branch-focals">
+                                @if (!branch.Focals.Any())
                                 {
-                                    <i class="bi bi-lightning-charge-fill focal-person-live-icon" title="Just came online"></i>
+                                    <div class="focal-branch-empty">No focals invited yet.</div>
+                                }
+                                else
+                                {
+                                    @foreach (var focal in branch.Focals)
+                                    {
+                                        <div class="focal-person-row focal-branch-focal-row @(_recentlyChangedIds.Contains(focal.UserId) ? "focal-person-row--live" : "")">
+                                            @PersonRow(focal)
+                                        </div>
+                                    }
                                 }
                             </div>
-                            <div class="focal-person-role">@person.Role</div>
-                            @if (!string.IsNullOrWhiteSpace(person.MunicipalityName))
-                            {
-                                <div class="focal-person-municipality">@person.MunicipalityName</div>
-                            }
-                        </div>
-                        @{ var isSelf = person.UserId == ChatState.CurrentUserId; }
-                        <button type="button" class="focal-call-btn focal-message-btn" title="Send a message"
-                                disabled="@isSelf"
-                                @onclick="() => MessageAsync(person.UserId)">
-                            <i class="bi bi-chat-dots-fill"></i>
-                        </button>
-                        <button type="button" class="focal-call-btn" title="@CallButtonTitle(person, isSelf)"
-                                disabled="@(isSelf || !person.IsOnline || CallState.CurrentState != VoiceCallState.Idle)"
-                                @onclick="() => CallState.StartCallAsync(person.UserId, person.FullName)">
-                            <i class="bi bi-telephone-fill"></i>
-                        </button>
+                        }
                     </div>
                 }
             </div>
@@ -84,6 +147,16 @@ else
     [Parameter] public string ProfileRouteBase { get; set; } = "/profile";
 
     private HashSet<Guid> _recentlyChangedIds = new();
+
+    // Branches start expanded — this only tracks ones the user has manually
+    // collapsed. Keyed by PdoUserId, or Guid.Empty for the Admin-Invited bucket.
+    private HashSet<Guid> _collapsedBranches = new();
+    private bool IsBranchExpanded(Guid branchKey) => !_collapsedBranches.Contains(branchKey);
+    private void ToggleBranch(Guid branchKey)
+    {
+        if (!_collapsedBranches.Add(branchKey))
+            _collapsedBranches.Remove(branchKey);
+    }
 
     private void GoToProfile(Guid userId) => Navigation.NavigateTo($"{ProfileRouteBase}/{userId}");
 
@@ -139,14 +212,34 @@ else
     private void HandlePresenceChanged(Guid userId, bool isOnline)
     {
         // A person can appear in more than one province group (e.g. a PDO
-        // covering multiple provinces) — update every occurrence.
+        // covering multiple provinces), and a PDO also appears both as its
+        // own branch header AND inside group.People — update every occurrence.
         DirectoryPersonDto? match = null;
+        string? matchName = null;
         foreach (var group in Groups)
         {
             foreach (var person in group.People.Where(p => p.UserId == userId))
             {
                 person.IsOnline = isOnline;
                 match = person;
+                matchName = person.FullName;
+            }
+
+            foreach (var branch in group.PdoBranches)
+            {
+                if (branch.PdoUserId == userId)
+                {
+                    branch.IsOnline = isOnline;
+                    matchName ??= branch.PdoName;
+                    match ??= new DirectoryPersonDto { UserId = userId, FullName = branch.PdoName };
+                }
+
+                foreach (var focal in branch.Focals.Where(f => f.UserId == userId))
+                {
+                    focal.IsOnline = isOnline;
+                    match = focal;
+                    matchName = focal.FullName;
+                }
             }
         }
 

@@ -12,9 +12,24 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? MunicipalityName { get; set; }
     }
 
+    // ✅ NEW — one PDO's branch within a province: the PDO themselves, plus
+    // every Focal they invited whose own municipality falls within this same
+    // province. PdoUserId == null is the "Admin-Invited" bucket — focals
+    // invited by an Admin/SuperAdmin rather than a jurisdiction-bound PDO,
+    // who therefore don't branch under any single PDO.
+    public class PdoDirectoryBranchDto
+    {
+        public Guid? PdoUserId { get; set; }
+        public string PdoName { get; set; } = string.Empty;
+        public bool IsOnline { get; set; }
+        public List<DirectoryPersonDto> Focals { get; set; } = new();
+    }
+
     public class ProvinceDirectoryGroupDto
     {
         public string ProvinceName { get; set; } = string.Empty;
         public List<DirectoryPersonDto> People { get; set; } = new();
+        // ✅ NEW — the branching structure DirectoryListing.razor renders.
+        public List<PdoDirectoryBranchDto> PdoBranches { get; set; } = new();
     }
 }

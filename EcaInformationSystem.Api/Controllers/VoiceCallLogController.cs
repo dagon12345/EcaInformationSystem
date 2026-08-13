@@ -1,7 +1,9 @@
+using EcaInformationSystem.Api.Hubs;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace EcaInformationSystem.Api.Controllers
 {
@@ -15,10 +17,12 @@ namespace EcaInformationSystem.Api.Controllers
     public class VoiceCallLogController : ControllerBase
     {
         private readonly IVoiceCallLogService _service;
+        private readonly IHubContext<VoiceCallHub> _hub;
 
-        public VoiceCallLogController(IVoiceCallLogService service)
+        public VoiceCallLogController(IVoiceCallLogService service, IHubContext<VoiceCallHub> hub)
         {
             _service = service;
+            _hub = hub;
         }
 
         private Guid CurrentUserId => Guid.Parse(User.FindFirst("sub")!.Value);
@@ -33,7 +37,19 @@ namespace EcaInformationSystem.Api.Controllers
         [Authorize(Policy = "AnyAuthenticatedIncludingFocal")] // a Focal is a valid call participant too
         public async Task<IActionResult> UpdateNotes(Guid id, [FromBody] UpdateVoiceCallLogNotesRequest request)
         {
-            try { return Ok(await _service.UpdateNotesAsync(id, CurrentUserId, request.Notes)); }
+            try
+            {
+                var result = await _service.UpdateNotesAsync(id, CurrentUserId, request.Notes);
+
+                // ✅ If this same account is also open on another device (e.g. the
+                // call happened on the PC, but the phone is logged in too), that
+                // device's post-call notes prompt for this same log — if it's
+                // somehow still showing one — should close now that it's saved,
+                // rather than sitting there stale/duplicated.
+                await _hub.Clients.User(CurrentUserId.ToString()).SendAsync("CallNotesSaved", id);
+
+                return Ok(result);
+            }
             catch (KeyNotFoundException) { return NotFound(); }
             catch (UnauthorizedAccessException) { return Forbid(); }
         }

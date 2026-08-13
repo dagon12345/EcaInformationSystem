@@ -29,8 +29,19 @@ namespace EcaInformationSystem.Api.Controllers
             var groups = await _service.GetProvincialDirectoryAsync();
 
             foreach (var group in groups)
+            {
                 foreach (var person in group.People)
                     person.IsOnline = _voiceCallTracker.IsOnline(person.UserId);
+
+                foreach (var branch in group.PdoBranches)
+                {
+                    if (branch.PdoUserId.HasValue)
+                        branch.IsOnline = _voiceCallTracker.IsOnline(branch.PdoUserId.Value);
+
+                    foreach (var focal in branch.Focals)
+                        focal.IsOnline = _voiceCallTracker.IsOnline(focal.UserId);
+                }
+            }
 
             return Ok(groups);
         }

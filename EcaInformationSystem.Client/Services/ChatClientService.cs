@@ -22,6 +22,9 @@ namespace EcaInformationSystem.Client.Services
         public event Action<Guid, Guid, string>? OnUserTyping; // (roomId, userId, senderName)
         public event Action<Guid>? OnConversationDeleted;
         public event Action<ChatMessageDto>? OnMessageEdited;
+        // Another of this account's own devices logged out (or "log out all
+        // other devices" was used) — this device should log itself out too.
+        public event Action? OnForceLogout;
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
         public ChatClientService(IJSRuntime js)
@@ -73,6 +76,7 @@ namespace EcaInformationSystem.Client.Services
             });
             _hubConnection.On<ChatMessageDto>("MessageEdited", msg => OnMessageEdited?.Invoke(msg));
             _hubConnection.On<Guid>("ConversationDeleted", roomId => OnConversationDeleted?.Invoke(roomId));
+            _hubConnection.On("ForceLogout", () => OnForceLogout?.Invoke());
             _hubConnection.Reconnecting += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Reconnected += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };
             _hubConnection.Closed += _ => { OnConnectionStateChanged?.Invoke(); return Task.CompletedTask; };

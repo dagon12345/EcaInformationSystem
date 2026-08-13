@@ -228,7 +228,7 @@
         }
 
         @* ── Summary Cards — click a count to audit exactly who's included ── *@
-        <div class="dash-stat-grid mb-3">
+        <div class="dash-stat-grid dash-stat-grid--cols-5 mb-3">
             <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable"
                  @onclick='() => OpenMembersModalAsync("all", "Total Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
@@ -256,6 +256,13 @@
                 <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
                 <div class="dash-stat-value">@_report.PendingCount.ToString("N0")</div>
                 <div class="dash-stat-label">Pending</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--clickable" style="background:#6c757d;"
+                 @onclick='() => OpenMembersModalAsync("notapplicable", "N/A Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-dash-circle-fill"></i></div>
+                <div class="dash-stat-value">@_report.NotApplicableCount.ToString("N0")</div>
+                <div class="dash-stat-label">N/A</div>
             </div>
         </div>
 

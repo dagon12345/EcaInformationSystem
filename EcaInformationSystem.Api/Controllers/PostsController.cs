@@ -62,6 +62,9 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(result);
         }
 
+        // ✅ REVERTED — see CreatePost above; Focal never owns a post now, so
+        // this would always 403 for them via the ownership check anyway, but
+        // reverting the policy keeps the accessible surface minimal.
         [HttpPut("{id:guid}")]
         [Authorize]
         [RequestSizeLimit(209_715_200)]
@@ -113,6 +116,9 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(result);
         }
 
+        // ✅ REVERTED — Focal gets a view/comment/like/share-only feed, not full
+        // parity with staff. Bare [Authorize] (→ DefaultPolicy) excludes Focal;
+        // AddComment/EditComment/DeleteComment below stay open on purpose.
         [HttpPost]
         [Authorize]
         [RequestSizeLimit(209_715_200)]
@@ -173,6 +179,7 @@ namespace EcaInformationSystem.Api.Controllers
             return File(result.Value.data, result.Value.contentType);
         }
 
+        // ✅ REVERTED — see CreatePost above.
         [HttpDelete("{id:guid}")]
         [Authorize]
         public async Task<IActionResult> DeletePost(Guid id)
@@ -233,7 +240,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpPost("{id:guid}/comments")]
-        [Authorize]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> AddComment(Guid id, [FromBody] CreateCommentDto dto)
         {
             var userId = GetUserId();
@@ -259,7 +266,7 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(result);
         }
         [HttpPut("comments/{commentId:guid}")]
-        [Authorize]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> EditComment(Guid commentId, [FromBody] EditCommentDto dto)
         {
             var userId = GetUserId();
@@ -278,7 +285,7 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         [HttpDelete("comments/{commentId:guid}")]
-        [Authorize]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> DeleteComment(Guid commentId)
         {
             var userId = GetUserId();

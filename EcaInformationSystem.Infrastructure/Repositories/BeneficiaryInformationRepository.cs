@@ -769,9 +769,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(b => b.DateAdded < request.DateAddedTo.Value.Date.AddDays(1));
 
             // ✅ NEW — Milestone Year filter (was completely missing before)
-            // Mirrors the same bracket rule used in BuildNarrowFilterQuery: a beneficiary
+            // Mirrors the same bracket rule used elsewhere: a beneficiary
             // "belongs" to milestoneYear if BirthYear + one of {80,85,90,95,100} == milestoneYear,
             // and that resulting year is >= 2024 (program start).
+            // ✅ FIXED — added the March 17, 2024 program-start-date cutoff
+            // (see EcaEligibilityHelper). The program launched mid-year, so a
+            // milestone birthday that fell in Jan/Feb/early-March 2024 — before
+            // the program existed — never validly belonged to "Milestone Year
+            // 2024", even though the year-only arithmetic below matches it.
+            // Every other target year (2025+) is a full calendar year, so no
+            // day-of-year check is needed there.
             if (request.MilestoneYear > 0)
             {
                 var milestonesForYearFilter = new[] { 80, 85, 90, 95, 100 };
@@ -780,7 +787,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(b =>
                     milestonesForYearFilter.Any(m =>
                         b.BirthDate.Year + m == targetYear &&
-                        b.BirthDate.Year + m >= 2024));
+                        b.BirthDate.Year + m >= 2024 &&
+                        !(b.BirthDate.Year + m == 2024 &&
+                          (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17)))));
             }
             // ── Milestone Age filter ─────────────────────────────────────────────
             // ✅ FIXED — matches the same "bracket" rule used by AgeDistribution
@@ -943,21 +952,40 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 })
                 .ToList();
 
+            // ✅ FIXED — respects the March 17, 2024 program-start cutoff (see
+            // EcaEligibilityHelper): someone whose milestone birthday fell in
+            // Jan/Feb/early-March 2024 never validly reached that milestone,
+            // even though their birth year matches "year - milestoneAge".
+            // Only year 2024 needs this check — every later year is a full
+            // calendar year with no mid-year cutoff.
+            bool IsValidMilestoneYear(DateTime birthDate, int milestoneAge, int targetYear)
+            {
+                if (birthDate.Year + milestoneAge != targetYear) return false;
+                if (targetYear < 2024) return false;
+                if (targetYear == 2024)
+                {
+                    var milestoneBirthday = new DateTime(targetYear, birthDate.Month, birthDate.Day);
+                    if (milestoneBirthday < EcaEligibilityHelper.ProgramStartDate) return false;
+                }
+                return true;
+            }
+
             var milestoneYears = new[] { 2024, 2025, 2026 };
             report.MilestoneYearSummary = milestoneYears
                 .Select(year =>
                 {
-                    var birthYears = milestoneAges.Select(m => year - m).ToList();
-                    var records = allData.Where(b => birthYears.Contains(b.BirthDate.Year)).ToList();
+                    var records = allData
+                        .Where(b => milestoneAges.Any(m => IsValidMilestoneYear(b.BirthDate, m, year)))
+                        .ToList();
                     return new MilestoneYearSummaryDto
                     {
                         Year = year,
                         TotalCount = records.Count,
-                        Age80Count = records.Count(b => b.BirthDate.Year == year - 80),
-                        Age85Count = records.Count(b => b.BirthDate.Year == year - 85),
-                        Age90Count = records.Count(b => b.BirthDate.Year == year - 90),
-                        Age95Count = records.Count(b => b.BirthDate.Year == year - 95),
-                        Age100Count = records.Count(b => b.BirthDate.Year == year - 100)
+                        Age80Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 80, year)),
+                        Age85Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 85, year)),
+                        Age90Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 90, year)),
+                        Age95Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 95, year)),
+                        Age100Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 100, year))
                     };
                 })
                 .ToList();
@@ -2694,9 +2722,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     // ✅ Mirror exact same logic as ComputeMilestoneYear returning 0:
                     // No milestone satisfies: >= 2024 AND
                     // (year < today.Year OR (year == today.Year AND dayOfYear <= today.DayOfYear))
+                    // ✅ FIXED — added the March 17, 2024 cutoff (see EcaEligibilityHelper):
+                    // a milestone landing in 2024 doesn't count as "reached" if the
+                    // birthday fell before the program actually started, even though
+                    // year-only arithmetic and DayOfYear reachability both say yes.
                     query = query.Where(x =>
                         !milestones.Any(m =>
                             (x.Beneficiary.BirthDate.Year + m) >= 2024 &&
+                            !((x.Beneficiary.BirthDate.Year + m) == 2024 &&
+                              (x.Beneficiary.BirthDate.Month < 3 ||
+                               (x.Beneficiary.BirthDate.Month == 3 && x.Beneficiary.BirthDate.Day < 17))) &&
                             (
                                 (x.Beneficiary.BirthDate.Year + m) < today.Year ||
                                 (
@@ -2710,10 +2745,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 else
                 {
                     // ✅ Specific milestone year — must match AND be >= 2024
+                    // ✅ FIXED — same March 17, 2024 cutoff as above, for target year 2024.
                     query = query.Where(x =>
                         milestones.Any(m =>
                             x.Beneficiary.BirthDate.Year + m == milestoneYear &&
-                            x.Beneficiary.BirthDate.Year + m >= 2024));
+                            x.Beneficiary.BirthDate.Year + m >= 2024 &&
+                            !(x.Beneficiary.BirthDate.Year + m == 2024 &&
+                              (x.Beneficiary.BirthDate.Month < 3 ||
+                               (x.Beneficiary.BirthDate.Month == 3 && x.Beneficiary.BirthDate.Day < 17)))));
                 }
             }
 
@@ -3558,17 +3597,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 var milestones = new[] { 80, 85, 90, 95, 100 };
                 var today = DateTime.Today;
 
+                // ✅ FIXED — both branches now respect the March 17, 2024 program-start
+                // cutoff (see EcaEligibilityHelper): a milestone landing in 2024 whose
+                // birthday fell before March 17 never validly counted, even though
+                // year-only arithmetic says it matches.
                 if (milestoneYear == 0)
                 {
                     query = query.Where(b => !milestones.Any(m =>
                         (b.BirthDate.Year + m) >= 2024 &&
+                        !((b.BirthDate.Year + m) == 2024 &&
+                          (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17))) &&
                         ((b.BirthDate.Year + m) < today.Year ||
                          ((b.BirthDate.Year + m) == today.Year && b.BirthDate.DayOfYear <= today.DayOfYear))));
                 }
                 else
                 {
                     query = query.Where(b => milestones.Any(m =>
-                        b.BirthDate.Year + m == milestoneYear && b.BirthDate.Year + m >= 2024));
+                        b.BirthDate.Year + m == milestoneYear && b.BirthDate.Year + m >= 2024 &&
+                        !(b.BirthDate.Year + m == 2024 &&
+                          (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17)))));
                 }
             }
             // ── General Search ──────────────────────────────────────────────────────────

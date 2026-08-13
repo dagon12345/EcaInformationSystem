@@ -56,7 +56,9 @@ namespace EcaInformationSystem.Client.Services
             _hub.OnIncomingCall += HandleIncomingCall;
             _hub.OnCallAccepted += HandleCallAccepted;
             _hub.OnCallRejected += HandleCallRejected;
+            _hub.OnIncomingCallDismissed += HandleIncomingCallDismissed;
             _hub.OnCallEnded += HandleCallEnded;
+            _hub.OnCallNotesSaved += HandleCallNotesSaved;
             _hub.OnOfferReceived += HandleOfferReceived;
             _hub.OnAnswerReceived += HandleAnswerReceived;
             _hub.OnIceCandidateReceived += HandleIceCandidateReceived;
@@ -169,6 +171,17 @@ namespace EcaInformationSystem.Client.Services
             StopDialTimeoutTimer();
             await _js.InvokeVoidAsync("voiceCallInterop.stopRingback");
             await _js.InvokeVoidAsync("voiceCallInterop.playEndSound");
+            ResetToIdle();
+        }
+
+        // This SAME account answered or declined the same incoming call on a
+        // different device — only relevant here if THIS device is still
+        // ringing for it (the device that actually acted is already past
+        // Ringing by the time this arrives, so it's a no-op there).
+        private async void HandleIncomingCallDismissed(Guid callerId)
+        {
+            if (CurrentState != VoiceCallState.Ringing || callerId != RemoteUserId) return;
+            await _js.InvokeVoidAsync("voiceCallInterop.stopIncomingRing");
             ResetToIdle();
         }
 
@@ -298,6 +311,15 @@ namespace EcaInformationSystem.Client.Services
             Raise();
         }
 
+        // The notes for this call were saved from another of this account's
+        // own devices — if this device is still showing a prompt for the
+        // SAME call, close it too rather than leaving a stale duplicate.
+        private void HandleCallNotesSaved(Guid logId)
+        {
+            if (LastEndedCallLogId == logId)
+                DismissCallSummary();
+        }
+
         private void ResetToIdle()
         {
             CurrentState = VoiceCallState.Idle;
@@ -322,7 +344,9 @@ namespace EcaInformationSystem.Client.Services
                 _hub.OnIncomingCall -= HandleIncomingCall;
                 _hub.OnCallAccepted -= HandleCallAccepted;
                 _hub.OnCallRejected -= HandleCallRejected;
+                _hub.OnIncomingCallDismissed -= HandleIncomingCallDismissed;
                 _hub.OnCallEnded -= HandleCallEnded;
+                _hub.OnCallNotesSaved -= HandleCallNotesSaved;
                 _hub.OnOfferReceived -= HandleOfferReceived;
                 _hub.OnAnswerReceived -= HandleAnswerReceived;
                 _hub.OnIceCandidateReceived -= HandleIceCandidateReceived;

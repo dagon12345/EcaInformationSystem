@@ -7,6 +7,9 @@ namespace EcaInformationSystem.Api.Controllers
     // Every role can see their own tier — this is a gamified "how much have
     // you done" badge, not an admin report, so it's deliberately NOT gated
     // by the AdminOnly policy LogsController uses for the full activity feed.
+    // ✅ REVERTED — the leaderboard ranks internal staff transaction/case
+    // volume, not relevant (or appropriate to expose) to an external Focal
+    // contact, whose feed access is intentionally view/comment/like/share only.
     [ApiController]
     [Route("api/transaction-tier")]
     [Authorize]

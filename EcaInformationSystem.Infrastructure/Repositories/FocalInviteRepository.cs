@@ -34,6 +34,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync(cancellationToken);
 
+        public async Task<List<(Guid InvitedByUserId, Guid ResultingUserId)>> GetAcceptedInviterMapAsync(CancellationToken cancellationToken = default)
+            => (await _context.FocalInvites
+                .AsNoTracking()
+                .Where(x => x.Status == 1 && x.ResultingUserId.HasValue)
+                .Select(x => new { x.InvitedByUserId, ResultingUserId = x.ResultingUserId!.Value })
+                .ToListAsync(cancellationToken))
+                .Select(x => (x.InvitedByUserId, x.ResultingUserId))
+                .ToList();
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
             => await _context.SaveChangesAsync(cancellationToken);
     }

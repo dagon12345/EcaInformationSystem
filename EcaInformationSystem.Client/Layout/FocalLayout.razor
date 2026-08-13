@@ -177,6 +177,7 @@
         // straight here), so this is the only place their chat connection
         // ever gets established — without it, <ChatWidget /> below would
         // render with no live connection behind it.
+        ChatClientService.OnForceLogout += HandleForceLogout;
         if (!ChatClientService.IsConnected)
         {
             try
@@ -244,8 +245,19 @@
         Navigation.NavigateTo("/login", true);
     }
 
+    // Another of this account's own devices logged out (which cascades a
+    // logout to every other device) or used "log out all other devices" —
+    // this one needs to log itself out immediately too.
+    private async void HandleForceLogout()
+    {
+        await AuthService.LogoutAsync();
+        ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+        Navigation.NavigateTo("/login", true);
+    }
+
     public void Dispose()
     {
         SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
+        ChatClientService.OnForceLogout -= HandleForceLogout;
     }
 }

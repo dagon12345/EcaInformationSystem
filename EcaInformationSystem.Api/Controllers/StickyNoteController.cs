@@ -7,6 +7,8 @@ namespace EcaInformationSystem.Api.Controllers
 {
     // Strictly private — every route is scoped to the caller's own user id.
     // There is deliberately no admin or "view other user's notes" route.
+    // ✅ REVERTED — sticky notes are a staff productivity tool, not part of
+    // Focal's intentionally minimal view/comment/like/share-only feed access.
     [ApiController]
     [Route("api/stickynotes")]
     [Authorize(Policy = AuthPolicies.CookieOrJwt)]

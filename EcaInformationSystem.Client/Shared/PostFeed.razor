@@ -20,12 +20,14 @@
 @inject AuthService AuthService
 
 <div class="feed-page-layout">
-@if (_isAuthenticated)
+@if (_isAuthenticated && !_isFocal)
 {
     @* ── Transaction Leaderboard — replaces the old inline chat sidebar here;
          Messages moved to a navbar icon (MainLayout) with the same click-to-open
          behavior as the notification bell. Reuses .feed-chat-sidebar's exact
-         CSS (width/shrink/mobile-stacking) so the column behaves identically. ── *@
+         CSS (width/shrink/mobile-stacking) so the column behaves identically.
+         Ranks internal staff transaction volume — not shown to Focal, whose
+         feed access is intentionally view/comment/like/share only. ── *@
     <aside class="feed-chat-sidebar">
         <div class="tier-leaderboard-card">
             <div class="tier-leaderboard-header" @onclick="ToggleLeaderboard">
@@ -220,8 +222,10 @@
         </div>
     </div>
 
-    @if (_isAuthenticated)
+    @if (_isAuthenticated && !_isFocal)
     {
+        @* Focal's feed access is intentionally view/comment/like/share only —
+           no ability to create new posts. ── *@
         <div class="feed-composer">
             <div class="feed-avatar feed-avatar--sm">U</div>
             <div class="feed-composer-input-wrap">
@@ -675,6 +679,10 @@
             </div>
         </div> 
 
+        @if (!_isFocal)
+        {
+        @* Personal staff productivity tool — not part of Focal's
+           intentionally minimal view/comment/like/share-only feed access. ── *@
         <div class="sticky-notes-widget" @onclick:stopPropagation="true">
             <div class="notes-widget-header notes-widget-header--clickable" @onclick="() => _notesExpanded = !_notesExpanded">
                 <div class="notes-widget-title"><i class="bi bi-stickies-fill"></i><span>My Sticky Notes</span></div>
@@ -764,6 +772,7 @@
                 </div>
             </div>
         </div>
+        }
 
     </aside>
 }
@@ -1376,20 +1385,31 @@
 
         if (_isAuthenticated)
         {
-            await LoadUpcomingBirthdaysAsync();
-            await LoadNotesAsync();
-
-            // ✅ Now a persistent sidebar (like birthday/sticky-notes) instead of
-            // an inline collapsed-by-default banner, so it starts expanded and
-            // loads immediately rather than waiting for a header click.
-            _leaderboardExpanded = true;
-            await LoadLeaderboardAsync();
-            _myTier = await TierClient.GetMyTierAsync();
-            _seasonInfo = await TierClient.GetSeasonInfoAsync();
             await AuthService.InitAsync();
             _isSuperAdmin = AuthService.IsSuperAdmin();
+            _isFocal = AuthService.IsFocal();
 
-            await ConnectTierRealtimeAsync();
+            await LoadUpcomingBirthdaysAsync();
+
+            // Focal's feed access is intentionally view/comment/like/share
+            // only — skip fetching sticky notes / leaderboard / tier data
+            // entirely rather than just hiding the widgets, since none of
+            // those endpoints are reachable for Focal anyway (see
+            // StickyNoteController / UserTransactionTierController).
+            if (!_isFocal)
+            {
+                await LoadNotesAsync();
+
+                // ✅ Now a persistent sidebar (like birthday/sticky-notes) instead of
+                // an inline collapsed-by-default banner, so it starts expanded and
+                // loads immediately rather than waiting for a header click.
+                _leaderboardExpanded = true;
+                await LoadLeaderboardAsync();
+                _myTier = await TierClient.GetMyTierAsync();
+                _seasonInfo = await TierClient.GetSeasonInfoAsync();
+
+                await ConnectTierRealtimeAsync();
+            }
         }
 
         // ✅ If we were opened via a shared link, ensure that post is present
@@ -2060,6 +2080,9 @@
     private bool _showTierInfo;
     private LeaderboardSeasonInfoDto? _seasonInfo;
     private bool _isSuperAdmin;
+    // Focal's feed access is intentionally view/comment/like/share only —
+    // no post composer, no leaderboard, no sticky notes.
+    private bool _isFocal;
     private bool _showResetConfirm;
     private bool _isResettingSeason;
 

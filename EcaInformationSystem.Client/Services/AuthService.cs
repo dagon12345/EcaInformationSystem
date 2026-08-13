@@ -226,6 +226,12 @@ namespace EcaInformationSystem.Client.Services
 
         public async Task LogoutAsync()
         {
+            // ✅ NEW — logging out here should log this account out everywhere
+            // else it's open too (e.g. PC + phone), not just this tab. Best-
+            // effort and done BEFORE clearing the token below, since it needs
+            // the still-valid auth header to call an authorized endpoint.
+            try { await RevokeOtherSessionsAsync(); } catch { }
+
             await _js.InvokeVoidAsync("localStorage.removeItem", "authToken");
             await _js.InvokeVoidAsync("localStorage.removeItem", "fullName");
             await _js.InvokeVoidAsync("localStorage.removeItem", "userName");
@@ -432,6 +438,9 @@ namespace EcaInformationSystem.Client.Services
         public bool IsFinance() => _cachedRole == "Finance";
         // ✅ Encoder — office-only role: Create/Edit/View a grantee record, nothing else.
         public bool IsEncoder() => _cachedRole == "Encoder";
+        // ✅ Focal — external partner-LGU contact: intentionally minimal
+        // feed access (view/comment/like/share only, no post/leaderboard/notes).
+        public bool IsFocal() => _cachedRole == "Focal";
 
         // ── Private: parse role claim out of a JWT string ────────────────────
         private static string? ParseRoleFromToken(string? token)

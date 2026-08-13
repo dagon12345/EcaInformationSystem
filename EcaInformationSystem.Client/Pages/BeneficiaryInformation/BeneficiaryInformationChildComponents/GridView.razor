@@ -3861,6 +3861,24 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         _ => "no-g"
     };
 
+    // ✅ FIXED — added the March 17, 2024 program-start cutoff (see
+    // EcaEligibilityHelper, the shared source of truth for this rule): a
+    // milestone landing in 2024 doesn't count as reached if the birthday
+    // fell before the program actually started, even though the year-only
+    // "my >= 2024 && my <= currentYear" match below says it does. Callers
+    // already route MissedProgramStartCutoff==true rows to a dedicated
+    // "cutoff-miss" badge before reaching this function, but that only
+    // covers someone who has NEVER reached a valid milestone — this fix
+    // also protects someone who missed 2024 but later validly reaches a
+    // LATER milestone (85/90/...), so this function doesn't fall back to
+    // their invalid 2024 match instead of their true one.
+    private static bool IsValidMilestoneYear(DateTime birthDate, int milestoneYear)
+    {
+        if (milestoneYear != 2024) return true;
+        var milestoneBirthday = new DateTime(milestoneYear, birthDate.Month, birthDate.Day);
+        return milestoneBirthday >= EcaEligibilityHelper.ProgramStartDate;
+    }
+
     private string GetAgeBadgeClass(DateTime birthDate)
     {
         var age = GetAge(birthDate);
@@ -3871,14 +3889,14 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         foreach (var m in milestones)
         {
             int my = birthDate.Year + m;
-            if (my >= 2024 && my <= currentYear) { nearestMilestoneYear = my; nearestMilestoneAge = m; break; }
+            if (my >= 2024 && my <= currentYear && IsValidMilestoneYear(birthDate, my)) { nearestMilestoneYear = my; nearestMilestoneAge = m; break; }
         }
         if (nearestMilestoneYear == 0)
         {
             foreach (var m in milestones)
             {
                 int my = birthDate.Year + m;
-                if (my >= 2024 && my > currentYear) { nearestMilestoneYear = my; nearestMilestoneAge = m; break; }
+                if (my >= 2024 && my > currentYear && IsValidMilestoneYear(birthDate, my)) { nearestMilestoneYear = my; nearestMilestoneAge = m; break; }
             }
         }
         if (nearestMilestoneYear == 0) return "unpaid";

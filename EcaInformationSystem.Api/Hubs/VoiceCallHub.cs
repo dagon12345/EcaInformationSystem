@@ -45,6 +45,16 @@ namespace EcaInformationSystem.Api.Hubs
             _tracker.SetCallLog(userId, callerId, logId);
 
             await Clients.User(callerId.ToString()).SendAsync("CallAccepted", userId, logId);
+
+            // ✅ Same account logged in on more than one device (e.g. PC + phone)
+            // all got the original "IncomingCall" broadcast (Clients.User fans
+            // out to every device), so every one of them is ringing. Only THIS
+            // connection accepted — tell the rest of this user's own devices to
+            // stop ringing too, instead of leaving them ringing indefinitely for
+            // a call that's already been picked up elsewhere. The client ignores
+            // this on whichever tab actually answered (it's already mid-call).
+            await Clients.User(userId.ToString()).SendAsync("IncomingCallDismissed", callerId);
+
             return logId;
         }
 
@@ -53,6 +63,10 @@ namespace EcaInformationSystem.Api.Hubs
             var (userId, _) = GetCurrentUser();
             await _logService.LogDeclinedAsync(callerId, userId);
             await Clients.User(callerId.ToString()).SendAsync("CallRejected", userId);
+
+            // ✅ Same reasoning as AcceptCall — declining on one device should
+            // stop the ringing on this user's other devices too.
+            await Clients.User(userId.ToString()).SendAsync("IncomingCallDismissed", callerId);
         }
 
         public async Task SendOffer(Guid targetUserId, string sdpOfferJson)

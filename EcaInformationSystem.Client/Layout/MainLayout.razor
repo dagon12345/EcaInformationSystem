@@ -259,6 +259,17 @@
         UpdateCurrentPage(Navigation.Uri);
 
         DocumentTrackingClientService.OnDocumentTagged += HandleDocumentTagged;
+        ChatClientService.OnForceLogout += HandleForceLogout;
+    }
+
+    // Another of this account's own devices logged out (which cascades a
+    // logout to every other device) or used "log out all other devices" —
+    // this one needs to log itself out immediately too, not just next time
+    // it happens to make a request.
+    private async void HandleForceLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
     }
 
     private void HandleDocumentTagged(DocumentTaggedNotificationDto notification)
@@ -548,5 +559,6 @@
         _bannerCts?.Cancel();
         Navigation.LocationChanged -= OnLocationChanged;
         DocumentTrackingClientService.OnDocumentTagged -= HandleDocumentTagged;
+        ChatClientService.OnForceLogout -= HandleForceLogout;
     }
 }
