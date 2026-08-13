@@ -157,15 +157,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // update, bulk CO status update, and CGP number assignment (payroll
         // generation — also excluded defensively even though it's logged
         // under the non-real "System (Payroll Generation)" username).
-        // Leaderboard counting only looks at activity from this date onward —
-        // requested so the brand-new leaderboard/tier feature doesn't hand
-        // an unfair head start to whoever happened to make the most edits
-        // (including this feature's own testing) before it existed.
-        private static readonly DateTime TransactionCountingStartUtc = new(2026, 8, 12, 0, 0, 0, DateTimeKind.Utc);
-
-        private IQueryable<Log> TransactionLogsQuery() =>
+        // `seasonStartUtc` is the CURRENT leaderboard season's start (see
+        // LeaderboardSeasonService/LeaderboardSeason) — this used to be a
+        // hardcoded constant here, but the weekly reset feature needs it to be
+        // dynamic (whatever the active season's StartedAtUtc is), so callers
+        // now fetch and pass it in instead.
+        private IQueryable<Log> TransactionLogsQuery(DateTime seasonStartUtc) =>
             _context.Logs.AsNoTracking().Where(l =>
-                l.CreatedAt >= TransactionCountingStartUtc &&
+                l.CreatedAt >= seasonStartUtc &&
                 !l.Activity.StartsWith(CommonConstants.ImportedBeneficiaryFromExcel) &&
                 !l.Activity.StartsWith(CommonConstants.ExcelUpdate) &&
                 !l.Activity.StartsWith("New payment record") &&
@@ -174,9 +173,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 !l.Activity.StartsWith("Bulk CO Status update") &&
                 !l.Activity.StartsWith("CGP Number assigned:"));
 
-        public async Task<int> CountUserTransactionsAsync(string userName)
+        public async Task<int> CountUserTransactionsAsync(string userName, DateTime seasonStartUtc)
         {
-            return await TransactionLogsQuery()
+            return await TransactionLogsQuery(seasonStartUtc)
                 .Where(l => l.UserName == userName)
                 .CountAsync();
         }
@@ -187,9 +186,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // when User.Identity.Name is unavailable, plus variants like "System
         // (Payroll Generation)" for specific background jobs) aren't real
         // accounts, so they're excluded from the ranking.
-        public async Task<List<(string UserName, int Count)>> GetTransactionCountsByUserAsync()
+        public async Task<List<(string UserName, int Count)>> GetTransactionCountsByUserAsync(DateTime seasonStartUtc)
         {
-            var grouped = await TransactionLogsQuery()
+            var grouped = await TransactionLogsQuery(seasonStartUtc)
                 .Where(l => !l.UserName.StartsWith("System"))
                 .GroupBy(l => l.UserName)
                 .Select(g => new { UserName = g.Key, Count = g.Count() })

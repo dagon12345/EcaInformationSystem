@@ -1,29 +1,33 @@
 namespace EcaInformationSystem.Shared.Helpers
 {
     // Gamified "how much have you actually done in this system" ladder — driven
-    // by the count of Log entries a user has generated (excluding Category
-    // "Login", which just tracks sign-ins, not work). Levels/thresholds and
-    // naming are a deliberate design choice, not derived from anything else.
+    // by the count of Log entries a user has generated since the current weekly
+    // season started (see LogRepository.TransactionLogsQuery, excludes bulk-op
+    // activity but does count Logins). Levels/thresholds and naming are a
+    // deliberate design choice, not derived from anything else.
     public static class TransactionTierHelper
     {
         public record TierDefinition(int Level, string Name, int MinCount);
 
-        // Thresholds lowered ~10-20% from their original values (25/250/1000/
-        // 5000/15000/25000/35000/50000) — the leaderboard's count now restarts
-        // from 2026-08-12 (see LogRepository.TransactionCountingStartUtc), so
-        // the old thresholds — tuned against months of accumulated history —
-        // would otherwise be unreachable for a long while under the fresh count.
+        // Rescaled for the weekly leaderboard reset (see LeaderboardSeasonService) —
+        // the count these thresholds measure against is now "since this week's
+        // season started", not an ever-growing all-time total, and average
+        // weekly activity per active encoder is ~5,000 transactions. God Tier
+        // is capped at that average, so hitting a full typical week's worth of
+        // activity is already the top of the ladder — the tiers below break
+        // that climb into achievable weekly milestones instead of everyone
+        // being stuck at Rookie under the old all-time-tuned numbers.
         public static readonly List<TierDefinition> Tiers = new()
         {
             new(1, "Rookie",   0),
-            new(2, "Bronze",   20),
-            new(3, "Silver",   220),
-            new(4, "Gold",     900),
-            new(5, "Platinum", 4500),
-            new(6, "Diamond",  13000),
-            new(7, "Master",   22000),
-            new(8, "Legend",   30000),
-            new(9, "God Tier", 45000),
+            new(2, "Bronze",   50),
+            new(3, "Silver",   200),
+            new(4, "Gold",     500),
+            new(5, "Platinum", 1000),
+            new(6, "Diamond",  1600),
+            new(7, "Master",   2400),
+            new(8, "Legend",   3600),
+            new(9, "God Tier", 5000),
         };
 
         public static TierDefinition GetCurrentTier(int transactionCount) =>

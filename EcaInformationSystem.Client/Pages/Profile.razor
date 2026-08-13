@@ -112,30 +112,38 @@
                                 </div>
                             }
 
-                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => _showTierLadder = !_showTierLadder">
-                                @(_showTierLadder ? "Hide" : "View") full tier ladder
-                                <i class="bi bi-chevron-@(_showTierLadder ? "up" : "down") ms-1"></i>
-                            </button>
-
-                            @if (_showTierLadder)
+                            @if (_myTier.SeasonNumber > 0)
                             {
-                                <div class="tier-ladder">
-                                    @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                                <div class="text-muted mt-2" style="font-size:11px;">Season @_myTier.SeasonNumber — resets Sunday 11:59 PM</div>
+                            }
+                            @if (_myTier.TotalWins > 0 || _myTier.LastSeasonRank.HasValue)
+                            {
+                                <div class="tier-lastweek justify-content-center">
+                                    @if (_myTier.TotalWins > 0)
                                     {
-                                        var v = TierVisuals.For(t.Level);
-                                        var isCurrent = t.Level == _myTier.TierLevel;
-                                        <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
-                                            <i class="bi @v.Icon"></i>
-                                            <span class="tier-ladder-name">@t.Name</span>
-                                            <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
-                                            @if (isCurrent)
-                                            {
-                                                <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
-                                            }
-                                        </div>
+                                        <span class="tier-lastweek-wins" title="Total Top-3 finishes">
+                                            <i class="bi bi-trophy-fill me-1"></i>@_myTier.TotalWins win@(_myTier.TotalWins == 1 ? "" : "s")
+                                        </span>
+                                    }
+                                    @if (_myTier.LastSeasonRank.HasValue)
+                                    {
+                                        <span class="tier-lastweek-rank">
+                                            Last week: #@_myTier.LastSeasonRank (@_myTier.LastSeasonTransactionCount?.ToString("N0"))
+                                        </span>
                                     }
                                 </div>
                             }
+                            @if (!string.IsNullOrWhiteSpace(_myTier.MotivationMessage))
+                            {
+                                <div class="tier-motivation text-start">
+                                    <i class="bi bi-megaphone-fill me-1"></i>@_myTier.MotivationMessage
+                                </div>
+                            }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_myTier.TierLevel)">
+                                View full tier ladder
+                                <i class="bi bi-chevron-right ms-1"></i>
+                            </button>
                         </div>
                     </div>
                 }
@@ -349,30 +357,28 @@
                                 </div>
                             }
 
-                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => _showViewedTierLadder = !_showViewedTierLadder">
-                                @(_showViewedTierLadder ? "Hide" : "View") full tier ladder
-                                <i class="bi bi-chevron-@(_showViewedTierLadder ? "up" : "down") ms-1"></i>
-                            </button>
-
-                            @if (_showViewedTierLadder)
+                            @if (_viewedTier.TotalWins > 0 || _viewedTier.LastSeasonRank.HasValue)
                             {
-                                <div class="tier-ladder">
-                                    @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                                <div class="tier-lastweek justify-content-center">
+                                    @if (_viewedTier.TotalWins > 0)
                                     {
-                                        var v = TierVisuals.For(t.Level);
-                                        var isCurrent = t.Level == _viewedTier.TierLevel;
-                                        <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
-                                            <i class="bi @v.Icon"></i>
-                                            <span class="tier-ladder-name">@t.Name</span>
-                                            <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
-                                            @if (isCurrent)
-                                            {
-                                                <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
-                                            }
-                                        </div>
+                                        <span class="tier-lastweek-wins" title="Total Top-3 finishes">
+                                            <i class="bi bi-trophy-fill me-1"></i>@_viewedTier.TotalWins win@(_viewedTier.TotalWins == 1 ? "" : "s")
+                                        </span>
+                                    }
+                                    @if (_viewedTier.LastSeasonRank.HasValue)
+                                    {
+                                        <span class="tier-lastweek-rank">
+                                            Last week: #@_viewedTier.LastSeasonRank (@_viewedTier.LastSeasonTransactionCount?.ToString("N0"))
+                                        </span>
                                     }
                                 </div>
                             }
+
+                            <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_viewedTier.TierLevel)">
+                                View full tier ladder
+                                <i class="bi bi-chevron-right ms-1"></i>
+                            </button>
                         </div>
                     </div>
                 }
@@ -472,6 +478,40 @@
     </div>
 }
 
+@* ── Tier ladder ("the legend") — modal, shared by both the "my profile"
+   and "someone else's profile" tier cards above. ── *@
+@if (_tierLadderModalLevel.HasValue)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);" @onclick="CloseTierLadderModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-list-stars me-2"></i>Tier Ladder</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTierLadderModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tier-ladder tier-ladder--modal">
+                        @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                        {
+                            var v = TierVisuals.For(t.Level);
+                            var isCurrent = t.Level == _tierLadderModalLevel.Value;
+                            <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                <i class="bi @v.Icon"></i>
+                                <span class="tier-ladder-name">@t.Name</span>
+                                <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                @if (isCurrent)
+                                {
+                                    <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid? UserId { get; set; }
 
@@ -482,9 +522,10 @@
     private UserProfileDto? _myProfile;
     private PublicUserProfileDto? _publicProfile;
     private UserTransactionTierDto? _myTier;
-    private bool _showTierLadder;
     private UserTransactionTierDto? _viewedTier;
-    private bool _showViewedTierLadder;
+    // Which tier level to highlight as "current" in the shared tier-ladder
+    // modal — null means the modal is closed.
+    private int? _tierLadderModalLevel;
 
     private string _editFullName = string.Empty;
     private string _editPosition = string.Empty;
@@ -521,7 +562,7 @@
         _loadError = null;
         _pictureRemoved = false;
         _viewedTier = null;
-        _showViewedTierLadder = false;
+        _tierLadderModalLevel = null;
 
         try
         {
@@ -859,6 +900,9 @@
     private string AvatarLightboxUrl => _isSelf
         ? AvatarUrl(_myProfile!.Id, thumb: false)
         : AvatarUrl(_publicProfile!.Id, thumb: false);
+
+    private void OpenTierLadderModal(int currentLevel) => _tierLadderModalLevel = currentLevel;
+    private void CloseTierLadderModal() => _tierLadderModalLevel = null;
 
     private void OpenAvatarLightbox() => _showAvatarLightbox = true;
     private void CloseAvatarLightbox() => _showAvatarLightbox = false;

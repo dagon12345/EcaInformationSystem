@@ -1,4 +1,5 @@
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Shared.DTOs;
 
 namespace EcaInformationSystem.Infrastructure.Services
 {
@@ -8,5 +9,6 @@ namespace EcaInformationSystem.Infrastructure.Services
     public class NoOpTransactionTierBroadcaster : ITransactionTierBroadcaster
     {
         public Task NotifyTransactionRecordedAsync(string userName) => Task.CompletedTask;
+        public Task NotifyLeaderboardResetAsync(LeaderboardResetResultDto result) => Task.CompletedTask;
     }
 }

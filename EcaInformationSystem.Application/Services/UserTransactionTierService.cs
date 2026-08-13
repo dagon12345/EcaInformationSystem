@@ -10,18 +10,26 @@ namespace EcaInformationSystem.Application.Services
     {
         private readonly ILogRepository _logRepo;
         private readonly IPendingUserRegistrationRepository _userRepo;
+        private readonly ILeaderboardSeasonService _seasonService;
 
-        public UserTransactionTierService(ILogRepository logRepo, IPendingUserRegistrationRepository userRepo)
+        public UserTransactionTierService(
+            ILogRepository logRepo,
+            IPendingUserRegistrationRepository userRepo,
+            ILeaderboardSeasonService seasonService)
         {
             _logRepo = logRepo;
             _userRepo = userRepo;
+            _seasonService = seasonService;
         }
 
         public async Task<UserTransactionTierDto> GetTierAsync(string userName)
         {
-            var count = await _logRepo.CountUserTransactionsAsync(userName);
+            var (seasonNumber, seasonStartUtc) = await _seasonService.GetOrCreateActiveSeasonAsync();
+            var count = await _logRepo.CountUserTransactionsAsync(userName, seasonStartUtc);
             var current = TransactionTierHelper.GetCurrentTier(count);
             var next = TransactionTierHelper.GetNextTier(count);
+
+            var user = await _userRepo.GetByUserNameAsync(userName);
 
             return new UserTransactionTierDto
             {
@@ -32,7 +40,14 @@ namespace EcaInformationSystem.Application.Services
                 TierMinCount = current.MinCount,
                 NextTierMinCount = next?.MinCount,
                 NextTierName = next?.Name,
-                ProgressPercent = TransactionTierHelper.GetProgressPercent(count)
+                ProgressPercent = TransactionTierHelper.GetProgressPercent(count),
+                SeasonNumber = seasonNumber,
+                NextAutoResetAtUtc = Common.WeeklyResetScheduleHelper.NextSundayElevenFiftyNinePmUtc(DateTime.UtcNow),
+                TotalWins = user?.LeaderboardTotalWins ?? 0,
+                LastSeasonNumber = user?.LastSeasonNumber,
+                LastSeasonRank = user?.LastSeasonRank,
+                LastSeasonTransactionCount = user?.LastSeasonTransactionCount,
+                MotivationMessage = BuildMotivationMessage(user?.LastSeasonRank, user?.LastSeasonTransactionCount)
             };
         }
 
@@ -44,7 +59,8 @@ namespace EcaInformationSystem.Application.Services
             var user = await _userRepo.GetByIdAsync(userId);
             if (user is null) return null;
 
-            var ranked = await GetMergedRankedCountsAsync();
+            var (seasonNumber, seasonStartUtc) = await _seasonService.GetOrCreateActiveSeasonAsync();
+            var ranked = await GetMergedRankedCountsAsync(seasonStartUtc);
             var index = ranked.FindIndex(m => m.User.Id == userId);
             var rank = index >= 0 ? index + 1 : (int?)null;
             var count = index >= 0 ? ranked[index].Count : 0;
@@ -62,13 +78,21 @@ namespace EcaInformationSystem.Application.Services
                 TierMinCount = current.MinCount,
                 NextTierMinCount = next?.MinCount,
                 NextTierName = next?.Name,
-                ProgressPercent = TransactionTierHelper.GetProgressPercent(count)
+                ProgressPercent = TransactionTierHelper.GetProgressPercent(count),
+                SeasonNumber = seasonNumber,
+                NextAutoResetAtUtc = Common.WeeklyResetScheduleHelper.NextSundayElevenFiftyNinePmUtc(DateTime.UtcNow),
+                TotalWins = user.LeaderboardTotalWins,
+                LastSeasonNumber = user.LastSeasonNumber,
+                LastSeasonRank = user.LastSeasonRank,
+                LastSeasonTransactionCount = user.LastSeasonTransactionCount,
+                MotivationMessage = BuildMotivationMessage(user.LastSeasonRank, user.LastSeasonTransactionCount)
             };
         }
 
         public async Task<List<UserLeaderboardEntryDto>> GetLeaderboardAsync(string requestingUserName, int top = 100)
         {
-            var ranked = await GetMergedRankedCountsAsync();
+            var (_, seasonStartUtc) = await _seasonService.GetOrCreateActiveSeasonAsync();
+            var ranked = await GetMergedRankedCountsAsync(seasonStartUtc);
 
             var rank = 0;
             return ranked
@@ -94,6 +118,29 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
         }
 
+        // Nudges the viewer toward the specific behavior this whole feature
+        // exists to encourage — correcting/following-up on grantee records —
+        // rather than a generic "do more" message. Tailored to last week's
+        // placement (per request: Top 3 = win/celebrate, 4th-and-beyond still
+        // gets an encouraging push rather than nothing).
+        private static string BuildMotivationMessage(int? lastSeasonRank, int? lastSeasonTransactionCount)
+        {
+            if (lastSeasonRank is null)
+            {
+                return "No ranked activity last week. Correcting incomplete grantee info, following up on missing " +
+                       "documents, or verifying pending records all count — start this week strong!";
+            }
+
+            var count = lastSeasonTransactionCount ?? 0;
+
+            return lastSeasonRank switch
+            {
+                1 => $"🏆 You were #1 last week with {count:N0} transactions — great work! Keep correcting and following up on grantee records to defend the top spot this week.",
+                2 or 3 => $"🥉 You placed #{lastSeasonRank} last week with {count:N0} transactions — so close! A few more corrections or follow-ups on grantee records this week could take you to #1.",
+                _ => $"You placed #{lastSeasonRank} last week with {count:N0} transactions. Every grantee record you correct, verify, or follow up on counts toward this week's rank — keep going, the Top 3 is within reach!"
+            };
+        }
+
         // `Log.UserName` isn't a foreign key — it's a free-text column, and
         // different call sites across the codebase write different things into
         // it for the same person (their login UserName in most places, but
@@ -111,9 +158,9 @@ namespace EcaInformationSystem.Application.Services
         // into each other) — and merges counts for the same account together.
         // Anything left unresolved belongs to no current account and is dropped
         // rather than shown as deleted-user noise.
-        private async Task<List<(PendingUserRegistration User, int Count)>> GetMergedRankedCountsAsync()
+        private async Task<List<(PendingUserRegistration User, int Count)>> GetMergedRankedCountsAsync(DateTime seasonStartUtc)
         {
-            var counts = await _logRepo.GetTransactionCountsByUserAsync();
+            var counts = await _logRepo.GetTransactionCountsByUserAsync(seasonStartUtc);
             var users = await _userRepo.GetAllAsync();
 
             var byUserName = users.ToDictionary(u => u.UserName, u => u, StringComparer.OrdinalIgnoreCase);

@@ -17,6 +17,7 @@
 @inject ToastService toast
 @inject TransactionTierClientService TierClient
 @inject TransactionTierHubClientService TierHub
+@inject AuthService AuthService
 
 <div class="feed-page-layout">
 @if (_isAuthenticated)
@@ -31,12 +32,52 @@
                 <div class="tier-leaderboard-header-left">
                     <i class="bi bi-trophy-fill"></i>
                     <div>
-                        <div class="tier-leaderboard-title">Transaction Leaderboard</div>
-                        <div class="tier-leaderboard-subtitle">Ranked by activity across the whole system</div>
+                        <div class="tier-leaderboard-title">
+                            Transaction Leaderboard
+                            @if (_seasonInfo is not null)
+                            {
+                                <span class="tier-season-badge">Season @_seasonInfo.SeasonNumber</span>
+                            }
+                        </div>
+                        <div class="tier-leaderboard-subtitle">
+                            @if (_seasonInfo is not null)
+                            {
+                                <span>Resets @FormatCountdown(_seasonInfo.NextAutoResetAtUtc) — Sunday 11:59 PM</span>
+                            }
+                            else
+                            {
+                                <span>Ranked by activity across the whole system</span>
+                            }
+                        </div>
                     </div>
                 </div>
-                <i class="bi bi-chevron-@(_leaderboardExpanded ? "up" : "down")"></i>
+                <div class="d-flex align-items-center gap-2">
+                    @if (_isSuperAdmin)
+                    {
+                        <button type="button" class="tier-reset-btn" title="End this week's season now"
+                                disabled="@_isResettingSeason"
+                                @onclick="OpenResetConfirm" @onclick:stopPropagation="true">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    }
+                    <i class="bi bi-chevron-@(_leaderboardExpanded ? "up" : "down")"></i>
+                </div>
             </div>
+
+            @* ── How to climb — always visible once expanded, independent of
+                 whether the viewer has a last-season result yet. This is the
+                 whole point of the leaderboard: nudge people toward cleaning up
+                 their grantee data, not just "do more clicks". ── *@
+            @if (_leaderboardExpanded)
+            {
+                <div class="tier-leaderboard-tip">
+                    <i class="bi bi-lightbulb-fill me-1"></i>
+                    <span>
+                        Correcting incomplete grantee info, following up on missing documents, and verifying
+                        pending records all count toward your weekly rank.
+                    </span>
+                </div>
+            }
 
             @if (_leaderboardExpanded && _myTier is not null)
             {
@@ -45,7 +86,7 @@
                     <div class="tier-leaderboard-myprogress-top">
                         <span><i class="bi @myVisual.Icon me-1"></i>You're <strong>@_myTier.TierName</strong> tier</span>
                         <button type="button" class="tier-info-btn" title="View the full tier list"
-                                @onclick="() => _showTierInfo = !_showTierInfo">
+                                @onclick="OpenTierLadderModal">
                             <i class="bi bi-info-circle"></i>
                         </button>
                     </div>
@@ -65,25 +106,12 @@
                         }
                     </div>
 
-                    @if (_showTierInfo)
-                    {
-                        <div class="tier-ladder">
-                            @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
-                            {
-                                var v = TierVisuals.For(t.Level);
-                                var isCurrent = t.Level == _myTier.TierLevel;
-                                <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
-                                    <i class="bi @v.Icon"></i>
-                                    <span class="tier-ladder-name">@t.Name</span>
-                                    <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
-                                    @if (isCurrent)
-                                    {
-                                        <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
+                    @* Last week's rank, win count, and motivation nudge now live on
+                       your Profile page instead of here — click through to see them. ── *@
+                    <a href="/profile" class="tier-profile-nav-link">
+                        <i class="bi bi-person-badge me-1"></i>View your last season rank on your profile
+                        <i class="bi bi-chevron-right ms-1"></i>
+                    </a>
                 </div>
             }
 
@@ -808,6 +836,84 @@
     </div>
 }
 
+@* ✅ Standard Bootstrap-style modal (same pattern as MainLayout's logout
+   confirm) — the custom .modal-backdrop-custom/.delete-confirm-modal pair
+   collides with a same-named, higher-z-index rule in calendar.css, which is
+   what caused the "solid black, modal stuck behind it" bug. This pattern
+   uses its own explicit z-index and no shared class names. ── *@
+@if (_showResetConfirm)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1085;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>End This Week's Season Now?
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseResetConfirm"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        @if (_seasonInfo is not null)
+                        {
+                            <text>Season @_seasonInfo.SeasonNumber will end immediately — everyone's rank, count, and win are snapshotted onto their profile, then Season @(_seasonInfo.SeasonNumber + 1) starts right away. </text>
+                        }
+                        This otherwise happens automatically every Sunday 11:59 PM and cannot be undone.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseResetConfirm" disabled="@_isResettingSeason">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmResetSeasonAsync" disabled="@_isResettingSeason">
+                        @if (_isResettingSeason)
+                        {
+                            <span>Resetting...</span>
+                        }
+                        else
+                        {
+                            <span>Yes, End Season Now</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Tier ladder ("the legend") — modal instead of an inline expanding
+   list, so opening it doesn't push the rankings list further down the
+   sidebar. ── *@
+@if (_showTierInfo && _myTier is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1085;" @onclick="CloseTierLadderModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-list-stars me-2"></i>Tier Ladder</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTierLadderModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tier-ladder tier-ladder--modal">
+                        @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
+                        {
+                            var v = TierVisuals.For(t.Level);
+                            var isCurrent = t.Level == _myTier.TierLevel;
+                            <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
+                                <i class="bi @v.Icon"></i>
+                                <span class="tier-ladder-name">@t.Name</span>
+                                <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
+                                @if (isCurrent)
+                                {
+                                    <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (_showNoteModal)
 {
     <div class="modal-backdrop-custom" @onclick="RequestCloseNoteModal">
@@ -1279,6 +1385,9 @@
             _leaderboardExpanded = true;
             await LoadLeaderboardAsync();
             _myTier = await TierClient.GetMyTierAsync();
+            _seasonInfo = await TierClient.GetSeasonInfoAsync();
+            await AuthService.InitAsync();
+            _isSuperAdmin = AuthService.IsSuperAdmin();
 
             await ConnectTierRealtimeAsync();
         }
@@ -1720,6 +1829,7 @@
         PostsClient.CommentEdited -= OnCommentEdited;
         PostsClient.ReactionUpdated -= OnReactionUpdated;
         TierHub.TransactionRecorded -= OnTransactionRecorded;
+        TierHub.LeaderboardReset -= OnLeaderboardReset;
         await Task.CompletedTask;
     }
 
@@ -1736,6 +1846,7 @@
     private async Task ConnectTierRealtimeAsync()
     {
         TierHub.TransactionRecorded += OnTransactionRecorded;
+        TierHub.LeaderboardReset += OnLeaderboardReset;
         try
         {
             var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
@@ -1794,6 +1905,69 @@
             _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
             await InvokeAsync(StateHasChanged);
         });
+    }
+
+    // Fires for EVERY connected client when a season ends — manual reset or
+    // the automatic Sunday 11:59 PM job. Refreshes the board/tier/season info
+    // and celebrates the top 3 so a reset doesn't just look like the board
+    // silently emptying out.
+    private void OnLeaderboardReset(LeaderboardResetResultDto result)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            TierClient.InvalidateAfterReset();
+            _leaderboard = await TierClient.GetLeaderboardAsync(forceRefresh: true);
+            _myTier = await TierClient.GetMyTierAsync(forceRefresh: true);
+            _seasonInfo = await TierClient.GetSeasonInfoAsync(forceRefresh: true);
+
+            var podium = string.Join(", ", result.TopThree.Select(t => $"#{t.Rank} {t.DisplayName}"));
+            toast.ShowSuccess(
+                string.IsNullOrWhiteSpace(podium)
+                    ? $"Season {result.EndedSeasonNumber} ended — Season {result.NewSeasonNumber} has begun!"
+                    : $"Season {result.EndedSeasonNumber} ended! Top 3: {podium}. Season {result.NewSeasonNumber} has begun!",
+                "Leaderboard Reset");
+
+            StateHasChanged();
+        });
+    }
+
+    private void OpenTierLadderModal() => _showTierInfo = true;
+    private void CloseTierLadderModal() => _showTierInfo = false;
+
+    private void OpenResetConfirm() => _showResetConfirm = true;
+    private void CloseResetConfirm() => _showResetConfirm = false;
+
+    private async Task ConfirmResetSeasonAsync()
+    {
+        _isResettingSeason = true;
+        StateHasChanged();
+        try
+        {
+            var (success, _, error) = await TierClient.ResetSeasonNowAsync();
+            _showResetConfirm = false;
+            if (!success)
+                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to reset the leaderboard." : error);
+            // On success, the server-side broadcast (OnLeaderboardReset above)
+            // handles refreshing the board — including for the admin who just
+            // clicked it, since they're a connected client too.
+        }
+        finally
+        {
+            _isResettingSeason = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string FormatCountdown(DateTime nextResetAtUtc)
+    {
+        var remaining = nextResetAtUtc - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero) return "soon";
+
+        if (remaining.TotalDays >= 1)
+            return $"in {(int)remaining.TotalDays}d {remaining.Hours}h";
+        if (remaining.TotalHours >= 1)
+            return $"in {(int)remaining.TotalHours}h {remaining.Minutes}m";
+        return $"in {remaining.Minutes}m";
     }
 
     private void OnPostCreated(PostDto post)
@@ -1884,6 +2058,10 @@
     private bool _leaderboardLoaded;
     private UserTransactionTierDto? _myTier;
     private bool _showTierInfo;
+    private LeaderboardSeasonInfoDto? _seasonInfo;
+    private bool _isSuperAdmin;
+    private bool _showResetConfirm;
+    private bool _isResettingSeason;
 
     private async Task ToggleLeaderboard()
     {

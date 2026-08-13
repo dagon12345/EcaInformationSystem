@@ -333,6 +333,10 @@ if (!syncOnlyMode)
 
     builder.Services.AddSingleton<ActivityReminderScheduler>();
     builder.Services.AddHostedService<ActivityReminderResyncService>();
+
+    // ✅ Weekly transaction-leaderboard reset — every Sunday 11:59 PM
+    // Philippine Time, see LeaderboardWeeklyResetBackgroundService.
+    builder.Services.AddHostedService<LeaderboardWeeklyResetBackgroundService>();
 }
 
 builder.Services.Configure<EcaInformationSystem.Api.ZkDevice.ZkDirectOptions>(

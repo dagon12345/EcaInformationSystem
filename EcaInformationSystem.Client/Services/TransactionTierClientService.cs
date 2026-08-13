@@ -13,6 +13,7 @@ namespace EcaInformationSystem.Client.Services
         private Task<UserTransactionTierDto?>? _inFlightMine;
         private List<UserLeaderboardEntryDto>? _cachedLeaderboard;
         private Task<List<UserLeaderboardEntryDto>>? _inFlightLeaderboard;
+        private LeaderboardSeasonInfoDto? _cachedSeason;
 
         public event Action? OnChange;
 
@@ -84,6 +85,52 @@ namespace EcaInformationSystem.Client.Services
             {
                 return new();
             }
+        }
+
+        public async Task<LeaderboardSeasonInfoDto?> GetSeasonInfoAsync(bool forceRefresh = false)
+        {
+            if (_cachedSeason is not null && !forceRefresh)
+                return _cachedSeason;
+
+            try
+            {
+                _cachedSeason = await _http.GetFromJsonAsync<LeaderboardSeasonInfoDto>("api/transaction-tier/season");
+                return _cachedSeason;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // SuperAdmin only (enforced server-side too) — ends the active season
+        // now instead of waiting for the automatic Sunday 11:59 PM reset.
+        public async Task<(bool Success, LeaderboardResetResultDto? Result, string? Error)> ResetSeasonNowAsync()
+        {
+            try
+            {
+                var response = await _http.PostAsync("api/transaction-tier/reset", null);
+                if (!response.IsSuccessStatusCode)
+                    return (false, null, await response.Content.ReadAsStringAsync());
+
+                var result = await response.Content.ReadFromJsonAsync<LeaderboardResetResultDto>();
+                InvalidateAfterReset();
+                return (true, result, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, null, ex.Message);
+            }
+        }
+
+        // Called on our own manual reset AND when the hub push tells us someone
+        // else (or the automatic job) reset it — next read re-fetches fresh data.
+        public void InvalidateAfterReset()
+        {
+            _cachedMine = null;
+            _cachedLeaderboard = null;
+            _cachedSeason = null;
+            OnChange?.Invoke();
         }
     }
 }

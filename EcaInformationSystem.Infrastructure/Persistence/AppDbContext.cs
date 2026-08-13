@@ -24,6 +24,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
             public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
             public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
+            public DbSet<LeaderboardSeason> LeaderboardSeasons => Set<LeaderboardSeason>();
             public DbSet<UserSession> UserSessions => Set<UserSession>();
 
             // ✅ NEW — Chat feature
@@ -354,6 +355,19 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   modelBuilder.Entity<PendingUserRegistration>()
                       .HasIndex(x => x.UserName)
                       .IsUnique();
+
+                  modelBuilder.Entity<LeaderboardSeason>(entity =>
+                  {
+                        entity.ToTable("LeaderboardSeasons");
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.ResetType).IsRequired().HasMaxLength(20);
+                        entity.Property(x => x.ResetBy).HasMaxLength(200);
+                        entity.HasIndex(x => x.SeasonNumber).IsUnique();
+                        // At most one row with EndedAtUtc == null — enforced in
+                        // LeaderboardSeasonService (filtered unique index on a
+                        // nullable column isn't portable enough across providers
+                        // here to rely on it alone).
+                  });
 
                   modelBuilder.Entity<Log>()
                       .HasIndex(l => l.CreatedAt)

@@ -50,5 +50,17 @@ namespace EcaInformationSystem.Domain.Entities
         public string? DeactivatedBy { get; set; }
         public ICollection<PdoJurisdiction> Jurisdictions {get; set;}
             = new List<PdoJurisdiction>();
+
+        // ── Weekly transaction leaderboard — see LeaderboardSeasonService ──────
+        // Cumulative count of weekly seasons this user finished in the Top 3.
+        public int LeaderboardTotalWins { get; set; } = 0;
+        // Snapshot of the most recently ENDED season's result for this user —
+        // overwritten on every reset. Null until this user has been through at
+        // least one season reset. LastSeasonRank stays null if they had zero
+        // qualifying activity that season (not ranked), even though
+        // LastSeasonNumber/LastSeasonTransactionCount (0) still get set.
+        public int? LastSeasonNumber { get; set; }
+        public int? LastSeasonRank { get; set; }
+        public int? LastSeasonTransactionCount { get; set; }
     }
 }

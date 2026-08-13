@@ -1,5 +1,6 @@
 using EcaInformationSystem.Api.Hubs;
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.SignalR;
 
 namespace EcaInformationSystem.Api.Services
@@ -20,6 +21,11 @@ namespace EcaInformationSystem.Api.Services
         public async Task NotifyTransactionRecordedAsync(string userName)
         {
             await _hub.Clients.All.SendAsync("TransactionRecorded", userName);
+        }
+
+        public async Task NotifyLeaderboardResetAsync(LeaderboardResetResultDto result)
+        {
+            await _hub.Clients.All.SendAsync("LeaderboardReset", result);
         }
     }
 }

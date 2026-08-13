@@ -13,10 +13,17 @@ namespace EcaInformationSystem.Api.Controllers
     public class UserTransactionTierController : ControllerBase
     {
         private readonly IUserTransactionTierService _service;
+        private readonly ILeaderboardSeasonService _seasonService;
+        private readonly ITransactionTierBroadcaster _broadcaster;
 
-        public UserTransactionTierController(IUserTransactionTierService service)
+        public UserTransactionTierController(
+            IUserTransactionTierService service,
+            ILeaderboardSeasonService seasonService,
+            ITransactionTierBroadcaster broadcaster)
         {
             _service = service;
+            _seasonService = seasonService;
+            _broadcaster = broadcaster;
         }
 
         [HttpGet("me")]
@@ -42,6 +49,26 @@ namespace EcaInformationSystem.Api.Controllers
         {
             var userName = User.Identity?.Name ?? "System";
             return Ok(await _service.GetLeaderboardAsync(userName));
+        }
+
+        // Season number + countdown for the leaderboard card header — same
+        // [Authorize] as everything else here, no role restriction to just view it.
+        [HttpGet("season")]
+        public async Task<IActionResult> GetSeason()
+            => Ok(await _seasonService.GetActiveSeasonInfoAsync());
+
+        // Manual weekly reset — SuperAdmin only. Ends the active season
+        // (snapshotting every account's rank/count/win onto their profile),
+        // opens the next one, and broadcasts so every connected client
+        // refreshes live instead of showing a stale board.
+        [HttpPost("reset")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> ResetSeason()
+        {
+            var resetBy = User.FindFirst("FullName")?.Value ?? User.Identity?.Name ?? "SuperAdmin";
+            var result = await _seasonService.ResetSeasonAsync(resetBy, isAutomatic: false);
+            await _broadcaster.NotifyLeaderboardResetAsync(result);
+            return Ok(result);
         }
     }
 }

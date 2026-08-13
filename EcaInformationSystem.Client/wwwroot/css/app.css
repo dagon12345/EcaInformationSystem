@@ -7989,6 +7989,105 @@ body {
     .tier-leaderboard-header > i.bi-chevron-up,
     .tier-leaderboard-header > i.bi-chevron-down { flex-shrink: 0; }
 
+    .tier-season-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.28);
+        font-size: 10px;
+        font-weight: 600;
+        vertical-align: middle;
+    }
+    .tier-reset-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255,255,255,0.22);
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .tier-reset-btn:hover:not(:disabled) { background: rgba(255,255,255,0.4); transform: rotate(-45deg); }
+    .tier-reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .tier-leaderboard-tip {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: 11.5px;
+        color: #78350f;
+        background: #fffbeb;
+        border-bottom: 1px solid #eef0f3;
+    }
+    .tier-leaderboard-tip i { color: #f59e0b; margin-top: 1px; flex-shrink: 0; }
+
+    .tier-lastweek {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 11px;
+    }
+    .tier-lastweek-wins {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #fef3c7;
+        color: #92400e;
+        font-weight: 600;
+    }
+    .tier-lastweek-rank {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        font-weight: 600;
+    }
+    .tier-motivation {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--tier-c1) 10%, white);
+        color: #374151;
+        font-size: 11.5px;
+        line-height: 1.4;
+    }
+    .tier-motivation i { color: var(--tier-c2); margin-top: 1px; flex-shrink: 0; }
+
+    .tier-profile-nav-link {
+        display: flex;
+        align-items: center;
+        margin-top: 10px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--tier-c1) 10%, white);
+        color: var(--tier-c2);
+        font-size: 11.5px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .tier-profile-nav-link:hover { background: color-mix(in srgb, var(--tier-c1) 18%, white); color: var(--tier-c2); }
+    .tier-profile-nav-link .bi-chevron-right { margin-left: auto; }
+
+    .tier-ladder--modal {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
     /* ── "Your Progress" strip — sits between the header and the ranked
        list, uses the viewer's own tier color pair via --tier-c1/--tier-c2
        (set by the .tier-xxx class rendered alongside it). ────────────── */

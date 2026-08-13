@@ -8,5 +8,10 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface ITransactionTierBroadcaster
     {
         Task NotifyTransactionRecordedAsync(string userName);
+
+        // Fired right after a weekly leaderboard reset (manual or automatic) —
+        // connected clients use this to refresh the leaderboard/tier badge and
+        // show a "Season N started!" style toast rather than polling.
+        Task NotifyLeaderboardResetAsync(Shared.DTOs.LeaderboardResetResultDto result);
     }
 }

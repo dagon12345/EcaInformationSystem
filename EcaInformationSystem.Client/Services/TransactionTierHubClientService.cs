@@ -1,3 +1,4 @@
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
 
@@ -13,6 +14,10 @@ namespace EcaInformationSystem.Client.Services
 
         // Fires with the userName of whoever just recorded a qualifying transaction.
         public event Action<string>? TransactionRecorded;
+
+        // Fires when the weekly season just ended (manual reset or the
+        // automatic Sunday 11:59 PM job) — carries the closing summary.
+        public event Action<LeaderboardResetResultDto>? LeaderboardReset;
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
@@ -43,6 +48,7 @@ namespace EcaInformationSystem.Client.Services
                 .Build();
 
             _hubConnection.On<string>("TransactionRecorded", userName => TransactionRecorded?.Invoke(userName));
+            _hubConnection.On<LeaderboardResetResultDto>("LeaderboardReset", result => LeaderboardReset?.Invoke(result));
 
             await _hubConnection.StartAsync();
         }
