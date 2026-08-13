@@ -103,7 +103,7 @@ else
                             else
                             {
                                 <div class="focal-person-row focal-person-row--branch" @onclick:stopPropagation="true">
-                                    @{ var pdoPerson = new DirectoryPersonDto { UserId = branch.PdoUserId!.Value, FullName = branch.PdoName, Role = "PDO", IsOnline = branch.IsOnline }; }
+                                    @{ var pdoPerson = new DirectoryPersonDto { UserId = branch.PdoUserId!.Value, FullName = branch.PdoName, Role = branch.BranchRole ?? "PDO", IsOnline = branch.IsOnline }; }
                                     @PersonRow(pdoPerson)
                                 </div>
                             }

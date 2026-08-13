@@ -21,6 +21,10 @@ namespace EcaInformationSystem.Shared.DTOs
     {
         public Guid? PdoUserId { get; set; }
         public string PdoName { get; set; } = string.Empty;
+        // ✅ NEW — "PDO" or "Admin" for a real branch, null for the generic
+        // Admin-Invited bucket (PdoUserId also null in that case). Lets the
+        // UI label the branch header correctly instead of assuming "PDO".
+        public string? BranchRole { get; set; }
         public bool IsOnline { get; set; }
         public List<DirectoryPersonDto> Focals { get; set; } = new();
     }

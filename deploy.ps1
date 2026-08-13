@@ -97,7 +97,12 @@ finally {
 Write-Host "Publishing Client..." -ForegroundColor Cyan
 dotnet publish "$($clientProject.FullName)" -c Release -o "$root/publish/client"
 
+# ✅ FIXED — see deploy-client.ps1 for why: upload publish/client/wwwroot
+# directly (the actual static site), not the whole dotnet publish output —
+# the outer publish folder's own SDK-generated web.config was landing above
+# the hand-authored one with the correct cache rules, which is the likely
+# cause of updates needing a hard refresh instead of a plain one.
 Write-Host "Uploading Client via FTP..." -ForegroundColor Cyan
-Upload-ToFtp -LocalFolder "$root/publish/client" -FtpHostName $clientFtpHost -FtpUser $clientFtpUser -FtpPass $clientFtpPass
+Upload-ToFtp -LocalFolder "$root/publish/client/wwwroot" -FtpHostName $clientFtpHost -FtpUser $clientFtpUser -FtpPass $clientFtpPass
 
 Write-Host "Done. Both API and Client deployed via FTP." -ForegroundColor Green

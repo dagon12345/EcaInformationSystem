@@ -81,7 +81,15 @@ namespace EcaInformationSystem.Application.Services
                 };
             }
 
-            // ── Pass 1: flat People list (unchanged) + a branch entry for every PDO ──
+            // Roles that branch like a PDO — they have their own jurisdiction
+            // and can invite focals directly, so their invited focals should
+            // nest under THEM specifically, not the generic Admin-Invited
+            // bucket. (SuperAdmin isn't in DirectoryRoles at all — never
+            // jurisdiction-listed — so their invites still fall through to
+            // the generic bucket below.)
+            bool BranchesLikePdo(string role) => role == "PDO" || role == "Admin";
+
+            // ── Pass 1: flat People list (unchanged) + a branch entry for every PDO/Admin ──
             foreach (var user in eligible)
             {
                 var provinces = user.Jurisdictions.Select(j => j.ProvinceName).Distinct();
@@ -100,7 +108,7 @@ namespace EcaInformationSystem.Application.Services
                     if (!people.Any(p => p.UserId == user.Id))
                         people.Add(ToPersonDto(user, province));
 
-                    if (user.Role == "PDO")
+                    if (BranchesLikePdo(user.Role))
                     {
                         var branches = BranchesFor(province);
                         if (!branches.ContainsKey(user.Id))
@@ -109,6 +117,7 @@ namespace EcaInformationSystem.Application.Services
                             {
                                 PdoUserId = user.Id,
                                 PdoName = user.FullName,
+                                BranchRole = user.Role,
                                 IsOnline = false // filled in by the caller
                             };
                         }
@@ -116,8 +125,10 @@ namespace EcaInformationSystem.Application.Services
                 }
             }
 
-            // ── Pass 2: nest every Focal under their inviting PDO's branch
-            // (or the "Admin-Invited" bucket) within the Focal's OWN province. ──
+            // ── Pass 2: nest every Focal under their inviting PDO/Admin's
+            // branch (or the generic "Admin-Invited" bucket, for an inviter
+            // with no jurisdiction of their own — e.g. SuperAdmin) within the
+            // Focal's OWN province. ──
             foreach (var focal in eligible.Where(u => u.Role == "Focal"))
             {
                 var province = focal.Jurisdictions.Select(j => j.ProvinceName)
@@ -127,16 +138,18 @@ namespace EcaInformationSystem.Application.Services
                 var branches = BranchesFor(province);
                 var focalDto = ToPersonDto(focal, province);
 
-                var branchKey = Guid.Empty; // default: Admin-Invited bucket
+                var branchKey = Guid.Empty; // default: generic Admin-Invited bucket
                 Guid? pdoUserId = null;
+                string? branchRole = null;
                 string branchName = AdminInvitedLabel;
 
                 if (inviterMap.TryGetValue(focal.Id, out var inviterId) &&
                     usersById.TryGetValue(inviterId, out var inviter) &&
-                    inviter.Role == "PDO")
+                    BranchesLikePdo(inviter.Role))
                 {
                     branchKey = inviter.Id;
                     pdoUserId = inviter.Id;
+                    branchRole = inviter.Role;
                     branchName = inviter.FullName;
                 }
 
@@ -146,6 +159,7 @@ namespace EcaInformationSystem.Application.Services
                     {
                         PdoUserId = pdoUserId,
                         PdoName = branchName,
+                        BranchRole = branchRole,
                         IsOnline = false
                     };
                     branches[branchKey] = branch;
