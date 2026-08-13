@@ -740,7 +740,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
+        // Shared filter/aggregation base for GetStatisticsReportAsync and
+        // GetStatisticsMembersAsync — both need the EXACT same "who matches
+        // these filters" set and effective-status resolution, so the audit
+        // modal's grantee list always agrees with the summary card counts.
+        private async Task<(List<BeneficiaryInformation> AllData, Func<BeneficiaryInformation, int> EffectiveStatus, Func<BeneficiaryInformation, int> EffectiveQuarter)>
+            BuildFilteredStatisticsDataAsync(StatisticsRequestDto request)
         {
             var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
 
@@ -818,19 +823,31 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // record's status/date rather than whatever their current record says.
             // This is what makes "Q1 2026" report exact Paid counts for Q1 2026, even
             // for people who have since been repaid/corrected into Q2 2026.
-            bool hasPeriodFilter = request.PayrollQuarter.HasValue || request.FiscalYear.HasValue || request.PaymentStatus >= 0;
+            var hasStatusFilter = request.PaymentStatuses != null && request.PaymentStatuses.Any();
+            bool hasPeriodFilter = request.PayrollQuarter.HasValue || request.FiscalYear.HasValue || hasStatusFilter;
             Dictionary<Guid, BeneficiaryPaymentHistory> historyLookup = new();
 
             if (hasPeriodFilter)
             {
+                // ✅ FIXED — status is NOT applied to this query. The single
+                // authoritative ("most recently touched") entry per beneficiary
+                // for this period has to be resolved from EVERY status first;
+                // only THEN do we check whether that entry's status is one of
+                // the selected ones. Filtering by status before picking "most
+                // recent" let the choice of statuses change WHICH entry counted
+                // as authoritative — e.g. selecting only "Unpaid" could surface
+                // an old Unpaid entry for someone whose real most-recent record
+                // for that period was later corrected to Paid, while selecting
+                // "Paid + Unpaid" together correctly picked the newer Paid one.
+                // That's what caused the Unpaid count (and the audit modal's
+                // member list) to shift depending on which statuses were
+                // checked, instead of staying the same set of people.
                 var historyQuery = _context.BeneficiaryPaymentHistories.AsNoTracking().AsQueryable();
 
                 if (request.PayrollQuarter.HasValue)
                     historyQuery = historyQuery.Where(h => h.PayrollQuarter == request.PayrollQuarter.Value);
                 if (request.FiscalYear.HasValue)
                     historyQuery = historyQuery.Where(h => h.FiscalYear == request.FiscalYear.Value);
-                if (request.PaymentStatus >= 0)
-                    historyQuery = historyQuery.Where(h => h.PaymentStatus == request.PaymentStatus);
 
                 var matches = await historyQuery
                     .OrderByDescending(h => h.DateModified ?? h.DateCreated)
@@ -842,6 +859,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 historyLookup = matches
                     .GroupBy(h => h.BeneficiaryInformationId)
                     .ToDictionary(g => g.Key, g => g.First());
+
+                // Status filter is a POST-filter on each beneficiary's already-
+                // resolved authoritative entry, not a pre-filter on candidate rows.
+                if (hasStatusFilter)
+                    historyLookup = historyLookup
+                        .Where(kvp => request.PaymentStatuses!.Contains(kvp.Value.PaymentStatus))
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
                 query = query.Where(b => historyLookup.Keys.Contains(b.Id));
             }
@@ -871,6 +895,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 hasPeriodFilter && historyLookup.TryGetValue(b.Id, out var h) ? h.PaymentStatus : b.PaymentStatus;
             int EffectiveQuarter(BeneficiaryInformation b) =>
                 hasPeriodFilter && historyLookup.TryGetValue(b.Id, out var h) ? (h.PayrollQuarter ?? 0) : (b.PayrollQuarter ?? 0);
+
+            return (allData, EffectiveStatus, EffectiveQuarter);
+        }
+
+        public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
+        {
+            var (allData, EffectiveStatus, EffectiveQuarter) = await BuildFilteredStatisticsDataAsync(request);
 
             var report = new StatisticsReportDto
             {
@@ -950,6 +981,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         Age90Count = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95),
                         Age95Count = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100),
                         Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
+                        Age80MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85 && b.Sex == 1),
+                        Age80FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85 && b.Sex == 2),
+                        Age85MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90 && b.Sex == 1),
+                        Age85FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90 && b.Sex == 2),
+                        Age90MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95 && b.Sex == 1),
+                        Age90FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95 && b.Sex == 2),
+                        Age95MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100 && b.Sex == 1),
+                        Age95FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100 && b.Sex == 2),
+                        Age100MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 100 && b.Sex == 1),
+                        Age100FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 100 && b.Sex == 2),
                         MaleCount = items.Count(b => b.Sex == 1),
                         FemaleCount = items.Count(b => b.Sex == 2),
                         PaidCount = items.Count(b => EffectiveStatus(b) == 2),
@@ -983,6 +1024,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         Age90Count = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95),
                         Age95Count = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100),
                         Age100Count = items.Count(b => ComputeAge(b.BirthDate) >= 100),
+                        Age80MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85 && b.Sex == 1),
+                        Age80FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 80 && ComputeAge(b.BirthDate) < 85 && b.Sex == 2),
+                        Age85MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90 && b.Sex == 1),
+                        Age85FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 85 && ComputeAge(b.BirthDate) < 90 && b.Sex == 2),
+                        Age90MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95 && b.Sex == 1),
+                        Age90FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 90 && ComputeAge(b.BirthDate) < 95 && b.Sex == 2),
+                        Age95MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100 && b.Sex == 1),
+                        Age95FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 95 && ComputeAge(b.BirthDate) < 100 && b.Sex == 2),
+                        Age100MaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 100 && b.Sex == 1),
+                        Age100FemaleCount = items.Count(b => ComputeAge(b.BirthDate) >= 100 && b.Sex == 2),
                         MaleCount = items.Count(b => b.Sex == 1),
                         FemaleCount = items.Count(b => b.Sex == 2),
                         TotalDisbursement = paidItems.Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
@@ -1091,6 +1142,103 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return report;
         }
+
+        // ✅ NEW — audit trail for a Statistics summary card: returns exactly who
+        // is counted in a given bucket ("all"/"paid"/"unpaid"/"pending"/
+        // "notapplicable"/"male"/"female"), using the identical filtered set
+        // and EffectiveStatus resolution as GetStatisticsReportAsync so the
+        // modal's list always matches the card's number. Each grantee's full
+        // payment history is included so the auditor can see every payment
+        // event behind their current status, not just the latest one.
+        public async Task<StatisticsMembersPagedResultDto> GetStatisticsMembersAsync(
+            StatisticsRequestDto request, string bucket, int pageNumber, int pageSize)
+        {
+            var (allData, EffectiveStatus, _) = await BuildFilteredStatisticsDataAsync(request);
+
+            IEnumerable<BeneficiaryInformation> members = bucket?.ToLowerInvariant() switch
+            {
+                "paid" => allData.Where(b => EffectiveStatus(b) == 2),
+                "unpaid" => allData.Where(b => EffectiveStatus(b) == 1),
+                "pending" => allData.Where(b => EffectiveStatus(b) == 3),
+                "notapplicable" => allData.Where(b => EffectiveStatus(b) == 0),
+                "male" => allData.Where(b => b.Sex == 1),
+                "female" => allData.Where(b => b.Sex == 2),
+                _ => allData
+            };
+
+            // Sort and page BEFORE touching payment history — a bucket like
+            // "Total Grantees" can run into the thousands, and there's no
+            // reason to pull every one of their history rows just to show
+            // one page of 50.
+            var orderedIds = members
+                .Select(b => new { b.Id, Name = FormatDuplicateName(b.LastName, b.FirstName, b.MiddleName) })
+                .OrderBy(x => x.Name)
+                .ToList();
+
+            var page = Math.Max(1, pageNumber);
+            var size = pageSize <= 0 ? 50 : pageSize;
+
+            var pagedIds = orderedIds
+                .Skip((page - 1) * size)
+                .Take(size)
+                .Select(x => x.Id)
+                .ToHashSet();
+
+            var pagedData = allData.Where(b => pagedIds.Contains(b.Id)).ToList();
+            var ids = pagedData.Select(b => b.Id).ToList();
+
+            var histories = await _context.BeneficiaryPaymentHistories
+                .AsNoTracking()
+                .Where(h => ids.Contains(h.BeneficiaryInformationId))
+                .OrderByDescending(h => h.DateCreated)
+                .ToListAsync();
+
+            var historiesByBeneficiary = histories
+                .GroupBy(h => h.BeneficiaryInformationId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var items = pagedData
+                .Select(b => new StatisticsMemberDto
+                {
+                    Id = b.Id,
+                    FullName = FormatDuplicateName(b.LastName, b.FirstName, b.MiddleName),
+                    OscaIdNumber = b.OscaIdNumber,
+                    Sex = b.Sex,
+                    Age = ComputeAge(b.BirthDate),
+                    ProvinceName = _psgcNameCache.GetProvinceName(b.Province) ?? b.Province.ToString(),
+                    MunicipalityName = _psgcNameCache.GetMunicipalityName(b.Municipality) ?? b.Municipality.ToString(),
+                    PaymentStatus = EffectiveStatus(b),
+                    PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
+                        ? h.Select(x => new PaymentHistoryDto
+                        {
+                            Id = x.Id,
+                            BeneficiaryInformationId = x.BeneficiaryInformationId,
+                            PayrollQuarter = x.PayrollQuarter,
+                            FiscalYear = x.FiscalYear,
+                            PaymentStatus = x.PaymentStatus,
+                            ModeOfPayment = x.ModeOfPayment,
+                            PaymentDate = x.PaymentDate,
+                            Remarks = x.Remarks,
+                            DateCreated = x.DateCreated,
+                            CreatedBy = x.CreatedBy,
+                            DateModified = x.DateModified,
+                            ModifiedBy = x.ModifiedBy,
+                            IsCurrent = x.Id == b.CurrentPaymentHistoryId
+                        }).ToList()
+                        : new List<PaymentHistoryDto>()
+                })
+                .OrderBy(m => m.FullName)
+                .ToList();
+
+            return new StatisticsMembersPagedResultDto
+            {
+                Items = items,
+                TotalCount = orderedIds.Count,
+                PageNumber = page,
+                PageSize = size
+            };
+        }
+
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
             BeneficiaryFilterDto filter,
             int maxPairs = 50,

@@ -3438,6 +3438,44 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.08);
 }
 
+.dash-stat-card--clickable {
+    position: relative;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+    .dash-stat-card--clickable:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,.18);
+    }
+
+    .dash-stat-card--clickable:active {
+        transform: translateY(0);
+    }
+
+/* Small corner affordance so a clickable stat card doesn't look identical
+   to a plain read-only one — visible but subtle at rest, fuller on hover. */
+.dash-stat-card-hint {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    font-size: 12px;
+    color: rgba(255,255,255,.75);
+    background: rgba(255,255,255,.18);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .12s ease, color .12s ease;
+}
+
+.dash-stat-card--clickable:hover .dash-stat-card-hint {
+    background: rgba(255,255,255,.32);
+    color: #fff;
+}
+
 .dash-stat-card--navy {
     background: var(--navy);
 }
@@ -3799,6 +3837,73 @@
     color: #6c757d;
     text-align: right;
     flex-shrink: 0;
+}
+
+/* ── Province table: milestone-age cell (total + Male/Female split) ──── */
+.age-cell-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #6c757d;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.age-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+}
+
+.age-legend-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.age-legend-swatch--m {
+    background: #6f42c1;
+}
+
+.age-legend-swatch--f {
+    background: #d63384;
+}
+
+.age-legend-hint {
+    color: #adb5bd;
+}
+
+.age-cell-total {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.age-cell-split {
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+.age-split-m,
+.age-split-f {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.age-split-m {
+    color: #6f42c1;
+}
+
+.age-split-f {
+    color: #d63384;
 }
 
 /* ── Stat Table ────────────────────────────────────────────────── */

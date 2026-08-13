@@ -38,6 +38,11 @@ namespace EcaInformationSystem.Application.Services
             return report;
         }
 
+        // Not cached — an on-demand audit drill-down, not part of the main
+        // report render path, so freshness matters more than round-trip cost.
+        public async Task<StatisticsMembersPagedResultDto> GetStatisticsMembersAsync(StatisticsMembersRequestDto request)
+            => await _repo.GetStatisticsMembersAsync(request.Filter, request.Bucket, request.PageNumber, request.PageSize);
+
         public Task InvalidateStatisticsCacheAsync()
         {
             // Bump the version token to invalidate all statistics cache entries
@@ -58,7 +63,11 @@ namespace EcaInformationSystem.Application.Services
                 request.Municipality?.ToString() ?? "null",
                 request.MilestoneYear.ToString(),
                 request.MilestoneAge.ToString(),
-                request.PaymentStatus.ToString(),
+                // ✅ CHANGED — order-independent so [1,2] and [2,1] hit the same
+                // cache entry instead of silently missing each other.
+                request.PaymentStatuses != null && request.PaymentStatuses.Any()
+                    ? string.Join(",", request.PaymentStatuses.OrderBy(s => s))
+                    : "null",
                 request.PayrollQuarter?.ToString() ?? "null",
                 request.FiscalYear?.ToString() ?? "null", // ✅ new
                 request.DateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",

@@ -1,6 +1,7 @@
 ﻿@page "/statistics"
 @using Microsoft.AspNetCore.Authorization
 @using EcaInformationSystem.Client.Pages.Statistics.StatisticsChildComponents
+@using SharedDtos = EcaInformationSystem.Shared.DTOs
 @attribute [Authorize]
 @inject HttpClient Http
 @inject NavigationManager Navigation
@@ -135,16 +136,15 @@
                             </select>
                         </div>
 
-                        @* ── Payment Status ────────────────────────────────── *@
+                        @* ── Payment Status — multi-select, same control as the Beneficiary
+                             grid's filter (BeneficiarySearchFilters.razor) ── *@
                         <div class="sf-field">
                             <label>Payment Status</label>
-                            <select @bind="_selectedPaymentStatus" class="ff-input">
-                                <option value="-1">All</option>
-                                <option value="2">Paid</option>
-                                <option value="1">Unpaid</option>
-                                <option value="3">Pending</option>
-                                <option value="0">N/A</option>
-                            </select>
+                            <MultiSelectDropdown TItem="PaymentStatusOption" Items="_paymentStatusOptions"
+                                                 SelectedIds="_selectedPaymentStatuses"
+                                                 SelectedIdsChanged="@(ids => _selectedPaymentStatuses = ids)"
+                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)"
+                                                 Placeholder="Payment Status" Disabled="@_isLoading" />
                         </div>
                         @* ── Payroll Quarter ───────────────────────────────── *@
                         <div class="sf-field">
@@ -210,24 +210,49 @@
             }
         </div>
 
-        @* ── Summary Cards ─────────────────────────────────────────── *@
+        @* ── No auto-loaded overall totals on page open — that was a full
+             aggregate scan nobody asked for yet. The cards/tables stay visible
+             (at zero) rather than hiding behind a loading screen; this banner
+             just makes clear why they're at zero and how to populate them. ── *@
+        @if (!_hasLoadedReport)
+        {
+            <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                <span>
+                    <i class="bi bi-info-circle me-2"></i>
+                    Showing zero counts — set filters above (optional) and load the report.
+                </span>
+                <button class="sys-btn sys-btn-save" @onclick="LoadStatisticsAsync">
+                    <i class="bi bi-play-fill me-1"></i> Load Statistics
+                </button>
+            </div>
+        }
+
+        @* ── Summary Cards — click a count to audit exactly who's included ── *@
         <div class="dash-stat-grid mb-3">
-            <div class="dash-stat-card dash-stat-card--navy">
+            <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable"
+                 @onclick='() => OpenMembersModalAsync("all", "Total Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
                 <div class="dash-stat-value">@_report.TotalBeneficiaries.ToString("N0")</div>
                 <div class="dash-stat-label">Total Grantees</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--green">
+            <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable"
+                 @onclick='() => OpenMembersModalAsync("paid", "Paid Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
                 <div class="dash-stat-value">@_report.PaidCount.ToString("N0")</div>
                 <div class="dash-stat-label">Paid</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--red">
+            <div class="dash-stat-card dash-stat-card--red dash-stat-card--clickable"
+                 @onclick='() => OpenMembersModalAsync("unpaid", "Unpaid Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
                 <div class="dash-stat-value">@_report.UnpaidCount.ToString("N0")</div>
                 <div class="dash-stat-label">Unpaid</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--amber">
+            <div class="dash-stat-card dash-stat-card--amber dash-stat-card--clickable"
+                 @onclick='() => OpenMembersModalAsync("pending", "Pending Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
                 <div class="dash-stat-value">@_report.PendingCount.ToString("N0")</div>
                 <div class="dash-stat-label">Pending</div>
@@ -235,17 +260,23 @@
         </div>
 
         <div class="dash-stat-grid mb-3">
-            <div class="dash-stat-card" style="background:#0dcaf0;">
+            <div class="dash-stat-card dash-stat-card--clickable" style="background:#0dcaf0;"
+                 @onclick='() => OpenMembersModalAsync("paid", "Grantees Included in Total Disbursed")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
                 <div class="dash-stat-value">₱@_report.TotalDisbursement.ToString("N0")</div>
                 <div class="dash-stat-label">Total Disbursed</div>
             </div>
-            <div class="dash-stat-card" style="background:#6f42c1;">
+            <div class="dash-stat-card dash-stat-card--clickable" style="background:#6f42c1;"
+                 @onclick='() => OpenMembersModalAsync("male", "Male Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-gender-male"></i></div>
                 <div class="dash-stat-value">@_report.TotalMale.ToString("N0")</div>
                 <div class="dash-stat-label">Male</div>
             </div>
-            <div class="dash-stat-card" style="background:#d63384;">
+            <div class="dash-stat-card dash-stat-card--clickable" style="background:#d63384;"
+                 @onclick='() => OpenMembersModalAsync("female", "Female Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-gender-female"></i></div>
                 <div class="dash-stat-value">@_report.TotalFemale.ToString("N0")</div>
                 <div class="dash-stat-label">Female</div>
@@ -413,6 +444,11 @@
                 <span class="badge bg-light text-dark">@_report.ProvinceBreakdowns.Count provinces</span>
             </div>
             <div class="sys-card-body p-0">
+                <div class="age-cell-legend">
+                    <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--m"></span>Male</span>
+                    <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--f"></span>Female</span>
+                    <span class="age-legend-hint">— shown under each milestone age's total</span>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover table-sm mb-0 stat-table">
                         <thead class="table-dark">
@@ -435,11 +471,11 @@
                                 <tr>
                                     <td class="fw-semibold">@p.ProvinceName</td>
                                     <td class="text-center">@p.TotalCount.ToString("N0")</td>
-                                    <td class="text-center">@p.Age80Count</td>
-                                    <td class="text-center">@p.Age85Count</td>
-                                    <td class="text-center">@p.Age90Count</td>
-                                    <td class="text-center">@p.Age95Count</td>
-                                    <td class="text-center">@p.Age100Count</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age80Count, p.Age80MaleCount, p.Age80FemaleCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age85Count, p.Age85MaleCount, p.Age85FemaleCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age90Count, p.Age90MaleCount, p.Age90FemaleCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age95Count, p.Age95MaleCount, p.Age95FemaleCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age100Count, p.Age100MaleCount, p.Age100FemaleCount)</td>
                                     <td class="text-center">@p.MaleCount</td>
                                     <td class="text-center">@p.FemaleCount</td>
                                     <td class="text-end fw-semibold">₱@p.TotalDisbursement.ToString("N0")</td>
@@ -450,11 +486,11 @@
                             <tr>
                                 <td>TOTAL</td>
                                 <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
-                                <td class="text-center">@_report.TotalAge80</td>
-                                <td class="text-center">@_report.TotalAge85</td>
-                                <td class="text-center">@_report.TotalAge90</td>
-                                <td class="text-center">@_report.TotalAge95</td>
-                                <td class="text-center">@_report.TotalAge100</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.ProvinceBreakdowns.Sum(p => p.Age80MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age80FemaleCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.ProvinceBreakdowns.Sum(p => p.Age85MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age85FemaleCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.ProvinceBreakdowns.Sum(p => p.Age90MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age90FemaleCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.ProvinceBreakdowns.Sum(p => p.Age95MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age95FemaleCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.ProvinceBreakdowns.Sum(p => p.Age100MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age100FemaleCount))</td>
                                 <td class="text-center">@_report.TotalMale</td>
                                 <td class="text-center">@_report.TotalFemale</td>
                                 <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
@@ -477,6 +513,11 @@
                 </div>
                 @if (_showMunicipalityTable)
                 {
+                    <div class="age-cell-legend">
+                        <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--m"></span>Male</span>
+                        <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--f"></span>Female</span>
+                        <span class="age-legend-hint">— shown under each milestone age's total</span>
+                    </div>
                     <div class="sys-card-body p-0">
                         <div class="table-responsive hover-scroll" style="max-height:500px; overflow-y:auto;">
                             <table class="table table-hover table-sm mb-0 stat-table">
@@ -502,11 +543,11 @@
                                             <td>@m.MunicipalityName</td>
                                             <td>@m.ProvinceName</td>
                                             <td class="text-center">@m.TotalCount.ToString("N0")</td>
-                                            <td class="text-center">@m.Age80Count</td>
-                                            <td class="text-center">@m.Age85Count</td>
-                                            <td class="text-center">@m.Age90Count</td>
-                                            <td class="text-center">@m.Age95Count</td>
-                                            <td class="text-center">@m.Age100Count</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age80Count, m.Age80MaleCount, m.Age80FemaleCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age85Count, m.Age85MaleCount, m.Age85FemaleCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age90Count, m.Age90MaleCount, m.Age90FemaleCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age95Count, m.Age95MaleCount, m.Age95FemaleCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age100Count, m.Age100MaleCount, m.Age100FemaleCount)</td>
                                             <td class="text-center">@m.MaleCount</td>
                                             <td class="text-center">@m.FemaleCount</td>
                                             <td class="text-end">₱@m.TotalDisbursement.ToString("N0")</td>
@@ -517,11 +558,11 @@
                                     <tr>
                                         <td colspan="2">TOTAL</td>
                                         <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
-                                        <td class="text-center">@_report.TotalAge80</td>
-                                        <td class="text-center">@_report.TotalAge85</td>
-                                        <td class="text-center">@_report.TotalAge90</td>
-                                        <td class="text-center">@_report.TotalAge95</td>
-                                        <td class="text-center">@_report.TotalAge100</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.MunicipalityBreakdowns.Sum(m => m.Age80MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age80FemaleCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.MunicipalityBreakdowns.Sum(m => m.Age85MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age85FemaleCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.MunicipalityBreakdowns.Sum(m => m.Age90MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age90FemaleCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.MunicipalityBreakdowns.Sum(m => m.Age95MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age95FemaleCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.MunicipalityBreakdowns.Sum(m => m.Age100MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age100FemaleCount))</td>
                                         <td class="text-center">@_report.TotalMale</td>
                                         <td class="text-center">@_report.TotalFemale</td>
                                         <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
@@ -536,9 +577,117 @@
 
     }
 </div>
+
+@* ── Grantee Audit Modal — shows exactly who is included in a summary
+     card's count, so figures can be verified against actual records
+     instead of taken on faith. Mirrors the CGP drill-down pattern in
+     LiquidationModal.razor (full name + payment history per row). ── *@
+<HxModal @ref="_membersModal" Size="ModalSize.ExtraLarge">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-people-fill me-2"></i>
+            @_membersModalTitle
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingMembers)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading grantees...</p>
+            </div>
+        }
+        else if (!_members.Any())
+        {
+            <div class="alert alert-info mb-0">No grantees found for this count.</div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                <span class="badge bg-primary fs-6">@_membersTotalCount Total</span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber <= 1 || _isLoadingMembers)"
+                            @onclick="() => GoToMembersPageAsync(_membersPageNumber - 1)">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span class="small text-muted">
+                        Page @_membersPageNumber of @Math.Max(1, _membersTotalPages)
+                        (@(((_membersPageNumber - 1) * _membersPageSize) + 1)–@Math.Min(_membersPageNumber * _membersPageSize, _membersTotalCount) of @_membersTotalCount)
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber >= _membersTotalPages || _isLoadingMembers)"
+                            @onclick="() => GoToMembersPageAsync(_membersPageNumber + 1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="max-height:480px; overflow-y:auto;">
+                <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size:12px;">
+                    <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                        <tr>
+                            <th style="width:36px;">#</th>
+                            <th>Full Name</th>
+                            <th style="width:60px;">Sex</th>
+                            <th style="width:50px;">Age</th>
+                            <th>Location</th>
+                            <th>OSCA ID</th>
+                            <th>Status</th>
+                            <th style="min-width:260px;">Payment History</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowNum = ((_membersPageNumber - 1) * _membersPageSize) + 1; }
+                        @foreach (var m in _members)
+                        {
+                            <tr>
+                                <td>@rowNum</td>
+                                <td class="fw-semibold">@m.FullName</td>
+                                <td>@(m.Sex == 1 ? "Male" : m.Sex == 2 ? "Female" : "—")</td>
+                                <td>@m.Age</td>
+                                <td>@m.MunicipalityName, @m.ProvinceName</td>
+                                <td>@(string.IsNullOrWhiteSpace(m.OscaIdNumber) ? "—" : m.OscaIdNumber)</td>
+                                <td><span class="badge @GetMemberStatusBadgeClass(m.PaymentStatus)">@GetMemberStatusLabel(m.PaymentStatus)</span></td>
+                                <td>
+                                    @if (!m.PaymentHistories.Any())
+                                    {
+                                        <span class="text-muted">No payment history yet</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex flex-column gap-1">
+                                            @foreach (var h in m.PaymentHistories)
+                                            {
+                                                <span class="badge @GetMemberStatusBadgeClass(h.PaymentStatus) text-start" style="font-weight:500;">
+                                                    @(h.PayrollQuarter.HasValue ? $"Q{h.PayrollQuarter}" : "—")
+                                                    @(h.FiscalYear.HasValue ? h.FiscalYear.ToString() : "")
+                                                    — @GetMemberStatusLabel(h.PaymentStatus)
+                                                    @(h.PaymentDate.HasValue ? $" ({h.PaymentDate.Value:MMM dd, yyyy})" : "")
+                                                    @(h.IsCurrent ? " ★" : "")
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                            rowNum++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _membersModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @code {
     private int _selectedPayrollQuarter;
-    private bool _isLoading = true;
+    // ✅ CHANGED — starts false since nothing auto-loads on mount anymore.
+    private bool _isLoading;
+    // ✅ NEW — gates the summary cards/breakdowns: false until the user's
+    // first explicit Apply/Refresh/Load Statistics action completes.
+    private bool _hasLoadedReport;
     private string? _loadError;
     private bool _filterExpanded = true;
     private bool _showMunicipalityTable;
@@ -554,7 +703,17 @@
     private int _selectedFiscalYear; // 0 = all
     private int _selectedMilestoneYear;
     private int _selectedMilestone;
-    private int _selectedPaymentStatus = -1;
+    // ✅ CHANGED — multi-select payment status, same as BeneficiarySearchFilters.
+    // Empty = no filter (was a single int with -1 meaning "all").
+    private List<int> _selectedPaymentStatuses = new();
+    private record PaymentStatusOption(int Value, string Label);
+    private readonly List<PaymentStatusOption> _paymentStatusOptions = new()
+    {
+        new(2, "Paid"),
+        new(1, "Unpaid"),
+        new(3, "Pending"),
+        new(0, "N/A"),
+    };
     private DateTime? _dateEndorsedFrom;
     private DateTime? _dateEndorsedTo;
     private DateTime? _dateAddedFrom;
@@ -562,6 +721,21 @@
 
     private bool _isLoadingProvinces;
     private bool _isLoadingMunicipalities;
+
+    // ── Grantee Audit Modal ────────────────────────────────────────────
+    private HxModal _membersModal = default!;
+    private string _membersModalTitle = string.Empty;
+    private string _membersBucket = "all";
+    private bool _isLoadingMembers;
+    private List<SharedDtos.StatisticsMemberDto> _members = new();
+    private int _membersPageNumber = 1;
+    private const int _membersPageSize = 50;
+    private int _membersTotalCount;
+    private int _membersTotalPages;
+    // Snapshot of the filters active when the modal was opened — pagination
+    // (Prev/Next) reuses this instead of re-reading live filter state, so
+    // flipping pages can't silently change what's being counted mid-browse.
+    private SharedDtos.StatisticsRequestDto _membersFilterSnapshot = new();
 
     // ── Properties with getter/setter for cascading ──────────────────
     private int SelectedRegion
@@ -602,10 +776,14 @@
         }
     }
 
+    // ✅ CHANGED — no longer auto-runs the (unfiltered, whole-database) report
+    // on every page visit. That was a full aggregate scan fired before the
+    // user even touched a filter — real cost, purely for a landing screen.
+    // Now only the lightweight region lookup loads on mount; the report loads
+    // on the user's first explicit action (Apply/Refresh/Load Statistics).
     protected override async Task OnInitializedAsync()
     {
         await LoadRegionsAsync();
-        await LoadStatisticsAsync();
     }
 
     private async Task LoadRegionsAsync()
@@ -683,27 +861,14 @@
 
         try
         {
-            var request = new StatisticsRequestDto
-            {
-                Region = _selectedRegionId > 0 ? _selectedRegionId : null,
-                Province = _selectedProvinceId > 0 ? _selectedProvinceId : null,
-                Municipality = _selectedMunicipalityId > 0 ? _selectedMunicipalityId : null,
-                MilestoneYear = _selectedMilestoneYear,
-                MilestoneAge = _selectedMilestone,
-                PaymentStatus = _selectedPaymentStatus,
-                PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,
-                FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null, // ✅ new
-                DateEndorsedFrom = _dateEndorsedFrom,
-                DateEndorsedTo = _dateEndorsedTo,
-                DateAddedFrom = _dateAddedFrom,
-                DateAddedTo = _dateAddedTo
-            };
+            var request = BuildFilterRequest();
 
             var response = await Http.PostAsJsonAsync("api/Statistics/report", request);
 
             if (response.IsSuccessStatusCode)
             {
                 _report = await response.Content.ReadFromJsonAsync<StatisticsReportDto>() ?? new();
+                _hasLoadedReport = true;
             }
             else
             {
@@ -729,7 +894,7 @@
         _selectedMunicipalityId = 0;
         _selectedMilestoneYear = 0;
         _selectedMilestone = 0;
-        _selectedPaymentStatus = -1;
+        _selectedPaymentStatuses = new();
         _provincesForRegion = new();
         _municipalitiesForProvince = new();
         _selectedPayrollQuarter = 0;
@@ -743,10 +908,120 @@
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
     private async Task RefreshAsync() => await LoadStatisticsAsync();
 
+    // Single source of truth for "what's currently filtered" — used by both
+    // the /report call (summary cards/breakdowns) and the /members audit call,
+    // so the modal's grantee list always matches whatever the cards show.
+    private SharedDtos.StatisticsRequestDto BuildFilterRequest() => new()
+    {
+        Region = _selectedRegionId > 0 ? _selectedRegionId : null,
+        Province = _selectedProvinceId > 0 ? _selectedProvinceId : null,
+        Municipality = _selectedMunicipalityId > 0 ? _selectedMunicipalityId : null,
+        MilestoneYear = _selectedMilestoneYear,
+        MilestoneAge = _selectedMilestone,
+        PaymentStatuses = _selectedPaymentStatuses,
+        PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,
+        FiscalYear = _selectedFiscalYear > 0 ? _selectedFiscalYear : null,
+        DateEndorsedFrom = _dateEndorsedFrom,
+        DateEndorsedTo = _dateEndorsedTo,
+        DateAddedFrom = _dateAddedFrom,
+        DateAddedTo = _dateAddedTo
+    };
+
+    private async Task OpenMembersModalAsync(string bucket, string title)
+    {
+        _membersModalTitle = title;
+        _membersBucket = bucket;
+        _membersFilterSnapshot = BuildFilterRequest();
+        _membersPageNumber = 1;
+        _members = new();
+        _membersTotalCount = 0;
+        _membersTotalPages = 0;
+        await _membersModal.ShowAsync();
+        await FetchMembersPageAsync();
+    }
+
+    private async Task GoToMembersPageAsync(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > _membersTotalPages || _isLoadingMembers) return;
+        _membersPageNumber = pageNumber;
+        await FetchMembersPageAsync();
+    }
+
+    private async Task FetchMembersPageAsync()
+    {
+        _isLoadingMembers = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new SharedDtos.StatisticsMembersRequestDto
+            {
+                Filter = _membersFilterSnapshot,
+                Bucket = _membersBucket,
+                PageNumber = _membersPageNumber,
+                PageSize = _membersPageSize
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Statistics/members", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<SharedDtos.StatisticsMembersPagedResultDto>();
+                _members = result?.Items ?? new();
+                _membersTotalCount = result?.TotalCount ?? 0;
+                _membersTotalPages = result?.TotalPages ?? 0;
+            }
+        }
+        finally
+        {
+            _isLoadingMembers = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string GetMemberStatusLabel(int status) => status switch
+    {
+        1 => "Unpaid",
+        2 => "Paid",
+        3 => "Pending",
+        _ => "N/A"
+    };
+
+    private static string GetMemberStatusBadgeClass(int status) => status switch
+    {
+        1 => "bg-danger",
+        2 => "bg-success",
+        3 => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
     private void ToggleMunicipalityTable() => _showMunicipalityTable = !_showMunicipalityTable;
 
     private static int GetBarHeight(int value, int max) =>
         max == 0 ? 0 : Math.Max(4, (int)Math.Round((double)value / max * 100));
+
+    // Renders a milestone-age table cell as the bracket's total count plus a
+    // small Male/Female split beneath it, e.g. "12" over "M 7 · F 5" — keeps
+    // the existing total visible while adding the gender breakdown requested
+    // for the province table, without doubling the column count.
+    private static RenderFragment AgeCell(int total, int male, int female) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "age-cell-total");
+        builder.AddContent(2, total.ToString("N0"));
+        builder.CloseElement();
+
+        builder.OpenElement(3, "div");
+        builder.AddAttribute(4, "class", "age-cell-split");
+        builder.OpenElement(5, "span");
+        builder.AddAttribute(6, "class", "age-split-m");
+        builder.AddContent(7, $"M {male}");
+        builder.CloseElement();
+        builder.OpenElement(8, "span");
+        builder.AddAttribute(9, "class", "age-split-f");
+        builder.AddContent(10, $"F {female}");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
 
     private static string GetAgeColor(int age) => age switch
     {
@@ -783,22 +1058,6 @@
     {
         public int PsgcCodeMunicipality { get; set; }
         public string? Name { get; set; }
-    }
-
-    public class StatisticsRequestDto
-    {
-        public int? Region { get; set; }
-        public int? Province { get; set; }
-        public int? Municipality { get; set; }
-        public int MilestoneYear { get; set; }
-        public int MilestoneAge { get; set; }
-        public int PaymentStatus { get; set; } = -1;
-        public int? PayrollQuarter { get; set; }
-        public int? FiscalYear { get; set; } // ✅ new
-        public DateTime? DateEndorsedFrom { get; set; }
-        public DateTime? DateEndorsedTo { get; set; }
-        public DateTime? DateAddedFrom { get; set; }
-        public DateTime? DateAddedTo { get; set; }
     }
 
     public class StatisticsReportDto
@@ -851,6 +1110,17 @@
         public int Age90Count { get; set; }
         public int Age95Count { get; set; }
         public int Age100Count { get; set; }
+        // ✅ new — male/female split within each milestone-age bracket
+        public int Age80MaleCount { get; set; }
+        public int Age80FemaleCount { get; set; }
+        public int Age85MaleCount { get; set; }
+        public int Age85FemaleCount { get; set; }
+        public int Age90MaleCount { get; set; }
+        public int Age90FemaleCount { get; set; }
+        public int Age95MaleCount { get; set; }
+        public int Age95FemaleCount { get; set; }
+        public int Age100MaleCount { get; set; }
+        public int Age100FemaleCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }
@@ -870,6 +1140,17 @@
         public int Age90Count { get; set; }
         public int Age95Count { get; set; }
         public int Age100Count { get; set; }
+        // ✅ new — male/female split within each milestone-age bracket
+        public int Age80MaleCount { get; set; }
+        public int Age80FemaleCount { get; set; }
+        public int Age85MaleCount { get; set; }
+        public int Age85FemaleCount { get; set; }
+        public int Age90MaleCount { get; set; }
+        public int Age90FemaleCount { get; set; }
+        public int Age95MaleCount { get; set; }
+        public int Age95FemaleCount { get; set; }
+        public int Age100MaleCount { get; set; }
+        public int Age100FemaleCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }

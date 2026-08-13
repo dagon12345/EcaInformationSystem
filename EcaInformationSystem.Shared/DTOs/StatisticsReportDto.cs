@@ -79,6 +79,18 @@
         public int Age90Count { get; set; }
         public int Age95Count { get; set; }
         public int Age100Count { get; set; }
+        // ✅ NEW — male/female split within each milestone-age bracket, alongside
+        // the existing bracket totals above.
+        public int Age80MaleCount { get; set; }
+        public int Age80FemaleCount { get; set; }
+        public int Age85MaleCount { get; set; }
+        public int Age85FemaleCount { get; set; }
+        public int Age90MaleCount { get; set; }
+        public int Age90FemaleCount { get; set; }
+        public int Age95MaleCount { get; set; }
+        public int Age95FemaleCount { get; set; }
+        public int Age100MaleCount { get; set; }
+        public int Age100FemaleCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }
@@ -98,6 +110,17 @@
         public int Age90Count { get; set; }
         public int Age95Count { get; set; }
         public int Age100Count { get; set; }
+        // ✅ new — male/female split within each milestone-age bracket
+        public int Age80MaleCount { get; set; }
+        public int Age80FemaleCount { get; set; }
+        public int Age85MaleCount { get; set; }
+        public int Age85FemaleCount { get; set; }
+        public int Age90MaleCount { get; set; }
+        public int Age90FemaleCount { get; set; }
+        public int Age95MaleCount { get; set; }
+        public int Age95FemaleCount { get; set; }
+        public int Age100MaleCount { get; set; }
+        public int Age100FemaleCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }
