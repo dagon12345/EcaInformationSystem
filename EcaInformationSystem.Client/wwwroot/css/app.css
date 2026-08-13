@@ -7200,6 +7200,12 @@
             background: #fef3c7;
             color: #92400e;
         }
+
+        .tbl-badge.cutoff-miss {
+            background: #dc3545;
+            color: #fff;
+            border: 1px solid #b02a37;
+        }
     /* Duplication preview modal */
     .dup-modal-summary {
         display: flex;

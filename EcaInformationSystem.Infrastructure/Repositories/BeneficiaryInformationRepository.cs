@@ -2900,31 +2900,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             IsReadyForEft = x.IsReadyForEft,
         };
 
-        private static int ComputeMilestoneYear(DateTime birthDate)
-        {
-            var today = DateTime.Today;
-            foreach (var m in new[] { 100, 95, 90, 85, 80 })
-            {
-                int y = birthDate.Year + m;
-                if (y >= 2024 &&
-                    (y < today.Year ||
-                    (y == today.Year && birthDate.DayOfYear <= today.DayOfYear)))
-                    return y;
-            }
-            // ✅ Returns 0 when:
-            // - No milestone year >= 2024 has been reached yet (birthday hasn't come)
-            // - e.g. age 84 born May 1941 → 85th milestone is 2026, birthday not yet passed → 0
-            // - e.g. age 104 born 1922 → 100th was 2022, before 2024 program window → 0
-            // - e.g. age 81 born 1944 → 85th is 2029, not reached → 0
-            return 0;
-        }
-        private static int ComputeAge(DateTime birthDate)
-        {
-            var today = DateTime.Today;
-            var age = today.Year - birthDate.Year;
-            if (birthDate.Date > today.AddYears(-age)) age--;
-            return age;
-        }
+        // ✅ Delegates to the shared helper so this stays in lockstep with the
+        // client form's eligibility math — including the March 17, 2024 program
+        // start cutoff (a grantee whose 80th birthday fell before that date
+        // never had a window to enter the program, even though the YEAR is 2024).
+        private static int ComputeMilestoneYear(DateTime birthDate) => EcaEligibilityHelper.ComputeMilestoneYear(birthDate);
+        private static int ComputeAge(DateTime birthDate) => EcaEligibilityHelper.ComputeAge(birthDate);
 
         public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate)
         {

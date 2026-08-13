@@ -79,6 +79,11 @@ namespace EcaInformationSystem.Shared.DTOs
             RegionRomanNumeralHelper.BuildReferenceNumber(
                 Quarter, Batch, RefYear, RefCode, PsgcCodeRegion);
 
-
+        // ✅ True when this grantee is 80+ but never crossed a qualifying
+        // milestone — their 80th (and every later) birthday fell before the
+        // ECA program's actual start date (March 17, 2024). Lets the grid
+        // flag these permanently-ineligible rows at a glance instead of
+        // looking identical to an ordinary "not yet eligible" grantee.
+        public bool MissedProgramStartCutoff => EcaEligibilityHelper.MissedProgramStartCutoff(BirthDate);
     }
 }

@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
 @using EcaInformationSystem.Client.Pages.BeneficiaryInformation.Helpers
 @using Microsoft.AspNetCore.Components.Authorization
 @implements IAsyncDisposable
@@ -281,8 +282,27 @@
                     <ValidationMessage For="@(() => model.BirthDate)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
-                    <span class="annexa-item-label">Age (auto)</span>
-                    <input class="annexa-input annexa-readonly" value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" disabled />
+                    <span class="annexa-item-label">
+                        Age (auto)
+                        @if (MissedProgramStartCutoff)
+                        {
+                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Ineligible — missed ECA program start cutoff"></i>
+                        }
+                    </span>
+                    <input class="annexa-input annexa-readonly"
+                           style="@(MissedProgramStartCutoff ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
+                           value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" disabled />
+                    <span class="annexa-item-label mt-1 d-block">
+                        Milestone Year (auto)
+                        @if (MissedProgramStartCutoff)
+                        {
+                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Ineligible — missed ECA program start cutoff"></i>
+                        }
+                    </span>
+                    <input class="annexa-input annexa-readonly"
+                           style="@(MissedProgramStartCutoff ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
+                           value="@(MissedProgramStartCutoff ? "N/A" : (ComputeMilestoneYear(model.BirthDate, model.ValidationDate != default ? model.ValidationDate : (DateTime?)null) is var my && my > 0 ? my.ToString() : "—"))"
+                           disabled />
                 </div>
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.8 Contact Number/s <span class="annexa-required">*</span></span>
@@ -322,6 +342,19 @@
                     }
                 </div>
             </div>
+
+            @if (MissedProgramStartCutoff)
+            {
+                <div class="alert alert-danger d-flex align-items-start gap-2 py-2 px-3 mb-2 small">
+                    <i class="bi bi-exclamation-octagon-fill mt-1"></i>
+                    <div>
+                        <strong>Ineligible — missed the ECA program start cutoff.</strong><br />
+                        This grantee turned 80 before the program's start date (@EcaEligibilityHelper.ProgramStartDate.ToString("MMMM d, yyyy")),
+                        so there is no milestone year they ever qualified under. Payment Status will be automatically set to
+                        <strong>N/A</strong> and this record cannot be marked eligible.
+                    </div>
+                </div>
+            }
 
             @* C.9.1 — Address in the Philippines. PSGC cascading selects sit
                INLINE in the same grid as House#/Street/Zip, exactly matching
@@ -546,7 +579,7 @@
                                               IsDeceased="@model.IsDeceased"
                                               IsAdmin="@(_isAdmin || _isPdo)"
                                               IsEligible="@model.IsEligible"
-                                              IsEligibleChanged="@(v => { model.IsEligible = v; StateHasChanged(); })"
+                                              IsEligibleChanged="@(v => OnIsEligibleChanged(v))"
                                               IsCompliant="@model.IsCompliant"
                                               IsCompliantChanged="@(v => { model.IsCompliant = v; StateHasChanged(); })"
                                               Validator="@model.Validator"
@@ -1057,6 +1090,31 @@
     </FooterTemplate>
 </HxModal>
 
+@* ✅ NEW — acknowledgment-only warning shown when a user tries to mark a
+   grantee Eligible while they've missed the ECA program's start-date cutoff
+   (see MissedProgramStartCutoff). The toggle is reverted the moment this
+   fires, so there's nothing to "confirm" — this is purely making sure the
+   user notices the mistake instead of silently having it corrected on save. *@
+<HxModal @ref="eligibilityWarningModal">
+    <HeaderTemplate>
+        <h5 class="text-danger"><i class="bi bi-exclamation-octagon-fill me-2"></i>Cannot Mark Eligible</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            This grantee turned 80 <strong>before</strong> the ECA program's start date
+            (@EcaEligibilityHelper.ProgramStartDate.ToString("MMMM d, yyyy")), so there is no milestone year
+            they ever qualified under.
+        </p>
+        <p class="mb-0">
+            Eligibility has been reset back to <strong>No</strong>, and Payment Status will remain
+            <strong>N/A</strong>. This cannot be overridden.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Primary" @onclick="CloseEligibilityWarningModal">OK, understood</HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @* ── Soft Duplicate Warning Modal ── *@
 <HxModal @ref="_softDuplicateModal" Size="ModalSize.ExtraLarge">
     <HeaderTemplate>
@@ -1167,6 +1225,7 @@
     private string? successMessage = string.Empty;
     private string? errorMessage = string.Empty;
     private HxModal confirmModal = default!;
+    private HxModal eligibilityWarningModal = default!;
     private ElementReference batchCodeInput;
     private string TodayDateString => DateTime.Today.ToString("yyyy-MM-dd");
     private bool _isLoadingRecord = false;
@@ -1759,6 +1818,28 @@
     #region Logic
     private async Task CloseConfirmationModal() => await confirmModal.HideAsync();
 
+    // ✅ NEW — a grantee who missed the ECA program's start-date cutoff
+    // (see MissedProgramStartCutoff) can never be eligible. If a user tries
+    // to flip the checklist's Eligible toggle to Yes for one of these
+    // records, revert it immediately and make sure they notice — rather
+    // than letting it look "saved" in the UI only to be silently forced
+    // back to No/N/A by the server-side guard on submit.
+    private async Task OnIsEligibleChanged(bool value)
+    {
+        if (value && MissedProgramStartCutoff)
+        {
+            model.IsEligible = false;
+            StateHasChanged();
+            await eligibilityWarningModal.ShowAsync();
+            return;
+        }
+
+        model.IsEligible = value;
+        StateHasChanged();
+    }
+
+    private async Task CloseEligibilityWarningModal() => await eligibilityWarningModal.HideAsync();
+
     private void ResetForm()
     {
         model = new BeneficiaryInformationDto
@@ -1953,35 +2034,29 @@
         var milestoneReached = ComputeMilestoneYear(model.BirthDate, referenceDate) > 0;
         var isFilipino = model.Citizenship == 1;
 
-        model.IsEligible = milestoneReached && isFilipino;
+        // ✅ Guard — a grantee who already turned 80 but never crossed a
+        // qualifying milestone (see ComputeMilestoneYear) missed the ECA
+        // program's actual start date (March 17, 2024) and can never enter it,
+        // no matter their citizenship.
+        model.IsEligible = MissedProgramStartCutoff
+            ? false
+            : milestoneReached && isFilipino;
         StateHasChanged();
     }
+
+    // ✅ Delegates to the shared helper (EcaInformationSystem.Shared.Helpers)
+    // so the client's math always matches the server's — including the
+    // March 17, 2024 program start cutoff. A milestone birthday that fell
+    // before that date (even if the YEAR is 2024) does not count.
     private static int ComputeMilestoneYear(DateTime birthDate, DateTime? referenceDate = null)
-    {
-        if (birthDate == default || birthDate == DateTime.MinValue)
-            return 0;
+        => EcaEligibilityHelper.ComputeMilestoneYear(birthDate, referenceDate);
 
-        var today = DateTime.Today;
-
-        var asOf = referenceDate.HasValue
-            ? (referenceDate.Value.Date > today ? referenceDate.Value.Date : today)
-            : today;
-
-        foreach (var milestone in new[] { 100, 95, 90, 85, 80 })
-        {
-            int milestoneYear = birthDate.Year + milestone;
-
-            if (milestoneYear < 2024)
-                continue;
-
-            var milestoneBirthday = new DateTime(milestoneYear, birthDate.Month, birthDate.Day);
-
-            if (milestoneBirthday <= asOf)
-                return milestoneYear;
-        }
-
-        return 0;
-    }
+    // True once the grantee is 80+ but has never reached a qualifying
+    // milestone — their 80th (and every later) birthday fell before the
+    // program existed, so there is no path in for them.
+    private bool MissedProgramStartCutoff =>
+        model.BirthDate != default && model.BirthDate != DateTime.MinValue
+        && EcaEligibilityHelper.MissedProgramStartCutoff(model.BirthDate);
     private int? GetEffectiveAge()
     {
         if (model.BirthDate == default || model.BirthDate == DateTime.MinValue) return null;

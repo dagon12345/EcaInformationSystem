@@ -797,7 +797,11 @@ namespace EcaInformationSystem.Application.Services
                 ValidationDate = dto.ValidationDate,
                 IsDeceased = dto.IsDeceased,
                 DateOfDeath = dto.DateOfDeath,
-                IsEligible = dto.IsEligible,
+                // ✅ Guard — never trust the client for this: a grantee whose 80th
+                // birthday fell before the ECA program's actual start date
+                // (March 17, 2024) has no path into the program, regardless of
+                // what IsEligible the form computed.
+                IsEligible = EcaEligibilityHelper.MissedProgramStartCutoff(dto.BirthDate) ? false : dto.IsEligible,
                 AssessmentRemarks = dto.AssessmentRemarks,
                 EligibilityRemarks = dto.EligibilityRemarks,
                 RemarkCategory = dto.RemarkCategory,
@@ -815,16 +819,22 @@ namespace EcaInformationSystem.Application.Services
             // gives the grid, dashboard, and Payment History timeline a real, visible
             // starting state from day one, and matches how every other status change
             // already flows through Payment History rather than flat columns.
+            //
+            // Exception: a grantee who missed the program's start-date cutoff (see
+            // above) can never be paid — they start at N/A instead of Pending.
+            var missedCutoff = EcaEligibilityHelper.MissedProgramStartCutoff(dto.BirthDate);
             var initialHistory = new BeneficiaryPaymentHistory
             {
                 Id = Guid.NewGuid(),
                 BeneficiaryInformationId = beneficiary.Id,
                 PayrollQuarter = null,
                 FiscalYear = null,
-                PaymentStatus = 3, // Pending
+                PaymentStatus = missedCutoff ? 0 : 3, // N/A if ineligible due to cutoff, else Pending
                 ModeOfPayment = 0,
                 PaymentDate = null,
-                Remarks = "Automatically set to Pending upon grantee registration.",
+                Remarks = missedCutoff
+                    ? $"Automatically set to N/A — grantee turned 80 before the ECA program started ({EcaEligibilityHelper.ProgramStartDate:MMMM d, yyyy})."
+                    : "Automatically set to Pending upon grantee registration.",
                 DateCreated = DateTime.UtcNow,
                 CreatedBy = userName
             };
@@ -1443,6 +1453,15 @@ namespace EcaInformationSystem.Application.Services
                 refCodeToSave = RegionRomanNumeralHelper.GenerateRefCode();
             }
 
+            // ✅ Same guard as CreateAsync — never trust the client here either.
+            // A grantee whose 80th birthday fell before the ECA program's actual
+            // start date (March 17, 2024) is permanently ineligible and stays at
+            // Payment Status N/A, regardless of what the form submitted (e.g. the
+            // birthdate was just corrected on this edit to reveal the cutoff miss).
+            var missedCutoffOnEdit = EcaEligibilityHelper.MissedProgramStartCutoff(dto.BirthDate);
+            var isEligibleToSave = missedCutoffOnEdit ? false : dto.IsEligible;
+            var paymentStatusToSave = missedCutoffOnEdit ? 0 : dto.PaymentStatus;
+
             beneficiary.Update(
                      dto.Quarter, dto.Batch, dto.RefYear, refCodeToSave,
                      dto.DateApplied, dto.DateEndorsed, dto.BatchCode,
@@ -1453,8 +1472,8 @@ namespace EcaInformationSystem.Application.Services
                      dto.CivilStatus, dto.Citizenship, dto.PsgcCodeRegion,
                      dto.PsgcCodeProvince, dto.PsgcCodeMunicipality, dto.PsgcCodeBarangay,
                      dto.IsCompliant, dto.Validator, dto.ValidationDate,
-                     dto.PayrollQuarter, dto.FiscalYear, dto.PaymentStatus, dto.ModeOfPayment, dto.PaymentDate,  // ✅ FiscalYear inserted
-                     dto.IsDeceased, dto.DateOfDeath, dto.IsEligible,
+                     dto.PayrollQuarter, dto.FiscalYear, paymentStatusToSave, dto.ModeOfPayment, dto.PaymentDate,  // ✅ FiscalYear inserted
+                     dto.IsDeceased, dto.DateOfDeath, isEligibleToSave,
                      dto.AssessmentRemarks, dto.EligibilityRemarks, dto.RemarkCategory, dto.Remarks,
                      dto.CoStatus, dto.CoDateEndorsed, dto.CoDateApproved);
 

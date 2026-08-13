@@ -38,6 +38,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public List<BeneficiaryPhoneNumberDto> PhoneNumbers { get; set; } = new();
         public int Age { get; set; }
         public int MilestoneYear { get; set; }
+        // ✅ True when this grantee is 80+ but never crossed a qualifying
+        // milestone — their 80th (and every later) birthday fell before the
+        // ECA program's actual start date (March 17, 2024). See [[EcaEligibilityHelper]].
+        public bool MissedProgramStartCutoff => EcaEligibilityHelper.MissedProgramStartCutoff(BirthDate);
         [Range(1, 2, ErrorMessage = "Please select Sex.")]
         public int Sex { get; set; }
         public bool? IsIndigenousPeople { get; set; }

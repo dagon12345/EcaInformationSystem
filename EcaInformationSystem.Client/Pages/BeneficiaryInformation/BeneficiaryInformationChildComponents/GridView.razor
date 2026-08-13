@@ -523,12 +523,24 @@
                                                 </td>
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
                                                 <td>
-                                                    <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">
+                                                    <span class="tbl-badge @(item.MissedProgramStartCutoff ? "cutoff-miss" : GetAgeBadgeClass(item.BirthDate))"
+                                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : null)">
+                                                        @if (item.MissedProgramStartCutoff)
+                                                        {
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                        }
                                                         @item.Age
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span class="tbl-badge mile">@item.MilestoneYear</span>
+                                                    @if (item.MissedProgramStartCutoff)
+                                                    {
+                                                        <span class="tbl-badge cutoff-miss" title="Missed ECA program start cutoff (March 17, 2024) — permanently ineligible">N/A</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="tbl-badge mile">@item.MilestoneYear</span>
+                                                    }
                                                 </td>
                                                 <td>@Highlight(GetSexText(item.Sex))</td>
                                                 <td>@Highlight(item.MunicipalityName)</td>
@@ -601,24 +613,31 @@
                                                     }
                                                 </td>
                                                 <td>
-                                                    @{
-                                                        var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
-                                                    item.EligibilityRemarksPreview);
-                                                        var eligLabel = GetEligibilityLabel(item.IsEligible,
-                                                    item.EligibilityRemarksPreview);
-                                                    }
-                                                    <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarksPreview">
-                                                        @Highlight(eligLabel)
-                                                    </span>
-                                                    @if (item.IsEligible &&
-                                                    !string.IsNullOrWhiteSpace(item.EligibilityRemarksPreview))
+                                                    @if (item.MissedProgramStartCutoff)
                                                     {
-                                                        <br />
-                                                        <small class="text-muted"
-                                                               style="font-size:10px; max-width:120px; display:inline-block;
-                                                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                                            @Highlight(item.EligibilityRemarksPreview)
-                                                        </small>
+                                                        <span class="tbl-badge cutoff-miss" title="Missed ECA program start cutoff (March 17, 2024) — permanently ineligible">
+                                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>No (Cutoff)
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        var eligBadge = GetEligibilityBadgeClass(item.IsEligible,
+                                                        item.EligibilityRemarksPreview);
+                                                        var eligLabel = GetEligibilityLabel(item.IsEligible,
+                                                        item.EligibilityRemarksPreview);
+                                                        <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarksPreview">
+                                                            @Highlight(eligLabel)
+                                                        </span>
+                                                        @if (item.IsEligible &&
+                                                        !string.IsNullOrWhiteSpace(item.EligibilityRemarksPreview))
+                                                        {
+                                                            <br />
+                                                            <small class="text-muted"
+                                                                   style="font-size:10px; max-width:120px; display:inline-block;
+                                                                white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                                                @Highlight(item.EligibilityRemarksPreview)
+                                                            </small>
+                                                        }
                                                     }
                                                 </td>
                                                 <td>
@@ -828,7 +847,14 @@
 </div>
 
                                 <div class="beneficiary-card-badges">
-                                    <span class="tbl-badge @GetAgeBadgeClass(item.BirthDate)">Age @item.Age</span>
+                                    <span class="tbl-badge @(item.MissedProgramStartCutoff ? "cutoff-miss" : GetAgeBadgeClass(item.BirthDate))"
+                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : null)">
+                                        @if (item.MissedProgramStartCutoff)
+                                        {
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                        }
+                                        Age @item.Age
+                                    </span>
                                     <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
                                         @GetPaymentStatusText(item.PaymentStatus)
                                     </span>
@@ -1453,13 +1479,20 @@ else
 <div class="row g-2 mb-4">
                                                                                                     <div class="col-6">
                                                                                                         <small class="text-muted d-block">Is Eligible</small>
-                                                                                                        @{
-                                                                                                            var detailEligLabel = GetEligibilityLabel(selectedDetails!.IsEligible,
-                                                                                                    selectedDetails.EligibilityRemarks);
+                                                                                                        @if (selectedDetails!.MissedProgramStartCutoff)
+                                                                                                        {
+                                                                                                            <span class="badge bg-danger" title="Missed ECA program start cutoff (March 17, 2024) — permanently ineligible">
+                                                                                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>No (Cutoff)
+                                                                                                            </span>
                                                                                                         }
-                                                                                                        <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
-                                                                                                            @detailEligLabel
-                                                                                                        </span>
+                                                                                                        else
+                                                                                                        {
+                                                                                                            var detailEligLabel = GetEligibilityLabel(selectedDetails.IsEligible,
+                                                                                                        selectedDetails.EligibilityRemarks);
+                                                                                                            <span class="badge @(selectedDetails.IsEligible ? "bg-success" : "bg-secondary")">
+                                                                                                                @detailEligLabel
+                                                                                                            </span>
+                                                                                                        }
                                                                                                     </div>
                                                                                                     @if (!string.IsNullOrWhiteSpace(selectedDetails.EligibilityRemarks))
                                                                                                     {
