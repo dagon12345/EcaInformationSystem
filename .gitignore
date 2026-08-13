@@ -353,6 +353,9 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 
+# Local dev snapshots (may contain production data copies) - never commit
+/.local/
+
 # BeatPulse healthcheck temp database
 healthchecksdb
 
