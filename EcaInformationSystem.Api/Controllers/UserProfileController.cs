@@ -80,9 +80,14 @@ namespace EcaInformationSystem.Api.Controllers
         }
 
         // Internal-only (not AllowAnonymous) — surfaces upcoming staff birthdays
-        // for the Feed's "welcome" widget.
+        // for the Feed's "welcome" widget. Explicitly Focal-inclusive: name/
+        // position/region/birthdate/age is the same non-sensitive class of data
+        // GetPublicProfile below already opens to Focal, and the widget itself
+        // renders for every authenticated role — it was only this endpoint's
+        // policy silently 403'ing Focal callers (caught and swallowed client-side
+        // in PostFeed.razor's LoadUpcomingBirthdaysAsync) that hid it from them.
         [HttpGet("upcoming-birthdays")]
-        [Authorize(Policy = AuthPolicies.CookieOrJwt)]
+        [Authorize(Policy = "AnyAuthenticatedIncludingFocal")]
         public async Task<IActionResult> GetUpcomingBirthdays([FromQuery] int withinDays = 7)
             => Ok(await _profileService.GetUpcomingBirthdaysAsync(withinDays));
 

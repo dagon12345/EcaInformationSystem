@@ -27,6 +27,20 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddHttpClient("PublicClient",
     client => client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/"));
 
+// Same auth handler as "AuthorizedClient", but a much longer timeout — for
+// calls that can legitimately take minutes (large-file upload, and especially
+// server-side PDF/DOCX/XLSX shrink-compression, which re-encodes every
+// embedded image and can run long on shared hosting). HttpClient.Timeout can
+// only be set before a client's first request, so this has to be a distinct
+// named client rather than mutating "AuthorizedClient" at call time.
+builder.Services.AddHttpClient("AuthorizedClientLongRunning",
+    client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/");
+        client.Timeout = TimeSpan.FromMinutes(10);
+    })
+    .AddHttpMessageHandler<AuthorizedHttpHandler>();
+
 builder.Services.AddScoped<BeneficiaryStateService>();
 builder.Services.AddScoped<LiquidationStateService>();
 builder.Services.AddScoped<AuthService>();
@@ -42,7 +56,15 @@ builder.Services.AddHxMessenger();
 builder.Services.AddSingleton<ChatClientService>();
 builder.Services.AddScoped<ChatStateService>();
 builder.Services.AddScoped<NavbarFlyoutCoordinator>();
-builder.Services.AddScoped<FormDocumentClientService>();
+// Explicit factory — this service needs both the normal-timeout
+// "AuthorizedClient" (fast metadata calls) and the long-timeout
+// "AuthorizedClientLongRunning" (upload/shrink calls), so plain constructor
+// injection of HttpClient can't disambiguate the two.
+builder.Services.AddScoped(sp => new FormDocumentClientService(
+    sp.GetRequiredService<IHttpClientFactory>().CreateClient("AuthorizedClient"),
+    sp.GetRequiredService<IHttpClientFactory>().CreateClient("AuthorizedClientLongRunning"),
+    sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+    sp.GetRequiredService<FormFolderClientService>()));
 builder.Services.AddScoped<FormFolderClientService>();
 builder.Services.AddScoped<StickyNoteClientService>();
 builder.Services.AddScoped<VoiceCallClientService>();

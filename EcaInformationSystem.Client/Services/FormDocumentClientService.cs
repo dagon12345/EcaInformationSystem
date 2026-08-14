@@ -7,6 +7,12 @@ namespace EcaInformationSystem.Client.Services
     public class FormDocumentClientService
     {
         private readonly HttpClient _http;
+
+        // Used only for calls that can legitimately run long — large-file
+        // upload and server-side shrink-compression — which need far more than
+        // the default 100s HttpClient.Timeout that every other quick call here
+        // uses. See Client/Program.cs's "AuthorizedClientLongRunning" registration.
+        private readonly HttpClient _longRunningHttp;
         private readonly IMemoryCache _cache;
         private readonly FormFolderClientService _folderService;
         private const string CacheKey = "formdocuments_all_v1";
@@ -17,9 +23,10 @@ namespace EcaInformationSystem.Client.Services
             SlidingExpiration = TimeSpan.FromMinutes(5)
         };
 
-        public FormDocumentClientService(HttpClient http, IMemoryCache cache, FormFolderClientService folderService)
+        public FormDocumentClientService(HttpClient http, HttpClient longRunningHttp, IMemoryCache cache, FormFolderClientService folderService)
         {
             _http = http;
+            _longRunningHttp = longRunningHttp;
             _cache = cache;
             _folderService = folderService;
         }
@@ -107,7 +114,7 @@ namespace EcaInformationSystem.Client.Services
             HttpResponseMessage response;
             try
             {
-                response = await _http.PostAsync("api/formdocument/upload", content);
+                response = await _longRunningHttp.PostAsync("api/formdocument/upload", content);
             }
             catch (Exception ex)
             {
@@ -148,7 +155,7 @@ namespace EcaInformationSystem.Client.Services
             HttpResponseMessage response;
             try
             {
-                response = await _http.PostAsync("api/formdocument/shrink-preview", content);
+                response = await _longRunningHttp.PostAsync("api/formdocument/shrink-preview", content);
             }
             catch (Exception ex)
             {
@@ -176,7 +183,7 @@ namespace EcaInformationSystem.Client.Services
             if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
             if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
 
-            var response = await _http.PostAsync("api/formdocument/upload", content);
+            var response = await _longRunningHttp.PostAsync("api/formdocument/upload", content);
 
             if (response.IsSuccessStatusCode)
             {

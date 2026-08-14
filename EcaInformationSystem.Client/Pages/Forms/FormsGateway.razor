@@ -457,6 +457,7 @@
             <small class="text-muted">
                 PDF, Word, or Excel — up to 10 MB. Larger PDF/DOCX/XLSX files (up to 50 MB) can be
                 automatically shrunk below 10 MB; other file types over 10 MB can't be.
+                Shrinking a large, image-heavy file can take a few minutes — please keep this tab open until it finishes.
             </small>
         </div>
 
@@ -490,7 +491,10 @@
                 <div class="shrink-preview-result">
                     @if (_isPreviewingShrink)
                     {
-                        <span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Estimating result...</span>
+                        <span class="text-muted">
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            Compressing and estimating result — this can take a few minutes for large files, please wait...
+                        </span>
                     }
                     else if (_previewResult != null)
                     {
@@ -1290,7 +1294,7 @@
             System.Net.Http.HttpRequestException =>
                 $"Upload failed{sizeNote} — the connection was interrupted. This can happen when a file is too large or the network drops mid-upload. Please try again.",
             TaskCanceledException =>
-                $"The upload timed out{sizeNote}. Please check your connection and try again with a smaller file if the problem continues.",
+                $"The upload timed out after several minutes{sizeNote}. This can happen with a very large, image-heavy file or a slow connection — please check your connection and try again.",
             _ => $"Upload failed{sizeNote}: {ex.Message}"
         };
     }
