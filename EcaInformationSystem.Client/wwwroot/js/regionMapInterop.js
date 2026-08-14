@@ -44,14 +44,23 @@ window.regionMapInterop = {
 
         // Google-Maps-style road basemap (free, no key) + a satellite
         // alternative, switchable via the same corner Google uses.
+        // crossOrigin: true — the production host serves
+        // Cross-Origin-Embedder-Policy: require-corp (see wwwroot/web.config),
+        // which blocks any cross-origin image loaded in the default "no-cors"
+        // mode Leaflet otherwise uses for tiles, regardless of what CORS
+        // headers the tile server sends. Both CARTO and ArcGIS already send
+        // Access-Control-Allow-Origin: * — this just makes the <img> tiles
+        // request them in actual CORS mode so the browser can see that and
+        // allow it, instead of silently dropping every tile in production
+        // (worked in local dev only because dev doesn't set that header).
         const roadLayer = L.tileLayer(
             "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-            { maxZoom: 19, subdomains: "abcd" }
+            { maxZoom: 19, subdomains: "abcd", crossOrigin: true }
         ).addTo(map);
 
         const satelliteLayer = L.tileLayer(
             "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            { maxZoom: 19 }
+            { maxZoom: 19, crossOrigin: true }
         );
 
         L.control.layers(
