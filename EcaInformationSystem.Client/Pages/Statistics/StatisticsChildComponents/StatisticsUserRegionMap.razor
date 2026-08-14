@@ -1,0 +1,150 @@
+@* StatisticsUserRegionMap.razor — map shading the CURRENT USER's registered
+   region's actual boundary (from the "Region" JWT claim set at registration),
+   not any filter selection. Sits beside StatisticsAnnualTargetSection so a
+   glance at the top of the page tells you both the target progress and
+   where this account is registered.
+   Boundary polygons are free PSGC-region GeoJSON (2019, faeldon/philippines-
+   json-maps) split per region under wwwroot/data/ph-regions/{code}.json and
+   fetched same-origin directly in JS — see regionMapInterop.js for why. *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+<div class="urm-card">
+    <div class="urm-header">
+        <span><i class="bi bi-geo-alt-fill me-2"></i>Registered Region</span>
+        @if (!_isLoading && _regionCode is not null)
+        {
+            <button type="button" class="urm-reload-btn" title="Reload map" @onclick="ReloadMapAsync">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        }
+    </div>
+    <div class="urm-body">
+        @if (_isLoading)
+        {
+            <div class="urm-placeholder">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+            </div>
+        }
+        else if (_regionCode is null)
+        {
+            <div class="urm-placeholder text-muted small">
+                <i class="bi bi-info-circle me-1"></i>No region on this account.
+            </div>
+        }
+        else
+        {
+            <div id="@_mapElementId" class="urm-map"></div>
+            <div class="urm-caption">@(_regionName ?? "Unknown Region")</div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly string _mapElementId = $"urm-map-{Guid.NewGuid():N}";
+    private bool _isLoading = true;
+    private int? _regionCode;
+    private string? _regionName;
+    private bool _mapInitialized;
+
+    // Approximate geographic centroid + zoom per PSGC region code — mirrors
+    // the codes in RegionRomanNumeralHelper. Close enough to place a marker
+    // on a real map without shipping a full PH regions GeoJSON boundary set.
+    private static readonly Dictionary<int, (double Lat, double Lng, int Zoom)> _centroids = new()
+    {
+        { 1400000000, (17.35, 121.05, 8) },  // CAR
+        { 100000000,  (16.08, 120.55, 8) },  // I
+        { 200000000,  (17.61, 121.72, 8) },  // II
+        { 300000000,  (15.48, 120.71, 8) },  // III
+        { 400000000,  (14.16, 121.24, 8) },  // IV-A
+        { 1700000000, (12.85, 121.08, 7) },  // IV-B
+        { 500000000,  (13.42, 123.41, 8) },  // V
+        { 600000000,  (11.00, 122.53, 8) },  // VI
+        { 700000000,  (10.31, 123.89, 8) },  // VII
+        { 800000000,  (11.25, 125.00, 8) },  // VIII
+        { 900000000,  (7.83, 123.30, 8) },   // IX
+        { 1000000000, (8.36, 124.86, 8) },   // X
+        { 1100000000, (7.06, 125.61, 8) },   // XI
+        { 1200000000, (6.28, 124.85, 8) },   // XII
+        { 1300000000, (14.60, 121.00, 10) }, // NCR
+        { 1600000000, (9.10, 125.65, 7) },   // XIII (Caraga)
+        { 1900000000, (7.20, 124.27, 8) },   // BARMM
+    };
+
+    // The boundary GeoJSON set was published in 2019 as ARMM (1500000000 in
+    // our code scheme), before the BARMM rename/expansion — no exact BARMM
+    // shape is available free, so BARMM borrows the old ARMM polygon as the
+    // closest available approximation rather than showing no shape at all.
+    private static readonly Dictionary<int, int> _boundaryFileOverrides = new()
+    {
+        { 1900000000, 1500000000 },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _regionCode = AuthService.GetRegionCode();
+        _regionName = _regionCode.HasValue ? await AuthService.GetRegionNameAsync(Http) : null;
+        _isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) => await InitializeMapAsync();
+
+    private async Task InitializeMapAsync()
+    {
+        if (_mapInitialized || _regionCode is null) return;
+        if (!_centroids.TryGetValue(_regionCode.Value, out var c))
+        {
+            Console.WriteLine($"StatisticsUserRegionMap: no centroid entry for region code {_regionCode.Value} — map stays blank.");
+            return;
+        }
+
+        // Same override for both files — the free dataset itself doesn't
+        // have BARMM (only its pre-rename ARMM predecessor), so both the
+        // boundary shape and the municipality list borrow ARMM's data.
+        var datasetRegionCode = _boundaryFileOverrides.GetValueOrDefault(_regionCode.Value, _regionCode.Value);
+        var geoJsonUrl = new Uri(new Uri(Navigation.BaseUri), $"data/ph-regions/{datasetRegionCode}.json").ToString();
+        var municipalityListUrl = new Uri(new Uri(Navigation.BaseUri), $"data/ph-municipalities/{datasetRegionCode}.json").ToString();
+
+        _mapInitialized = true;
+        try
+        {
+            await JS.InvokeVoidAsync("regionMapInterop.init", _mapElementId, c.Lat, c.Lng, c.Zoom,
+                _regionName ?? "Registered Region", geoJsonUrl, municipalityListUrl);
+        }
+        catch (Exception ex)
+        {
+            // Let a later render retry rather than leaving the card
+            // permanently blank if the JS-side init throws (e.g. the CDN
+            // Leaflet script hadn't finished loading yet).
+            _mapInitialized = false;
+            Console.WriteLine($"StatisticsUserRegionMap: regionMapInterop.init failed for #{_mapElementId}: {ex}");
+        }
+    }
+
+    // Manual escape hatch for the map going blank (e.g. after SPA back-
+    // navigation) — lets the user recover just this card instead of having
+    // to hard-reload the whole page.
+    private async Task ReloadMapAsync()
+    {
+        try { await JS.InvokeVoidAsync("regionMapInterop.destroy", _mapElementId); }
+        catch (Exception ex) { Console.WriteLine($"StatisticsUserRegionMap: destroy before reload failed: {ex.Message}"); }
+
+        _mapInitialized = false;
+        await InitializeMapAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_mapInitialized)
+        {
+            try { await JS.InvokeVoidAsync("regionMapInterop.destroy", _mapElementId); }
+            catch (JSDisconnectedException) { /* circuit already gone */ }
+        }
+    }
+}

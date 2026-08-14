@@ -1,0 +1,160 @@
+.stats-top-row {
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+}
+
+.stats-top-row-main {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.stats-top-row-side {
+    flex: 0 0 440px;
+}
+
+@media (max-width: 1100px) {
+    .stats-top-row {
+        flex-direction: column;
+    }
+
+    .stats-top-row-side {
+        flex: 1 1 auto;
+    }
+}
+
+/* ── Refresh button spin while loading ────────────────────────────── */
+.stats-refresh-btn {
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+/* ── Report content dims in place while a load is in flight — the content
+   itself (filters, cards, tables) never unmounts anymore, so this is the
+   only visual cue needed instead of the old full-page swap-out. ── */
+.stats-report-content {
+    transition: opacity 0.15s ease;
+}
+
+.stats-report-content--loading {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.stats-refresh-btn:active {
+    transform: scale(0.96);
+}
+
+.stats-spin {
+    display: inline-block;
+    animation: stats-spin-rotate 0.8s linear infinite;
+}
+
+@keyframes stats-spin-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ── Filter panel — smooth expand/collapse instead of popping in/out ──
+   Always rendered now (was an @if before); height is animated via a
+   generous max-height cap since the actual content height varies with how
+   many filter rows are showing. ── */
+.sf-body-wrap {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.sf-body-wrap--open {
+    max-height: 1600px;
+    opacity: 1;
+}
+
+.sf-chevron {
+    transition: transform 0.25s ease;
+}
+
+/* ── Summary cards — staggered fade/slide-in on load + hover lift ──── */
+.dash-stat-card--anim {
+    animation: stats-card-in 0.4s ease both;
+}
+
+.dash-stat-grid > .dash-stat-card--anim:nth-child(1) { animation-delay: 0.02s; }
+.dash-stat-grid > .dash-stat-card--anim:nth-child(2) { animation-delay: 0.07s; }
+.dash-stat-grid > .dash-stat-card--anim:nth-child(3) { animation-delay: 0.12s; }
+.dash-stat-grid > .dash-stat-card--anim:nth-child(4) { animation-delay: 0.17s; }
+.dash-stat-grid > .dash-stat-card--anim:nth-child(5) { animation-delay: 0.22s; }
+
+@keyframes stats-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dash-stat-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.dash-stat-card--clickable:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+}
+
+.dash-stat-value {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Section cards (breakdown tables, charts) — gentle entrance + lift ── */
+.sys-card,
+.dash-card {
+    animation: stats-section-in 0.35s ease both;
+    transition: box-shadow 0.2s ease;
+}
+
+.sys-card:hover,
+.dash-card:hover {
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+}
+
+@keyframes stats-section-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Progress-style bars animate their width growing in ─────────────── */
+.milestone-year-bar,
+.milestone-bar,
+.dash-chart-bar {
+    transition: width 0.6s ease, height 0.6s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dash-stat-card--anim,
+    .sys-card,
+    .dash-card,
+    .stats-spin {
+        animation: none;
+    }
+
+    .dash-stat-card--clickable:hover {
+        transform: none;
+    }
+
+    .sf-body-wrap,
+    .milestone-year-bar,
+    .milestone-bar,
+    .dash-chart-bar {
+        transition: none;
+    }
+}

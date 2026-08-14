@@ -1,10 +1,13 @@
 ﻿@page "/statistics"
 @using Microsoft.AspNetCore.Authorization
 @using EcaInformationSystem.Client.Pages.Statistics.StatisticsChildComponents
+@using EcaInformationSystem.Client.Services
 @using SharedDtos = EcaInformationSystem.Shared.DTOs
 @attribute [Authorize]
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject ToastService Toast
+@inject IJSRuntime JS
 
 <PageTitle>Statistics Report</PageTitle>
 
@@ -19,34 +22,43 @@
             <div class="page-header-sub">Generated: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</div>
         </div>
         <div class="ms-auto d-flex gap-2">
-            <button class="sys-btn sys-btn-outline" @onclick="RefreshAsync">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+            <button class="sys-btn sys-btn-outline stats-refresh-btn" @onclick="RefreshAsync" disabled="@_isLoading">
+                <i class="bi bi-arrow-clockwise @(_isLoading ? "stats-spin" : "")"></i> Refresh
             </button>
         </div>
     </div>
 
-    @* ── Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
-         monthly targets against actual grantees paid (PaymentHistory.PaymentDate). ── *@
-    <StatisticsAnnualTargetSection />
-
-    @if (_isLoading)
-    {
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary"></div>
-            <p class="mt-2 text-muted small">Loading statistics...</p>
+    @* ── Annual Grantee Target (left) + Registered Region map (right) ──
+         Row wraps on narrow viewports so the map drops below the target
+         card instead of squeezing it. ── *@
+    <div class="stats-top-row mb-3">
+        <div class="stats-top-row-main">
+            @* Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
+               monthly targets against actual grantees paid (PaymentHistory.PaymentDate). *@
+            <StatisticsAnnualTargetSection />
         </div>
-    }
-    else if (_loadError is not null)
+        <div class="stats-top-row-side">
+            <StatisticsUserRegionMap />
+        </div>
+    </div>
+
+    @* ── Error banner — a small persistent alert instead of swapping out the
+         whole page, so filters/cards stay mounted (and thus stand still)
+         even when a load fails. ── *@
+    @if (_loadError is not null)
     {
-        <div class="alert alert-danger">
+        <div class="alert alert-danger mb-3">
             <i class="bi bi-exclamation-triangle me-2"></i>@_loadError
             <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RefreshAsync">Retry</button>
         </div>
     }
-    else
-    {
-        @* ── Filter Panel ──────────────────────────────────────────── *@
-        <div class="sf-card">
+
+    @* ── Filter Panel — always mounted (was gated behind !_isLoading before,
+         which tore down and rebuilt the ENTIRE page below the header on
+         every Apply/Refresh — filters, cards, charts, tables, all of it —
+         causing the replaying entrance animations and layout jump users
+         found dizzying). ── *@
+    <div class="sf-card">
             <div class="sf-header" @onclick="ToggleFilter">
                 <div class="sf-header-left">
                     <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
@@ -57,8 +69,7 @@
                 </div>
                 <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
             </div>
-            @if (_filterExpanded)
-            {
+            <div class="sf-body-wrap @(_filterExpanded ? "sf-body-wrap--open" : "")">
                 <div class="sf-body">
                     <div class="sf-grid">
                         @* ── Region ────────────────────────────────────────── *@
@@ -201,98 +212,99 @@
                     </div>
 
                     <div class="sf-actions">
-                        <button class="sf-btn sf-btn-clear" @onclick="ClearFilters">Clear</button>
-                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync">
+                        <button class="sf-btn sf-btn-clear" @onclick="ClearFilters" disabled="@_isLoading">Clear</button>
+                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
                             <i class="bi bi-check2"></i> Apply
                         </button>
                     </div>
                 </div>
-            }
+            </div>
         </div>
 
         @* ── No auto-loaded overall totals on page open — that was a full
              aggregate scan nobody asked for yet. The cards/tables stay visible
-             (at zero) rather than hiding behind a loading screen; this banner
-             just makes clear why they're at zero and how to populate them. ── *@
+             (at zero) until the user hits Apply in the filter panel above,
+             which is the only trigger that loads the report now. ── *@
         @if (!_hasLoadedReport)
         {
-            <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <span>
-                    <i class="bi bi-info-circle me-2"></i>
-                    Showing zero counts — set filters above (optional) and load the report.
-                </span>
-                <button class="sys-btn sys-btn-save" @onclick="LoadStatisticsAsync">
-                    <i class="bi bi-play-fill me-1"></i> Load Statistics
-                </button>
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                Showing zero counts — set at least one filter above and click <strong>Apply</strong> to load the report.
             </div>
         }
 
+        @* ── Report content — dimmed (not removed) while a load is in flight,
+             so a refresh/re-apply reads as "updating" rather than the whole
+             page vanishing and rebuilding. ── *@
+        <div class="stats-report-content @(_isLoading ? "stats-report-content--loading" : "")">
         @* ── Summary Cards — click a count to audit exactly who's included ── *@
+        <div id="stats-countup-root">
         <div class="dash-stat-grid dash-stat-grid--cols-5 mb-3">
-            <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable"
+            <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("all", "Total Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
-                <div class="dash-stat-value">@_report.TotalBeneficiaries.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.TotalBeneficiaries">0</div>
                 <div class="dash-stat-label">Total Grantees</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable"
+            <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("paid", "Paid Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
-                <div class="dash-stat-value">@_report.PaidCount.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.PaidCount">0</div>
                 <div class="dash-stat-label">Paid</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--red dash-stat-card--clickable"
+            <div class="dash-stat-card dash-stat-card--red dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("unpaid", "Unpaid Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
-                <div class="dash-stat-value">@_report.UnpaidCount.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.UnpaidCount">0</div>
                 <div class="dash-stat-label">Unpaid</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--amber dash-stat-card--clickable"
+            <div class="dash-stat-card dash-stat-card--amber dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("pending", "Pending Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
-                <div class="dash-stat-value">@_report.PendingCount.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.PendingCount">0</div>
                 <div class="dash-stat-label">Pending</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--clickable" style="background:#6c757d;"
+            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#6c757d;"
                  @onclick='() => OpenMembersModalAsync("notapplicable", "N/A Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-dash-circle-fill"></i></div>
-                <div class="dash-stat-value">@_report.NotApplicableCount.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.NotApplicableCount">0</div>
                 <div class="dash-stat-label">N/A</div>
             </div>
         </div>
 
         <div class="dash-stat-grid mb-3">
-            <div class="dash-stat-card dash-stat-card--clickable" style="background:#0dcaf0;"
+            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#0dcaf0;"
                  @onclick='() => OpenMembersModalAsync("paid", "Grantees Included in Total Disbursed")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
-                <div class="dash-stat-value">₱@_report.TotalDisbursement.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.TotalDisbursement.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-countup-prefix="₱">₱0</div>
                 <div class="dash-stat-label">Total Disbursed</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--clickable" style="background:#6f42c1;"
+            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#6f42c1;"
                  @onclick='() => OpenMembersModalAsync("male", "Male Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-gender-male"></i></div>
-                <div class="dash-stat-value">@_report.TotalMale.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.TotalMale">0</div>
                 <div class="dash-stat-label">Male</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--clickable" style="background:#d63384;"
+            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#d63384;"
                  @onclick='() => OpenMembersModalAsync("female", "Female Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-gender-female"></i></div>
-                <div class="dash-stat-value">@_report.TotalFemale.ToString("N0")</div>
+                <div class="dash-stat-value" data-countup="@_report.TotalFemale">0</div>
                 <div class="dash-stat-label">Female</div>
             </div>
-            <div class="dash-stat-card" style="background:#20c997;">
+            <div class="dash-stat-card dash-stat-card--anim" style="background:#20c997;">
                 <div class="dash-stat-icon"><i class="bi bi-people"></i></div>
-                <div class="dash-stat-value">@((_report.TotalMale + _report.TotalFemale) > 0 ? Math.Round((double)_report.TotalFemale / (_report.TotalMale + _report.TotalFemale) * 100) : 0)%</div>
+                <div class="dash-stat-value" data-countup="@((_report.TotalMale + _report.TotalFemale) > 0 ? Math.Round((double)_report.TotalFemale / (_report.TotalMale + _report.TotalFemale) * 100) : 0)" data-countup-suffix="%">0%</div>
                 <div class="dash-stat-label">% Female</div>
             </div>
+        </div>
         </div>
 
         @* ── Milestone Year Summary ───────────────────────────────── *@
@@ -581,8 +593,7 @@
                 }
             </div>
         }
-
-    }
+    </div>
 </div>
 
 @* ── Grantee Audit Modal — shows exactly who is included in a summary
@@ -698,6 +709,10 @@
     private string? _loadError;
     private bool _filterExpanded = true;
     private bool _showMunicipalityTable;
+    // Set right after a successful report load; OnAfterRenderAsync consumes
+    // it once (then resets it) to trigger the stat-card count-up animation
+    // exactly once per load, after the new numbers are actually in the DOM.
+    private bool _shouldAnimateCounters;
 
     private StatisticsReportDto _report = new();
     private List<RegionLookupDto> _regions = new();
@@ -793,6 +808,14 @@
         await LoadRegionsAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_shouldAnimateCounters) return;
+        _shouldAnimateCounters = false;
+        try { await JS.InvokeVoidAsync("statsCountUp.run", "stats-countup-root"); }
+        catch (Exception ex) { Console.WriteLine($"statsCountUp.run failed: {ex.Message}"); }
+    }
+
     private async Task LoadRegionsAsync()
     {
         try
@@ -861,8 +884,32 @@
         }
     }
 
+    // Guards the whole point of not auto-loading on page open: without this,
+    // hitting Apply/Refresh with every filter left at "All" still fires the
+    // same unfiltered whole-database aggregate scan we removed the auto-load
+    // for in the first place.
+    private bool HasAnyFilterSet() =>
+        _selectedRegionId > 0 ||
+        _selectedProvinceId > 0 ||
+        _selectedMunicipalityId > 0 ||
+        _selectedMilestoneYear > 0 ||
+        _selectedMilestone > 0 ||
+        _selectedPaymentStatuses.Count > 0 ||
+        _selectedPayrollQuarter > 0 ||
+        _selectedFiscalYear > 0 ||
+        _dateAddedFrom.HasValue ||
+        _dateAddedTo.HasValue ||
+        _dateEndorsedFrom.HasValue ||
+        _dateEndorsedTo.HasValue;
+
     private async Task LoadStatisticsAsync()
     {
+        if (!HasAnyFilterSet())
+        {
+            Toast.ShowWarning("Set at least one filter before loading — the full, unfiltered database report isn't allowed.");
+            return;
+        }
+
         _isLoading = true;
         _loadError = null;
 
@@ -876,6 +923,7 @@
             {
                 _report = await response.Content.ReadFromJsonAsync<StatisticsReportDto>() ?? new();
                 _hasLoadedReport = true;
+                _shouldAnimateCounters = true;
             }
             else
             {
@@ -910,6 +958,22 @@
         _dateEndorsedTo = null;
         _dateAddedFrom = null;
         _dateAddedTo = null;
+
+        // Without this, the cards/tables kept showing the LAST loaded
+        // report's numbers after Clear — stale data with no filter behind
+        // it anymore — and _hasLoadedReport staying true let a card click
+        // straight through the OpenMembersModalAsync guard, fetching an
+        // unfiltered members list despite the filters having just been wiped.
+        _report = new();
+        _hasLoadedReport = false;
+
+        // The count-up JS writes card numbers straight into the DOM text,
+        // bypassing Blazor's diffing — so on the next render Blazor thinks
+        // those text nodes already say "0" (that's what its own render tree
+        // last recorded) and skips touching them, leaving the old numbers
+        // visibly stuck even though _report is now empty. Re-running the
+        // animation forces the DOM to actually resync to the real value.
+        _shouldAnimateCounters = true;
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();
@@ -936,6 +1000,18 @@
 
     private async Task OpenMembersModalAsync(string bucket, string title)
     {
+        // Same loophole the LoadStatisticsAsync guard closes: the cards are
+        // always rendered (showing 0 before a filtered report has ever been
+        // loaded), and clicking one went straight to the members endpoint
+        // with whatever filter state happened to be sitting there — which,
+        // before Apply, is empty. That silently pulled the entire unfiltered
+        // grantee list for the clicked bucket despite the card reading "0".
+        if (!_hasLoadedReport)
+        {
+            Toast.ShowWarning("Load a filtered report first (set at least one filter and click Apply) before drilling into a count.");
+            return;
+        }
+
         _membersModalTitle = title;
         _membersBucket = bucket;
         _membersFilterSnapshot = BuildFilterRequest();
