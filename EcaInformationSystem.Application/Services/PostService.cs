@@ -1,7 +1,9 @@
 ﻿using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities.PostEntities;
 using EcaInformationSystem.Shared.DTOs;
+using System.Text.Json;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -248,6 +250,62 @@ namespace EcaInformationSystem.Application.Services
                 ViewCount = 0,
                 CanDelete = true,
                 Images = imageDtos
+            };
+        }
+
+        // Synthetic author identity for system-generated posts — Guid.Empty never
+        // matches a real PendingUserRegistration.Id, so PostRepository's live-author
+        // overlay leaves this name alone, and CanEdit/CanDelete-by-owner never match
+        // (only a SuperAdmin can delete it, which is the desired moderation escape hatch).
+        private static readonly Guid SystemAuthorId = Guid.Empty;
+        private const string SystemAuthorName = "NCSC Caraga Leaderboard";
+
+        public async Task<PostDto> CreateLeaderboardPodiumPostAsync(int seasonNumber, List<LeaderboardTopFinisherDto> topThree)
+        {
+            var podium = topThree
+                .Select(t => new PodiumEntryDto
+                {
+                    Rank = t.Rank,
+                    UserId = t.UserId,
+                    DisplayName = t.DisplayName,
+                    TransactionCount = t.TransactionCount
+                })
+                .ToList();
+
+            var winnerName = podium.FirstOrDefault(p => p.Rank == 1)?.DisplayName;
+            var content = winnerName is null
+                ? $"🏆 Season {seasonNumber} has wrapped! Congrats to this week's top performers — drop a congrats below! 🎉"
+                : $"🏆 Season {seasonNumber} has wrapped! Congrats to {winnerName} and the top performers this week — drop a congrats below! 🎉";
+
+            var post = new Post
+            {
+                Id = Guid.NewGuid(),
+                AuthorUserId = SystemAuthorId,
+                AuthorName = SystemAuthorName,
+                Content = content,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false,
+                PostType = PostType.LeaderboardPodium,
+                SeasonNumber = seasonNumber,
+                PodiumDataJson = JsonSerializer.Serialize(podium)
+            };
+
+            await _repo.AddPostAsync(post);
+            await _repo.SaveChangesAsync();
+
+            return new PostDto
+            {
+                Id = post.Id,
+                AuthorUserId = post.AuthorUserId,
+                AuthorName = post.AuthorName,
+                Content = post.Content,
+                CreatedAt = post.CreatedAt,
+                CommentCount = 0,
+                ViewCount = 0,
+                CanDelete = false,
+                PostType = (int)PostType.LeaderboardPodium,
+                SeasonNumber = seasonNumber,
+                Podium = podium
             };
         }
 

@@ -1,6 +1,7 @@
 using EcaInformationSystem.Application.Common;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 
@@ -17,15 +18,18 @@ namespace EcaInformationSystem.Application.Services
         private readonly ILeaderboardSeasonRepository _seasonRepo;
         private readonly ILogRepository _logRepo;
         private readonly IPendingUserRegistrationRepository _userRepo;
+        private readonly IPostService _postService;
 
         public LeaderboardSeasonService(
             ILeaderboardSeasonRepository seasonRepo,
             ILogRepository logRepo,
-            IPendingUserRegistrationRepository userRepo)
+            IPendingUserRegistrationRepository userRepo,
+            IPostService postService)
         {
             _seasonRepo = seasonRepo;
             _logRepo = logRepo;
             _userRepo = userRepo;
+            _postService = postService;
         }
 
         public async Task<(int SeasonNumber, DateTime StartedAtUtc)> GetOrCreateActiveSeasonAsync()
@@ -117,6 +121,23 @@ namespace EcaInformationSystem.Application.Services
             // instance behind these two repositories, so one flush persists all of it.
             await _seasonRepo.SaveChangesAsync();
 
+            var topThree = ranked
+                .Take(3)
+                .Select((entry, index) => new LeaderboardTopFinisherDto
+                {
+                    Rank = index + 1,
+                    UserId = entry.User.Id,
+                    DisplayName = string.IsNullOrWhiteSpace(entry.User.FullName) ? entry.User.UserName : entry.User.FullName,
+                    TransactionCount = entry.Count
+                })
+                .ToList();
+
+            // Announce the outcome in the feed — skipped when nobody had any
+            // qualifying activity this season (nothing worth celebrating).
+            PostDto? podiumPost = topThree.Count > 0
+                ? await _postService.CreateLeaderboardPodiumPostAsync(active.SeasonNumber, topThree)
+                : null;
+
             return new LeaderboardResetResultDto
             {
                 EndedSeasonNumber = active.SeasonNumber,
@@ -124,15 +145,8 @@ namespace EcaInformationSystem.Application.Services
                 ResetType = active.ResetType,
                 ResetBy = active.ResetBy,
                 ResetAtUtc = now,
-                TopThree = ranked
-                    .Take(3)
-                    .Select((entry, index) => new LeaderboardTopFinisherDto
-                    {
-                        Rank = index + 1,
-                        DisplayName = string.IsNullOrWhiteSpace(entry.User.FullName) ? entry.User.UserName : entry.User.FullName,
-                        TransactionCount = entry.Count
-                    })
-                    .ToList()
+                TopThree = topThree,
+                PodiumPost = podiumPost
             };
         }
 
@@ -144,7 +158,12 @@ namespace EcaInformationSystem.Application.Services
         private async Task<List<(PendingUserRegistration User, int Count)>> GetRankedAccountsAsync(DateTime seasonStartUtc)
         {
             var counts = await _logRepo.GetTransactionCountsByUserAsync(seasonStartUtc);
-            var users = await _userRepo.GetAllAsync();
+            // Focal contacts get view/comment/like/share-only feed access and
+            // aren't internal staff — they're excluded from the leaderboard
+            // entirely, same as this reset already excludes zero-activity noise.
+            var users = (await _userRepo.GetAllAsync())
+                .Where(u => u.Role != "Focal")
+                .ToList();
 
             var byUserName = users.ToDictionary(u => u.UserName, u => u, StringComparer.OrdinalIgnoreCase);
             var byFullName = users

@@ -10,11 +10,16 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? ResetBy { get; set; }
         public DateTime ResetAtUtc { get; set; }
         public List<LeaderboardTopFinisherDto> TopThree { get; set; } = new();
+
+        // The auto-posted feed announcement for this reset's top 3 — null if
+        // nobody had qualifying activity this season (nothing worth posting).
+        public PostDto? PodiumPost { get; set; }
     }
 
     public class LeaderboardTopFinisherDto
     {
         public int Rank { get; set; }
+        public Guid UserId { get; set; }
         public string DisplayName { get; set; } = string.Empty;
         public int TransactionCount { get; set; }
     }

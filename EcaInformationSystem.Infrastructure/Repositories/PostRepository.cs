@@ -4,6 +4,7 @@ using EcaInformationSystem.Domain.Entities.PostEntities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace EcaInformationSystem.Infrastructure.Repositories
 {
@@ -127,7 +128,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Images = imageMeta
                         .Where(i => i.PostId == p.Id)
                         .Select(i => new PostImageDto { Id = i.Id, DisplayOrder = i.DisplayOrder, Width = i.Width, Height = i.Height })
-                        .ToList()
+                        .ToList(),
+                    PostType = (int)p.PostType,
+                    SeasonNumber = p.SeasonNumber,
+                    Podium = string.IsNullOrWhiteSpace(p.PodiumDataJson)
+                        ? new List<PodiumEntryDto>()
+                        : JsonSerializer.Deserialize<List<PodiumEntryDto>>(p.PodiumDataJson) ?? new List<PodiumEntryDto>()
                 };
             }).ToList();
 

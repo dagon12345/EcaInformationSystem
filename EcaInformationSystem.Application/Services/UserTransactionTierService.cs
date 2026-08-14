@@ -161,7 +161,12 @@ namespace EcaInformationSystem.Application.Services
         private async Task<List<(PendingUserRegistration User, int Count)>> GetMergedRankedCountsAsync(DateTime seasonStartUtc)
         {
             var counts = await _logRepo.GetTransactionCountsByUserAsync(seasonStartUtc);
-            var users = await _userRepo.GetAllAsync();
+            // Focal contacts get view/comment/like/share-only feed access and
+            // aren't internal staff — excluded from the leaderboard entirely,
+            // same exclusion LeaderboardSeasonService.GetRankedAccountsAsync applies.
+            var users = (await _userRepo.GetAllAsync())
+                .Where(u => u.Role != "Focal")
+                .ToList();
 
             var byUserName = users.ToDictionary(u => u.UserName, u => u, StringComparer.OrdinalIgnoreCase);
             var byFullName = users

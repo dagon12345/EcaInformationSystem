@@ -20,5 +20,9 @@ namespace EcaInformationSystem.Application.Interfaces.Services
             string authorName, string? authorPosition, string? authorRegion);
         Task<PostCommentDto> EditCommentAsync(Guid commentId, string content, Guid requestingUserId, string requestingRole);
         Task<PostDto?> GetPostByIdAsync(Guid postId, string? viewerKey, Guid? viewerUserId, string? viewerRole);
+
+        // System-generated announcement post for a weekly leaderboard reset —
+        // called by LeaderboardSeasonService right after ranking the season.
+        Task<PostDto> CreateLeaderboardPodiumPostAsync(int seasonNumber, List<LeaderboardTopFinisherDto> topThree);
     }
 }

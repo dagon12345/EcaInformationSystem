@@ -20,6 +20,20 @@ namespace EcaInformationSystem.Shared.DTOs
         public bool CanEdit { get; set; }         // add to PostDto — same rule as CanDelete
 
         public List<PostImageDto> Images { get; set; } = new();
+
+        // 0 = Standard, 1 = LeaderboardPodium (mirrors Domain.Common.Enum.PostType
+        // as a plain int — DTOs never reference Domain enums, same as ViewerReactionType).
+        public int PostType { get; set; }
+        public int? SeasonNumber { get; set; }
+        public List<PodiumEntryDto> Podium { get; set; } = new();
+    }
+
+    public class PodiumEntryDto
+    {
+        public int Rank { get; set; }
+        public Guid UserId { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public int TransactionCount { get; set; }
     }
 
     public class CreatePostDto

@@ -15,6 +15,14 @@ namespace EcaInformationSystem.Domain.Entities.PostEntities
         public string? DeletedBy { get; set; }
         public DateTime? DeletedAt { get; set; }
         public DateTime? EditedAt { get; set; }
+
+        // Distinguishes system-generated posts (e.g. the weekly leaderboard
+        // podium) from ordinary user posts — drives feed rendering and blocks
+        // edit/delete for anyone but a SuperAdmin (AuthorUserId is Guid.Empty
+        // for these, so no owner check ever matches).
+        public PostType PostType { get; set; } = PostType.Standard;
+        public int? SeasonNumber { get; set; }
+        public string? PodiumDataJson { get; set; }
     }
 
     public class PostComment
