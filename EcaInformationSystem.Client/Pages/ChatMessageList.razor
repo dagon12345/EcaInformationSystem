@@ -48,10 +48,10 @@
             {
                 <a href="@($"/profile/{message.SenderId}")" class="chat-message-sender chat-sender-link" title="View profile" @onclick:stopPropagation="true">
                     <span class="avatar-preview-trigger">
-                        <img src="@AvatarUrl(message.SenderId)" alt="" class="chat-message-avatar avatar-img"
+                        <img src="@AvatarUrl(message.SenderId)" crossorigin="anonymous" alt="" class="chat-message-avatar avatar-img"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" />
                         <span class="chat-message-avatar" style="display:none;">@GetInitials(message.SenderName)</span>
-                        <img src="@AvatarUrl(message.SenderId)" alt="" class="avatar-preview-popup"
+                        <img src="@AvatarUrl(message.SenderId)" crossorigin="anonymous" alt="" class="avatar-preview-popup"
                              onerror="this.style.display='none';" />
                     </span>
                     @message.SenderName

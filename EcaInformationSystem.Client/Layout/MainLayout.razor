@@ -97,7 +97,7 @@
                                     <div class="position-relative">
                                         @if (_currentUserId.HasValue)
                                         {
-                                            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-avatar avatar-img"
+                                            <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="navbar-profile-avatar avatar-img"
                                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                             <div class="navbar-profile-avatar" style="display:none;">@GetInitials(_displayFullName)</div>
                                         }
@@ -120,7 +120,7 @@
                                     <a class="dropdown-item d-flex align-items-center" href="/profile">
                                         @if (_currentUserId.HasValue)
                                         {
-                                            <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="navbar-profile-menu-avatar avatar-img me-2"
+                                            <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="navbar-profile-menu-avatar avatar-img me-2"
                                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                             <div class="navbar-profile-menu-avatar me-2" style="display:none;">@GetInitials(_displayFullName)</div>
                                         }

@@ -176,7 +176,7 @@
                                 <div class="tier-leaderboard-avatar-fx">
                                     @if (entry.UserId.HasValue)
                                     {
-                                        <img src="@AvatarUrl(entry.UserId.Value)" alt="" class="tier-leaderboard-avatar avatar-img"
+                                        <img src="@AvatarUrl(entry.UserId.Value)" crossorigin="anonymous" alt="" class="tier-leaderboard-avatar avatar-img"
                                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                         <div class="tier-leaderboard-avatar tier-leaderboard-avatar-fallback" style="display:none;">@GetInitials(entry.DisplayName)</div>
                                     }
@@ -318,7 +318,7 @@
                         {
                             <a href="@($"/profile/{entry.UserId}")" class="podium-place podium-place--@entry.Rank" title="View profile">
                                 <div class="podium-avatar-ring podium-avatar-ring--@entry.Rank">
-                                    <img src="@AvatarUrl(entry.UserId)" alt="" class="podium-avatar avatar-img"
+                                    <img src="@AvatarUrl(entry.UserId)" crossorigin="anonymous" alt="" class="podium-avatar avatar-img"
                                          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                     <div class="podium-avatar podium-avatar-fallback" style="display:none;">@GetInitials(entry.DisplayName)</div>
                                     <div class="podium-medal">@PodiumMedal(entry.Rank)</div>
@@ -338,7 +338,7 @@
                 {
                     <div class="feed-post-header">
                         <a href="@($"/profile/{post.AuthorUserId}")" class="feed-avatar-link" title="View profile">
-                            <img src="@AvatarUrl(post.AuthorUserId)" alt="" class="feed-avatar avatar-img"
+                            <img src="@AvatarUrl(post.AuthorUserId)" crossorigin="anonymous" alt="" class="feed-avatar avatar-img"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                             <div class="feed-avatar" style="display:none;">@GetInitials(post.AuthorName)</div>
                         </a>
@@ -540,7 +540,7 @@
                             {
                                 <div class="feed-comment">
                                     <a href="@($"/profile/{c.UserId}")" class="feed-avatar-link" title="View profile">
-                                        <img src="@AvatarUrl(c.UserId)" alt="" class="feed-comment-avatar avatar-img"
+                                        <img src="@AvatarUrl(c.UserId)" crossorigin="anonymous" alt="" class="feed-comment-avatar avatar-img"
                                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                         <div class="feed-comment-avatar" style="display:none;">@GetInitials(c.AuthorName)</div>
                                     </a>
@@ -677,7 +677,7 @@
                         @foreach (var b in todays)
                         {
                             <a href="@($"/profile/{b.UserId}")" class="birthday-hero-person" title="View profile">
-                                <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-hero-avatar avatar-img"
+                                <img src="@AvatarUrl(b.UserId)" crossorigin="anonymous" alt="" class="birthday-hero-avatar avatar-img"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                 <div class="birthday-hero-avatar birthday-hero-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
                                 <div class="birthday-hero-name">@b.FullName</div>
@@ -698,7 +698,7 @@
                         @foreach (var b in later)
                         {
                             <a href="@($"/profile/{b.UserId}")" class="birthday-card" title="View profile">
-                                <img src="@AvatarUrl(b.UserId)" alt="" class="birthday-avatar avatar-img"
+                                <img src="@AvatarUrl(b.UserId)" crossorigin="anonymous" alt="" class="birthday-avatar avatar-img"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                 <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(b.FullName)</div>
                                 <div class="birthday-info">

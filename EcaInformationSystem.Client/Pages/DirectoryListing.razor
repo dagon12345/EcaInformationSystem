@@ -23,7 +23,7 @@
     RenderFragment<DirectoryPersonDto> PersonRow = person =>
         @<text>
             <button type="button" class="focal-person-avatar-btn" title="View profile" @onclick="() => GoToProfile(person.UserId)">
-                <img src="@AvatarUrl(person.UserId)" alt="" class="focal-person-avatar avatar-img"
+                <img src="@AvatarUrl(person.UserId)" crossorigin="anonymous" alt="" class="focal-person-avatar avatar-img"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                 <div class="focal-person-avatar focal-person-avatar-fallback" style="display:none;">@GetInitials(person.FullName)</div>
             </button>

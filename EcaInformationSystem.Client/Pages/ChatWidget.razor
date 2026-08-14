@@ -168,14 +168,14 @@
                             @if (room.Type == "Direct" && room.OtherUserId.HasValue)
                             {
                                 <div class="chat-room-icon chat-room-icon--avatar avatar-preview-trigger">
-                                    <img src="@AvatarUrl(room.OtherUserId.Value)" alt="" class="chat-room-avatar-img"
+                                    <img src="@AvatarUrl(room.OtherUserId.Value)" crossorigin="anonymous" alt="" class="chat-room-avatar-img"
                                          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                     <span class="chat-room-avatar-fallback" style="display:none;">@GetInitials(room.DisplayName)</span>
                                     @if (ChatState.IsUserOnline(room.OtherUserId.Value))
                                     {
                                         <span class="chat-presence-dot-badge online"></span>
                                     }
-                                    <img src="@AvatarUrl(room.OtherUserId.Value)" alt="" class="avatar-preview-popup"
+                                    <img src="@AvatarUrl(room.OtherUserId.Value)" crossorigin="anonymous" alt="" class="avatar-preview-popup"
                                          onerror="this.style.display='none';" />
                                 </div>
                             }
@@ -221,10 +221,10 @@
                     @if (ChatState.ActiveRoom.Type == "Direct" && ChatState.ActiveRoom.OtherUserId.HasValue)
                     {
                         <a href="@($"/profile/{ChatState.ActiveRoom.OtherUserId.Value}")" class="chat-header-avatar-link avatar-preview-trigger" title="View profile">
-                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" alt="" class="chat-header-avatar avatar-img"
+                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" crossorigin="anonymous" alt="" class="chat-header-avatar avatar-img"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                             <span class="chat-header-avatar chat-header-avatar-fallback" style="display:none;">@GetInitials(ChatState.ActiveRoom.DisplayName)</span>
-                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" alt="" class="avatar-preview-popup"
+                            <img src="@AvatarUrl(ChatState.ActiveRoom.OtherUserId.Value)" crossorigin="anonymous" alt="" class="avatar-preview-popup"
                                  onerror="this.style.display='none';" />
                         </a>
                     }

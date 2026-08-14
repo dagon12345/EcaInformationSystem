@@ -362,6 +362,21 @@ var app = builder.Build();
 // always carry Access-Control-Allow-Origin headers.
 app.UseCors("WasmPolicy");
 
+// The Client's wwwroot/web.config sets Cross-Origin-Embedder-Policy: require-corp
+// in production, which makes the browser block EVERY cross-origin response —
+// SignalR hub negotiate/WebSocket-upgrade responses included — unless that
+// response carries Cross-Origin-Resource-Policy: cross-origin. A couple of
+// controller actions (avatar images) already set this by hand; doing it here
+// for all responses covers the hubs too instead of requiring the same header
+// on every action/hub individually. CORS above already restricts who can
+// actually read the response data, so this doesn't loosen access — it only
+// tells the browser embedding itself is allowed.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+    await next();
+});
+
 app.UseRateLimiter(); //Must come after CORS, before MapControllers
 
 app.MapHub<PostsHub>("/postsHub");

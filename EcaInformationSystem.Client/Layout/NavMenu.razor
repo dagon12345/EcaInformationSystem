@@ -263,7 +263,7 @@
         <div class="position-relative">
             @if (_currentUserId.HasValue)
             {
-                <img src="@AvatarUrl(_currentUserId.Value)" alt="" class="avatar avatar-img"
+                <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="avatar avatar-img"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                 <div class="avatar" style="display:none;">@GetInitials(DisplayName)</div>
             }

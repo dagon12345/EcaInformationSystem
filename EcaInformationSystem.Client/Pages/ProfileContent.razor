@@ -50,7 +50,7 @@
                         <div class="profile-avatar-wrap mx-auto mb-3">
                             @if (_myProfile.HasProfilePicture && !_pictureRemoved)
                             {
-                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" alt="" class="profile-avatar-img" style="cursor:pointer;"
+                                <img src="@AvatarUrl(_myProfile.Id, thumb: false)" crossorigin="anonymous" alt="" class="profile-avatar-img" style="cursor:pointer;"
                                      title="Click to view full picture" @onclick="OpenAvatarLightbox"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                 <div class="profile-avatar-fallback" style="display:none;">@GetInitials(_myProfile.FullName)</div>
@@ -314,7 +314,7 @@
                         <div class="profile-avatar-wrap mx-auto mb-3">
                             @if (_publicProfile.HasProfilePicture)
                             {
-                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" alt="Profile picture" class="profile-avatar-img"
+                                <img src="@AvatarUrl(_publicProfile.Id, thumb: false)" crossorigin="anonymous" alt="Profile picture" class="profile-avatar-img"
                                      style="cursor:pointer;" title="Click to view full picture" @onclick="OpenAvatarLightbox" />
                             }
                             else
@@ -409,7 +409,7 @@
         <button class="avatar-lightbox-close" @onclick="CloseAvatarLightbox" title="Close">
             <i class="bi bi-x-lg"></i>
         </button>
-        <img src="@AvatarLightboxUrl" alt="Profile picture" class="avatar-lightbox-image" @onclick:stopPropagation="true" />
+        <img src="@AvatarLightboxUrl" crossorigin="anonymous" alt="Profile picture" class="avatar-lightbox-image" @onclick:stopPropagation="true" />
     </div>
 }
 
