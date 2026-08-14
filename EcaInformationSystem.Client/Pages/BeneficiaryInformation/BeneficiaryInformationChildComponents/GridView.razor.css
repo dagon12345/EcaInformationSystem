@@ -1,0 +1,44 @@
+/* Payroll document indicator on a payment-history entry — a real pill
+   instead of a tiny link, so it's obvious at a glance whether a payroll
+   attachment is actually available for this period. */
+.payment-payroll-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.payment-payroll-pill--active {
+    background: #dbeeff;
+    color: #0C447C;
+    border-color: #b6d4fb;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payment-payroll-pill--active:hover {
+    background: #c8e3ff;
+    box-shadow: 0 2px 6px rgba(12, 68, 124, 0.2);
+}
+
+.payment-payroll-pill--active:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.payment-payroll-pill--none {
+    background: #f3f4f6;
+    color: #9ca3af;
+}
+
+/* Grid-level payroll indicator — a small "Payroll" badge on any row whose
+   current payment period has a matching Forms Gateway document linked. */
+.payment-cell-payroll {
+    background: #dbeeff;
+    color: #0C447C;
+    border: 1px solid #b6d4fb;
+}

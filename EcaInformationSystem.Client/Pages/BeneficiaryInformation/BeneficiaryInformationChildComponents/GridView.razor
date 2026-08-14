@@ -10,6 +10,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject BeneficiaryStateService State
 @inject AuthService AuthService
+@inject FormDocumentClientService FormService
 @implements IDisposable
 <!-- List/Grid Section -->
 <div class="row">
@@ -590,6 +591,12 @@
                 <i class="bi bi-arrow-left-right"></i> @(item.CurrentEntryReplacementStatus == 1 ? "Replaced" : "Replacement")
             </span>
         }
+        @if (HasLinkedPayroll(item))
+        {
+            <span class="tbl-badge payment-cell-payroll" title="A payroll document is linked for this grantee's current period — see Payment History">
+                <i class="bi bi-file-earmark-pdf-fill"></i> Payroll
+            </span>
+        }
     </div>
     @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
     {
@@ -870,15 +877,17 @@
                                         </span>
                                     }
                                     @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
-{
+                                    {
                                         <span class="tbl-badge @GetPaymentBadgeClass(item.PaymentStatus)">
-                                            @GetPaymentStatusText(item.PaymentStatus)
-                                            @if (item.PayrollQuarter.HasValue || item.FiscalYear.HasValue)
-                                            {
-                                                <text> · Q@(item.PayrollQuarter) @(item.FiscalYear)</text>
-                                            }
+                                            @GetPaymentStatusText(item.PaymentStatus) · Q@(item.PayrollQuarter) @(item.FiscalYear)
                                         </span>
-}
+                                    }
+                                    @if (HasLinkedPayroll(item))
+                                    {
+                                        <span class="tbl-badge payment-cell-payroll" title="A payroll document is linked for this grantee's current period — see Payment History">
+                                            <i class="bi bi-file-earmark-pdf-fill"></i> Payroll
+                                        </span>
+                                    }
                                 </div>
 
                                 @{
@@ -1409,6 +1418,39 @@ else
                         </div>
                     </div>
 
+                    @* ── Payroll document indicator — a clearly visible pill instead of a
+                         tiny link buried in the period text, so it's obvious at a glance
+                         whether a payroll attachment is actually available for this entry. ── *@
+                    @if (entry.PayrollQuarter.HasValue && entry.FiscalYear.HasValue)
+                    {
+                        if (_payrollLinksByHistoryId.TryGetValue(entry.Id, out var payrollDoc) && payrollDoc != null)
+                        {
+                            <button type="button" class="payment-payroll-pill payment-payroll-pill--active mt-2"
+                                    title="View the payroll document for this period"
+                                    disabled="@(_payrollPreviewLoadingId == payrollDoc.Id)"
+                                    @onclick="() => PreviewPayrollAsync(payrollDoc)">
+                                @if (_payrollPreviewLoadingId == payrollDoc.Id)
+                                {
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                    <span>Opening...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-file-earmark-pdf-fill"></i>
+                                    <span>View Payroll Document</span>
+                                }
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="payment-payroll-pill payment-payroll-pill--none mt-2"
+                                 title="No payroll document has been linked for this period yet — an admin can link one from Forms Gateway.">
+                                <i class="bi bi-file-earmark-excel"></i>
+                                <span>No Payroll Document Linked</span>
+                            </div>
+                        }
+                    }
+
                     @if (!string.IsNullOrWhiteSpace(entry.Remarks))
                     {
                         <div class="mt-1" style="font-size:11px;">
@@ -1473,6 +1515,53 @@ else
                   </div>
             </div>
         }
+    </div>
+}
+
+@* ── Payroll Document Preview Overlay — same doc-viewer pattern as
+     FormsGateway.razor's PDF preview, opened from a payment history row's
+     "View Payroll" link above. ── *@
+@if (_payrollPreviewDoc != null)
+{
+    <div class="doc-viewer-overlay" @onclick="ClosePayrollPreviewAsync">
+        <div class="doc-viewer-card" @onclick:stopPropagation="true">
+            <div class="doc-viewer-toolbar">
+                <i class="bi bi-file-earmark-pdf me-1"></i>
+                <span class="text-truncate flex-grow-1 small">@_payrollPreviewDoc.Title</span>
+
+                @if (_payrollPreviewBlobUrl != null)
+                {
+                    <div class="doc-viewer-zoom-controls">
+                        <button class="doc-viewer-zoom-btn" @onclick="PayrollPreviewZoomOut" disabled="@(_payrollPreviewZoom <= 50)" title="Zoom out">
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <span class="doc-viewer-zoom-label">@_payrollPreviewZoom%</span>
+                        <button class="doc-viewer-zoom-btn" @onclick="PayrollPreviewZoomIn" disabled="@(_payrollPreviewZoom >= 300)" title="Zoom in">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <button class="doc-viewer-zoom-btn" @onclick="PayrollPreviewZoomReset" title="Reset zoom">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                    </div>
+                }
+
+                <HxButton Size="ButtonSize.Small" Color="ThemeColor.None"
+                          CssClass="btn-close btn-close-white ms-1"
+                          OnClick="ClosePayrollPreviewAsync" />
+            </div>
+            @if (_payrollPreviewBlobUrl != null)
+            {
+                <iframe @key="@($"{_payrollPreviewDoc.Id}-{_payrollPreviewZoom}")"
+                        src="@($"{_payrollPreviewBlobUrl}#zoom={_payrollPreviewZoom}")" class="doc-viewer-frame"></iframe>
+            }
+            else
+            {
+                <div class="d-flex align-items-center justify-content-center flex-grow-1 py-5">
+                    <span class="spinner-border text-primary me-2"></span>
+                    <span class="text-muted small">Loading preview...</span>
+                </div>
+            }
+        </div>
     </div>
 }
 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3">Assessment</h6>
@@ -2588,6 +2677,17 @@ else
     private bool _isSavingPaymentHistory;
     private List<PaymentHistoryDto> paymentHistory = new();
     private bool isLoadingPaymentHistory;
+
+    // ── Payroll document link — maps a payment-history entry Id to the
+    // Forms Gateway PDF an admin tagged as that quarter/year's payroll (see
+    // FormDocumentClientService.FindPayrollDocumentAsync). Null value means
+    // "looked it up, nothing tagged for this period" — absent key means
+    // "not looked up yet" (entry has no PayrollQuarter/FiscalYear at all).
+    private readonly Dictionary<Guid, FormDocumentDto?> _payrollLinksByHistoryId = new();
+    private FormDocumentDto? _payrollPreviewDoc;
+    private string? _payrollPreviewBlobUrl;
+    private int _payrollPreviewZoom = 100;
+    private Guid? _payrollPreviewLoadingId;
     private bool _clearingQuarterFiscalYear = false;
     private int? _bulkFiscalYear;
     private bool _isBulkUpdatingFiscalYear;
@@ -2683,8 +2783,48 @@ protected override void OnInitialized()
         }
 
         InvokeAsync(StateHasChanged);
+        _ = RecomputeGridPayrollLinksAsync();
     };
     State.OnChange += _stateChangeHandler;
+    _ = RecomputeGridPayrollLinksAsync();
+}
+
+// ── Grid-level payroll indicator — whether the CURRENT payment history
+// entry shown for each visible row has a matching Forms Gateway payroll
+// document (same matching FindPayrollDocumentAsync uses in the off-canvas).
+// Recomputed whenever the grid's data changes (State.OnChange) — cheap,
+// since FindPayrollDocumentAsync filters an already-cached document list.
+private readonly Dictionary<Guid, bool> _hasPayrollByBeneficiaryId = new();
+
+private bool HasLinkedPayroll(BeneficiaryListItemDto item) =>
+    _hasPayrollByBeneficiaryId.TryGetValue(item.Id, out var has) && has;
+
+private async Task RecomputeGridPayrollLinksAsync()
+{
+    foreach (var item in FilteredBeneficiaries.ToList())
+    {
+        if (!item.PayrollQuarter.HasValue || !item.FiscalYear.HasValue)
+        {
+            _hasPayrollByBeneficiaryId[item.Id] = false;
+            continue;
+        }
+
+        try
+        {
+            var doc = await FormService.FindPayrollDocumentAsync(
+                item.PayrollQuarter.Value, item.FiscalYear.Value,
+                item.PsgcCodeRegion > 0 ? item.PsgcCodeRegion : null,
+                item.PsgcCodeMunicipality > 0 ? item.PsgcCodeMunicipality : null);
+            _hasPayrollByBeneficiaryId[item.Id] = doc != null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Grid payroll lookup failed for {item.Id}: {ex.Message}");
+            _hasPayrollByBeneficiaryId[item.Id] = false;
+        }
+    }
+
+    await InvokeAsync(StateHasChanged);
 }
 private async Task ConfirmSetAsCurrent(PaymentHistoryDto entry)
 {
@@ -3654,6 +3794,8 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         StateHasChanged();
         paymentHistory = await Http.GetFromJsonAsync<List<PaymentHistoryDto>>(
             $"api/beneficiary/payment-history/{beneficiaryId}") ?? new();
+
+        await LoadPayrollLinksAsync();
     }
     catch (Exception ex)
     {
@@ -3665,6 +3807,85 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
         StateHasChanged();
     }
 }
+
+// Looks up a matching Forms Gateway payroll PDF for every entry that has a
+// PayrollQuarter/FiscalYear, so the "View Payroll" link only renders where
+// an admin has actually tagged one. Uses the beneficiary's own municipality
+// and region so a municipality-specific payroll file is preferred over a
+// region-wide one, which is preferred over an "all regions" one.
+private async Task LoadPayrollLinksAsync()
+{
+    _payrollLinksByHistoryId.Clear();
+    var region = selectedDetails?.PsgcCodeRegion;
+    var municipality = selectedDetails?.PsgcCodeMunicipality;
+
+    foreach (var entry in paymentHistory)
+    {
+        if (!entry.PayrollQuarter.HasValue || !entry.FiscalYear.HasValue) continue;
+
+        try
+        {
+            _payrollLinksByHistoryId[entry.Id] = await FormService.FindPayrollDocumentAsync(
+                entry.PayrollQuarter.Value, entry.FiscalYear.Value, region, municipality);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Payroll lookup failed for history {entry.Id}: {ex.Message}");
+        }
+    }
+}
+
+private async Task PreviewPayrollAsync(FormDocumentDto doc)
+{
+    if (_payrollPreviewLoadingId.HasValue) return;
+    _payrollPreviewLoadingId = doc.Id;
+    StateHasChanged();
+
+    try
+    {
+        var result = await FormService.DownloadAsync(doc.Id, doc.OriginalFileName);
+        if (result == null)
+        {
+            toast.ShowError("Could not load the payroll preview.");
+            return;
+        }
+
+        _payrollPreviewDoc = doc;
+        _payrollPreviewZoom = 100;
+        StateHasChanged();
+
+        using var streamRef = new DotNetStreamReference(new MemoryStream(result.Value.Data));
+        _payrollPreviewBlobUrl = await JS.InvokeAsync<string>("createPdfBlobUrlFromStream", streamRef);
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Could not load the payroll preview: {ex.Message}");
+        _payrollPreviewDoc = null;
+    }
+    finally
+    {
+        _payrollPreviewLoadingId = null;
+        StateHasChanged();
+    }
+}
+
+private async Task ClosePayrollPreviewAsync()
+{
+    _payrollPreviewDoc = null;
+    var urlToRevoke = _payrollPreviewBlobUrl;
+    _payrollPreviewBlobUrl = null;
+    StateHasChanged();
+
+    if (!string.IsNullOrEmpty(urlToRevoke))
+    {
+        await Task.Delay(500);
+        try { await JS.InvokeVoidAsync("revokeBlobUrl", urlToRevoke); } catch { }
+    }
+}
+
+private void PayrollPreviewZoomIn() => _payrollPreviewZoom = Math.Min(300, _payrollPreviewZoom + 25);
+private void PayrollPreviewZoomOut() => _payrollPreviewZoom = Math.Max(50, _payrollPreviewZoom - 25);
+private void PayrollPreviewZoomReset() => _payrollPreviewZoom = 100;
 
     private async Task OpenPayrollModal()
     {

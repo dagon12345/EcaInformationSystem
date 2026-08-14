@@ -31,6 +31,14 @@ namespace EcaInformationSystem.Shared.DTOs
         // Set only on the response to an upload/replace that actually went
         // through the shrink pipeline — null means the file was stored as-is.
         public long? PreShrinkSizeBytes { get; set; }
+
+        // ✅ NEW — optional payroll tagging (see FormDocument.cs). Null
+        // PsgcCodeRegion means "applies to every region" when matching.
+        public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
+        public int? PsgcCodeRegion { get; set; }
+        public int? PsgcCodeProvince { get; set; }
+        public int? PsgcCodeMunicipality { get; set; }
     }
 
     public class FormDocumentUpdateDto
@@ -39,6 +47,13 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Description { get; set; }
         public string? Category { get; set; }
         public Guid? FolderId { get; set; }
+
+        // ✅ NEW — see FormDocument.cs
+        public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
+        public int? PsgcCodeRegion { get; set; }
+        public int? PsgcCodeProvince { get; set; }
+        public int? PsgcCodeMunicipality { get; set; }
     }
     // ✅ NEW — search/filter payload
     public class FormDocumentSearchDto
@@ -64,6 +79,14 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? Description { get; set; }
         public string? Category { get; set; }
         public Guid? FolderId { get; set; }
+
+        // ✅ NEW — see FormDocument.cs. Optional at upload time too, so an
+        // admin can tag a payroll PDF right away instead of a separate edit.
+        public int? PayrollQuarter { get; set; }
+        public int? FiscalYear { get; set; }
+        public int? PsgcCodeRegion { get; set; }
+        public int? PsgcCodeProvince { get; set; }
+        public int? PsgcCodeMunicipality { get; set; }
 
         // Required only when File is provided and its length exceeds the 10 MB
         // stored-size ceiling and the type is shrinkable (PDF/DOCX/XLSX) —

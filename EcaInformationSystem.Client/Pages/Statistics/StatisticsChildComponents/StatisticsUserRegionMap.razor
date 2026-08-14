@@ -16,7 +16,16 @@
 
 <div class="urm-card">
     <div class="urm-header">
-        <span><i class="bi bi-geo-alt-fill me-2"></i>Registered Region</span>
+        <div class="urm-header-left">
+            <div class="urm-header-icon"><i class="bi bi-geo-alt-fill"></i></div>
+            <div>
+                <div class="urm-header-title">Registered Region</div>
+                @if (!_isLoading && _regionCode is not null)
+                {
+                    <div class="urm-header-sub">@(_regionName ?? "Unknown Region")</div>
+                }
+            </div>
+        </div>
         @if (!_isLoading && _regionCode is not null)
         {
             <button type="button" class="urm-reload-btn" title="Reload map" @onclick="ReloadMapAsync">
@@ -40,7 +49,9 @@
         else
         {
             <div id="@_mapElementId" class="urm-map"></div>
-            <div class="urm-caption">@(_regionName ?? "Unknown Region")</div>
+            <div class="urm-hint">
+                <i class="bi bi-info-circle"></i> Applying the Municipality filter automatically navigates the map here
+            </div>
         }
     </div>
 </div>
@@ -51,6 +62,10 @@
     private int? _regionCode;
     private string? _regionName;
     private bool _mapInitialized;
+    // Guards against OnAfterRenderAsync firing again (e.g. from an unrelated
+    // sibling re-render) WHILE the retry loop below is already mid-attempt,
+    // which would otherwise kick off a second concurrent init race.
+    private bool _isInitializing;
 
     // Approximate geographic centroid + zoom per PSGC region code — mirrors
     // the codes in RegionRomanNumeralHelper. Close enough to place a marker
@@ -97,7 +112,7 @@
 
     private async Task InitializeMapAsync()
     {
-        if (_mapInitialized || _regionCode is null) return;
+        if (_mapInitialized || _isInitializing || _regionCode is null) return;
         if (!_centroids.TryGetValue(_regionCode.Value, out var c))
         {
             Console.WriteLine($"StatisticsUserRegionMap: no centroid entry for region code {_regionCode.Value} — map stays blank.");
@@ -111,19 +126,77 @@
         var geoJsonUrl = new Uri(new Uri(Navigation.BaseUri), $"data/ph-regions/{datasetRegionCode}.json").ToString();
         var municipalityListUrl = new Uri(new Uri(Navigation.BaseUri), $"data/ph-municipalities/{datasetRegionCode}.json").ToString();
 
-        _mapInitialized = true;
+        // The map's container div can lose the initialization race right
+        // after navigation — OnAfterRenderAsync fires, but the browser
+        // hasn't painted the new DOM yet on that exact pass. That used to
+        // leave the card permanently blank until a hard reload, because the
+        // JS side just logged an error and returned instead of actually
+        // failing the call, so nothing here ever knew to try again. It now
+        // throws on failure, so this loop can retry a few times with a
+        // short, increasing delay before giving up for good.
+        _isInitializing = true;
         try
         {
-            await JS.InvokeVoidAsync("regionMapInterop.init", _mapElementId, c.Lat, c.Lng, c.Zoom,
-                _regionName ?? "Registered Region", geoJsonUrl, municipalityListUrl);
+            const int maxAttempts = 5;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("regionMapInterop.init", _mapElementId, c.Lat, c.Lng, c.Zoom,
+                        _regionName ?? "Registered Region", geoJsonUrl, municipalityListUrl);
+                    _mapInitialized = true;
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"StatisticsUserRegionMap: init attempt {attempt}/{maxAttempts} failed for #{_mapElementId}: {ex.Message}");
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(150 * attempt);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
+    }
+
+    // Called by Statistics.razor after Apply, when the applied filter set
+    // includes a specific Municipality — pans/zooms this map to it, same as
+    // typing it into the in-map search box. Silently does nothing if the
+    // map hasn't finished initializing yet or the name isn't in this
+    // region's municipality list (e.g. the filtered municipality belongs to
+    // a different region than the one this map shows).
+    public async Task FocusMunicipalityAsync(string municipalityName)
+    {
+        if (!_mapInitialized || string.IsNullOrWhiteSpace(municipalityName)) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("regionMapInterop.focusMunicipality", _mapElementId, municipalityName);
         }
         catch (Exception ex)
         {
-            // Let a later render retry rather than leaving the card
-            // permanently blank if the JS-side init throws (e.g. the CDN
-            // Leaflet script hadn't finished loading yet).
-            _mapInitialized = false;
-            Console.WriteLine($"StatisticsUserRegionMap: regionMapInterop.init failed for #{_mapElementId}: {ex}");
+            Console.WriteLine($"StatisticsUserRegionMap: FocusMunicipalityAsync failed: {ex.Message}");
+        }
+    }
+
+    // Called by Statistics.razor's Clear button — snaps the map back to the
+    // fitted whole-region view and clears any municipality pin left over
+    // from FocusMunicipalityAsync, same as clicking the in-map reset button.
+    public async Task ResetViewAsync()
+    {
+        if (!_mapInitialized) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("regionMapInterop.resetToRegion", _mapElementId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"StatisticsUserRegionMap: ResetViewAsync failed: {ex.Message}");
         }
     }
 

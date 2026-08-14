@@ -8,6 +8,7 @@
 @inject ToastService toast
 @inject AuthService AuthService
 @inject IJSRuntime JS
+@inject HttpClient Http
 
 <div class="forms-layout">
 
@@ -265,8 +266,16 @@
                 {
                     var visual = GetFileTypeVisual(form.OriginalFileName, form.ContentType);
 
+                    var isPayroll = form.PayrollQuarter.HasValue && form.FiscalYear.HasValue;
+
                     <div class="col-12 col-md-6 col-lg-4">
-                        <div class="form-card">
+                        <div class="form-card @(isPayroll ? "form-card--payroll" : "")" style="border-left-color:@visual.Color;">
+                            @if (isPayroll)
+                            {
+                                <div class="form-card-payroll-ribbon" title="Linked as a payroll document — grantees paid in this period can view it from their payment history">
+                                    <i class="bi bi-link-45deg"></i>PAYROLL
+                                </div>
+                            }
                             <div class="form-card-top">
                                 <div class="form-card-icon" style="background:@(visual.Color)1A; color:@visual.Color;">
                                     <i class="bi @visual.Icon"></i>
@@ -294,6 +303,14 @@
                                 {
                                     <div class="form-card-folder-tag">
                                         <i class="bi bi-folder-fill"></i>@form.FolderName
+                                    </div>
+                                }
+
+                                @if (isPayroll)
+                                {
+                                    <div class="form-card-payroll-tag" title="Linked as a payroll document — grantees paid in this period can view it from their payment history">
+                                        <i class="bi bi-calendar-check-fill"></i>
+                                        Q@(form.PayrollQuarter) @form.FiscalYear · @GetPayrollLocationLabel(form)
                                     </div>
                                 }
 
@@ -451,6 +468,82 @@
             <label class="ff-label">Description</label>
             <textarea class="ff-input" rows="2" @bind="_uploadDescription"></textarea>
         </div>
+
+        @* ── Payroll link — tagging a PDF here is what makes it show up as
+             "View Payroll" on matching grantees' payment history rows. ── *@
+        <div class="mb-2 payroll-link-panel">
+            <label class="ff-label mb-1">
+                <i class="bi bi-link-45deg me-1"></i>Link as Payroll Document <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            <div class="row g-2">
+                <div class="col-4">
+                    <select class="ff-input" @bind="_uploadPayrollQuarter">
+                        <option value="0">Quarter</option>
+                        <option value="1">Q1</option>
+                        <option value="2">Q2</option>
+                        <option value="3">Q3</option>
+                        <option value="4">Q4</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="ff-input" @bind="_uploadFiscalYear">
+                        <option value="0">Fiscal Year</option>
+                        @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="ff-input" value="@_uploadPsgcCodeRegion" @onchange="OnUploadRegionChanged">
+                        <option value="0">All Regions</option>
+                        @foreach (var r in _regions)
+                        {
+                            <option value="@r.PsgcCodeRegion">@r.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            @if (_uploadPsgcCodeRegion > 0)
+            {
+                <div class="row g-2 mt-1">
+                    <div class="col-6">
+                        <select class="ff-input" value="@_uploadPsgcCodeProvince" @onchange="OnUploadProvinceChanged"
+                                disabled="@_isLoadingUploadProvinces">
+                            <option value="0">Whole Region (all provinces)</option>
+                            @foreach (var p in _uploadProvinces)
+                            {
+                                <option value="@p.PsgcCodeProvince">@p.Name</option>
+                            }
+                        </select>
+                        @if (_isLoadingUploadProvinces)
+                        {
+                            <span class="sf-loading-pill"><span class="spinner-border spinner-border-sm"></span> Loading...</span>
+                        }
+                    </div>
+                    <div class="col-6">
+                        <select class="ff-input" value="@_uploadPsgcCodeMunicipality" @onchange="OnUploadMunicipalityChanged"
+                                disabled="@(_uploadPsgcCodeProvince == 0 || _isLoadingUploadMunicipalities)">
+                            <option value="0">Whole Province (all municipalities)</option>
+                            @foreach (var m in _uploadMunicipalities)
+                            {
+                                <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                            }
+                        </select>
+                        @if (_isLoadingUploadMunicipalities)
+                        {
+                            <span class="sf-loading-pill"><span class="spinner-border spinner-border-sm"></span> Loading...</span>
+                        }
+                    </div>
+                </div>
+            }
+            <small class="text-muted d-block mt-1">
+                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their payment history.
+                Leave Region as "All Regions" unless this file only applies to one region — payroll is often run per
+                municipality, so narrow it down to Province/Municipality if this file only covers part of a region.
+            </small>
+        </div>
+
         <div class="mb-2">
             <label class="ff-label">File <span class="req">*</span></label>
             <InputFile OnChange="OnFileSelected" class="form-control" />
@@ -566,6 +659,86 @@
         <div class="mb-2">
             <label class="ff-label">Description</label>
             <textarea class="ff-input" rows="2" @bind="_editDto.Description"></textarea>
+        </div>
+
+        @* ── Payroll link — same tagging as Upload. Setting Quarter+Fiscal Year
+             links this file; setting both back to "-- none --" unlinks it. ── *@
+        <div class="mb-2 payroll-link-panel">
+            <label class="ff-label mb-1">
+                <i class="bi bi-link-45deg me-1"></i>Link as Payroll Document <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            <div class="row g-2">
+                <div class="col-4">
+                    <select class="ff-input" @bind="_editPayrollQuarter">
+                        <option value="0">Quarter</option>
+                        <option value="1">Q1</option>
+                        <option value="2">Q2</option>
+                        <option value="3">Q3</option>
+                        <option value="4">Q4</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="ff-input" @bind="_editFiscalYear">
+                        <option value="0">Fiscal Year</option>
+                        @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-4">
+                    <select class="ff-input" value="@_editPsgcCodeRegion" @onchange="OnEditRegionChanged">
+                        <option value="0">All Regions</option>
+                        @foreach (var r in _regions)
+                        {
+                            <option value="@r.PsgcCodeRegion">@r.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            @if (_editPsgcCodeRegion > 0)
+            {
+                <div class="row g-2 mt-1">
+                    <div class="col-6">
+                        <select class="ff-input" value="@_editPsgcCodeProvince" @onchange="OnEditProvinceChanged"
+                                disabled="@_isLoadingEditProvinces">
+                            <option value="0">Whole Region (all provinces)</option>
+                            @foreach (var p in _editProvinces)
+                            {
+                                <option value="@p.PsgcCodeProvince">@p.Name</option>
+                            }
+                        </select>
+                        @if (_isLoadingEditProvinces)
+                        {
+                            <span class="sf-loading-pill"><span class="spinner-border spinner-border-sm"></span> Loading...</span>
+                        }
+                    </div>
+                    <div class="col-6">
+                        <select class="ff-input" value="@_editPsgcCodeMunicipality" @onchange="OnEditMunicipalityChanged"
+                                disabled="@(_editPsgcCodeProvince == 0 || _isLoadingEditMunicipalities)">
+                            <option value="0">Whole Province (all municipalities)</option>
+                            @foreach (var m in _editMunicipalities)
+                            {
+                                <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                            }
+                        </select>
+                        @if (_isLoadingEditMunicipalities)
+                        {
+                            <span class="sf-loading-pill"><span class="spinner-border spinner-border-sm"></span> Loading...</span>
+                        }
+                    </div>
+                </div>
+            }
+            @if (_editPayrollQuarter > 0 && _editFiscalYear > 0)
+            {
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-1" @onclick="UnlinkPayroll">
+                    <i class="bi bi-x-circle me-1"></i>Unlink Payroll
+                </button>
+            }
+            <small class="text-muted d-block mt-1">
+                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their payment history.
+                Narrow down to Province/Municipality if this file only covers part of a region.
+            </small>
         </div>
         <hr />
         <label class="ff-label">Replace File (optional)</label>
@@ -696,6 +869,36 @@
     private bool _isSaving;
     private bool _hasFullAccess;
 
+    // ── Payroll linking — Region/Province/Municipality lookups for the
+    // optional location tags on a payroll document (Forms Gateway itself has
+    // no location concept otherwise). Payroll often runs per-municipality
+    // even within a single region, hence the full cascade down to Municipality. ──
+    private List<RegionLookupDto> _regions = new();
+    private record RegionLookupDto(int PsgcCodeRegion, string? Name);
+    private record ProvinceLookupDto(int PsgcCodeProvince, string? Name);
+    private record MunicipalityLookupDto(int PsgcCodeMunicipality, string? Name);
+    private string? GetRegionName(int? psgcCodeRegion) =>
+        psgcCodeRegion.HasValue ? _regions.FirstOrDefault(r => r.PsgcCodeRegion == psgcCodeRegion.Value)?.Name : null;
+    private readonly Dictionary<int, string?> _provinceNameCache = new();
+    private string? GetProvinceName(int? psgcCodeProvince) =>
+        psgcCodeProvince.HasValue ? _provinceNameCache.GetValueOrDefault(psgcCodeProvince.Value) : null;
+    private readonly Dictionary<int, string?> _municipalityNameCache = new();
+    private string? GetMunicipalityName(int? psgcCodeMunicipality) =>
+        psgcCodeMunicipality.HasValue ? _municipalityNameCache.GetValueOrDefault(psgcCodeMunicipality.Value) : null;
+
+    // Full location trail for the payroll badge — Region · Province ·
+    // Municipality, showing every level that's actually set instead of just
+    // the most specific one, so it's clear at a glance exactly how narrow
+    // (or broad) this file's coverage is.
+    private string GetPayrollLocationLabel(FormDocumentDto form)
+    {
+        var parts = new List<string>();
+        if (GetRegionName(form.PsgcCodeRegion) is { } rn) parts.Add(rn);
+        if (GetProvinceName(form.PsgcCodeProvince) is { } pn) parts.Add(pn);
+        if (GetMunicipalityName(form.PsgcCodeMunicipality) is { } mn) parts.Add(mn);
+        return parts.Count > 0 ? string.Join(" · ", parts) : "All Regions";
+    }
+
     private Guid? _selectedFolderId = null;
     private bool _uncategorizedOnly = false;
     // True only once the user explicitly clicks "All Forms" — the initial/root
@@ -798,11 +1001,29 @@
     private ShrinkQuality _shrinkQuality = ShrinkQuality.Medium;
     private bool _isPreviewingShrink;
     private ShrinkPreviewResultDto? _previewResult;
+    private int _uploadPayrollQuarter;
+    private int _uploadFiscalYear;
+    private int _uploadPsgcCodeRegion;
+    private int _uploadPsgcCodeProvince;
+    private int _uploadPsgcCodeMunicipality;
+    private List<ProvinceLookupDto> _uploadProvinces = new();
+    private List<MunicipalityLookupDto> _uploadMunicipalities = new();
+    private bool _isLoadingUploadProvinces;
+    private bool _isLoadingUploadMunicipalities;
 
     private FormDocumentDto? _targetForm;
     private FormDocumentUpdateDto _editDto = new();
     private Guid? _editFolderId;
     private IBrowserFile? _replaceFile;
+    private int _editPayrollQuarter;
+    private int _editFiscalYear;
+    private int _editPsgcCodeRegion;
+    private int _editPsgcCodeProvince;
+    private int _editPsgcCodeMunicipality;
+    private List<ProvinceLookupDto> _editProvinces = new();
+    private List<MunicipalityLookupDto> _editMunicipalities = new();
+    private bool _isLoadingEditProvinces;
+    private bool _isLoadingEditMunicipalities;
 
     private List<FormActivityLogDto> _activityLogs = new();
     private readonly HashSet<Guid> _downloadingFormIds = new();
@@ -819,6 +1040,30 @@
         _hasFullAccess = AuthService.IsAdmin() || AuthService.IsViewer();
         await LoadFoldersAsync();
         await LoadFormsAsync();
+
+        // Loaded for everyone (not just _hasFullAccess) — the payroll location
+        // badge on a card needs these names for every viewer, not just admins
+        // tagging documents. Province/Municipality caches were previously only
+        // populated lazily when the Edit modal happened to touch that specific
+        // region/province, so a card's tag would show Region only until an
+        // admin reopened Edit on it — loading the full lookup lists up front
+        // (same size class as the existing full Region load) fixes that.
+        try { _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new(); }
+        catch (Exception ex) { Console.WriteLine($"Error loading regions: {ex.Message}"); }
+
+        try
+        {
+            var allProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>("api/Province") ?? new();
+            foreach (var p in allProvinces) _provinceNameCache[p.PsgcCodeProvince] = p.Name;
+        }
+        catch (Exception ex) { Console.WriteLine($"Error loading provinces: {ex.Message}"); }
+
+        try
+        {
+            var allMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>("api/Municipality") ?? new();
+            foreach (var m in allMunicipalities) _municipalityNameCache[m.PsgcCodeMunicipality] = m.Name;
+        }
+        catch (Exception ex) { Console.WriteLine($"Error loading municipalities: {ex.Message}"); }
     }
 
     private async Task LoadFoldersAsync()
@@ -1096,8 +1341,58 @@
         _shrinkQuality = ShrinkQuality.Medium;
         _previewResult = null;
         _isPreviewingShrink = false;
+        _uploadPayrollQuarter = 0;
+        _uploadFiscalYear = 0;
+        _uploadPsgcCodeRegion = 0;
+        _uploadPsgcCodeProvince = 0;
+        _uploadPsgcCodeMunicipality = 0;
+        _uploadProvinces = new();
+        _uploadMunicipalities = new();
         return _uploadModal.ShowAsync();
     }
+
+    // ── Region → Province → Municipality cascade for the payroll tag ────────
+    // (mirrors the same cascade used on the Statistics filter panel).
+    private async Task OnUploadRegionChanged(ChangeEventArgs e)
+    {
+        _uploadPsgcCodeRegion = int.TryParse(e.Value?.ToString(), out var r) ? r : 0;
+        _uploadPsgcCodeProvince = 0;
+        _uploadPsgcCodeMunicipality = 0;
+        _uploadProvinces = new();
+        _uploadMunicipalities = new();
+
+        if (_uploadPsgcCodeRegion > 0)
+        {
+            _isLoadingUploadProvinces = true;
+            try
+            {
+                _uploadProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{_uploadPsgcCodeRegion}") ?? new();
+                foreach (var p in _uploadProvinces) _provinceNameCache[p.PsgcCodeProvince] = p.Name;
+            }
+            finally { _isLoadingUploadProvinces = false; }
+        }
+    }
+
+    private async Task OnUploadProvinceChanged(ChangeEventArgs e)
+    {
+        _uploadPsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var p) ? p : 0;
+        _uploadPsgcCodeMunicipality = 0;
+        _uploadMunicipalities = new();
+
+        if (_uploadPsgcCodeProvince > 0)
+        {
+            _isLoadingUploadMunicipalities = true;
+            try
+            {
+                _uploadMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{_uploadPsgcCodeProvince}") ?? new();
+                foreach (var m in _uploadMunicipalities) _municipalityNameCache[m.PsgcCodeMunicipality] = m.Name;
+            }
+            finally { _isLoadingUploadMunicipalities = false; }
+        }
+    }
+
+    private void OnUploadMunicipalityChanged(ChangeEventArgs e)
+        => _uploadPsgcCodeMunicipality = int.TryParse(e.Value?.ToString(), out var m) ? m : 0;
 
     // Pops a blocking, must-acknowledge modal instead of a toast — a toast
     // auto-dismisses after 6s and was easy to miss entirely for a large-file
@@ -1230,12 +1525,19 @@
         _isSaving = true;
         try
         {
+            int? payrollQuarter = _uploadPayrollQuarter > 0 ? _uploadPayrollQuarter : null;
+            int? fiscalYear = _uploadFiscalYear > 0 ? _uploadFiscalYear : null;
+            int? psgcCodeRegion = _uploadPsgcCodeRegion > 0 ? _uploadPsgcCodeRegion : null;
+            int? psgcCodeProvince = _uploadPsgcCodeProvince > 0 ? _uploadPsgcCodeProvince : null;
+            int? psgcCodeMunicipality = _uploadPsgcCodeMunicipality > 0 ? _uploadPsgcCodeMunicipality : null;
+
             // A shrink was already previewed — confirm using the cached
             // shrunk bytes by token rather than re-sending/re-shrinking the file.
             if (_shrinkRequired && _previewResult != null)
             {
                 var (success, error, document) = await FormService.UploadFromPreviewAsync(
-                    _previewResult.PreviewToken, _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId);
+                    _previewResult.PreviewToken, _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId,
+                    payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality);
 
                 if (success)
                 {
@@ -1258,7 +1560,8 @@
 
             var (success2, error2, document2) = await FormService.UploadAsync(
                 stream, _uploadFile.Name, _uploadFile.ContentType,
-                _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId, null);
+                _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId, null,
+                payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality);
 
             if (success2)
             {
@@ -1300,7 +1603,7 @@
     }
 
     // ── Edit / Delete Form ──────────────────────────────────────────────────
-    private Task OpenEditModal(FormDocumentDto form)
+    private async Task OpenEditModal(FormDocumentDto form)
     {
         _targetForm = form;
         _editFolderId = form.FolderId;
@@ -1311,8 +1614,109 @@
             Category = form.Category,
             FolderId = form.FolderId
         };
+        _editPayrollQuarter = form.PayrollQuarter ?? 0;
+        _editFiscalYear = form.FiscalYear ?? 0;
+        _editPsgcCodeRegion = form.PsgcCodeRegion ?? 0;
+        _editPsgcCodeProvince = 0;
+        _editPsgcCodeMunicipality = 0;
+        _editProvinces = new();
+        _editMunicipalities = new();
         _replaceFile = null;
-        return _editModal.ShowAsync();
+
+        // Re-derive the Province/Municipality cascade selection for an
+        // already-tagged file — the entity only stores Region + Municipality
+        // (Province is purely a UI cascade step, not persisted), so finding
+        // which province the tagged municipality belongs to means checking
+        // each of the region's provinces' municipality lists in turn.
+        if (_editPsgcCodeRegion > 0)
+        {
+            _isLoadingEditProvinces = true;
+            try
+            {
+                _editProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{_editPsgcCodeRegion}") ?? new();
+                foreach (var p in _editProvinces) _provinceNameCache[p.PsgcCodeProvince] = p.Name;
+            }
+            finally { _isLoadingEditProvinces = false; }
+
+            if (form.PsgcCodeMunicipality.HasValue)
+            {
+                _isLoadingEditMunicipalities = true;
+                try
+                {
+                    foreach (var province in _editProvinces)
+                    {
+                        var munis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{province.PsgcCodeProvince}") ?? new();
+                        foreach (var m in munis) _municipalityNameCache[m.PsgcCodeMunicipality] = m.Name;
+
+                        if (munis.Any(m => m.PsgcCodeMunicipality == form.PsgcCodeMunicipality.Value))
+                        {
+                            _editPsgcCodeProvince = province.PsgcCodeProvince;
+                            _editMunicipalities = munis;
+                            _editPsgcCodeMunicipality = form.PsgcCodeMunicipality.Value;
+                            break;
+                        }
+                    }
+                }
+                finally { _isLoadingEditMunicipalities = false; }
+            }
+        }
+
+        await _editModal.ShowAsync();
+    }
+
+    private async Task OnEditRegionChanged(ChangeEventArgs e)
+    {
+        _editPsgcCodeRegion = int.TryParse(e.Value?.ToString(), out var r) ? r : 0;
+        _editPsgcCodeProvince = 0;
+        _editPsgcCodeMunicipality = 0;
+        _editProvinces = new();
+        _editMunicipalities = new();
+
+        if (_editPsgcCodeRegion > 0)
+        {
+            _isLoadingEditProvinces = true;
+            try
+            {
+                _editProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>($"api/Province/by-region/{_editPsgcCodeRegion}") ?? new();
+                foreach (var p in _editProvinces) _provinceNameCache[p.PsgcCodeProvince] = p.Name;
+            }
+            finally { _isLoadingEditProvinces = false; }
+        }
+    }
+
+    private async Task OnEditProvinceChanged(ChangeEventArgs e)
+    {
+        _editPsgcCodeProvince = int.TryParse(e.Value?.ToString(), out var p) ? p : 0;
+        _editPsgcCodeMunicipality = 0;
+        _editMunicipalities = new();
+
+        if (_editPsgcCodeProvince > 0)
+        {
+            _isLoadingEditMunicipalities = true;
+            try
+            {
+                _editMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>($"api/Municipality/by-province/{_editPsgcCodeProvince}") ?? new();
+                foreach (var m in _editMunicipalities) _municipalityNameCache[m.PsgcCodeMunicipality] = m.Name;
+            }
+            finally { _isLoadingEditMunicipalities = false; }
+        }
+    }
+
+    private void OnEditMunicipalityChanged(ChangeEventArgs e)
+        => _editPsgcCodeMunicipality = int.TryParse(e.Value?.ToString(), out var m) ? m : 0;
+
+    // Resets the payroll tag selects back to "none" — SubmitEditAsync then
+    // saves that as null/null/null/null, which is what actually unlinks the
+    // file from any payment history rows that were showing it.
+    private void UnlinkPayroll()
+    {
+        _editPayrollQuarter = 0;
+        _editFiscalYear = 0;
+        _editPsgcCodeRegion = 0;
+        _editPsgcCodeProvince = 0;
+        _editPsgcCodeMunicipality = 0;
+        _editProvinces = new();
+        _editMunicipalities = new();
     }
 
     private async Task SubmitEditAsync()
@@ -1320,6 +1724,11 @@
         if (_targetForm == null) return;
 
         _editDto.FolderId = _editFolderId;
+        _editDto.PayrollQuarter = _editPayrollQuarter > 0 ? _editPayrollQuarter : null;
+        _editDto.FiscalYear = _editFiscalYear > 0 ? _editFiscalYear : null;
+        _editDto.PsgcCodeRegion = _editPsgcCodeRegion > 0 ? _editPsgcCodeRegion : null;
+        _editDto.PsgcCodeProvince = _editPsgcCodeProvince > 0 ? _editPsgcCodeProvince : null;
+        _editDto.PsgcCodeMunicipality = _editPsgcCodeMunicipality > 0 ? _editPsgcCodeMunicipality : null;
 
         _isSaving = true;
         try

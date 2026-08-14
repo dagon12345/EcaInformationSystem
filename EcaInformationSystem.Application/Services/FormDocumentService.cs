@@ -93,7 +93,9 @@ namespace EcaInformationSystem.Application.Services
         }
 
         public async Task<FormDocumentDto> UploadAsync(IFormFile file, string title, string? description,
-            string? category, Guid? folderId, ShrinkQuality? shrinkQuality, string userName)
+            string? category, Guid? folderId, ShrinkQuality? shrinkQuality, string userName,
+            int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
         {
             if (string.IsNullOrWhiteSpace(title))
                 throw new InvalidOperationException("Title is required.");
@@ -116,6 +118,11 @@ namespace EcaInformationSystem.Application.Services
                 FileData = fileBytes,
                 UploadedBy = userName,
                 UploadedAt = DateTime.UtcNow,
+                PayrollQuarter = payrollQuarter,
+                FiscalYear = fiscalYear,
+                PsgcCodeRegion = psgcCodeRegion,
+                PsgcCodeProvince = psgcCodeProvince,
+                PsgcCodeMunicipality = psgcCodeMunicipality,
                 IsDeleted = false
             };
 
@@ -207,7 +214,9 @@ namespace EcaInformationSystem.Application.Services
         // Confirms an already-previewed shrink result — pulls the cached bytes
         // by token and saves them directly, without needing the file re-sent.
         public async Task<FormDocumentDto> UploadFromPreviewAsync(Guid previewToken, string title, string? description,
-            string? category, Guid? folderId, string userName)
+            string? category, Guid? folderId, string userName,
+            int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
         {
             if (string.IsNullOrWhiteSpace(title))
                 throw new InvalidOperationException("Title is required.");
@@ -237,6 +246,11 @@ namespace EcaInformationSystem.Application.Services
                 FileData = entry.Data,
                 UploadedBy = userName,
                 UploadedAt = DateTime.UtcNow,
+                PayrollQuarter = payrollQuarter,
+                FiscalYear = fiscalYear,
+                PsgcCodeRegion = psgcCodeRegion,
+                PsgcCodeProvince = psgcCodeProvince,
+                PsgcCodeMunicipality = psgcCodeMunicipality,
                 IsDeleted = false
             };
 
@@ -269,6 +283,14 @@ namespace EcaInformationSystem.Application.Services
             doc.Description = dto.Description?.Trim();
             doc.Category = string.IsNullOrWhiteSpace(dto.Category) ? null : dto.Category.Trim();
             doc.FolderId = dto.FolderId;
+            // Setting these tags is what "links" a document to matching payment
+            // history entries (GridView.razor); saving them back to null is how
+            // an admin "unlinks" a wrongly-tagged file.
+            doc.PayrollQuarter = dto.PayrollQuarter;
+            doc.FiscalYear = dto.FiscalYear;
+            doc.PsgcCodeRegion = dto.PsgcCodeRegion;
+            doc.PsgcCodeProvince = dto.PsgcCodeProvince;
+            doc.PsgcCodeMunicipality = dto.PsgcCodeMunicipality;
             doc.UpdatedBy = userName;
             doc.UpdatedAt = DateTime.UtcNow;
 
@@ -385,7 +407,12 @@ namespace EcaInformationSystem.Application.Services
             UploadedBy = d.UploadedBy,
             UploadedAt = d.UploadedAt,
             UpdatedBy = d.UpdatedBy,
-            UpdatedAt = d.UpdatedAt
+            UpdatedAt = d.UpdatedAt,
+            PayrollQuarter = d.PayrollQuarter,
+            FiscalYear = d.FiscalYear,
+            PsgcCodeRegion = d.PsgcCodeRegion,
+            PsgcCodeProvince = d.PsgcCodeProvince,
+            PsgcCodeMunicipality = d.PsgcCodeMunicipality
         };
     }
 }

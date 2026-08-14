@@ -13,6 +13,31 @@
     flex: 0 0 440px;
 }
 
+/* The Filters card only sized itself to its own content by default, so even
+   though .stats-top-row-main (its flex parent) stretched to match the map's
+   height, the card itself left a gap below its content instead of actually
+   filling that height — the two cards read as different heights even though
+   their containers matched. Making the card itself a flex column that fills
+   its container closes that gap so both cards line up edge-to-edge. */
+.stats-top-row-main .sf-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+}
+
+.stats-top-row-main .sf-body-wrap--open {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.stats-top-row-main .sf-body-wrap--open .sf-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
 @media (max-width: 1100px) {
     .stats-top-row {
         flex-direction: column;
@@ -21,6 +46,21 @@
     .stats-top-row-side {
         flex: 1 1 auto;
     }
+
+    .stats-top-row-main .sf-card {
+        height: auto;
+    }
+}
+
+/* ── Municipality field hint — explains the auto-navigate-the-map side
+   effect of applying this filter, since that behavior isn't otherwise
+   discoverable until after the user hits Apply. ── */
+.stats-field-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #6c757d;
+    line-height: 1.3;
 }
 
 /* ── Refresh button spin while loading ────────────────────────────── */

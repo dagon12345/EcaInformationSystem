@@ -8,15 +8,48 @@
     flex-direction: column;
 }
 
+/* Mirrors sf-header/.sf-header-left/.sf-header-icon/.sf-header-title/
+   .sf-header-sub (app.css) so this card's header reads as the same visual
+   language as the Filters card it now sits beside. */
 .urm-header {
     background: #042C53;
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.95rem;
-    padding: 0.7rem 1rem;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+}
+
+.urm-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.urm-header-icon {
+    width: 30px;
+    height: 30px;
+    background: rgba(255,255,255,.15);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+}
+
+.urm-header-title {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.urm-header-sub {
+    color: rgba(255,255,255,.65);
+    font-size: 11px;
+    margin: 0;
 }
 
 .urm-reload-btn {
@@ -54,56 +87,35 @@
 
 .urm-map {
     width: 100%;
-    height: 400px;
+    flex: 1;
+    min-height: 400px;
     border-radius: 0.375rem;
     overflow: hidden;
 }
 
-.urm-caption {
-    margin-top: 0.6rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #042C53;
-    text-align: center;
+/* Mirrors .stats-field-hint on the Municipality filter (Statistics.razor.css)
+   — same message from the other side, so it reads consistently wherever the
+   user looks first. */
+.urm-hint {
+    margin-top: 0.5rem;
+    font-size: 11px;
+    color: #6c757d;
+    line-height: 1.3;
 }
 
-/* Combined search + reset pill — Google-Maps-style floating bar, top-left */
-.urm-map ::deep .regionmap-searchbar {
-    display: flex;
-    align-items: stretch;
-    background: #fff;
-    border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-    overflow: hidden;
-    margin: 0 !important;
-}
-
-.urm-map ::deep .regionmap-search-input {
-    width: 170px;
-    padding: 6px 10px;
+/* Persistent pin label for a filtered/focused municipality — always visible
+   (not just on hover), styled as a small navy chip to match the header. */
+.urm-map ::deep .regionmap-muni-label {
+    background: #042C53;
+    color: #fff;
     border: none;
-    outline: none;
-    font-size: 13px;
-    color: #333;
-    background: transparent;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
-.urm-map ::deep .regionmap-search-input::placeholder {
-    color: #888;
-}
-
-.urm-map ::deep .regionmap-reset-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    flex: 0 0 32px;
-    font-size: 15px;
-    color: #333;
-    text-decoration: none;
-    border-left: 1px solid #e5e5e5;
-}
-
-.urm-map ::deep .regionmap-reset-btn:hover {
-    background: #f4f4f4;
+.urm-map ::deep .leaflet-tooltip-top.regionmap-muni-label::before {
+    border-top-color: #042C53;
 }

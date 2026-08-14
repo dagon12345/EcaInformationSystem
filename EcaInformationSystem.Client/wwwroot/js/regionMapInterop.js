@@ -4,6 +4,19 @@
 // and actually shades the user's registered region's real boundary — not
 // just a pin — using free basemap tiles + a free PH region-boundary GeoJSON
 // shipped in wwwroot/data.
+// PSGC-official municipality names (what the app's own database uses, e.g.
+// "City of Butuan") and the free boundary/centroid dataset's names (e.g.
+// "Butuan City") disagree on word order for every "City" entry — same place,
+// different string. Stripping the "city of "/" city" wrapper before
+// comparing makes both sides normalize to the same "butuan" and match.
+function normalizeMuniName(name) {
+    return (name || "")
+        .toLowerCase()
+        .trim()
+        .replace(/^city of\s+/, "")
+        .replace(/\s+city$/, "");
+}
+
 window.regionMapInterop = {
     _maps: {},
 
@@ -11,24 +24,29 @@ window.regionMapInterop = {
     // polygon (fetched here directly — the injected HttpClient's
     // BaseAddress points at the API server, not this wasm host, so it can't
     // reach wwwroot static files). Null/404 falls back to a plain marker.
-    // municipalityListUrl: same-origin path to a small JSON array of
-    // {name, province, lat, lng} — ONLY the municipalities that belong to
-    // this user's own region. The search box below matches purely against
-    // this local, pre-scoped list (no geocoding API call of any kind), so
-    // there is no way to type your way into another region or country —
-    // the data simply doesn't exist to match against.
+    // municipalityListUrl: same-origin path to a GeoJSON FeatureCollection
+    // (name/province/lat/lng + boundary geometry per feature) — ONLY the
+    // municipalities that belong to this user's own region. The search box
+    // below matches purely against this local, pre-scoped list (no
+    // geocoding API call of any kind), so there is no way to type your way
+    // into another region or country — the data simply doesn't exist to
+    // match against.
     async init(elementId, lat, lng, zoom, label, geoJsonUrl, municipalityListUrl) {
       try {
         this.destroy(elementId);
 
         const el = document.getElementById(elementId);
         if (!el) {
-            console.error(`regionMapInterop: container #${elementId} not found in the DOM — the card may not have rendered yet`);
-            return;
+            // Throwing (instead of a silent return) is deliberate: this
+            // rejects the C# InvokeVoidAsync call, which is what lets
+            // StatisticsUserRegionMap.razor's retry loop actually detect the
+            // failure and try again. A silent return here used to leave the
+            // map permanently blank on the timing races where the container
+            // isn't painted yet, since Blazor was never told anything failed.
+            throw new Error(`container #${elementId} not found in the DOM yet`);
         }
         if (typeof L === "undefined") {
-            console.error("regionMapInterop: Leaflet (window.L) is not loaded — the CDN <script> tag may have failed or not finished yet");
-            return;
+            throw new Error("Leaflet (window.L) is not loaded — the CDN <script> tag may have failed or not finished yet");
         }
 
         // zoomControl: true already creates and positions the +/- control
@@ -154,93 +172,97 @@ window.regionMapInterop = {
             }
         };
 
-        // Municipality search — scoped strictly to this region's own
-        // municipality list (see the JSDoc note above on why that's safe).
-        // Plain <input list="..."> + <datalist> gives free browser-native
-        // autocomplete/keyboard handling without pulling in a search-UI
-        // library just for this.
+        // Municipality list — scoped strictly to this region's own
+        // municipalities (see the JSDoc note above on why that's safe), used
+        // by focusMunicipality() when Statistics.razor's Apply includes a
+        // Municipality filter. The file is a GeoJSON FeatureCollection (name/
+        // province/lat/lng in
+        // each feature's properties, plus its actual boundary geometry) so a
+        // focused municipality can be shaded like the region is, not just
+        // pinned with a marker.
         let municipalityList = [];
         if (municipalityListUrl) {
             try {
                 const resp = await fetch(municipalityListUrl);
-                if (resp.ok) municipalityList = await resp.json();
+                if (resp.ok) {
+                    const geoJson = await resp.json();
+                    municipalityList = (geoJson.features || []).map(f => ({
+                        ...f.properties,
+                        geometry: f.geometry
+                    }));
+                }
             } catch (e) {
                 console.error("regionMapInterop: failed to load municipality list", e);
             }
         }
 
-        let datalistId = null;
-        if (municipalityList.length > 0) {
-            datalistId = `${elementId}-munis`;
-            const datalist = document.createElement("datalist");
-            datalist.id = datalistId;
-            for (const m of municipalityList) {
-                const opt = document.createElement("option");
-                opt.value = m.name;
-                datalist.appendChild(opt);
+        // Shared "jump to a municipality" logic — driven externally via
+        // regionMapInterop.focusMunicipality(), which Statistics.razor calls
+        // when the Municipality filter is part of an applied filter (the
+        // in-map search box that used to also call this was removed — this
+        // stays the single code path for that jump behavior).
+        let searchMarker = null;
+        let municipalityFocusLayer = null;
+        const focusMunicipality = (query) => {
+            const needle = normalizeMuniName(query);
+            const match = municipalityList.find(m => normalizeMuniName(m.name) === needle);
+            if (!match) return false;
+
+            userInteracted = true;
+
+            if (municipalityFocusLayer) { map.removeLayer(municipalityFocusLayer); municipalityFocusLayer = null; }
+            if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
+
+            if (match.geometry) {
+                // Same shading treatment as the region boundary, just a
+                // different color so it reads as "zoomed into a place inside
+                // the region" rather than "this is the whole region."
+                municipalityFocusLayer = L.geoJSON(
+                    { type: "Feature", geometry: match.geometry, properties: {} },
+                    { style: { color: "#B8860B", weight: 3, fillColor: "#FFD54F", fillOpacity: 0.4 } }
+                ).addTo(map);
+                map.fitBounds(municipalityFocusLayer.getBounds(), { padding: [24, 24] });
+            } else {
+                // No boundary shipped for this one — just zoom to it, the pin
+                // below still marks exactly where.
+                map.flyTo([match.lat, match.lng], 12);
             }
-            el.appendChild(datalist);
-        }
 
-        // One combined widget — search box (when this region has data for
-        // it) plus a reset/recenter button, styled as a single Google-Maps-
-        // style floating pill instead of two separate cramped controls.
-        const SearchResetControl = L.Control.extend({
-            options: { position: "topleft" },
-            onAdd() {
-                const wrap = L.DomUtil.create("div", "leaflet-control regionmap-searchbar");
-                L.DomEvent.disableClickPropagation(wrap);
-                L.DomEvent.disableScrollPropagation(wrap);
+            // Pin + always-visible name label — shown whenever a Municipality
+            // filter is applied, not just on hover/click, so it's obvious at
+            // a glance which municipality the map zoomed to.
+            searchMarker = L.marker([match.lat, match.lng]).addTo(map)
+                .bindTooltip(`${match.name}, ${match.province}`, {
+                    permanent: true,
+                    direction: "top",
+                    offset: [0, -36],
+                    className: "regionmap-muni-label"
+                })
+                .openTooltip();
+            return true;
+        };
+        this._focusFns[elementId] = focusMunicipality;
 
-                let searchMarker = null;
-                if (datalistId) {
-                    const input = L.DomUtil.create("input", "regionmap-search-input", wrap);
-                    input.type = "search";
-                    input.placeholder = "Search municipality…";
-                    input.autocomplete = "off";
-                    input.setAttribute("list", datalistId);
-
-                    const goToMunicipality = (query) => {
-                        const needle = query.trim().toLowerCase();
-                        const match = municipalityList.find(m => m.name.toLowerCase() === needle);
-                        if (!match) return;
-
-                        userInteracted = true;
-                        map.flyTo([match.lat, match.lng], 12);
-
-                        if (searchMarker) map.removeLayer(searchMarker);
-                        searchMarker = L.marker([match.lat, match.lng]).addTo(map)
-                            .bindPopup(`<strong>${match.name}</strong><br>${match.province}`)
-                            .openPopup();
-                    };
-
-                    L.DomEvent.on(input, "keydown", (e) => {
-                        if (e.key === "Enter") goToMunicipality(input.value);
-                    });
-                    L.DomEvent.on(input, "change", () => goToMunicipality(input.value));
-                }
-
-                // Reset/recenter — jumps back to the region's fitted view
-                // and clears any search pin, the same job Google Maps' "my
-                // location" button does for a fixed point of interest.
-                const resetBtn = L.DomUtil.create("a", "regionmap-reset-btn", wrap);
-                resetBtn.href = "#";
-                resetBtn.title = "Reset to region view";
-                resetBtn.setAttribute("aria-label", "Reset to region view");
-                resetBtn.innerHTML = "&#8635;";
-                L.DomEvent.on(resetBtn, "click", (e) => {
-                    L.DomEvent.stop(e);
-                    if (searchMarker) {
-                        map.removeLayer(searchMarker);
-                        searchMarker = null;
-                    }
-                    resetView();
-                });
-
-                return wrap;
+        // No floating in-map reset button anymore (removed for a cleaner
+        // map) — the header's reload button and the Clear button in the
+        // filter panel (via regionMapInterop.resetToRegion below) are the
+        // only ways back to the fitted region view now.
+        //
+        // clearFocusAndReset is still exposed to the outside world as
+        // regionMapInterop.resetToRegion, so clicking Clear in the filter
+        // panel can snap the map back to the whole-region view.
+        const clearFocusAndReset = () => {
+            if (searchMarker) {
+                map.removeLayer(searchMarker);
+                searchMarker = null;
             }
-        });
-        new SearchResetControl().addTo(map);
+            if (municipalityFocusLayer) {
+                map.removeLayer(municipalityFocusLayer);
+                municipalityFocusLayer = null;
+            }
+            resetView();
+        };
+        this._resetFns[elementId] = clearFocusAndReset;
 
         this._maps[elementId] = map;
 
@@ -275,6 +297,27 @@ window.regionMapInterop = {
 
     _observers: {},
     _escHandlers: {},
+    _focusFns: {},
+    _resetFns: {},
+
+    // Called from Statistics.razor after Apply, when the applied filter set
+    // includes a Municipality — pans/zooms the map to it exactly like typing
+    // it into the in-map search box would. No-ops (returns false) if the map
+    // isn't initialized yet or the name doesn't match anything in this
+    // region's municipality list (e.g. the filtered municipality belongs to
+    // a different region than the one this map is showing).
+    focusMunicipality(elementId, municipalityName) {
+        const fn = this._focusFns[elementId];
+        return fn ? fn(municipalityName) : false;
+    },
+
+    // Called from Statistics.razor's Clear button — snaps the map back to
+    // the fitted whole-region view and clears any municipality pin, the same
+    // as clicking the in-map reset button.
+    resetToRegion(elementId) {
+        const fn = this._resetFns[elementId];
+        if (fn) fn();
+    },
 
     destroy(elementId) {
         const observer = this._observers[elementId];
@@ -291,6 +334,9 @@ window.regionMapInterop = {
             document.removeEventListener("keydown", onEscape);
             delete this._escHandlers[elementId];
         }
+
+        delete this._focusFns[elementId];
+        delete this._resetFns[elementId];
 
         const map = this._maps[elementId];
         if (map) {

@@ -8,6 +8,7 @@
 @inject NavigationManager Navigation
 @inject ToastService Toast
 @inject IJSRuntime JS
+@inject AuthService AuthService
 
 <PageTitle>Statistics Report</PageTitle>
 
@@ -28,18 +29,11 @@
         </div>
     </div>
 
-    @* ── Annual Grantee Target (left) + Registered Region map (right) ──
-         Row wraps on narrow viewports so the map drops below the target
-         card instead of squeezing it. ── *@
-    <div class="stats-top-row mb-3">
-        <div class="stats-top-row-main">
-            @* Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
-               monthly targets against actual grantees paid (PaymentHistory.PaymentDate). *@
-            <StatisticsAnnualTargetSection />
-        </div>
-        <div class="stats-top-row-side">
-            <StatisticsUserRegionMap />
-        </div>
+    @* Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
+       monthly targets against actual grantees paid (PaymentHistory.PaymentDate).
+       Full width now that the map has moved down next to the filters. *@
+    <div class="mb-3">
+        <StatisticsAnnualTargetSection />
     </div>
 
     @* ── Error banner — a small persistent alert instead of swapping out the
@@ -53,173 +47,185 @@
         </div>
     }
 
-    @* ── Filter Panel — always mounted (was gated behind !_isLoading before,
-         which tore down and rebuilt the ENTIRE page below the header on
-         every Apply/Refresh — filters, cards, charts, tables, all of it —
-         causing the replaying entrance animations and layout jump users
-         found dizzying). ── *@
-    <div class="sf-card">
-            <div class="sf-header" @onclick="ToggleFilter">
-                <div class="sf-header-left">
-                    <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
-                    <div>
-                        <div class="sf-header-title">Filters</div>
-                        <div class="sf-header-sub">Narrow down statistics</div>
+    @* ── Filter Panel (left) + Registered Region map (right) ── Row wraps on
+         narrow viewports so the map drops below the filters instead of
+         squeezing them. Filter Panel is always mounted (was gated behind
+         !_isLoading before, which tore down and rebuilt the ENTIRE page below
+         the header on every Apply/Refresh — filters, cards, charts, tables,
+         all of it — causing replaying entrance animations and a layout jump
+         users found dizzying). ── *@
+    <div class="stats-top-row mb-3">
+        <div class="stats-top-row-main">
+            <div class="sf-card">
+                <div class="sf-header" @onclick="ToggleFilter">
+                    <div class="sf-header-left">
+                        <div class="sf-header-icon"><i class="bi bi-funnel"></i></div>
+                        <div>
+                            <div class="sf-header-title">Filters</div>
+                            <div class="sf-header-sub">Narrow down statistics</div>
+                        </div>
                     </div>
+                    <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
                 </div>
-                <i class="bi bi-chevron-up sf-chevron @(_filterExpanded ? "open" : "")"></i>
-            </div>
-            <div class="sf-body-wrap @(_filterExpanded ? "sf-body-wrap--open" : "")">
-                <div class="sf-body">
-                    <div class="sf-grid">
-                        @* ── Region ────────────────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Region</label>
-                            <select @bind="SelectedRegion" class="ff-input">
-                                <option value="0">All Regions</option>
-                                @foreach (var region in _regions)
-                                {
-                                    <option value="@region.PsgcCodeRegion">@region.Name</option>
-                                }
-                            </select>
-                        </div>
+                <div class="sf-body-wrap @(_filterExpanded ? "sf-body-wrap--open" : "")">
+                    <div class="sf-body">
+                        <div class="sf-grid">
+                            @* ── Region ────────────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Region</label>
+                                <select @bind="SelectedRegion" class="ff-input">
+                                    <option value="0">All Regions</option>
+                                    @foreach (var region in _regions)
+                                    {
+                                        <option value="@region.PsgcCodeRegion">@region.Name</option>
+                                    }
+                                </select>
+                            </div>
 
-                        @* ── Province ────────────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Province</label>
-                            <select @bind="SelectedProvince" class="ff-input"
-                                    disabled="@(_selectedRegionId == 0)">
-                                <option value="0">All Provinces</option>
-                                @foreach (var province in _provincesForRegion)
+                            @* ── Province ────────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Province</label>
+                                <select @bind="SelectedProvince" class="ff-input"
+                                        disabled="@(_selectedRegionId == 0)">
+                                    <option value="0">All Provinces</option>
+                                    @foreach (var province in _provincesForRegion)
+                                    {
+                                        <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                    }
+                                </select>
+                                @if (_isLoadingProvinces)
                                 {
-                                    <option value="@province.PsgcCodeProvince">@province.Name</option>
+                                    <span class="sf-loading-pill">
+                                        <span class="spinner-border spinner-border-sm"></span> Loading...
+                                    </span>
                                 }
-                            </select>
-                            @if (_isLoadingProvinces)
-                            {
-                                <span class="sf-loading-pill">
-                                    <span class="spinner-border spinner-border-sm"></span> Loading...
+                            </div>
+
+                            @* ── Municipality ────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Municipality</label>
+                                <select @bind="SelectedMunicipality" class="ff-input"
+                                        disabled="@(_selectedProvinceId == 0)">
+                                    <option value="0">All Municipalities</option>
+                                    @foreach (var muni in _municipalitiesForProvince)
+                                    {
+                                        <option value="@muni.PsgcCodeMunicipality">@muni.Name</option>
+                                    }
+                                </select>
+                                @if (_isLoadingMunicipalities)
+                                {
+                                    <span class="sf-loading-pill">
+                                        <span class="spinner-border spinner-border-sm"></span> Loading...
+                                    </span>
+                                }
+                                <span class="stats-field-hint">
+                                    <i class="bi bi-info-circle"></i> Applying this will auto-navigate the map to it
                                 </span>
-                            }
+                            </div>
+
+                            @* ── Milestone Year ────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Milestone Year</label>
+                                <select @bind="_selectedMilestoneYear" class="ff-input">
+                                    <option value="0">All Milestone Years</option>
+                                    @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
+
+                            @* ── Milestone Age ─────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Milestone Age</label>
+                                <select @bind="_selectedMilestone" class="ff-input">
+                                    <option value="0">All Ages</option>
+                                    <option value="80">80</option>
+                                    <option value="85">85</option>
+                                    <option value="90">90</option>
+                                    <option value="95">95</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+
+                            @* ── Payment Status — multi-select, same control as the Beneficiary
+                                 grid's filter (BeneficiarySearchFilters.razor) ── *@
+                            <div class="sf-field">
+                                <label>Payment Status</label>
+                                <MultiSelectDropdown TItem="PaymentStatusOption" Items="_paymentStatusOptions"
+                                                     SelectedIds="_selectedPaymentStatuses"
+                                                     SelectedIdsChanged="@(ids => _selectedPaymentStatuses = ids)"
+                                                     IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)"
+                                                     Placeholder="Payment Status" Disabled="@_isLoading" />
+                            </div>
+                            @* ── Payroll Quarter ───────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Payroll Quarter</label>
+                                <select @bind="_selectedPayrollQuarter" class="ff-input">
+                                    <option value="0">All Quarters</option>
+                                    <option value="1">Q1</option>
+                                    <option value="2">Q2</option>
+                                    <option value="3">Q3</option>
+                                    <option value="4">Q4</option>
+                                </select>
+                            </div>
+                            @* ── Fiscal Year ───────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Fiscal Year</label>
+                                <select @bind="_selectedFiscalYear" class="ff-input">
+                                    <option value="0">All Fiscal Years</option>
+                                    @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                                    {
+                                        <option value="@y">@y</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
 
-                        @* ── Municipality ────────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Municipality</label>
-                            <select @bind="SelectedMunicipality" class="ff-input"
-                                    disabled="@(_selectedProvinceId == 0)">
-                                <option value="0">All Municipalities</option>
-                                @foreach (var muni in _municipalitiesForProvince)
-                                {
-                                    <option value="@muni.PsgcCodeMunicipality">@muni.Name</option>
-                                }
-                            </select>
-                            @if (_isLoadingMunicipalities)
-                            {
-                                <span class="sf-loading-pill">
-                                    <span class="spinner-border spinner-border-sm"></span> Loading...
-                                </span>
-                            }
-                        </div>
-
-                        @* ── Milestone Year ────────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Milestone Year</label>
-                            <select @bind="_selectedMilestoneYear" class="ff-input">
-                                <option value="0">All Milestone Years</option>
-                                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
-                                {
-                                    <option value="@y">@y</option>
-                                }
-                            </select>
-                        </div>
-
-                        @* ── Milestone Age ─────────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Milestone Age</label>
-                            <select @bind="_selectedMilestone" class="ff-input">
-                                <option value="0">All Ages</option>
-                                <option value="80">80</option>
-                                <option value="85">85</option>
-                                <option value="90">90</option>
-                                <option value="95">95</option>
-                                <option value="100">100</option>
-                            </select>
-                        </div>
-
-                        @* ── Payment Status — multi-select, same control as the Beneficiary
-                             grid's filter (BeneficiarySearchFilters.razor) ── *@
-                        <div class="sf-field">
-                            <label>Payment Status</label>
-                            <MultiSelectDropdown TItem="PaymentStatusOption" Items="_paymentStatusOptions"
-                                                 SelectedIds="_selectedPaymentStatuses"
-                                                 SelectedIdsChanged="@(ids => _selectedPaymentStatuses = ids)"
-                                                 IdSelector="@(p => p.Value)" LabelSelector="@(p => p.Label)"
-                                                 Placeholder="Payment Status" Disabled="@_isLoading" />
-                        </div>
-                        @* ── Payroll Quarter ───────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Payroll Quarter</label>
-                            <select @bind="_selectedPayrollQuarter" class="ff-input">
-                                <option value="0">All Quarters</option>
-                                <option value="1">Q1</option>
-                                <option value="2">Q2</option>
-                                <option value="3">Q3</option>
-                                <option value="4">Q4</option>
-                            </select>
-                        </div>
-                        @* ── Fiscal Year ───────────────────────────────── *@
-                        <div class="sf-field">
-                            <label>Fiscal Year</label>
-                            <select @bind="_selectedFiscalYear" class="ff-input">
-                                <option value="0">All Fiscal Years</option>
-                                @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
-                                {
-                                    <option value="@y">@y</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-
-                    @* ── Date Ranges ──────────────────────────────────── *@
-                    <div class="sf-date-ranges">
-                        <div>
-                            <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
-                            <div class="sf-grid">
-                                <div class="sf-field">
-                                    <label>From</label>
-                                    <input type="date" class="ff-input" @bind="_dateAddedFrom" />
+                        @* ── Date Ranges ──────────────────────────────────── *@
+                        <div class="sf-date-ranges">
+                            <div>
+                                <div class="sf-section-label"><i class="bi bi-calendar-plus me-1"></i>Date Added</div>
+                                <div class="sf-grid">
+                                    <div class="sf-field">
+                                        <label>From</label>
+                                        <input type="date" class="ff-input" @bind="_dateAddedFrom" />
+                                    </div>
+                                    <div class="sf-field">
+                                        <label>To</label>
+                                        <input type="date" class="ff-input" @bind="_dateAddedTo" />
+                                    </div>
                                 </div>
-                                <div class="sf-field">
-                                    <label>To</label>
-                                    <input type="date" class="ff-input" @bind="_dateAddedTo" />
+                            </div>
+                            <div>
+                                <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
+                                <div class="sf-grid">
+                                    <div class="sf-field">
+                                        <label>From</label>
+                                        <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
+                                    </div>
+                                    <div class="sf-field">
+                                        <label>To</label>
+                                        <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>Date Endorsed</div>
-                            <div class="sf-grid">
-                                <div class="sf-field">
-                                    <label>From</label>
-                                    <input type="date" class="ff-input" @bind="_dateEndorsedFrom" />
-                                </div>
-                                <div class="sf-field">
-                                    <label>To</label>
-                                    <input type="date" class="ff-input" @bind="_dateEndorsedTo" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="sf-actions">
-                        <button class="sf-btn sf-btn-clear" @onclick="ClearFilters" disabled="@_isLoading">Clear</button>
-                        <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
-                            <i class="bi bi-check2"></i> Apply
-                        </button>
+                        <div class="sf-actions">
+                            <button class="sf-btn sf-btn-clear" @onclick="ClearFilters" disabled="@_isLoading">Clear</button>
+                            <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
+                                <i class="bi bi-check2"></i> Apply
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+        <div class="stats-top-row-side">
+            <StatisticsUserRegionMap @ref="_regionMap" />
+        </div>
+    </div>
 
         @* ── No auto-loaded overall totals on page open — that was a full
              aggregate scan nobody asked for yet. The cards/tables stay visible
@@ -709,6 +715,7 @@
     private string? _loadError;
     private bool _filterExpanded = true;
     private bool _showMunicipalityTable;
+    private StatisticsUserRegionMap? _regionMap;
     // Set right after a successful report load; OnAfterRenderAsync consumes
     // it once (then resets it) to trigger the stat-card count-up animation
     // exactly once per load, after the new numbers are actually in the DOM.
@@ -806,6 +813,20 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadRegionsAsync();
+
+        // Default the Region filter to the logged-in user's own registered
+        // region — same pattern as BeneficiarySearchFilters.razor — so PDOs
+        // don't have to reselect it every time they open this page. Admins/
+        // SuperAdmins have no Region claim (they oversee every region), so
+        // GetRegionCode() returns null for them and this simply no-ops,
+        // leaving "All Regions" as their starting point same as before.
+        await AuthService.InitAsync();
+        var myRegion = AuthService.GetRegionCode();
+        if (myRegion.HasValue)
+        {
+            _selectedRegionId = myRegion.Value;
+            await LoadProvincesAsync(_selectedRegionId);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -924,6 +945,23 @@
                 _report = await response.Content.ReadFromJsonAsync<StatisticsReportDto>() ?? new();
                 _hasLoadedReport = true;
                 _shouldAnimateCounters = true;
+
+                // If Municipality was part of what was just applied, jump the
+                // region map to it — same behavior as typing it into the
+                // map's own search box, just triggered by Apply instead.
+                // No-ops (via FocusMunicipalityAsync's own guards) if the map
+                // isn't ready yet or the name isn't in the map's own region
+                // dataset (e.g. filtering a municipality outside the user's
+                // registered region).
+                if (_selectedMunicipalityId > 0 && _regionMap is not null)
+                {
+                    var municipalityName = _municipalitiesForProvince
+                        .FirstOrDefault(m => m.PsgcCodeMunicipality == _selectedMunicipalityId)?.Name;
+                    if (!string.IsNullOrWhiteSpace(municipalityName))
+                    {
+                        await _regionMap.FocusMunicipalityAsync(municipalityName);
+                    }
+                }
             }
             else
             {
@@ -942,7 +980,7 @@
 
     private void ToggleFilter() => _filterExpanded = !_filterExpanded;
 
-    private void ClearFilters()
+    private async Task ClearFilters()
     {
         _selectedRegionId = 0;
         _selectedProvinceId = 0;
@@ -974,6 +1012,15 @@
         // visibly stuck even though _report is now empty. Re-running the
         // animation forces the DOM to actually resync to the real value.
         _shouldAnimateCounters = true;
+
+        // Snap the region map back to the whole-region view and clear any
+        // municipality pin FocusMunicipalityAsync left behind — otherwise
+        // Clear reset every filter/number on the page except the map, which
+        // stayed zoomed into whatever municipality was last applied.
+        if (_regionMap is not null)
+        {
+            await _regionMap.ResetViewAsync();
+        }
     }
 
     private async Task ApplyFiltersAsync() => await LoadStatisticsAsync();

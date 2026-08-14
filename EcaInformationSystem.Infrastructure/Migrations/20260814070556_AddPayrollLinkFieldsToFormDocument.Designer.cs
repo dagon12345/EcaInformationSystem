@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814070556_AddPayrollLinkFieldsToFormDocument")]
+    partial class AddPayrollLinkFieldsToFormDocument
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1878,12 +1881,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<int?>("PayrollQuarter")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PsgcCodeMunicipality")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PsgcCodeProvince")
                         .HasColumnType("int");
 
                     b.Property<int?>("PsgcCodeRegion")

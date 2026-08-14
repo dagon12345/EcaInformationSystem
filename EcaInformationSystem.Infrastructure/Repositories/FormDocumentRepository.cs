@@ -52,6 +52,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     UploadedAt = x.UploadedAt,
                     UpdatedBy = x.UpdatedBy,
                     UpdatedAt = x.UpdatedAt,
+                    // ✅ These 3 were missing from this explicit projection —
+                    // uploads/edits saved them to the DB fine, but every listing
+                    // (the Forms Gateway cards, and GridView's payroll lookup)
+                    // read them back as null because this Select() never
+                    // touched the columns at all.
+                    PayrollQuarter = x.PayrollQuarter,
+                    FiscalYear = x.FiscalYear,
+                    PsgcCodeRegion = x.PsgcCodeRegion,
+                    PsgcCodeProvince = x.PsgcCodeProvince,
+                    PsgcCodeMunicipality = x.PsgcCodeMunicipality,
                     IsDeleted = x.IsDeleted
                 })
                 .ToListAsync();

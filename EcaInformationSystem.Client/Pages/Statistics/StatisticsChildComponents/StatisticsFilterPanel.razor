@@ -3,7 +3,9 @@
    emits the built StatisticsRequestDto whenever Apply or Clear is clicked so the
    parent page doesn't need to know anything about individual filter fields. *@
 @using EcaInformationSystem.Client.Pages.Statistics
+@using EcaInformationSystem.Client.Services
 @inject HttpClient Http
+@inject AuthService AuthService
 
 <div class="sf-card">
     <div class="sf-header" @onclick="ToggleFilter">
@@ -230,6 +232,20 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadRegionsAsync();
+
+        // Default the Region filter to the logged-in user's own registered
+        // region — same pattern as BeneficiarySearchFilters.razor and
+        // LiquidationSearchFilters.razor — so it doesn't need reselecting
+        // every time. Admins/SuperAdmins have no Region claim (they oversee
+        // every region), so GetRegionCode() returns null for them and this
+        // simply no-ops, leaving "All Regions" as their starting point.
+        await AuthService.InitAsync();
+        var myRegion = AuthService.GetRegionCode();
+        if (myRegion.HasValue)
+        {
+            _selectedRegionId = myRegion.Value;
+            await LoadProvincesAsync(_selectedRegionId);
+        }
     }
 
     private async Task LoadRegionsAsync()

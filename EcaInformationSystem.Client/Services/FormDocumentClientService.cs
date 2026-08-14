@@ -98,7 +98,9 @@ namespace EcaInformationSystem.Client.Services
         public async Task<(bool Success, string? Error, FormDocumentDto? Document)> UploadAsync(
             Stream fileStream, string fileName, string contentType,
             string title, string? description, string? category, Guid? folderId,
-            ShrinkQuality? shrinkQuality = null)
+            ShrinkQuality? shrinkQuality = null,
+            int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
         {
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -110,6 +112,11 @@ namespace EcaInformationSystem.Client.Services
             if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
             if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
             if (shrinkQuality.HasValue) content.Add(new StringContent(shrinkQuality.Value.ToString()), "shrinkQuality");
+            if (payrollQuarter.HasValue) content.Add(new StringContent(payrollQuarter.Value.ToString()), "payrollQuarter");
+            if (fiscalYear.HasValue) content.Add(new StringContent(fiscalYear.Value.ToString()), "fiscalYear");
+            if (psgcCodeRegion.HasValue) content.Add(new StringContent(psgcCodeRegion.Value.ToString()), "psgcCodeRegion");
+            if (psgcCodeProvince.HasValue) content.Add(new StringContent(psgcCodeProvince.Value.ToString()), "psgcCodeProvince");
+            if (psgcCodeMunicipality.HasValue) content.Add(new StringContent(psgcCodeMunicipality.Value.ToString()), "psgcCodeMunicipality");
 
             HttpResponseMessage response;
             try
@@ -174,7 +181,9 @@ namespace EcaInformationSystem.Client.Services
         // Confirms an already-previewed shrink result by token — no file bytes
         // are sent again, the server already has them cached.
         public async Task<(bool Success, string? Error, FormDocumentDto? Document)> UploadFromPreviewAsync(
-            Guid previewToken, string title, string? description, string? category, Guid? folderId)
+            Guid previewToken, string title, string? description, string? category, Guid? folderId,
+            int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
         {
             using var content = new MultipartFormDataContent();
             content.Add(new StringContent(previewToken.ToString()), "previewToken");
@@ -182,6 +191,11 @@ namespace EcaInformationSystem.Client.Services
             if (!string.IsNullOrWhiteSpace(description)) content.Add(new StringContent(description), "description");
             if (!string.IsNullOrWhiteSpace(category)) content.Add(new StringContent(category), "category");
             if (folderId.HasValue) content.Add(new StringContent(folderId.Value.ToString()), "folderId");
+            if (payrollQuarter.HasValue) content.Add(new StringContent(payrollQuarter.Value.ToString()), "payrollQuarter");
+            if (fiscalYear.HasValue) content.Add(new StringContent(fiscalYear.Value.ToString()), "fiscalYear");
+            if (psgcCodeRegion.HasValue) content.Add(new StringContent(psgcCodeRegion.Value.ToString()), "psgcCodeRegion");
+            if (psgcCodeProvince.HasValue) content.Add(new StringContent(psgcCodeProvince.Value.ToString()), "psgcCodeProvince");
+            if (psgcCodeMunicipality.HasValue) content.Add(new StringContent(psgcCodeMunicipality.Value.ToString()), "psgcCodeMunicipality");
 
             var response = await _longRunningHttp.PostAsync("api/formdocument/upload", content);
 
@@ -193,6 +207,42 @@ namespace EcaInformationSystem.Client.Services
             }
 
             return (false, await response.Content.ReadAsStringAsync(), null);
+        }
+
+        // Finds the payroll PDF an admin has tagged (via the Forms Gateway Edit
+        // modal) for a given quarter/fiscal year, so a grantee's payment
+        // history row can link straight to it. Payroll is often run per
+        // municipality even within one region, so the preference order is:
+        // 1) a document tagged for this exact municipality (most specific),
+        // 2) a document tagged for the region but no specific municipality,
+        // 3) a document left with no region tag at all — "applies everywhere".
+        // Filters the same cached list SearchAsync uses — no extra API round
+        // trip — and picks the most recently updated match within a tier if
+        // more than one document happens to carry the same tags.
+        public async Task<FormDocumentDto?> FindPayrollDocumentAsync(
+            int payrollQuarter, int fiscalYear, int? psgcCodeRegion, int? psgcCodeMunicipality = null)
+        {
+            var docs = await GetAllCachedAsync();
+            var candidates = docs
+                .Where(d => d.PayrollQuarter == payrollQuarter && d.FiscalYear == fiscalYear)
+                .ToList();
+
+            if (candidates.Count == 0) return null;
+
+            FormDocumentDto? BestOf(IEnumerable<FormDocumentDto> matches) =>
+                matches.OrderByDescending(d => d.UpdatedAt ?? d.UploadedAt).FirstOrDefault();
+
+            var municipalityMatch = psgcCodeMunicipality.HasValue
+                ? BestOf(candidates.Where(d => d.PsgcCodeMunicipality == psgcCodeMunicipality.Value))
+                : null;
+            if (municipalityMatch != null) return municipalityMatch;
+
+            var regionMatch = psgcCodeRegion.HasValue
+                ? BestOf(candidates.Where(d => d.PsgcCodeRegion == psgcCodeRegion.Value && d.PsgcCodeMunicipality == null))
+                : null;
+            if (regionMatch != null) return regionMatch;
+
+            return BestOf(candidates.Where(d => d.PsgcCodeRegion == null && d.PsgcCodeMunicipality == null));
         }
 
         public async Task<(bool Success, string? Error)> UpdateMetadataAsync(Guid id, FormDocumentUpdateDto dto)
