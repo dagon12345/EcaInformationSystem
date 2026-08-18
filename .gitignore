@@ -373,3 +373,6 @@ appsettings*.json
 /EcaInformationSystem.BlazorServer/appsettings.json
 .last-deploy-api
 .last-deploy-client
+
+# Claude Code local permission settings (machine-specific)
+.claude/settings.local.json
