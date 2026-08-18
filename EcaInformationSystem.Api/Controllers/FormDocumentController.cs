@@ -72,13 +72,13 @@ namespace EcaInformationSystem.Api.Controllers
                         request.PreviewToken.Value, request.Title, request.Description,
                         request.Category, request.FolderId, CurrentUser,
                         request.PayrollQuarter, request.FiscalYear, request.PsgcCodeRegion,
-                        request.PsgcCodeProvince, request.PsgcCodeMunicipality)
+                        request.PsgcCodeProvince, request.PsgcCodeMunicipality, request.MilestoneYear)
                     : await _service.UploadAsync(
                         request.File ?? throw new InvalidOperationException("No file was uploaded."),
                         request.Title, request.Description,
                         request.Category, request.FolderId, request.ShrinkQuality, CurrentUser,
                         request.PayrollQuarter, request.FiscalYear, request.PsgcCodeRegion,
-                        request.PsgcCodeProvince, request.PsgcCodeMunicipality);
+                        request.PsgcCodeProvince, request.PsgcCodeMunicipality, request.MilestoneYear);
                 return Ok(dto);
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }

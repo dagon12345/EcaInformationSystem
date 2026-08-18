@@ -39,6 +39,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? PsgcCodeRegion { get; set; }
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }
+        // ✅ NEW — independent milestone-year tag (see FormDocument.cs)
+        public int? MilestoneYear { get; set; }
     }
 
     public class FormDocumentUpdateDto
@@ -54,6 +56,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? PsgcCodeRegion { get; set; }
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }
+        // ✅ NEW — independent milestone-year tag (see FormDocument.cs)
+        public int? MilestoneYear { get; set; }
     }
     // ✅ NEW — search/filter payload
     public class FormDocumentSearchDto
@@ -87,6 +91,8 @@ namespace EcaInformationSystem.Shared.DTOs
         public int? PsgcCodeRegion { get; set; }
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }
+        // ✅ NEW — independent milestone-year tag (see FormDocument.cs)
+        public int? MilestoneYear { get; set; }
 
         // Required only when File is provided and its length exceeds the 10 MB
         // stored-size ceiling and the type is shrinkable (PDF/DOCX/XLSX) —

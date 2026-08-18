@@ -62,6 +62,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     PsgcCodeRegion = x.PsgcCodeRegion,
                     PsgcCodeProvince = x.PsgcCodeProvince,
                     PsgcCodeMunicipality = x.PsgcCodeMunicipality,
+                    MilestoneYear = x.MilestoneYear,
                     IsDeleted = x.IsDeleted
                 })
                 .ToListAsync();

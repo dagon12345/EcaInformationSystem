@@ -266,7 +266,7 @@
                 {
                     var visual = GetFileTypeVisual(form.OriginalFileName, form.ContentType);
 
-                    var isPayroll = form.PayrollQuarter.HasValue && form.FiscalYear.HasValue;
+                    var isPayroll = (form.PayrollQuarter.HasValue && form.FiscalYear.HasValue) || form.MilestoneYear.HasValue;
 
                     <div class="col-12 col-md-6 col-lg-4">
                         <div class="form-card @(isPayroll ? "form-card--payroll" : "")" style="border-left-color:@visual.Color;">
@@ -310,7 +310,7 @@
                                 {
                                     <div class="form-card-payroll-tag" title="Linked as a payroll document — grantees paid in this period can view it from their payment history">
                                         <i class="bi bi-calendar-check-fill"></i>
-                                        Q@(form.PayrollQuarter) @form.FiscalYear · @GetPayrollLocationLabel(form)
+                                        @GetPayrollPeriodLabel(form) · @GetPayrollLocationLabel(form)
                                     </div>
                                 }
 
@@ -476,7 +476,7 @@
                 <i class="bi bi-link-45deg me-1"></i>Link as Payroll Document <span class="text-muted fw-normal">(optional)</span>
             </label>
             <div class="row g-2">
-                <div class="col-4">
+                <div class="col-6">
                     <select class="ff-input" @bind="_uploadPayrollQuarter">
                         <option value="0">Quarter</option>
                         <option value="1">Q1</option>
@@ -485,7 +485,7 @@
                         <option value="4">Q4</option>
                     </select>
                 </div>
-                <div class="col-4">
+                <div class="col-6">
                     <select class="ff-input" @bind="_uploadFiscalYear">
                         <option value="0">Fiscal Year</option>
                         @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
@@ -494,7 +494,18 @@
                         }
                     </select>
                 </div>
-                <div class="col-4">
+            </div>
+            <div class="row g-2 mt-1">
+                <div class="col-6">
+                    <select class="ff-input" @bind="_uploadMilestoneYear">
+                        <option value="0">Milestone Year</option>
+                        @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6">
                     <select class="ff-input" value="@_uploadPsgcCodeRegion" @onchange="OnUploadRegionChanged">
                         <option value="0">All Regions</option>
                         @foreach (var r in _regions)
@@ -537,8 +548,20 @@
                     </div>
                 </div>
             }
+            @if (_uploadPayrollQuarter > 0 && _uploadFiscalYear > 0 && _uploadMilestoneYear > 0)
+            {
+                <div class="alert alert-warning py-1 px-2 small mt-1 mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Both are set — this file will show up for <strong>every</strong> grantee paid in
+                    Q@(_uploadPayrollQuarter) @_uploadFiscalYear, not just Milestone @_uploadMilestoneYear ones,
+                    since either tag alone is enough to match. Clear Quarter/Fiscal Year if you only want it
+                    limited to Milestone @_uploadMilestoneYear grantees.
+                </div>
+            }
             <small class="text-muted d-block mt-1">
-                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their payment history.
+                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their
+                payment history. Milestone Year is separate — payroll for milestone cash gifts (age 80/85/90/95/100)
+                runs on its own schedule, so set that instead (or as well) if this file is a milestone payroll.
                 Leave Region as "All Regions" unless this file only applies to one region — payroll is often run per
                 municipality, so narrow it down to Province/Municipality if this file only covers part of a region.
             </small>
@@ -668,7 +691,7 @@
                 <i class="bi bi-link-45deg me-1"></i>Link as Payroll Document <span class="text-muted fw-normal">(optional)</span>
             </label>
             <div class="row g-2">
-                <div class="col-4">
+                <div class="col-6">
                     <select class="ff-input" @bind="_editPayrollQuarter">
                         <option value="0">Quarter</option>
                         <option value="1">Q1</option>
@@ -677,7 +700,7 @@
                         <option value="4">Q4</option>
                     </select>
                 </div>
-                <div class="col-4">
+                <div class="col-6">
                     <select class="ff-input" @bind="_editFiscalYear">
                         <option value="0">Fiscal Year</option>
                         @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
@@ -686,7 +709,18 @@
                         }
                     </select>
                 </div>
-                <div class="col-4">
+            </div>
+            <div class="row g-2 mt-1">
+                <div class="col-6">
+                    <select class="ff-input" @bind="_editMilestoneYear">
+                        <option value="0">Milestone Year</option>
+                        @for (int y = DateTime.Now.Year + 1; y >= 2024; y--)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6">
                     <select class="ff-input" value="@_editPsgcCodeRegion" @onchange="OnEditRegionChanged">
                         <option value="0">All Regions</option>
                         @foreach (var r in _regions)
@@ -729,15 +763,26 @@
                     </div>
                 </div>
             }
-            @if (_editPayrollQuarter > 0 && _editFiscalYear > 0)
+            @if ((_editPayrollQuarter > 0 && _editFiscalYear > 0) || _editMilestoneYear > 0)
             {
                 <button type="button" class="btn btn-sm btn-outline-secondary mt-1" @onclick="UnlinkPayroll">
                     <i class="bi bi-x-circle me-1"></i>Unlink Payroll
                 </button>
             }
+            @if (_editPayrollQuarter > 0 && _editFiscalYear > 0 && _editMilestoneYear > 0)
+            {
+                <div class="alert alert-warning py-1 px-2 small mt-1 mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Both are set — this file will show up for <strong>every</strong> grantee paid in
+                    Q@(_editPayrollQuarter) @_editFiscalYear, not just Milestone @_editMilestoneYear ones,
+                    since either tag alone is enough to match. Clear Quarter/Fiscal Year if you only want it
+                    limited to Milestone @_editMilestoneYear grantees.
+                </div>
+            }
             <small class="text-muted d-block mt-1">
-                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their payment history.
-                Narrow down to Province/Municipality if this file only covers part of a region.
+                Set Quarter + Fiscal Year to link this file so grantees paid in that period can view it from their payment
+                history. Milestone Year is separate — set that instead (or as well) if this file is a milestone
+                cash-gift payroll. Narrow down to Province/Municipality if this file only covers part of a region.
             </small>
         </div>
         <hr />
@@ -886,6 +931,19 @@
     private string? GetMunicipalityName(int? psgcCodeMunicipality) =>
         psgcCodeMunicipality.HasValue ? _municipalityNameCache.GetValueOrDefault(psgcCodeMunicipality.Value) : null;
 
+    // Quarter+FiscalYear and MilestoneYear are independent tags — a document
+    // can carry either or both — so this builds whichever piece(s) are
+    // actually set instead of assuming Quarter/FiscalYear are always there.
+    private static string GetPayrollPeriodLabel(FormDocumentDto form)
+    {
+        var parts = new List<string>();
+        if (form.PayrollQuarter.HasValue && form.FiscalYear.HasValue)
+            parts.Add($"Q{form.PayrollQuarter} {form.FiscalYear}");
+        if (form.MilestoneYear.HasValue)
+            parts.Add($"Milestone {form.MilestoneYear}");
+        return string.Join(" & ", parts);
+    }
+
     // Full location trail for the payroll badge — Region · Province ·
     // Municipality, showing every level that's actually set instead of just
     // the most specific one, so it's clear at a glance exactly how narrow
@@ -1003,6 +1061,7 @@
     private ShrinkPreviewResultDto? _previewResult;
     private int _uploadPayrollQuarter;
     private int _uploadFiscalYear;
+    private int _uploadMilestoneYear;
     private int _uploadPsgcCodeRegion;
     private int _uploadPsgcCodeProvince;
     private int _uploadPsgcCodeMunicipality;
@@ -1017,6 +1076,7 @@
     private IBrowserFile? _replaceFile;
     private int _editPayrollQuarter;
     private int _editFiscalYear;
+    private int _editMilestoneYear;
     private int _editPsgcCodeRegion;
     private int _editPsgcCodeProvince;
     private int _editPsgcCodeMunicipality;
@@ -1343,6 +1403,7 @@
         _isPreviewingShrink = false;
         _uploadPayrollQuarter = 0;
         _uploadFiscalYear = 0;
+        _uploadMilestoneYear = 0;
         _uploadPsgcCodeRegion = 0;
         _uploadPsgcCodeProvince = 0;
         _uploadPsgcCodeMunicipality = 0;
@@ -1527,6 +1588,7 @@
         {
             int? payrollQuarter = _uploadPayrollQuarter > 0 ? _uploadPayrollQuarter : null;
             int? fiscalYear = _uploadFiscalYear > 0 ? _uploadFiscalYear : null;
+            int? milestoneYear = _uploadMilestoneYear > 0 ? _uploadMilestoneYear : null;
             int? psgcCodeRegion = _uploadPsgcCodeRegion > 0 ? _uploadPsgcCodeRegion : null;
             int? psgcCodeProvince = _uploadPsgcCodeProvince > 0 ? _uploadPsgcCodeProvince : null;
             int? psgcCodeMunicipality = _uploadPsgcCodeMunicipality > 0 ? _uploadPsgcCodeMunicipality : null;
@@ -1537,7 +1599,7 @@
             {
                 var (success, error, document) = await FormService.UploadFromPreviewAsync(
                     _previewResult.PreviewToken, _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId,
-                    payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality);
+                    payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality, milestoneYear);
 
                 if (success)
                 {
@@ -1561,7 +1623,7 @@
             var (success2, error2, document2) = await FormService.UploadAsync(
                 stream, _uploadFile.Name, _uploadFile.ContentType,
                 _uploadTitle, _uploadDescription, _uploadCategory, _uploadFolderId, null,
-                payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality);
+                payrollQuarter, fiscalYear, psgcCodeRegion, psgcCodeProvince, psgcCodeMunicipality, milestoneYear);
 
             if (success2)
             {
@@ -1616,6 +1678,7 @@
         };
         _editPayrollQuarter = form.PayrollQuarter ?? 0;
         _editFiscalYear = form.FiscalYear ?? 0;
+        _editMilestoneYear = form.MilestoneYear ?? 0;
         _editPsgcCodeRegion = form.PsgcCodeRegion ?? 0;
         _editPsgcCodeProvince = 0;
         _editPsgcCodeMunicipality = 0;
@@ -1712,6 +1775,7 @@
     {
         _editPayrollQuarter = 0;
         _editFiscalYear = 0;
+        _editMilestoneYear = 0;
         _editPsgcCodeRegion = 0;
         _editPsgcCodeProvince = 0;
         _editPsgcCodeMunicipality = 0;
@@ -1726,6 +1790,7 @@
         _editDto.FolderId = _editFolderId;
         _editDto.PayrollQuarter = _editPayrollQuarter > 0 ? _editPayrollQuarter : null;
         _editDto.FiscalYear = _editFiscalYear > 0 ? _editFiscalYear : null;
+        _editDto.MilestoneYear = _editMilestoneYear > 0 ? _editMilestoneYear : null;
         _editDto.PsgcCodeRegion = _editPsgcCodeRegion > 0 ? _editPsgcCodeRegion : null;
         _editDto.PsgcCodeProvince = _editPsgcCodeProvince > 0 ? _editPsgcCodeProvince : null;
         _editDto.PsgcCodeMunicipality = _editPsgcCodeMunicipality > 0 ? _editPsgcCodeMunicipality : null;

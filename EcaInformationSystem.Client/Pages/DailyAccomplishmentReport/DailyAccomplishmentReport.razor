@@ -300,11 +300,19 @@
     {
         var profile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
 
+        // _reports is ordered newest-period-first (server-side), so [0] is the most
+        // recent report — carry its Noted By + shared Essential Functions text
+        // forward so the user isn't retyping the same values every period.
+        var previous = _reports.Count > 0 ? await DarService.GetByIdAsync(_reports[0].Id) : null;
+
         _editing = new DarReportUpsertDto
         {
             PreparedByName = profile?.FullName ?? string.Empty,
             PreparedByPosition = profile?.Position ?? string.Empty,
-            UseSharedEssentialFunctions = true
+            NotedByName = previous?.NotedByName ?? string.Empty,
+            NotedByPosition = previous?.NotedByPosition ?? string.Empty,
+            UseSharedEssentialFunctions = previous?.UseSharedEssentialFunctions ?? true,
+            SharedEssentialFunctions = previous?.SharedEssentialFunctions
         };
 
         _periodStart = DateTime.Today;

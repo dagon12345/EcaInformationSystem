@@ -12,7 +12,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<FormDocumentDto> UploadAsync(IFormFile file, string title, string? description,
             string? category, Guid? folderId, ShrinkQuality? shrinkQuality, string userName,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null);
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null);
 
         Task<FormDocumentDto> ReplaceFileAsync(Guid id, IFormFile file, ShrinkQuality? shrinkQuality, string userName);
 
@@ -20,7 +20,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<FormDocumentDto> UploadFromPreviewAsync(Guid previewToken, string title, string? description,
             string? category, Guid? folderId, string userName,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null);
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null);
 
         Task UpdateMetadataAsync(Guid id, FormDocumentUpdateDto dto, string userName);
         Task DeleteAsync(Guid id, string userName);

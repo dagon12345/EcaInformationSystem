@@ -1346,6 +1346,39 @@
     }
 </h6>
 
+@* ── Milestone cash-gift payroll — a separate disbursement from the
+     quarterly payroll above, so it's not tied to any single payment
+     history entry; shown once for this beneficiary's own milestone year. ── *@
+@if (selectedDetails?.MilestoneYear > 0)
+{
+    if (_milestonePayrollDoc != null)
+    {
+        <button type="button" class="payment-payroll-pill payment-payroll-pill--active mb-3"
+                title="View the milestone cash-gift payroll document for @selectedDetails.MilestoneYear"
+                disabled="@(_payrollPreviewLoadingId == _milestonePayrollDoc.Id)"
+                @onclick="() => PreviewPayrollAsync(_milestonePayrollDoc)">
+            @if (_payrollPreviewLoadingId == _milestonePayrollDoc.Id)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+                <span>Opening...</span>
+            }
+            else
+            {
+                <i class="bi bi-file-earmark-pdf-fill"></i>
+                <span>View Milestone @selectedDetails.MilestoneYear Payroll Document</span>
+            }
+        </button>
+    }
+    else
+    {
+        <div class="payment-payroll-pill payment-payroll-pill--none mb-3"
+             title="No milestone payroll document has been linked for @selectedDetails.MilestoneYear yet — an admin can link one from Forms Gateway.">
+            <i class="bi bi-file-earmark-excel"></i>
+            <span>No Milestone @selectedDetails.MilestoneYear Payroll Document Linked</span>
+        </div>
+    }
+}
+
 @if (isLoadingPaymentHistory)
 {
     <div class="text-center py-3">
@@ -2684,6 +2717,9 @@ else
     // "looked it up, nothing tagged for this period" — absent key means
     // "not looked up yet" (entry has no PayrollQuarter/FiscalYear at all).
     private readonly Dictionary<Guid, FormDocumentDto?> _payrollLinksByHistoryId = new();
+    // Milestone cash-gift payroll match for the currently selected beneficiary
+    // — independent of any single payment history entry (see FormDocument.MilestoneYear).
+    private FormDocumentDto? _milestonePayrollDoc;
     private FormDocumentDto? _payrollPreviewDoc;
     private string? _payrollPreviewBlobUrl;
     private int _payrollPreviewZoom = 100;
@@ -2803,19 +2839,31 @@ private async Task RecomputeGridPayrollLinksAsync()
 {
     foreach (var item in FilteredBeneficiaries.ToList())
     {
-        if (!item.PayrollQuarter.HasValue || !item.FiscalYear.HasValue)
-        {
-            _hasPayrollByBeneficiaryId[item.Id] = false;
-            continue;
-        }
+        var region = item.PsgcCodeRegion > 0 ? item.PsgcCodeRegion : (int?)null;
+        var municipality = item.PsgcCodeMunicipality > 0 ? item.PsgcCodeMunicipality : (int?)null;
+        var hasLink = false;
 
         try
         {
-            var doc = await FormService.FindPayrollDocumentAsync(
-                item.PayrollQuarter.Value, item.FiscalYear.Value,
-                item.PsgcCodeRegion > 0 ? item.PsgcCodeRegion : null,
-                item.PsgcCodeMunicipality > 0 ? item.PsgcCodeMunicipality : null);
-            _hasPayrollByBeneficiaryId[item.Id] = doc != null;
+            if (item.PayrollQuarter.HasValue && item.FiscalYear.HasValue)
+            {
+                var doc = await FormService.FindPayrollDocumentAsync(
+                    item.PayrollQuarter.Value, item.FiscalYear.Value, region, municipality);
+                hasLink = doc != null;
+            }
+
+            // Milestone cash-gift payroll is a separate, independent tag from
+            // Quarter/FiscalYear (see FindMilestoneDocumentAsync) — a grantee
+            // due for a milestone this year can have a linked document even
+            // with no quarterly PayrollQuarter/FiscalYear set at all.
+            if (!hasLink && item.MilestoneYear > 0)
+            {
+                var milestoneDoc = await FormService.FindMilestoneDocumentAsync(
+                    item.MilestoneYear, region, municipality);
+                hasLink = milestoneDoc != null;
+            }
+
+            _hasPayrollByBeneficiaryId[item.Id] = hasLink;
         }
         catch (Exception ex)
         {
@@ -3816,6 +3864,7 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
 private async Task LoadPayrollLinksAsync()
 {
     _payrollLinksByHistoryId.Clear();
+    _milestonePayrollDoc = null;
     var region = selectedDetails?.PsgcCodeRegion;
     var municipality = selectedDetails?.PsgcCodeMunicipality;
 
@@ -3831,6 +3880,19 @@ private async Task LoadPayrollLinksAsync()
         catch (Exception ex)
         {
             Console.WriteLine($"Payroll lookup failed for history {entry.Id}: {ex.Message}");
+        }
+    }
+
+    if (selectedDetails?.MilestoneYear > 0)
+    {
+        try
+        {
+            _milestonePayrollDoc = await FormService.FindMilestoneDocumentAsync(
+                selectedDetails.MilestoneYear, region, municipality);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Milestone payroll lookup failed for {selectedDetails.Id}: {ex.Message}");
         }
     }
 }

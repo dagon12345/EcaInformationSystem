@@ -100,7 +100,7 @@ namespace EcaInformationSystem.Client.Services
             string title, string? description, string? category, Guid? folderId,
             ShrinkQuality? shrinkQuality = null,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null)
         {
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -117,6 +117,7 @@ namespace EcaInformationSystem.Client.Services
             if (psgcCodeRegion.HasValue) content.Add(new StringContent(psgcCodeRegion.Value.ToString()), "psgcCodeRegion");
             if (psgcCodeProvince.HasValue) content.Add(new StringContent(psgcCodeProvince.Value.ToString()), "psgcCodeProvince");
             if (psgcCodeMunicipality.HasValue) content.Add(new StringContent(psgcCodeMunicipality.Value.ToString()), "psgcCodeMunicipality");
+            if (milestoneYear.HasValue) content.Add(new StringContent(milestoneYear.Value.ToString()), "milestoneYear");
 
             HttpResponseMessage response;
             try
@@ -183,7 +184,7 @@ namespace EcaInformationSystem.Client.Services
         public async Task<(bool Success, string? Error, FormDocumentDto? Document)> UploadFromPreviewAsync(
             Guid previewToken, string title, string? description, string? category, Guid? folderId,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null)
         {
             using var content = new MultipartFormDataContent();
             content.Add(new StringContent(previewToken.ToString()), "previewToken");
@@ -196,6 +197,7 @@ namespace EcaInformationSystem.Client.Services
             if (psgcCodeRegion.HasValue) content.Add(new StringContent(psgcCodeRegion.Value.ToString()), "psgcCodeRegion");
             if (psgcCodeProvince.HasValue) content.Add(new StringContent(psgcCodeProvince.Value.ToString()), "psgcCodeProvince");
             if (psgcCodeMunicipality.HasValue) content.Add(new StringContent(psgcCodeMunicipality.Value.ToString()), "psgcCodeMunicipality");
+            if (milestoneYear.HasValue) content.Add(new StringContent(milestoneYear.Value.ToString()), "milestoneYear");
 
             var response = await _longRunningHttp.PostAsync("api/formdocument/upload", content);
 
@@ -225,6 +227,38 @@ namespace EcaInformationSystem.Client.Services
             var docs = await GetAllCachedAsync();
             var candidates = docs
                 .Where(d => d.PayrollQuarter == payrollQuarter && d.FiscalYear == fiscalYear)
+                .ToList();
+
+            if (candidates.Count == 0) return null;
+
+            FormDocumentDto? BestOf(IEnumerable<FormDocumentDto> matches) =>
+                matches.OrderByDescending(d => d.UpdatedAt ?? d.UploadedAt).FirstOrDefault();
+
+            var municipalityMatch = psgcCodeMunicipality.HasValue
+                ? BestOf(candidates.Where(d => d.PsgcCodeMunicipality == psgcCodeMunicipality.Value))
+                : null;
+            if (municipalityMatch != null) return municipalityMatch;
+
+            var regionMatch = psgcCodeRegion.HasValue
+                ? BestOf(candidates.Where(d => d.PsgcCodeRegion == psgcCodeRegion.Value && d.PsgcCodeMunicipality == null))
+                : null;
+            if (regionMatch != null) return regionMatch;
+
+            return BestOf(candidates.Where(d => d.PsgcCodeRegion == null && d.PsgcCodeMunicipality == null));
+        }
+
+        // Same idea as FindPayrollDocumentAsync above, but for milestone cash
+        // gifts (age 80/85/90/95/100) — those run on their own payroll batched
+        // by milestone year, not by Quarter/FiscalYear, and BeneficiaryPaymentHistory
+        // never carries a MilestoneYear at all (it's computed from BirthDate).
+        // So this matches purely against FormDocument.MilestoneYear, with the
+        // same municipality > region > everywhere tiering.
+        public async Task<FormDocumentDto?> FindMilestoneDocumentAsync(
+            int milestoneYear, int? psgcCodeRegion, int? psgcCodeMunicipality = null)
+        {
+            var docs = await GetAllCachedAsync();
+            var candidates = docs
+                .Where(d => d.MilestoneYear == milestoneYear)
                 .ToList();
 
             if (candidates.Count == 0) return null;

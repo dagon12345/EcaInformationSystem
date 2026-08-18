@@ -95,7 +95,7 @@ namespace EcaInformationSystem.Application.Services
         public async Task<FormDocumentDto> UploadAsync(IFormFile file, string title, string? description,
             string? category, Guid? folderId, ShrinkQuality? shrinkQuality, string userName,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null)
         {
             if (string.IsNullOrWhiteSpace(title))
                 throw new InvalidOperationException("Title is required.");
@@ -123,6 +123,7 @@ namespace EcaInformationSystem.Application.Services
                 PsgcCodeRegion = psgcCodeRegion,
                 PsgcCodeProvince = psgcCodeProvince,
                 PsgcCodeMunicipality = psgcCodeMunicipality,
+                MilestoneYear = milestoneYear,
                 IsDeleted = false
             };
 
@@ -216,7 +217,7 @@ namespace EcaInformationSystem.Application.Services
         public async Task<FormDocumentDto> UploadFromPreviewAsync(Guid previewToken, string title, string? description,
             string? category, Guid? folderId, string userName,
             int? payrollQuarter = null, int? fiscalYear = null, int? psgcCodeRegion = null,
-            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null)
+            int? psgcCodeProvince = null, int? psgcCodeMunicipality = null, int? milestoneYear = null)
         {
             if (string.IsNullOrWhiteSpace(title))
                 throw new InvalidOperationException("Title is required.");
@@ -251,6 +252,7 @@ namespace EcaInformationSystem.Application.Services
                 PsgcCodeRegion = psgcCodeRegion,
                 PsgcCodeProvince = psgcCodeProvince,
                 PsgcCodeMunicipality = psgcCodeMunicipality,
+                MilestoneYear = milestoneYear,
                 IsDeleted = false
             };
 
@@ -291,6 +293,7 @@ namespace EcaInformationSystem.Application.Services
             doc.PsgcCodeRegion = dto.PsgcCodeRegion;
             doc.PsgcCodeProvince = dto.PsgcCodeProvince;
             doc.PsgcCodeMunicipality = dto.PsgcCodeMunicipality;
+            doc.MilestoneYear = dto.MilestoneYear;
             doc.UpdatedBy = userName;
             doc.UpdatedAt = DateTime.UtcNow;
 
@@ -412,7 +415,8 @@ namespace EcaInformationSystem.Application.Services
             FiscalYear = d.FiscalYear,
             PsgcCodeRegion = d.PsgcCodeRegion,
             PsgcCodeProvince = d.PsgcCodeProvince,
-            PsgcCodeMunicipality = d.PsgcCodeMunicipality
+            PsgcCodeMunicipality = d.PsgcCodeMunicipality,
+            MilestoneYear = d.MilestoneYear
         };
     }
 }

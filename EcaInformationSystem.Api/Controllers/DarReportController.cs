@@ -2,6 +2,7 @@ using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs.DailyAccomplishmentReport;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EcaInformationSystem.Api.Controllers
 {
@@ -38,6 +39,10 @@ namespace EcaInformationSystem.Api.Controllers
             try { return Ok(await _service.UpsertAsync(CurrentUserId, dto)); }
             catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
             catch (KeyNotFoundException) { return NotFound(); }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { message = "This report was changed elsewhere. Please reload and try again." });
+            }
         }
 
         [HttpDelete("{id:guid}")]

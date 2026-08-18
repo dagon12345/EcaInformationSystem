@@ -36,6 +36,15 @@
         public int? PsgcCodeProvince { get; set; }
         public int? PsgcCodeMunicipality { get; set; }
 
+        // ✅ NEW — independent from PayrollQuarter/FiscalYear: milestone cash
+        // gifts (age 80/85/90/95/100) run on a separate payroll batched by
+        // milestone year, not by quarter, and aren't recorded as a Quarter/
+        // FiscalYear on BeneficiaryPaymentHistory at all (MilestoneYear there
+        // is purely computed from BirthDate). A document can be tagged with
+        // this alone, Quarter+FiscalYear alone, or both, if it happens to
+        // cover both kinds of disbursement.
+        public int? MilestoneYear { get; set; }
+
         public bool IsDeleted { get; set; }
 
         public byte[]? RowVersion { get; set; }

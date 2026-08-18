@@ -2,6 +2,7 @@ using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace EcaInformationSystem.Infrastructure.Repositories
 {
@@ -41,7 +42,28 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public void Remove(DarReport report)
             => _context.DarReports.Remove(report);
 
+        // EnableRetryOnFailure (see DependencyInjection.AddInfrastructure) can retry a batched
+        // SaveChanges after a transient connection blip even when the batch's DELETE/UPDATE
+        // commands already committed server-side — the retry then sees 0 rows affected for
+        // ReconcileEntries' stale-entry deletes and EF reports it as a concurrency conflict.
+        // Those "already gone" deletes are harmless (the desired end state was reached), so
+        // detach them and retry once; a conflict on anything else is a real one and rethrows.
         public async Task SaveChangesAsync()
-            => await _context.SaveChangesAsync();
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                foreach (EntityEntry entry in ex.Entries)
+                {
+                    if (entry.State != EntityState.Deleted) throw;
+                    entry.State = EntityState.Detached;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+        }
     }
 }
