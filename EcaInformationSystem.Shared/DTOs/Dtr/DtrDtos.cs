@@ -30,14 +30,14 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public string? PmTimeIn { get; set; }
         public string? PmTimeOut { get; set; }
 
-        // Non-null (the underlying AttendanceLog.Id) only when that specific
-        // slot's punch was manually entered by SuperAdmin/Finance rather than
-        // synced from the device — lets the UI show a delete option only on
-        // manually-entered times.
-        public int? AmTimeInManualId { get; set; }
-        public int? AmTimeOutManualId { get; set; }
-        public int? PmTimeInManualId { get; set; }
-        public int? PmTimeOutManualId { get; set; }
+        // Non-null (the underlying AttendanceLog.Id) whenever this slot has a
+        // punch — for BOTH device-synced and manually-entered times, so the
+        // UI can offer "clear this time" (then re-enter it) on any slot, not
+        // just ones that were already manually entered.
+        public int? AmTimeInLogId { get; set; }
+        public int? AmTimeOutLogId { get; set; }
+        public int? PmTimeInLogId { get; set; }
+        public int? PmTimeOutLogId { get; set; }
 
         public int UndertimeHours { get; set; }
         public int UndertimeMinutes { get; set; }

@@ -1,0 +1,48 @@
+@* ConfirmModal.razor — a single reusable HxModal-based yes/no confirmation
+   dialog. DtrPrintDocument owns one instance and passes it down (as a
+   regular parameter, same as every other DTR callback) through DtrCopy to
+   every DtrTimeCell, rather than each of the ~120 cells on the table
+   carrying its own modal markup. Exposes an imperative ConfirmAsync that
+   resolves true/false when the user picks Confirm/Cancel — same call shape
+   as the window.confirm() it replaces, but rendered as an actual themed
+   modal instead of a native browser dialog. *@
+@using Havit.Blazor.Components.Web.Bootstrap
+
+<HxModal @ref="_modal">
+    <HeaderTemplate><h5 class="modal-title">@_title</h5></HeaderTemplate>
+    <BodyTemplate><p class="mb-0">@_message</p></BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => Resolve(false)">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="() => Resolve(true)">@_confirmLabel</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private HxModal _modal = default!;
+    private string _title = string.Empty;
+    private string _message = string.Empty;
+    private string _confirmLabel = "Yes";
+
+    // Only one confirmation is ever in flight at a time — driven by a single
+    // user clicking one cell's Edit/Clear button — so a single pending
+    // completion source is enough.
+    private TaskCompletionSource<bool>? _pending;
+
+    public async Task<bool> ConfirmAsync(string title, string message, string confirmLabel = "Yes")
+    {
+        _title = title;
+        _message = message;
+        _confirmLabel = confirmLabel;
+        _pending = new TaskCompletionSource<bool>();
+
+        await _modal.ShowAsync();
+        return await _pending.Task;
+    }
+
+    private async Task Resolve(bool result)
+    {
+        await _modal.HideAsync();
+        _pending?.TrySetResult(result);
+        _pending = null;
+    }
+}

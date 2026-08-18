@@ -75,24 +75,32 @@
     <div class="dtr-print-page">
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
                  NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
-                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" />
+                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
+                 Confirm="_confirmModal" />
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
                  NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
-                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" />
+                 AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
+                 Confirm="_confirmModal" />
     </div>
   </div>
 </div>
 </div>
 
+<ConfirmModal @ref="_confirmModal" />
+
 @code {
+    private ConfirmModal? _confirmModal;
+
     [Parameter, EditorRequired] public DtrDocumentDto Document { get; set; } = default!;
     [Inject] public IJSRuntime JS { get; set; } = default!;
     [Inject] public ToastService Toast { get; set; } = default!;
     [Inject] public HttpClient Http { get; set; } = default!;
 
-    // SuperAdmin/Finance-only — see AttendanceManagement.razor, which is the
-    // only place this is ever set true. My DTR (self-service) never passes
-    // this, so regular users can't edit their own punches.
+    // Set by AttendanceManagement.razor (SuperAdmin/Finance managing any
+    // same-region user's DTR) and by MyDtr.razor (self-service) — the
+    // server enforces the actual ownership rule (self, or SuperAdmin/Finance
+    // within their own region) on the manual-punch endpoints regardless of
+    // what this flag is set to client-side.
     [Parameter] public bool AllowManualPunchEdit { get; set; }
 
     // Adding/removing a punch changes Document.Days server-side (AM/PM times,
@@ -305,6 +313,40 @@
         catch (Exception ex)
         {
             Toast.ShowError($"Failed to remove the manual time entry: {ex.Message}");
+        }
+    }
+
+    // There's no dedicated "update punch time" endpoint — a clear + re-add
+    // achieves the same result and reuses both endpoints' existing ownership
+    // checks, so this just does both under one user-facing "Edit" action
+    // (and one document refresh) instead of making the user do it as two
+    // separate steps.
+    private async Task EditManualPunch((int Day, int LogId, TimeOnly NewTime) input)
+    {
+        try
+        {
+            var removeResponse = await Http.DeleteAsync($"api/dtr/manual-punch/{input.LogId}");
+            if (!removeResponse.IsSuccessStatusCode)
+            {
+                Toast.ShowError("Failed to update the time entry.");
+                return;
+            }
+
+            var punchDateTime = DateFor(input.Day).Add(input.NewTime.ToTimeSpan());
+            var addResponse = await Http.PostAsJsonAsync("api/dtr/manual-punch", new AddManualPunchRequestDto
+            {
+                UserId = Document.UserId,
+                PunchDateTime = punchDateTime
+            });
+
+            if (addResponse.IsSuccessStatusCode)
+                await OnDocumentChanged.InvokeAsync();
+            else
+                Toast.ShowError("Failed to update the time entry.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update the time entry: {ex.Message}");
         }
     }
 

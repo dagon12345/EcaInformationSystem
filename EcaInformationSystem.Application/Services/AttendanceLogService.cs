@@ -63,15 +63,24 @@ namespace EcaInformationSystem.Application.Services
             return log.Id;
         }
 
-        public async Task<bool> RemoveManualPunchAsync(int attendanceLogId)
+        // Clears any punch — device-synced or manual — so the caller can
+        // re-enter the correct time; the log book is the authoritative
+        // record here, not whatever the device happened to capture.
+        public async Task<bool> RemovePunchAsync(int attendanceLogId)
         {
             var log = await _repository.GetByIdAsync(attendanceLogId);
-            if (log is null || !log.IsManualEntry)
+            if (log is null)
                 return false;
 
             await _repository.RemoveAsync(log);
             await _repository.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<string?> GetPunchOwnerBiometricUserIdAsync(int attendanceLogId)
+        {
+            var log = await _repository.GetByIdAsync(attendanceLogId);
+            return log?.BiometricUserId;
         }
     }
 }

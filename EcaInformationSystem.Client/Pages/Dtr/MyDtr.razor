@@ -101,7 +101,7 @@
     }
     else if (_document is not null)
     {
-        <DtrPrintDocument Document="_document" />
+        <DtrPrintDocument Document="_document" AllowManualPunchEdit="true" OnDocumentChanged="ReloadDocumentAsync" />
     }
 </div>
 
@@ -197,6 +197,28 @@
         {
             _isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    // Refreshes the already-open document in place after adding/editing/
+    // clearing a punch — unlike LoadAsync (used for the initial load, period
+    // changes, and "Pull Latest Record"), this never nulls _document or
+    // shows the spinner, so DtrPrintDocument stays mounted and the page
+    // doesn't collapse and re-expand (which was throwing the scroll
+    // position back to the top on every edit).
+    private async Task ReloadDocumentAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"api/dtr/me?start={_customStart:yyyy-MM-dd}&end={_customEnd:yyyy-MM-dd}");
+            if (response.IsSuccessStatusCode)
+                _document = await response.Content.ReadFromJsonAsync<DtrDocumentDto>();
+            else
+                Toast.ShowError("Failed to refresh your DTR.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to refresh your DTR: {ex.Message}");
         }
     }
 }

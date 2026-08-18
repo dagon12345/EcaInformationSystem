@@ -321,24 +321,21 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok();
         }
 
-        // ── SuperAdmin/Finance ONLY: fill in a time in/out the employee
-        // forgot to punch. Unlike day-marks above, this is never self-
-        // service — correcting the actual attendance record (not just
-        // annotating it) is restricted to the two roles that already manage
-        // biometric assignment and DTR data for the whole region. ─────────
+        // ── Self-service: fill in a time in/out the employee forgot to
+        // punch — this is the log book's whole basis, so a user must be
+        // able to correct their own missed punch, not just SuperAdmin/
+        // Finance. Same ownership rule as day-marks above: a viewer can
+        // always manage their OWN record; SuperAdmin/Finance can also
+        // manage another same-region user's. ──────────────────────────────
         [HttpPost("manual-punch")]
-        [Authorize(Roles = "SuperAdmin,Finance")]
         public async Task<IActionResult> AddManualPunch([FromBody] AddManualPunchRequestDto dto)
         {
-            var regionCode = GetRegionCodeFromClaims();
-            if (regionCode is null)
-                return BadRequest(new { message = "No region is assigned to this account." });
+            if (!await CanManageUserDtrAsync(dto.UserId))
+                return Forbid();
 
             var target = await _userManagementService.GetUserByIdAsync(dto.UserId);
             if (target is null)
                 return NotFound();
-            if (target.Region != regionCode)
-                return Forbid();
             if (string.IsNullOrWhiteSpace(target.BiometricUserId))
                 return BadRequest(new { message = "This user has no biometric device ID linked yet." });
 
@@ -347,12 +344,47 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(new { id });
         }
 
+        // A punch (device-synced or manual) is only ever addressed by its
+        // AttendanceLog id (not a UserId), so ownership here means "the
+        // log's BiometricUserId belongs to a user this caller may manage" —
+        // same self-or-region-admin rule as everywhere else on this
+        // controller.
+        private async Task<bool> CanManagePunchOwnerAsync(string biometricUserId)
+        {
+            var selfIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            if (Guid.TryParse(selfIdClaim, out var selfId))
+            {
+                var self = await _userManagementService.GetUserByIdAsync(selfId);
+                if (self is not null && self.BiometricUserId == biometricUserId)
+                    return true;
+            }
+
+            if (!(User.IsInRole("SuperAdmin") || User.IsInRole("Finance")))
+                return false;
+
+            var regionCode = GetRegionCodeFromClaims();
+            if (regionCode is null)
+                return false;
+
+            var regionUsers = await _userManagementService.GetAllUsersAsync(regionCode.Value);
+            return regionUsers.Any(u => u.BiometricUserId == biometricUserId);
+        }
+
+        // Clears any punch (device-synced or manual) so it can be re-entered
+        // via AddManualPunch above — the log book is authoritative, so a
+        // wrong or missing device scan is just as correctable as a gap.
         [HttpDelete("manual-punch/{id:int}")]
-        [Authorize(Roles = "SuperAdmin,Finance")]
         public async Task<IActionResult> RemoveManualPunch(int id)
         {
-            var removed = await _attendanceLogService.RemoveManualPunchAsync(id);
-            return removed ? Ok() : NotFound(new { message = "No manual punch found with that Id." });
+            var biometricUserId = await _attendanceLogService.GetPunchOwnerBiometricUserIdAsync(id);
+            if (biometricUserId is null)
+                return NotFound(new { message = "No time entry found with that Id." });
+
+            if (!await CanManagePunchOwnerAsync(biometricUserId))
+                return Forbid();
+
+            var removed = await _attendanceLogService.RemovePunchAsync(id);
+            return removed ? Ok() : NotFound(new { message = "No time entry found with that Id." });
         }
     }
 }

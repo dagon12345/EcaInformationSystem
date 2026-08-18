@@ -19,8 +19,9 @@ namespace EcaInformationSystem.Domain.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        // Set when SuperAdmin/Finance manually added this punch (e.g. the
-        // employee forgot to time in/out) instead of it coming from the
+        // Set when this punch was manually added (by the employee
+        // themselves, or by SuperAdmin/Finance on their behalf) e.g. because
+        // the employee forgot to time in/out, instead of it coming from the
         // device. Flows through the same AM/PM/undertime calculation as any
         // real punch — this only exists so the UI can show which entries
         // were manually entered and let them be removed individually.

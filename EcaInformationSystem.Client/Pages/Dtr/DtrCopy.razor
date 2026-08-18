@@ -137,48 +137,12 @@
                                 <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" OnHalfDayChanged="OnHalfDayChanged" />
                             </td>
                             <td>
-                                @if (!string.IsNullOrEmpty(day.PmTimeIn))
-                                {
-                                    @day.PmTimeIn
-                                    @if (day.PmTimeInManualId.HasValue && AllowManualPunchEdit)
-                                    {
-                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                                @onclick="() => OnRemoveManualPunch.InvokeAsync(day.PmTimeInManualId!.Value)">
-                                            <i class="bi bi-x-circle text-danger"></i>
-                                        </button>
-                                    }
-                                }
-                                else if (AllowManualPunchEdit)
-                                {
-                                    <input type="time" class="dtr-doc-manual-input no-print"
-                                           @onchange='e => SetPicked(day.Day, "PmIn", e.Value?.ToString())' />
-                                    <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                            @onclick='() => SubmitManualPunch(day.Day, "PmIn")' disabled='@(GetPicked(day.Day, "PmIn") is null)'>
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    </button>
-                                }
+                                <DtrTimeCell Day="day.Day" Slot="PmIn" CurrentTime="@day.PmTimeIn" LogId="day.PmTimeInLogId"
+                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                             </td>
                             <td>
-                                @if (!string.IsNullOrEmpty(day.PmTimeOut))
-                                {
-                                    @day.PmTimeOut
-                                    @if (day.PmTimeOutManualId.HasValue && AllowManualPunchEdit)
-                                    {
-                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                                @onclick="() => OnRemoveManualPunch.InvokeAsync(day.PmTimeOutManualId!.Value)">
-                                            <i class="bi bi-x-circle text-danger"></i>
-                                        </button>
-                                    }
-                                }
-                                else if (AllowManualPunchEdit)
-                                {
-                                    <input type="time" class="dtr-doc-manual-input no-print"
-                                           @onchange='e => SetPicked(day.Day, "PmOut", e.Value?.ToString())' />
-                                    <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                            @onclick='() => SubmitManualPunch(day.Day, "PmOut")' disabled='@(GetPicked(day.Day, "PmOut") is null)'>
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    </button>
-                                }
+                                <DtrTimeCell Day="day.Day" Slot="PmOut" CurrentTime="@day.PmTimeOut" LogId="day.PmTimeOutLogId"
+                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                             </td>
                             <td></td>
                             <td></td>
@@ -186,48 +150,12 @@
                         else if (note.HalfDay == "PM")
                         {
                             <td>
-                                @if (!string.IsNullOrEmpty(day.AmTimeIn))
-                                {
-                                    @day.AmTimeIn
-                                    @if (day.AmTimeInManualId.HasValue && AllowManualPunchEdit)
-                                    {
-                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                                @onclick="() => OnRemoveManualPunch.InvokeAsync(day.AmTimeInManualId!.Value)">
-                                            <i class="bi bi-x-circle text-danger"></i>
-                                        </button>
-                                    }
-                                }
-                                else if (AllowManualPunchEdit)
-                                {
-                                    <input type="time" class="dtr-doc-manual-input no-print"
-                                           @onchange='e => SetPicked(day.Day, "AmIn", e.Value?.ToString())' />
-                                    <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                            @onclick='() => SubmitManualPunch(day.Day, "AmIn")' disabled='@(GetPicked(day.Day, "AmIn") is null)'>
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    </button>
-                                }
+                                <DtrTimeCell Day="day.Day" Slot="AmIn" CurrentTime="@day.AmTimeIn" LogId="day.AmTimeInLogId"
+                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                             </td>
                             <td>
-                                @if (!string.IsNullOrEmpty(day.AmTimeOut))
-                                {
-                                    @day.AmTimeOut
-                                    @if (day.AmTimeOutManualId.HasValue && AllowManualPunchEdit)
-                                    {
-                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                                @onclick="() => OnRemoveManualPunch.InvokeAsync(day.AmTimeOutManualId!.Value)">
-                                            <i class="bi bi-x-circle text-danger"></i>
-                                        </button>
-                                    }
-                                }
-                                else if (AllowManualPunchEdit)
-                                {
-                                    <input type="time" class="dtr-doc-manual-input no-print"
-                                           @onchange='e => SetPicked(day.Day, "AmOut", e.Value?.ToString())' />
-                                    <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                            @onclick='() => SubmitManualPunch(day.Day, "AmOut")' disabled='@(GetPicked(day.Day, "AmOut") is null)'>
-                                        <i class="bi bi-check-circle text-success"></i>
-                                    </button>
-                                }
+                                <DtrTimeCell Day="day.Day" Slot="AmOut" CurrentTime="@day.AmTimeOut" LogId="day.AmTimeOutLogId"
+                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                             </td>
                             <td colspan="2" class="dtr-doc-note-cell">
                                 <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" OnHalfDayChanged="OnHalfDayChanged" />
@@ -271,92 +199,20 @@
                             }
                         </td>
                         <td>
-                            @if (!string.IsNullOrEmpty(day.AmTimeIn))
-                            {
-                                @day.AmTimeIn
-                                @if (day.AmTimeInManualId.HasValue && AllowManualPunchEdit)
-                                {
-                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                            @onclick="() => OnRemoveManualPunch.InvokeAsync(day.AmTimeInManualId!.Value)">
-                                        <i class="bi bi-x-circle text-danger"></i>
-                                    </button>
-                                }
-                            }
-                            else if (AllowManualPunchEdit)
-                            {
-                                <input type="time" class="dtr-doc-manual-input no-print"
-                                       @onchange='e => SetPicked(day.Day, "AmIn", e.Value?.ToString())' />
-                                <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                        @onclick='() => SubmitManualPunch(day.Day, "AmIn")' disabled='@(GetPicked(day.Day, "AmIn") is null)'>
-                                    <i class="bi bi-check-circle text-success"></i>
-                                </button>
-                            }
+                            <DtrTimeCell Day="day.Day" Slot="AmIn" CurrentTime="@day.AmTimeIn" LogId="day.AmTimeInLogId"
+                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                         </td>
                         <td>
-                            @if (!string.IsNullOrEmpty(day.AmTimeOut))
-                            {
-                                @day.AmTimeOut
-                                @if (day.AmTimeOutManualId.HasValue && AllowManualPunchEdit)
-                                {
-                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                            @onclick="() => OnRemoveManualPunch.InvokeAsync(day.AmTimeOutManualId!.Value)">
-                                        <i class="bi bi-x-circle text-danger"></i>
-                                    </button>
-                                }
-                            }
-                            else if (AllowManualPunchEdit)
-                            {
-                                <input type="time" class="dtr-doc-manual-input no-print"
-                                       @onchange='e => SetPicked(day.Day, "AmOut", e.Value?.ToString())' />
-                                <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                        @onclick='() => SubmitManualPunch(day.Day, "AmOut")' disabled='@(GetPicked(day.Day, "AmOut") is null)'>
-                                    <i class="bi bi-check-circle text-success"></i>
-                                </button>
-                            }
+                            <DtrTimeCell Day="day.Day" Slot="AmOut" CurrentTime="@day.AmTimeOut" LogId="day.AmTimeOutLogId"
+                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                         </td>
                         <td>
-                            @if (!string.IsNullOrEmpty(day.PmTimeIn))
-                            {
-                                @day.PmTimeIn
-                                @if (day.PmTimeInManualId.HasValue && AllowManualPunchEdit)
-                                {
-                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                            @onclick="() => OnRemoveManualPunch.InvokeAsync(day.PmTimeInManualId!.Value)">
-                                        <i class="bi bi-x-circle text-danger"></i>
-                                    </button>
-                                }
-                            }
-                            else if (AllowManualPunchEdit)
-                            {
-                                <input type="time" class="dtr-doc-manual-input no-print"
-                                       @onchange='e => SetPicked(day.Day, "PmIn", e.Value?.ToString())' />
-                                <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                        @onclick='() => SubmitManualPunch(day.Day, "PmIn")' disabled='@(GetPicked(day.Day, "PmIn") is null)'>
-                                    <i class="bi bi-check-circle text-success"></i>
-                                </button>
-                            }
+                            <DtrTimeCell Day="day.Day" Slot="PmIn" CurrentTime="@day.PmTimeIn" LogId="day.PmTimeInLogId"
+                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                         </td>
                         <td>
-                            @if (!string.IsNullOrEmpty(day.PmTimeOut))
-                            {
-                                @day.PmTimeOut
-                                @if (day.PmTimeOutManualId.HasValue && AllowManualPunchEdit)
-                                {
-                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this manually-entered time"
-                                            @onclick="() => OnRemoveManualPunch.InvokeAsync(day.PmTimeOutManualId!.Value)">
-                                        <i class="bi bi-x-circle text-danger"></i>
-                                    </button>
-                                }
-                            }
-                            else if (AllowManualPunchEdit)
-                            {
-                                <input type="time" class="dtr-doc-manual-input no-print"
-                                       @onchange='e => SetPicked(day.Day, "PmOut", e.Value?.ToString())' />
-                                <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Add the time the employee actually clocked in/out"
-                                        @onclick='() => SubmitManualPunch(day.Day, "PmOut")' disabled='@(GetPicked(day.Day, "PmOut") is null)'>
-                                    <i class="bi bi-check-circle text-success"></i>
-                                </button>
-                            }
+                            <DtrTimeCell Day="day.Day" Slot="PmOut" CurrentTime="@day.PmTimeOut" LogId="day.PmTimeOutLogId"
+                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
                         </td>
                         <td>@(day.UndertimeHours > 0 ? day.UndertimeHours.ToString() : "")</td>
                         <td>@(day.UndertimeMinutes > 0 ? day.UndertimeMinutes.ToString() : "")</td>
@@ -412,33 +268,26 @@
     [Parameter] public EventCallback<int> OnClearNote { get; set; }
     [Parameter] public EventCallback<(int Day, string? HalfDay)> OnHalfDayChanged { get; set; }
 
-    // SuperAdmin/Finance-only privilege (see AttendanceManagement.razor) —
-    // fill in a time in/out the employee forgot to punch. Never true on
-    // My DTR (self-service), so regular users only ever see plain read-only
-    // times, same as before this existed.
+    // Set on both AttendanceManagement.razor (SuperAdmin/Finance) and
+    // MyDtr.razor (self-service) — lets the viewer clear ANY time in this
+    // table (device-synced or manual) and re-enter it, since the log book
+    // is the authoritative record, not whatever the device happened to
+    // capture. The server enforces ownership regardless of this flag.
     [Parameter] public bool AllowManualPunchEdit { get; set; }
     [Parameter] public EventCallback<(int Day, TimeOnly Time)> OnAddManualPunch { get; set; }
     [Parameter] public EventCallback<int> OnRemoveManualPunch { get; set; }
+    [Parameter] public EventCallback<(int Day, int LogId, TimeOnly NewTime)> OnEditManualPunch { get; set; }
 
-    // Holds the in-progress <input type="time"> value for a blank cell
-    // until the checkmark is clicked — keyed by (day, slot) since several
-    // blank cells can be mid-edit across the table at once.
-    private readonly Dictionary<(int Day, string Slot), string?> _pickedTimes = new();
+    // Owned by DtrPrintDocument, threaded through here to every DtrTimeCell
+    // — one shared confirmation dialog instead of one per cell.
+    [Parameter] public ConfirmModal? Confirm { get; set; }
 
-    private TimeOnly? GetPicked(int day, string slot)
-        => _pickedTimes.TryGetValue((day, slot), out var raw) && TimeOnly.TryParse(raw, out var t) ? t : null;
-
-    private void SetPicked(int day, string slot, string? raw) => _pickedTimes[(day, slot)] = raw;
-
-    private async Task SubmitManualPunch(int day, string slot)
-    {
-        var time = GetPicked(day, slot);
-        if (time is null)
-            return;
-
-        await OnAddManualPunch.InvokeAsync((day, time.Value));
-        _pickedTimes.Remove((day, slot));
-    }
+    // Bridges DtrTimeCell's (Day, Slot, ...) callbacks to the parent's
+    // (Day, ...)-only ones — Slot only matters for picking which cell is
+    // mid-edit, which DtrTimeCell now owns itself.
+    private Task AddPunch((int Day, string Slot, TimeOnly Time) e) => OnAddManualPunch.InvokeAsync((e.Day, e.Time));
+    private Task ClearPunch((int Day, string Slot, int LogId) e) => OnRemoveManualPunch.InvokeAsync(e.LogId);
+    private Task EditPunch((int Day, string Slot, int LogId, TimeOnly NewTime) e) => OnEditManualPunch.InvokeAsync((e.Day, e.LogId, e.NewTime));
 
     // A day fully excused (WFH, Holiday, or ANY note — whole-day or half-day)
     // contributes no undertime at all, matching the paper form's convention

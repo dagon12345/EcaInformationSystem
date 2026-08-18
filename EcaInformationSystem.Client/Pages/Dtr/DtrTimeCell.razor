@@ -1,0 +1,110 @@
+@* DtrTimeCell.razor — one AM/PM time-in/out slot on the DTR table.
+   DtrCopy.razor used to inline this same read/add/clear markup 8 times (4
+   slots x 2 render branches — the normal row and the half-day-note row);
+   adding an Edit mode with a confirmation guard to all 8 copies would have
+   meant keeping 8 near-identical blocks in sync, so it's pulled out here
+   instead. Three states: plain read-only time, an inline "add a time"
+   input (slot is blank), and an inline "edit this time" input (existing
+   time, Edit clicked) — Add and Edit share the same input+checkmark widget,
+   differing only in which callback fires and whether Cancel is offered. *@
+@if (!string.IsNullOrEmpty(CurrentTime) && !_editing)
+{
+    @CurrentTime
+    @if (LogId.HasValue && AllowEdit)
+    {
+        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Edit this time"
+                @onclick="StartEdit">
+            <i class="bi bi-pencil text-primary"></i>
+        </button>
+        <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Clear this time (you can re-enter it)"
+                @onclick="ConfirmClearAsync">
+            <i class="bi bi-x-circle text-danger"></i>
+        </button>
+    }
+}
+else if (AllowEdit)
+{
+    <input type="time" class="dtr-doc-manual-input no-print" value="@_picked"
+           @onchange="e => _picked = e.Value?.ToString()" />
+    <button type="button" class="btn btn-link btn-sm p-0 no-print"
+            title="@(_editing ? "Save the corrected time" : "Add the time the employee actually clocked in/out")"
+            @onclick="SubmitAsync" disabled="@(!TimeOnly.TryParse(_picked, out _))">
+        <i class="bi bi-check-circle text-success"></i>
+    </button>
+    @if (_editing)
+    {
+        <button type="button" class="btn btn-link btn-sm p-0 no-print" title="Cancel" @onclick="CancelEdit">
+            <i class="bi bi-x-lg text-muted"></i>
+        </button>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public int Day { get; set; }
+    [Parameter, EditorRequired] public string Slot { get; set; } = string.Empty;
+    [Parameter] public string? CurrentTime { get; set; }
+    [Parameter] public int? LogId { get; set; }
+    [Parameter] public bool AllowEdit { get; set; }
+
+    [Parameter] public EventCallback<(int Day, string Slot, TimeOnly Time)> OnAdd { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, int LogId, TimeOnly NewTime)> OnEdit { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, int LogId)> OnClear { get; set; }
+
+    // Shared single modal instance owned by DtrPrintDocument, threaded down
+    // through DtrCopy — see ConfirmModal.razor for why this replaced
+    // window.confirm().
+    [Parameter] public ConfirmModal? Confirm { get; set; }
+
+    private bool _editing;
+    private string? _picked;
+
+    private void StartEdit()
+    {
+        _editing = true;
+        _picked = ToInputValue(CurrentTime);
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false;
+        _picked = null;
+    }
+
+    private async Task ConfirmClearAsync()
+    {
+        if (!LogId.HasValue) return;
+
+        var confirmed = Confirm is null
+            || await Confirm.ConfirmAsync("Clear This Time?", "You'll need to re-enter it.", "Yes, Clear");
+        if (!confirmed) return;
+
+        await OnClear.InvokeAsync((Day, Slot, LogId.Value));
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!TimeOnly.TryParse(_picked, out var time)) return;
+
+        if (_editing && LogId.HasValue)
+        {
+            var confirmed = Confirm is null
+                || await Confirm.ConfirmAsync("Save Corrected Time?", "This replaces the recorded time for this slot.", "Yes, Save");
+            if (!confirmed) return;
+
+            await OnEdit.InvokeAsync((Day, Slot, LogId.Value, time));
+            _editing = false;
+        }
+        else
+        {
+            await OnAdd.InvokeAsync((Day, Slot, time));
+        }
+
+        _picked = null;
+    }
+
+    // <input type="time"> needs 24h "HH:mm", but CurrentTime is formatted
+    // "h:mm tt" for display — reparse rather than trying to derive one from
+    // the other.
+    private static string? ToInputValue(string? displayTime) =>
+        DateTime.TryParse(displayTime, out var t) ? t.ToString("HH:mm") : null;
+}
