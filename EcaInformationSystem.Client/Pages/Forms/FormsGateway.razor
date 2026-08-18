@@ -550,12 +550,11 @@
             }
             @if (_uploadPayrollQuarter > 0 && _uploadFiscalYear > 0 && _uploadMilestoneYear > 0)
             {
-                <div class="alert alert-warning py-1 px-2 small mt-1 mb-0">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    Both are set — this file will show up for <strong>every</strong> grantee paid in
-                    Q@(_uploadPayrollQuarter) @_uploadFiscalYear, not just Milestone @_uploadMilestoneYear ones,
-                    since either tag alone is enough to match. Clear Quarter/Fiscal Year if you only want it
-                    limited to Milestone @_uploadMilestoneYear grantees.
+                <div class="alert alert-info py-1 px-2 small mt-1 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Both are set — this file will only show up for grantees paid in
+                    Q@(_uploadPayrollQuarter) @_uploadFiscalYear <strong>who are also</strong> Milestone @_uploadMilestoneYear.
+                    Clear one of the two if you only meant to tag by that one alone.
                 </div>
             }
             <small class="text-muted d-block mt-1">
@@ -771,12 +770,11 @@
             }
             @if (_editPayrollQuarter > 0 && _editFiscalYear > 0 && _editMilestoneYear > 0)
             {
-                <div class="alert alert-warning py-1 px-2 small mt-1 mb-0">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    Both are set — this file will show up for <strong>every</strong> grantee paid in
-                    Q@(_editPayrollQuarter) @_editFiscalYear, not just Milestone @_editMilestoneYear ones,
-                    since either tag alone is enough to match. Clear Quarter/Fiscal Year if you only want it
-                    limited to Milestone @_editMilestoneYear grantees.
+                <div class="alert alert-info py-1 px-2 small mt-1 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Both are set — this file will only show up for grantees paid in
+                    Q@(_editPayrollQuarter) @_editFiscalYear <strong>who are also</strong> Milestone @_editMilestoneYear.
+                    Clear one of the two if you only meant to tag by that one alone.
                 </div>
             }
             <small class="text-muted d-block mt-1">

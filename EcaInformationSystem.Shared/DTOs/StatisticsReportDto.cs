@@ -49,6 +49,11 @@
     public class PayrollQuarterStatisticsDto
     {
         public int Quarter { get; set; }
+        // Which fiscal year this quarter's row belongs to — Quarter alone
+        // (1-4) repeats every year, so without this a breakdown spanning
+        // multiple years would silently merge e.g. 2025 Q1 and 2026 Q1
+        // into one "Quarter 1" row.
+        public int FiscalYear { get; set; }
         public int Count { get; set; }
         public int PaidCount { get; set; }
         public decimal TotalDisbursement { get; set; }

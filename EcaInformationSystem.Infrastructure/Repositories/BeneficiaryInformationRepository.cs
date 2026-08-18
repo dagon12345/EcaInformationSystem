@@ -910,7 +910,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
         {
-            var (allData, EffectiveStatus, EffectiveQuarter) = await BuildFilteredStatisticsDataAsync(request);
+            var (allData, EffectiveStatus, _) = await BuildFilteredStatisticsDataAsync(request);
 
             var report = new StatisticsReportDto
             {
@@ -1076,17 +1076,68 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             report.TotalAge95 = report.ProvinceBreakdowns.Sum(p => p.Age95Count);
             report.TotalAge100 = report.ProvinceBreakdowns.Sum(p => p.Age100Count);
 
-            report.PayrollQuarterBreakdown = allData
-                .GroupBy(b => EffectiveQuarter(b))
-                .Select(g => new PayrollQuarterStatisticsDto
+            // ✅ FIXED — this used to group allData by EffectiveQuarter, which is
+            // each beneficiary's single CURRENT quarter (falls back to their
+            // flat b.PayrollQuarter column whenever no quarter/year is
+            // selected at the top level). A beneficiary can legitimately have
+            // payment history rows in MORE than one quarter (re-processed, or
+            // genuinely paid across periods), so that single-value grouping
+            // both double-counts them across quarters when filtered
+            // individually AND undercounts/disagrees with the "All Quarters"
+            // view, which only ever showed their current quarter. Resolved
+            // straight from payment history per (FiscalYear, Quarter) instead
+            // — same "most-recently-touched row wins, status filtered after"
+            // rule as the main period filter above, just run once per period
+            // present instead of collapsed to one value per beneficiary.
+            var hasStatusFilter = request.PaymentStatuses != null && request.PaymentStatuses.Any();
+            var candidateIds = allData.Select(b => b.Id).ToHashSet();
+            var breakdownHistoryQuery = _context.BeneficiaryPaymentHistories.AsNoTracking()
+                .Where(h => candidateIds.Contains(h.BeneficiaryInformationId)
+                    && h.PayrollQuarter.HasValue && h.FiscalYear.HasValue);
+
+            // Mirrors whatever quarter/year the top-level filter already
+            // narrowed to — so a Q2-2026 filtered view still shows just its
+            // one Q2-2026 row, matching the summary cards above it exactly.
+            if (request.PayrollQuarter.HasValue)
+                breakdownHistoryQuery = breakdownHistoryQuery.Where(h => h.PayrollQuarter == request.PayrollQuarter.Value);
+            if (request.FiscalYear.HasValue)
+                breakdownHistoryQuery = breakdownHistoryQuery.Where(h => h.FiscalYear == request.FiscalYear.Value);
+
+            var breakdownHistories = await breakdownHistoryQuery
+                .OrderByDescending(h => h.DateModified ?? h.DateCreated)
+                .ToListAsync();
+
+            var ageById = allData.ToDictionary(b => b.Id, b => ComputeAge(b.BirthDate));
+
+            report.PayrollQuarterBreakdown = breakdownHistories
+                .GroupBy(h => new { h.FiscalYear, h.PayrollQuarter })
+                .Select(periodGroup =>
                 {
-                    Quarter = g.Key,
-                    Count = g.Count(),
-                    PaidCount = g.Count(b => EffectiveStatus(b) == 2),
-                    TotalDisbursement = g.Where(b => EffectiveStatus(b) == 2)
-                        .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate)))
+                    // One authoritative row per beneficiary within THIS
+                    // (year, quarter) — same tie-break as the main filter,
+                    // just scoped to a single period instead of the whole
+                    // matched set.
+                    var authoritative = periodGroup
+                        .GroupBy(h => h.BeneficiaryInformationId)
+                        .Select(g => g.First())
+                        .AsEnumerable();
+
+                    if (hasStatusFilter)
+                        authoritative = authoritative.Where(h => request.PaymentStatuses!.Contains(h.PaymentStatus));
+
+                    var resolved = authoritative.ToList();
+                    var paid = resolved.Where(h => h.PaymentStatus == 2).ToList();
+
+                    return new PayrollQuarterStatisticsDto
+                    {
+                        Quarter = periodGroup.Key.PayrollQuarter!.Value,
+                        FiscalYear = periodGroup.Key.FiscalYear!.Value,
+                        Count = resolved.Count,
+                        PaidCount = paid.Count,
+                        TotalDisbursement = paid.Sum(h => PayrollSettingsDto.CalculateCashGiftAmount(ageById[h.BeneficiaryInformationId]))
+                    };
                 })
-                .OrderBy(q => q.Quarter)
+                .OrderBy(q => q.FiscalYear).ThenBy(q => q.Quarter)
                 .ToList();
 
             // ── Statistical Report — Applications & Validations by LGU ──────────
@@ -1661,6 +1712,20 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsReadyForEft = b.IsReadyForEft
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
+
+            // ✅ FIXED — MilestoneYear was never set anywhere in this projection
+            // (unlike GetPagedListAsync/GetPagedListRawAsync, which all compute
+            // it via ComputeMilestoneYear). It silently defaulted to 0 for every
+            // single-beneficiary fetch, which is exactly what feeds the
+            // Beneficiary Info off-canvas (api/beneficiary/edit/{id}) — so its
+            // "View Milestone Payroll Document" lookup, keyed off this same
+            // MilestoneYear, could never find a match even when one existed.
+            // ComputeMilestoneYear can't be inlined into the query above (it's
+            // a foreach over milestone brackets with date-cutoff logic, not
+            // something EF Core can translate to SQL), so it's set here after
+            // materialization instead.
+            if (result != null)
+                result.MilestoneYear = ComputeMilestoneYear(result.BirthDate);
 
             return result;
         }
@@ -3476,6 +3541,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 query = query.Where(b => b.FirstName.Contains(filter.FirstName));
+
+            // ✅ NEW — Middle Name/Suffix as dedicated per-field filters, matching the
+            // grid's split Last/First/Middle/Suffix name columns. Previously these two
+            // were only reachable via GeneralSearch or the combined FullName filter,
+            // which is what made "search by Last Name" and "General Search" disagree
+            // on result counts in a way that wasn't obvious from the grid.
+            if (!string.IsNullOrWhiteSpace(filter.MiddleName))
+                query = query.Where(b => b.MiddleName != null && b.MiddleName.Contains(filter.MiddleName));
+
+            if (!string.IsNullOrWhiteSpace(filter.Suffix))
+                query = query.Where(b => b.Extension != null && b.Extension.Contains(filter.Suffix));
 
             if (!string.IsNullOrWhiteSpace(filter.FullName))
             {

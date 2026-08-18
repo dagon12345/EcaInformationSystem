@@ -367,6 +367,7 @@
                         <thead class="table-dark">
                             <tr>
                                 <th>Quarter</th>
+                                <th class="text-center">Fiscal Year</th>
                                 <th class="text-center">Count</th>
                                 <th class="text-center">Paid</th>
                                 <th class="text-end">Disbursed</th>
@@ -377,6 +378,7 @@
                             {
                                 <tr>
                                     <td class="fw-semibold">Quarter @q.Quarter</td>
+                                    <td class="text-center">@q.FiscalYear</td>
                                     <td class="text-center">@q.Count.ToString("N0")</td>
                                     <td class="text-center">@q.PaidCount.ToString("N0")</td>
                                     <td class="text-end">₱@q.TotalDisbursement.ToString("N0")</td>
@@ -931,6 +933,16 @@
             return;
         }
 
+        // Payroll Quarter is just 1-4 and repeats every fiscal year — without
+        // a Fiscal Year to pin it down, it silently matches that quarter
+        // across every year and sums them together (looks like wildly wrong
+        // totals, e.g. Q1 showing more than the whole region has).
+        if (_selectedPayrollQuarter > 0 && _selectedFiscalYear == 0)
+        {
+            Toast.ShowWarning($"Select a Fiscal Year to go with Payroll Quarter Q{_selectedPayrollQuarter} — a quarter alone spans every year.");
+            return;
+        }
+
         _isLoading = true;
         _loadError = null;
 
@@ -1289,6 +1301,7 @@
     public class PayrollQuarterStatisticsDto
     {
         public int Quarter { get; set; }
+        public int FiscalYear { get; set; }
         public int Count { get; set; }
         public int PaidCount { get; set; }
         public decimal TotalDisbursement { get; set; }

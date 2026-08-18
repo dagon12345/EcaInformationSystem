@@ -687,6 +687,8 @@ namespace EcaInformationSystem.Application.Services
                 // ── Name filters ─────────────────────────────────────────────
                 N(f.LastName),                   // ✅ ADDED
                 N(f.FirstName),                  // ✅ ADDED
+                N(f.MiddleName),
+                N(f.Suffix),
                 N(f.FullName),                   // ✅ ADDED
                                                  // ── Status ────────────────────────────────────────────────────
                 ListN(f.PaymentStatuses),        // ✅ FIX: Use the list
@@ -4939,6 +4941,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
+                filter.MiddleName ?? string.Empty,
+                filter.Suffix ?? string.Empty,
                 filter.FullName ?? string.Empty,
                 filter.Validator ?? string.Empty,
                 filter.BatchCode ?? string.Empty,
@@ -5132,6 +5136,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
+                filter.MiddleName ?? string.Empty,
+                filter.Suffix ?? string.Empty,
                 filter.FullName ?? string.Empty,                              // ✅ ADDED
                 filter.Sex != null ? filter.Sex : CommonConstants.Null,
                 (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())

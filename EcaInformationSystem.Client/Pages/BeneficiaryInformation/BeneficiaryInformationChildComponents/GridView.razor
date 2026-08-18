@@ -390,11 +390,14 @@
                                             </div>
                                         </th>
                                         <th>Phone</th>
-                                        <th style="min-width:220px;">
-                                            Full Name
+                                        <th style="min-width:140px;">
+                                            Last Name
                                             <br />
                                             <small class="hdr-subtext" title="Hover the badges on a row to see liveness verification and EFT readiness details">(Liveness / EFT)</small>
                                         </th>
+                                        <th>First Name</th>
+                                        <th>Middle Name</th>
+                                        <th>Suffix</th>
                                         <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
                                             @onclick='() => SortBy("birthdate")'>
                                             <div class="sort-header">
@@ -496,7 +499,7 @@
                                                 </td>
                                                 <td style="white-space:nowrap;"><span class="batch-code-outline">@Highlight(item.BatchCode)</span></td>
                                                 <td>@Highlight(item.PhoneNumbers.Any() ? string.Join(", ", item.PhoneNumbers.Select(n => n.Number)) : null)</td>
-                                                <td style="min-width:220px; white-space:nowrap;">
+                                                <td style="min-width:140px; white-space:nowrap;">
                                                     @if (item.IsLivenessVerified == true)
                                                     {
                                                         <span class="tbl-badge yes-g me-1" title="Liveness verified@(item.DateOfLiveness.HasValue ? $" on {item.DateOfLiveness:MMM dd, yyyy}" : "")">
@@ -509,19 +512,11 @@
                                                             <i class="bi bi-bank2"></i>
                                                         </span>
                                                     }
-                                                    <span class="fw-bold text-uppercase">@Highlight(item.LastName)<span>, </span>@Highlight(item.FirstName)
-                                                    @if (!string.IsNullOrWhiteSpace(item.MiddleName))
-                                                    {
-                                                        <span>&nbsp;</span>
-                                                        @Highlight(item.MiddleName)
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(item.Extension))
-                                                    {
-                                                        <span>&nbsp;</span>
-                                                        @Highlight(item.Extension)
-                                                    }
-                                                    </span>
+                                                    <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
                                                 </td>
+                                                <td class="fw-bold text-uppercase">@Highlight(item.FirstName)</td>
+                                                <td class="fw-bold text-uppercase">@Highlight(item.MiddleName)</td>
+                                                <td class="fw-bold text-uppercase">@Highlight(item.Extension)</td>
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
                                                 <td>
                                                     <span class="tbl-badge @(item.MissedProgramStartCutoff ? "cutoff-miss" : GetAgeBadgeClass(item.BirthDate))"
@@ -746,7 +741,7 @@
                                     @if (!FilteredBeneficiaries.Any())
                                     {
                                         <tr class="filler-row">
-                                            <td colspan="22">
+                                            <td colspan="25">
                                                 @if (!State.IsLoading)
                                                 {
                                                     <div class="d-flex flex-column align-items-center gap-2 py-3">
@@ -2845,23 +2840,16 @@ private async Task RecomputeGridPayrollLinksAsync()
 
         try
         {
-            if (item.PayrollQuarter.HasValue && item.FiscalYear.HasValue)
-            {
-                var doc = await FormService.FindPayrollDocumentAsync(
-                    item.PayrollQuarter.Value, item.FiscalYear.Value, region, municipality);
-                hasLink = doc != null;
-            }
-
-            // Milestone cash-gift payroll is a separate, independent tag from
-            // Quarter/FiscalYear (see FindMilestoneDocumentAsync) — a grantee
-            // due for a milestone this year can have a linked document even
-            // with no quarterly PayrollQuarter/FiscalYear set at all.
-            if (!hasLink && item.MilestoneYear > 0)
-            {
-                var milestoneDoc = await FormService.FindMilestoneDocumentAsync(
-                    item.MilestoneYear, region, municipality);
-                hasLink = milestoneDoc != null;
-            }
+            // ✅ FIXED — one unified lookup instead of two independent OR'd
+            // ones. See FormDocumentClientService.FindPayrollDocumentAsync —
+            // a document tagged with BOTH Quarter/FiscalYear AND a specific
+            // Milestone Year now requires BOTH to match this beneficiary,
+            // not either alone.
+            var doc = await FormService.FindPayrollDocumentAsync(
+                item.PayrollQuarter, item.FiscalYear,
+                item.MilestoneYear > 0 ? item.MilestoneYear : null,
+                region, municipality);
+            hasLink = doc != null;
 
             _hasPayrollByBeneficiaryId[item.Id] = hasLink;
         }
@@ -3868,14 +3856,27 @@ private async Task LoadPayrollLinksAsync()
     var region = selectedDetails?.PsgcCodeRegion;
     var municipality = selectedDetails?.PsgcCodeMunicipality;
 
+    var milestoneYear = selectedDetails?.MilestoneYear > 0 ? selectedDetails.MilestoneYear : (int?)null;
+
     foreach (var entry in paymentHistory)
     {
         if (!entry.PayrollQuarter.HasValue || !entry.FiscalYear.HasValue) continue;
 
+        // ✅ FIXED — selectedDetails.MilestoneYear is the beneficiary's CURRENT
+        // milestone year, not a per-entry value (PaymentHistory never stores
+        // one — it's computed from BirthDate). Applying it to every historical
+        // entry broke older quarters' links: a Q2 2024 payroll doc tagged for
+        // whatever milestone year was current back then no longer matched
+        // against the beneficiary's PRESENT milestone year. Only the entry
+        // that's still their current one shares that "now" context with
+        // selectedDetails.MilestoneYear — every other entry is checked on
+        // Quarter/FiscalYear alone, same as before this whole fix.
+        var milestoneYearForEntry = entry.IsCurrent ? milestoneYear : null;
+
         try
         {
             _payrollLinksByHistoryId[entry.Id] = await FormService.FindPayrollDocumentAsync(
-                entry.PayrollQuarter.Value, entry.FiscalYear.Value, region, municipality);
+                entry.PayrollQuarter, entry.FiscalYear, milestoneYearForEntry, region, municipality);
         }
         catch (Exception ex)
         {
@@ -3883,16 +3884,19 @@ private async Task LoadPayrollLinksAsync()
         }
     }
 
-    if (selectedDetails?.MilestoneYear > 0)
+    if (milestoneYear.HasValue)
     {
         try
         {
-            _milestonePayrollDoc = await FormService.FindMilestoneDocumentAsync(
-                selectedDetails.MilestoneYear, region, municipality);
+            // No specific Quarter/FiscalYear here (this isn't tied to one
+            // payment history entry) — a document that ALSO requires a
+            // quarter/year is deliberately excluded rather than guessed at.
+            _milestonePayrollDoc = await FormService.FindPayrollDocumentAsync(
+                null, null, milestoneYear, region, municipality);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Milestone payroll lookup failed for {selectedDetails.Id}: {ex.Message}");
+            Console.WriteLine($"Milestone payroll lookup failed for {selectedDetails!.Id}: {ex.Message}");
         }
     }
 }

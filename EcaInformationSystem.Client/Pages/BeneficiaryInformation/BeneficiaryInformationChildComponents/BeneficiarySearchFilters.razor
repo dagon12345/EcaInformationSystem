@@ -496,6 +496,16 @@
                             <input type="text" placeholder="First name" @bind="State.Filter.FirstName" />
                         </div>
                         <div class="sf-field">
+                            <label>Middle Name</label>
+                            <input type="text" placeholder="Middle name" @bind="State.Filter.MiddleName"
+                                   @bind:event="oninput" />
+                        </div>
+                        <div class="sf-field">
+                            <label>Suffix</label>
+                            <input type="text" placeholder="e.g. Jr., Sr., III" @bind="State.Filter.Suffix"
+                                   @bind:event="oninput" />
+                        </div>
+                        <div class="sf-field">
                             <label>Sex</label>
                             <select value="@State.Filter.Sex" @onchange="OnSexChanged" disabled="@IsLoading">
                                 <option value="0">Select Sex</option>
@@ -1156,6 +1166,8 @@
     string.IsNullOrWhiteSpace(f.FullName) &&
     string.IsNullOrWhiteSpace(f.LastName) &&
     string.IsNullOrWhiteSpace(f.FirstName) &&
+    string.IsNullOrWhiteSpace(f.MiddleName) &&
+    string.IsNullOrWhiteSpace(f.Suffix) &&
     string.IsNullOrWhiteSpace(f.Validator) &&
     string.IsNullOrWhiteSpace(f.BatchCode) &&
     f.SpecificAge == null &&

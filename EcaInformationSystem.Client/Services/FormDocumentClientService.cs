@@ -212,9 +212,31 @@ namespace EcaInformationSystem.Client.Services
         }
 
         // Finds the payroll PDF an admin has tagged (via the Forms Gateway Edit
-        // modal) for a given quarter/fiscal year, so a grantee's payment
-        // history row can link straight to it. Payroll is often run per
-        // municipality even within one region, so the preference order is:
+        // modal) for a given quarter/fiscal year and/or milestone year, so a
+        // grantee's payment history row can link straight to it.
+        //
+        // ✅ FIXED — this used to be two separate methods (FindPayrollDocumentAsync
+        // matching Quarter+FiscalYear, FindMilestoneDocumentAsync matching
+        // MilestoneYear), called independently with "either match is enough" OR
+        // semantics — the Forms Gateway upload form even warned about this
+        // ("since either tag alone is enough to match"). That meant a document an
+        // admin tagged with BOTH Quarter/FiscalYear AND a specific Milestone Year
+        // — intending it to apply ONLY to that milestone's grantees paid that
+        // quarter — would also show up for every OTHER grantee paid in that same
+        // quarter, regardless of their own milestone year, since the quarter/year
+        // match alone already counted as a hit.
+        //
+        // Now: every tag the document ACTUALLY carries must match the beneficiary
+        // being checked — a tag the document left unset is simply not a
+        // constraint. A document with only Quarter+FiscalYear set still matches
+        // anyone paid that period (milestone-agnostic, unchanged); a document with
+        // only MilestoneYear set still matches anyone due that milestone
+        // (quarter-agnostic, unchanged); a document with BOTH set now requires
+        // BOTH to match. A document with none of the three set isn't a
+        // payroll-linkable document at all and never matches here.
+        //
+        // Payroll is often run per municipality even within one region, so the
+        // preference order among documents that DO match is:
         // 1) a document tagged for this exact municipality (most specific),
         // 2) a document tagged for the region but no specific municipality,
         // 3) a document left with no region tag at all — "applies everywhere".
@@ -222,44 +244,24 @@ namespace EcaInformationSystem.Client.Services
         // trip — and picks the most recently updated match within a tier if
         // more than one document happens to carry the same tags.
         public async Task<FormDocumentDto?> FindPayrollDocumentAsync(
-            int payrollQuarter, int fiscalYear, int? psgcCodeRegion, int? psgcCodeMunicipality = null)
+            int? payrollQuarter, int? fiscalYear, int? milestoneYear,
+            int? psgcCodeRegion, int? psgcCodeMunicipality = null)
         {
             var docs = await GetAllCachedAsync();
-            var candidates = docs
-                .Where(d => d.PayrollQuarter == payrollQuarter && d.FiscalYear == fiscalYear)
-                .ToList();
 
-            if (candidates.Count == 0) return null;
+            var candidates = docs.Where(d =>
+            {
+                var hasQuarterTag = d.PayrollQuarter.HasValue && d.FiscalYear.HasValue;
+                var hasMilestoneTag = d.MilestoneYear.HasValue;
+                if (!hasQuarterTag && !hasMilestoneTag) return false;
 
-            FormDocumentDto? BestOf(IEnumerable<FormDocumentDto> matches) =>
-                matches.OrderByDescending(d => d.UpdatedAt ?? d.UploadedAt).FirstOrDefault();
+                if (hasQuarterTag && (d.PayrollQuarter != payrollQuarter || d.FiscalYear != fiscalYear))
+                    return false;
+                if (hasMilestoneTag && d.MilestoneYear != milestoneYear)
+                    return false;
 
-            var municipalityMatch = psgcCodeMunicipality.HasValue
-                ? BestOf(candidates.Where(d => d.PsgcCodeMunicipality == psgcCodeMunicipality.Value))
-                : null;
-            if (municipalityMatch != null) return municipalityMatch;
-
-            var regionMatch = psgcCodeRegion.HasValue
-                ? BestOf(candidates.Where(d => d.PsgcCodeRegion == psgcCodeRegion.Value && d.PsgcCodeMunicipality == null))
-                : null;
-            if (regionMatch != null) return regionMatch;
-
-            return BestOf(candidates.Where(d => d.PsgcCodeRegion == null && d.PsgcCodeMunicipality == null));
-        }
-
-        // Same idea as FindPayrollDocumentAsync above, but for milestone cash
-        // gifts (age 80/85/90/95/100) — those run on their own payroll batched
-        // by milestone year, not by Quarter/FiscalYear, and BeneficiaryPaymentHistory
-        // never carries a MilestoneYear at all (it's computed from BirthDate).
-        // So this matches purely against FormDocument.MilestoneYear, with the
-        // same municipality > region > everywhere tiering.
-        public async Task<FormDocumentDto?> FindMilestoneDocumentAsync(
-            int milestoneYear, int? psgcCodeRegion, int? psgcCodeMunicipality = null)
-        {
-            var docs = await GetAllCachedAsync();
-            var candidates = docs
-                .Where(d => d.MilestoneYear == milestoneYear)
-                .ToList();
+                return true;
+            }).ToList();
 
             if (candidates.Count == 0) return null;
 
