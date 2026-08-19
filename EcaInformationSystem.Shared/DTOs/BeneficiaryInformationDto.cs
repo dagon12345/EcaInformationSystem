@@ -42,6 +42,9 @@ namespace EcaInformationSystem.Shared.DTOs
         // milestone — their 80th (and every later) birthday fell before the
         // ECA program's actual start date (March 17, 2024). See [[EcaEligibilityHelper]].
         public bool MissedProgramStartCutoff => EcaEligibilityHelper.MissedProgramStartCutoff(BirthDate);
+
+        // Informational only — see EcaEligibilityHelper.MissedNearestMilestoneOnly.
+        public bool MissedNearestMilestoneOnly => EcaEligibilityHelper.MissedNearestMilestoneOnly(BirthDate);
         [Range(1, 2, ErrorMessage = "Please select Sex.")]
         public int Sex { get; set; }
         public bool? IsIndigenousPeople { get; set; }

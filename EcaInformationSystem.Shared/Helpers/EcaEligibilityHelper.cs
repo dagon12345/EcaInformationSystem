@@ -10,6 +10,7 @@ namespace EcaInformationSystem.Shared.Helpers
         public static readonly DateTime ProgramStartDate = new(2024, 3, 17);
 
         private static readonly int[] Milestones = { 100, 95, 90, 85, 80 };
+        private static readonly int[] MilestonesAscending = { 80, 85, 90, 95, 100 };
 
         public static int ComputeAge(DateTime birthDate)
         {
@@ -100,6 +101,43 @@ namespace EcaInformationSystem.Shared.Helpers
         {
             if (birthDate == default) return false;
             return ComputeAge(birthDate) >= 80 && !HasAnyValidMilestone(birthDate);
+        }
+
+        // True when the grantee's 80th birthday (their nearest/earliest possible
+        // milestone) fell before ProgramStartDate, but a LATER milestone
+        // (85/90/95/100) is still valid — e.g. born 1944-03-16: their 80th
+        // birthday was 2024-03-16, one day before the program started, but
+        // their 85th (2029) is fine. Purely informational — unlike
+        // MissedProgramStartCutoff, this does NOT make them permanently
+        // ineligible, so it must never affect IsEligible/PaymentStatus.
+        // Milestone birthdays are strictly increasing with birth date, so if
+        // the 80th missed the cutoff every later one by definition didn't —
+        // this case can only ever be about the 80th specifically.
+        public static bool MissedNearestMilestoneOnly(DateTime birthDate)
+        {
+            if (birthDate == default) return false;
+            if (ComputeAge(birthDate) < 80) return false;
+            if (MissedProgramStartCutoff(birthDate)) return false;
+
+            var eightiethBirthday = SafeDate(birthDate.Year + 80, birthDate.Month, birthDate.Day);
+            return eightiethBirthday < ProgramStartDate;
+        }
+
+        // The next milestone (age, year) a grantee flagged by
+        // MissedNearestMilestoneOnly will actually qualify under — e.g. (85,
+        // 2029) for someone born 1944-03-16. Returns (0, 0) when not applicable.
+        public static (int Age, int Year) NextValidMilestoneAfterCutoffMiss(DateTime birthDate)
+        {
+            if (!MissedNearestMilestoneOnly(birthDate)) return (0, 0);
+
+            foreach (var milestone in MilestonesAscending)
+            {
+                var year = birthDate.Year + milestone;
+                var milestoneBirthday = SafeDate(year, birthDate.Month, birthDate.Day);
+                if (milestoneBirthday >= ProgramStartDate) return (milestone, year);
+            }
+
+            return (0, 0);
         }
     }
 }

@@ -85,5 +85,8 @@ namespace EcaInformationSystem.Shared.DTOs
         // flag these permanently-ineligible rows at a glance instead of
         // looking identical to an ordinary "not yet eligible" grantee.
         public bool MissedProgramStartCutoff => EcaEligibilityHelper.MissedProgramStartCutoff(BirthDate);
+
+        // Informational only — see EcaEligibilityHelper.MissedNearestMilestoneOnly.
+        public bool MissedNearestMilestoneOnly => EcaEligibilityHelper.MissedNearestMilestoneOnly(BirthDate);
     }
 }

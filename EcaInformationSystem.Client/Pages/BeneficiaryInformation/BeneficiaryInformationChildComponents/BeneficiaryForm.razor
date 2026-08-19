@@ -284,23 +284,25 @@
                 <div class="annexa-field">
                     <span class="annexa-item-label">
                         Age (auto)
-                        @if (MissedProgramStartCutoff)
+                        @if (MissedProgramStartCutoff || MissedNearestMilestoneOnly)
                         {
-                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Ineligible — missed ECA program start cutoff"></i>
+                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1"
+                               title="@(MissedProgramStartCutoff ? "Ineligible — missed ECA program start cutoff" : "Missed the nearest milestone cutoff — see note below")"></i>
                         }
                     </span>
                     <input class="annexa-input annexa-readonly"
-                           style="@(MissedProgramStartCutoff ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
+                           style="@((MissedProgramStartCutoff || MissedNearestMilestoneOnly) ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
                            value="@(GetAge(model.BirthDate)?.ToString() ?? "—")" disabled />
                     <span class="annexa-item-label mt-1 d-block">
                         Milestone Year (auto)
-                        @if (MissedProgramStartCutoff)
+                        @if (MissedProgramStartCutoff || MissedNearestMilestoneOnly)
                         {
-                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Ineligible — missed ECA program start cutoff"></i>
+                            <i class="bi bi-exclamation-triangle-fill text-danger ms-1"
+                               title="@(MissedProgramStartCutoff ? "Ineligible — missed ECA program start cutoff" : "Missed the nearest milestone cutoff — see note below")"></i>
                         }
                     </span>
                     <input class="annexa-input annexa-readonly"
-                           style="@(MissedProgramStartCutoff ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
+                           style="@((MissedProgramStartCutoff || MissedNearestMilestoneOnly) ? "color:#dc3545;font-weight:600;border-color:#dc3545;" : "")"
                            value="@(MissedProgramStartCutoff ? "N/A" : (ComputeMilestoneYear(model.BirthDate, model.ValidationDate != default ? model.ValidationDate : (DateTime?)null) is var my && my > 0 ? my.ToString() : "—"))"
                            disabled />
                 </div>
@@ -352,6 +354,20 @@
                         This grantee turned 80 before the program's start date (@EcaEligibilityHelper.ProgramStartDate.ToString("MMMM d, yyyy")),
                         so there is no milestone year they ever qualified under. Payment Status will be automatically set to
                         <strong>N/A</strong> and this record cannot be marked eligible.
+                    </div>
+                </div>
+            }
+
+            @if (MissedNearestMilestoneOnly)
+            {
+                <div class="alert alert-danger d-flex align-items-start gap-2 py-2 px-3 mb-2 small">
+                    <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+                    <div>
+                        <strong>Missed the nearest milestone cutoff.</strong><br />
+                        This grantee's 80th birthday fell before the program's start date
+                        (@EcaEligibilityHelper.ProgramStartDate.ToString("MMMM d, yyyy")), so they did not qualify under
+                        Milestone Year 2024. This does not make them ineligible — they will next qualify at their
+                        <strong>@NextMilestoneAge<sup>th</sup> milestone in @NextMilestoneYear</strong>.
                     </div>
                 </div>
             }
@@ -2057,6 +2073,16 @@
     private bool MissedProgramStartCutoff =>
         model.BirthDate != default && model.BirthDate != DateTime.MinValue
         && EcaEligibilityHelper.MissedProgramStartCutoff(model.BirthDate);
+
+    // Informational only — their 80th birthday missed the cutoff but a later
+    // milestone (85/90/95/100) is still valid, so this must never affect
+    // IsEligible/PaymentStatus, unlike MissedProgramStartCutoff above.
+    private bool MissedNearestMilestoneOnly =>
+        model.BirthDate != default && model.BirthDate != DateTime.MinValue
+        && EcaEligibilityHelper.MissedNearestMilestoneOnly(model.BirthDate);
+
+    private int NextMilestoneAge => EcaEligibilityHelper.NextValidMilestoneAfterCutoffMiss(model.BirthDate).Age;
+    private int NextMilestoneYear => EcaEligibilityHelper.NextValidMilestoneAfterCutoffMiss(model.BirthDate).Year;
     private int? GetEffectiveAge()
     {
         if (model.BirthDate == default || model.BirthDate == DateTime.MinValue) return null;
