@@ -25,7 +25,9 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<byte[]> GeneratePayrollAsync(PayrollSettingsDto settings, string userName);
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
-        Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
+        Task<BeneficiaryPreviewResultDto> PreviewImportAsync(
+            Stream fileStream, string fileName, string sheetName,
+            Dictionary<int, Dictionary<string, string>>? corrections = null);
         byte[] ExportCrossmatchRowsAsTemplate(List<CrossmatchRowDto> rows, string sheetName);
         Task<CrossmatchResultDto> GetCrossmatchPreviewAsync(
             Stream fileStream, string fileName, string sheetName,
@@ -38,7 +40,8 @@ namespace EcaInformationSystem.Application.Interfaces
                 HashSet<int> skipRows,
                 int? quarter,      // ✅ new
                 string? batch,     // ✅ new
-                int? refYear);     // ✅ new
+                int? refYear,      // ✅ new
+                Dictionary<int, Dictionary<string, string>>? corrections = null);
         Task BulkUpdateEligibilityAndBatchCodeAsync(List<Guid> ids, bool? isEligible, string? batchCode, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved, string userName, Dictionary<Guid, byte[]>? rowVersions = null);
         Task ReplaceBeneficiaryAsync(Guid outgoingHistoryId, Guid incomingHistoryId, DateTime? replacementDate, string? remarks, string userName);

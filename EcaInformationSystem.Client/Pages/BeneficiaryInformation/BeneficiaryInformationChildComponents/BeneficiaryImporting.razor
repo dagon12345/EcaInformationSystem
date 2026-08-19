@@ -156,8 +156,64 @@
                     <span>Errors: <strong class="text-danger">@importResult.ErrorCount</strong></span>
                 </div>
                 <div class="import-errors-table mt-2">
-                    <div class="import-errors-table-header">Import Errors</div>
-                    <div style="max-height:300px; overflow-y:auto;">
+                    <div class="import-errors-table-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <span>Import Errors</span>
+                        <div class="d-flex align-items-center gap-2">
+                            @{
+                                var correctedRowCount = importResult.Errors.Count(e => IsCorrectionAccepted(e.RowNumber, e.CorrectionField));
+                            }
+                            @if (correctedRowCount > 0)
+                            {
+                                <label class="d-flex align-items-center gap-1 small mb-0" style="cursor:pointer;">
+                                    <input type="checkbox" @bind="_hideCorrectedErrors" />
+                                    Hide corrected (@correctedRowCount)
+                                </label>
+                            }
+                            @if (_acceptedCorrections.Any())
+                            {
+                                <button class="btn btn-sm btn-primary" @onclick="RunPreviewAsync" disabled="@isPreviewing">
+                                    @if (isPreviewing)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Re-validating...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-arrow-repeat me-1"></i>
+                                        <span>Apply @_acceptedCorrections.Values.Sum(m => m.Count) Correction(s) &amp; Re-validate</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <p class="text-muted small mb-1 mt-1">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Where possible, fix errors right here instead of editing and re-uploading the file.
+                        Errors without a usable suggestion (e.g. a blank required field) still need to be fixed in the file.
+                    </p>
+
+                    @{
+                        var ncscAssessmentRowCount = importResult.Errors.Count(e => e.CorrectionField == "NcscAssessment");
+                    }
+                    @if (ncscAssessmentRowCount > 0)
+                    {
+                        <div class="d-flex align-items-center gap-2 flex-wrap p-2 mb-2 border rounded" style="background: var(--bs-light);">
+                            <i class="bi bi-lightning-charge-fill text-warning"></i>
+                            <span class="small fw-semibold">Bulk set NCSC Assessment</span>
+                            <span class="text-muted small">(@ncscAssessmentRowCount row(s) blank/invalid)</span>
+                            <select class="form-select form-select-sm w-auto" @bind="_bulkNcscAssessmentValue">
+                                <option value="">-- Select --</option>
+                                <option value="ELIGIBLE">Set all to ELIGIBLE</option>
+                                <option value="INELIGIBLE">Set all to INELIGIBLE</option>
+                            </select>
+                            <button class="btn btn-sm btn-warning" disabled="@string.IsNullOrWhiteSpace(_bulkNcscAssessmentValue)"
+                                    @onclick="ApplyBulkNcscAssessment">
+                                <i class="bi bi-check2-all me-1"></i>Apply to All
+                            </button>
+                        </div>
+                    }
+
+                    <div style="max-height:400px; overflow-y:auto;">
                         <table class="sys-err-table">
                             <thead>
                                 <tr>
@@ -165,18 +221,104 @@
                                     <th>Field</th>
                                     <th>Message</th>
                                     <th>Value</th>
+                                    <th>Current Location</th>
                                     <th>Suggestion</th>
+                                    <th>Correction</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var err in importResult.Errors)
+                                @{
+                                    var visibleErrors = _hideCorrectedErrors
+                                        ? importResult.Errors.Where(e => !IsCorrectionAccepted(e.RowNumber, e.CorrectionField)).ToList()
+                                        : importResult.Errors;
+                                }
+                                @if (!visibleErrors.Any())
                                 {
                                     <tr>
+                                        <td colspan="7" class="text-center text-success py-3">
+                                            <i class="bi bi-check-circle-fill me-1"></i>
+                                            All errors have a correction queued. Click "Apply Corrections &amp; Re-validate" above.
+                                        </td>
+                                    </tr>
+                                }
+                                @foreach (var err in visibleErrors)
+                                {
+                                    var isAccepted = IsCorrectionAccepted(err.RowNumber, err.CorrectionField);
+                                    <tr class="@(isAccepted ? "table-success" : "")">
                                         <td>@err.RowNumber</td>
                                         <td>@err.Field</td>
                                         <td>@err.Message</td>
                                         <td>@err.RawValue</td>
+                                        <td style="font-size:12px;">
+                                            @if (err.RowRegion is not null || err.RowProvince is not null || err.RowMunicipality is not null)
+                                            {
+                                                <div class="text-muted">
+                                                    @string.Join(" › ", new[] { err.RowRegion, err.RowProvince, err.RowMunicipality }
+                                                        .Where(s => !string.IsNullOrWhiteSpace(s)))
+                                                </div>
+                                            }
+                                        </td>
                                         <td>@err.Suggestion</td>
+                                        <td style="min-width:220px;">
+                                            @if (isAccepted)
+                                            {
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-lg me-1"></i>Correction queued
+                                                </span>
+                                                <button class="btn btn-link btn-sm p-0 ms-2" @onclick="() => UndoCorrection(err.RowNumber, err.CorrectionField)">
+                                                    Undo
+                                                </button>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(err.SuggestedValue))
+                                            {
+                                                <button class="btn btn-sm btn-outline-success" @onclick="() => AcceptSuggestion(err)">
+                                                    <i class="bi bi-check2 me-1"></i>Accept '@err.SuggestedValue'
+                                                </button>
+                                            }
+                                            else if (err.CorrectionField is "Region" or "Province" or "Municipality" or "Barangay")
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenLocationPicker(err)">
+                                                    <i class="bi bi-geo-alt me-1"></i>Pick Location
+                                                </button>
+                                            }
+                                            else if (err.CorrectionField == "Citizenship")
+                                            {
+                                                <select class="form-select form-select-sm" @onchange="e => QueueSelectCorrection(err.RowNumber, err.CorrectionField, e.Value?.ToString())">
+                                                    <option value="">-- Select --</option>
+                                                    <option value="FILIPINO">FILIPINO</option>
+                                                    <option value="DUAL CITIZENSHIP">DUAL CITIZENSHIP</option>
+                                                </select>
+                                            }
+                                            else if (err.CorrectionField == "NcscAssessment")
+                                            {
+                                                <select class="form-select form-select-sm" @onchange="e => QueueSelectCorrection(err.RowNumber, err.CorrectionField, e.Value?.ToString())">
+                                                    <option value="">-- Select --</option>
+                                                    <option value="ELIGIBLE">ELIGIBLE</option>
+                                                    <option value="INELIGIBLE">INELIGIBLE</option>
+                                                </select>
+                                            }
+                                            else if (err.CorrectionField == "NcscRrn")
+                                            {
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control" inputmode="numeric" placeholder="Digits only"
+                                                           @bind="_inlineCorrectionDrafts[CorrectionDraftKey(err.RowNumber, err.CorrectionField)]" @bind:event="oninput" />
+                                                    <button class="btn btn-outline-primary" @onclick="() => QueueTextCorrection(err.RowNumber, err.CorrectionField, digitsOnly: true)">Apply</button>
+                                                </div>
+                                            }
+                                            else if (err.CorrectionField is "FirstName" or "BirthDate")
+                                            {
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control"
+                                                           placeholder="@(err.CorrectionField == "BirthDate" ? "e.g. January 05 1930" : "Corrected value")"
+                                                           @bind="_inlineCorrectionDrafts[CorrectionDraftKey(err.RowNumber, err.CorrectionField)]" @bind:event="oninput" />
+                                                    <button class="btn btn-outline-primary" @onclick="() => QueueTextCorrection(err.RowNumber, err.CorrectionField, digitsOnly: false)">Apply</button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted small">Edit the file to fix this.</span>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -206,8 +348,8 @@
                     {
                         <div class="mt-1 small text-muted">
                             <i class="bi bi-info-circle me-1"></i>
-                            No reference number assigned — use
-                            <strong>Bulk Assign Ref Number</strong> in the grid.
+                            Saved without a reference number — use
+                            <strong>Bulk Assign Ref Number</strong> in the grid to assign one later.
                         </div>
                     }
                 </div>
@@ -471,6 +613,75 @@
 
 @* ✅ ReferenceNumberModal REMOVED — no longer needed for import *@
 
+@* ══════════════════════════════════════════════════════════
+   LOCATION PICKER MODAL — cascading Region → Province →
+   Municipality → Barangay, for rows whose location couldn't
+   even be fuzzy-matched (most common on Barangay, since many
+   barangays share names across different municipalities).
+   ══════════════════════════════════════════════════════════ *@
+<HxModal @ref="locationPickerModal" Size="ModalSize.Regular">
+    <HeaderTemplate>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-geo-alt-fill text-primary fs-5"></i>
+            <h5 class="mb-0">Pick the Correct Location — Row @_pickerRowNumber</h5>
+        </div>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="text-muted small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Select the grantee's actual Region, Province, Municipality, and Barangay.
+            All four will be corrected together for this row.
+        </p>
+        <div class="ff mb-2">
+            <label class="ff-label">Region</label>
+            <select class="ff-input" value="@_pickerRegionId" @onchange="OnPickerRegionChanged" disabled="@_pickerLoading">
+                <option value="0">-- Select Region --</option>
+                @foreach (var r in _pickerRegions)
+                {
+                    <option value="@r.PsgcCodeRegion">@r.Name</option>
+                }
+            </select>
+        </div>
+        <div class="ff mb-2">
+            <label class="ff-label">Province</label>
+            <select class="ff-input" value="@_pickerProvinceId" @onchange="OnPickerProvinceChanged" disabled="@(_pickerRegionId == 0 || _pickerLoading)">
+                <option value="0">-- Select Province --</option>
+                @foreach (var p in _pickerProvinces)
+                {
+                    <option value="@p.PsgcCodeProvince">@p.Name</option>
+                }
+            </select>
+        </div>
+        <div class="ff mb-2">
+            <label class="ff-label">Municipality / City</label>
+            <select class="ff-input" value="@_pickerMunicipalityId" @onchange="OnPickerMunicipalityChanged" disabled="@(_pickerProvinceId == 0 || _pickerLoading)">
+                <option value="0">-- Select Municipality --</option>
+                @foreach (var m in _pickerMunicipalities)
+                {
+                    <option value="@m.PsgcCodeMunicipality">@m.Name</option>
+                }
+            </select>
+        </div>
+        <div class="ff mb-2">
+            <label class="ff-label">Barangay</label>
+            <select class="ff-input" @bind="_pickerBarangayId" disabled="@(_pickerMunicipalityId == 0 || _pickerLoading)">
+                <option value="0">-- Select Barangay --</option>
+                @foreach (var b in _pickerBarangays)
+                {
+                    <option value="@b.PsgcCodeBarangay">@b.Name</option>
+                }
+            </select>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CloseLocationPicker">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ApplyLocationPickerCorrection"
+                  Enabled="@(_pickerRegionId != 0 && _pickerProvinceId != 0 && _pickerMunicipalityId != 0 && _pickerBarangayId != 0)">
+            <i class="bi bi-check2 me-1"></i>Use This Location
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @code {
     // ── State ─────────────────────────────────────────────────────────────────
     private bool isDownloadingTemplate;
@@ -499,9 +710,291 @@
     // ✅ Shown in success banner after import
     private string? _lastUsedRefSummary;
 
+    // ── Inline error correction — "accept correction" instead of forcing a
+    // re-edit-and-re-upload cycle for every fixable error. Keyed by
+    // RowNumber → Field → corrected raw value, sent back to the server on
+    // the next preview/confirm call and applied before re-validation. ──────
+    private readonly Dictionary<int, Dictionary<string, string>> _acceptedCorrections = new();
+    private readonly Dictionary<string, string> _inlineCorrectionDrafts = new();
+    private string _bulkNcscAssessmentValue = string.Empty;
+    // ✅ Default true — as soon as a row has a correction queued, it drops
+    // out of the list so the table shrinks instead of growing into an
+    // ever-longer scroll of rows the user already dealt with.
+    private bool _hideCorrectedErrors = true;
+
+    // ── Location picker (Region → Province → Municipality → Barangay) ──────
+    private HxModal locationPickerModal = default!;
+    private int? _pickerRowNumber;
+    private List<RegionLookupDto> _pickerRegions = new();
+    private List<ProvinceLookupDto> _pickerProvinces = new();
+    private List<MunicipalityLookupDto> _pickerMunicipalities = new();
+    private List<BarangayLookupDto> _pickerBarangays = new();
+    private int _pickerRegionId, _pickerProvinceId, _pickerMunicipalityId, _pickerBarangayId;
+    private bool _pickerLoading;
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     private static string DupKey(int rowNumber, Guid existingId)
         => $"{rowNumber}_{existingId}";
+
+    // ── Inline correction helpers ───────────────────────────────────────────
+    private bool IsCorrectionAccepted(int rowNumber, string? field) =>
+        field is not null &&
+        _acceptedCorrections.TryGetValue(rowNumber, out var map) &&
+        map.ContainsKey(field);
+
+    private void QueueCorrection(int rowNumber, string field, string value)
+    {
+        if (!_acceptedCorrections.TryGetValue(rowNumber, out var map))
+        {
+            map = new();
+            _acceptedCorrections[rowNumber] = map;
+        }
+        map[field] = value;
+    }
+
+    private void UndoCorrection(int rowNumber, string? field)
+    {
+        if (field is null) return;
+        if (_acceptedCorrections.TryGetValue(rowNumber, out var map))
+        {
+            map.Remove(field);
+            if (map.Count == 0) _acceptedCorrections.Remove(rowNumber);
+        }
+    }
+
+    private void AcceptSuggestion(BeneficiaryImportErrorDto err)
+    {
+        if (err.CorrectionField is null || err.SuggestedValue is null) return;
+        QueueCorrection(err.RowNumber, err.CorrectionField, err.SuggestedValue);
+    }
+
+    // ✅ Bulk-fix — NCSC Assessment is almost always the same answer for a
+    // whole batch, so picking it row-by-row for dozens of blank/invalid
+    // cells is pure busywork. One selection queues the correction for every
+    // row that has this error at once.
+    private void ApplyBulkNcscAssessment()
+    {
+        if (string.IsNullOrWhiteSpace(_bulkNcscAssessmentValue) || importResult is null) return;
+
+        var affectedRows = importResult.Errors
+            .Where(e => e.CorrectionField == "NcscAssessment")
+            .ToList();
+
+        foreach (var err in affectedRows)
+            QueueCorrection(err.RowNumber, "NcscAssessment", _bulkNcscAssessmentValue);
+
+        toast.ShowSuccess($"Queued '{_bulkNcscAssessmentValue}' for {affectedRows.Count} row(s).");
+        _bulkNcscAssessmentValue = string.Empty;
+    }
+
+    private string CorrectionDraftKey(int rowNumber, string? field)
+    {
+        var key = $"{rowNumber}_{field}";
+        if (!_inlineCorrectionDrafts.ContainsKey(key))
+            _inlineCorrectionDrafts[key] = string.Empty;
+        return key;
+    }
+
+    private void QueueSelectCorrection(int rowNumber, string? field, string? value)
+    {
+        if (field is null || string.IsNullOrWhiteSpace(value)) return;
+        QueueCorrection(rowNumber, field, value);
+    }
+
+    private void QueueTextCorrection(int rowNumber, string? field, bool digitsOnly)
+    {
+        if (field is null) return;
+        var key = CorrectionDraftKey(rowNumber, field);
+        var value = _inlineCorrectionDrafts.GetValueOrDefault(key, string.Empty).Trim();
+        if (digitsOnly)
+            value = new string(value.Where(char.IsDigit).ToArray());
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            toast.ShowError("Please enter a value before applying.");
+            return;
+        }
+        QueueCorrection(rowNumber, field, value);
+    }
+
+    // ── Location picker ──────────────────────────────────────────────────────
+    // ✅ Pre-fills the cascade from the row's Current Location reference
+    // (RowRegion/RowProvince/RowMunicipality) whenever a name match is
+    // found, so the user usually only has to pick the Barangay itself
+    // instead of re-selecting the whole chain from scratch.
+    private static T? FindByName<T>(IEnumerable<T> items, Func<T, string> nameSelector, string? name) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var trimmed = name.Trim();
+        return items.FirstOrDefault(x => string.Equals(nameSelector(x), trimmed, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(x => nameSelector(x).Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                                       || trimmed.Contains(nameSelector(x), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task OpenLocationPicker(BeneficiaryImportErrorDto err)
+    {
+        _pickerRowNumber = err.RowNumber;
+        _pickerProvinces.Clear();
+        _pickerMunicipalities.Clear();
+        _pickerBarangays.Clear();
+        _pickerRegionId = _pickerProvinceId = _pickerMunicipalityId = _pickerBarangayId = 0;
+
+        try
+        {
+            _pickerLoading = true;
+
+            if (!_pickerRegions.Any())
+                _pickerRegions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
+
+            var region = FindByName(_pickerRegions, r => r.Name, err.RowRegion);
+            if (region is null) return;
+            _pickerRegionId = region.PsgcCodeRegion;
+            await LoadPickerProvinces(_pickerRegionId);
+
+            var province = FindByName(_pickerProvinces, p => p.Name, err.RowProvince);
+            if (province is null) return;
+            _pickerProvinceId = province.PsgcCodeProvince;
+            await LoadPickerMunicipalities(_pickerProvinceId);
+
+            var municipality = FindByName(_pickerMunicipalities, m => m.Name, err.RowMunicipality);
+            if (municipality is null) return;
+            _pickerMunicipalityId = municipality.PsgcCodeMunicipality;
+            await LoadPickerBarangays(_pickerMunicipalityId);
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load location reference: {ex.Message}");
+        }
+        finally
+        {
+            _pickerLoading = false;
+            await locationPickerModal.ShowAsync();
+        }
+    }
+
+    private async Task LoadPickerProvinces(int regionId)
+    {
+        _pickerProvinces = await Http.GetFromJsonAsync<List<ProvinceLookupDto>>(
+            $"api/Province/by-region/{regionId}") ?? new();
+    }
+
+    private async Task LoadPickerMunicipalities(int provinceId)
+    {
+        _pickerMunicipalities = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
+            $"api/Municipality/by-province/{provinceId}") ?? new();
+    }
+
+    private async Task LoadPickerBarangays(int municipalityId)
+    {
+        var response = await Http.PostAsJsonAsync(
+            "api/Barangay/by-municipalities",
+            new LookupMultiRequestDto { Ids = new List<int> { municipalityId } });
+        if (response.IsSuccessStatusCode)
+            _pickerBarangays = await response.Content.ReadFromJsonAsync<List<BarangayLookupDto>>() ?? new();
+    }
+
+    private async Task OnPickerRegionChanged(ChangeEventArgs e)
+    {
+        _pickerRegionId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _pickerProvinces.Clear();
+        _pickerMunicipalities.Clear();
+        _pickerBarangays.Clear();
+        _pickerProvinceId = _pickerMunicipalityId = _pickerBarangayId = 0;
+        if (_pickerRegionId == 0) return;
+
+        try
+        {
+            _pickerLoading = true;
+            await LoadPickerProvinces(_pickerRegionId);
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load provinces: {ex.Message}");
+        }
+        finally
+        {
+            _pickerLoading = false;
+        }
+    }
+
+    private async Task OnPickerProvinceChanged(ChangeEventArgs e)
+    {
+        _pickerProvinceId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _pickerMunicipalities.Clear();
+        _pickerBarangays.Clear();
+        _pickerMunicipalityId = _pickerBarangayId = 0;
+        if (_pickerProvinceId == 0) return;
+
+        try
+        {
+            _pickerLoading = true;
+            await LoadPickerMunicipalities(_pickerProvinceId);
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load municipalities: {ex.Message}");
+        }
+        finally
+        {
+            _pickerLoading = false;
+        }
+    }
+
+    private async Task OnPickerMunicipalityChanged(ChangeEventArgs e)
+    {
+        _pickerMunicipalityId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        _pickerBarangays.Clear();
+        _pickerBarangayId = 0;
+        if (_pickerMunicipalityId == 0) return;
+
+        try
+        {
+            _pickerLoading = true;
+            await LoadPickerBarangays(_pickerMunicipalityId);
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load barangays: {ex.Message}");
+        }
+        finally
+        {
+            _pickerLoading = false;
+        }
+    }
+
+    private async Task ApplyLocationPickerCorrection()
+    {
+        if (_pickerRowNumber is not int rowNumber) return;
+
+        var region = _pickerRegions.FirstOrDefault(r => r.PsgcCodeRegion == _pickerRegionId);
+        var province = _pickerProvinces.FirstOrDefault(p => p.PsgcCodeProvince == _pickerProvinceId);
+        var municipality = _pickerMunicipalities.FirstOrDefault(m => m.PsgcCodeMunicipality == _pickerMunicipalityId);
+        var barangay = _pickerBarangays.FirstOrDefault(b => b.PsgcCodeBarangay == _pickerBarangayId);
+
+        if (region is null || province is null || municipality is null || barangay is null)
+        {
+            toast.ShowError("Please select Region, Province, Municipality, and Barangay.");
+            return;
+        }
+
+        // ✅ Corrects the whole location chain together for this row, so it
+        // stays internally consistent regardless of which piece originally
+        // failed to match.
+        QueueCorrection(rowNumber, "Region", region.Name);
+        QueueCorrection(rowNumber, "Province", province.Name);
+        QueueCorrection(rowNumber, "Municipality", municipality.Name);
+        QueueCorrection(rowNumber, "Barangay", barangay.Name);
+
+        _pickerRowNumber = null;
+        try { await locationPickerModal.HideAsync(); } catch { /* already closed */ }
+        toast.ShowSuccess($"Location set for row {rowNumber}. Click \"Apply Corrections & Re-validate\" to continue.");
+    }
+
+    private async Task CloseLocationPicker()
+    {
+        _pickerRowNumber = null;
+        try { await locationPickerModal.HideAsync(); } catch { /* already closed */ }
+    }
 
     private int WillBeImported
     {
@@ -561,6 +1054,8 @@
         previewResult = null;
         skipRows = new();
         _lastUsedRefSummary = null;
+        _acceptedCorrections.Clear();
+        _inlineCorrectionDrafts.Clear();
         excelSheetNames.Clear();
         selectedSheetName = null;
         uploadedExcelBytes = null;
@@ -709,6 +1204,12 @@
                 new ByteArrayContent(uploadedExcelBytes),
                 "File", uploadedExcelFileName);
             content.Add(new StringContent(selectedSheetName), "SheetName");
+            if (_acceptedCorrections.Any())
+            {
+                content.Add(
+                    new StringContent(System.Text.Json.JsonSerializer.Serialize(_acceptedCorrections)),
+                    "CorrectionsJson");
+            }
 
             var response = await Http.PostAsync(
                 "api/beneficiary/import/preview", content);
@@ -784,17 +1285,12 @@
             return;
         }
 
-        // ✅ Warn if ref number not set — but never block
+        // ✅ Reference number is optional — same as manual grantee creation,
+        // this is just noted alongside the success message afterward, not
+        // flagged as a warning beforehand (it isn't a problem).
         bool hasRefNumber = !string.IsNullOrWhiteSpace(_importQuarter)
                          && !string.IsNullOrWhiteSpace(_importBatch)
                          && _importRefYear.HasValue;
-
-        if (!hasRefNumber)
-        {
-            toast.ShowWarning(
-                "Importing without a reference number. " +
-                "Use Bulk Assign Ref Number in the grid to assign later.");
-        }
 
         // ── Build skip rows set ───────────────────────────────────────────
         var rowNumbersToSkip = previewResult?.SoftDuplicates
@@ -821,6 +1317,12 @@
                 new StringContent(
                     System.Text.Json.JsonSerializer.Serialize(rowNumbersToSkip)),
                 "SkipRowsJson");
+            if (_acceptedCorrections.Any())
+            {
+                content.Add(
+                    new StringContent(System.Text.Json.JsonSerializer.Serialize(_acceptedCorrections)),
+                    "CorrectionsJson");
+            }
 
             // ✅ Only add ref number fields if all three are provided
             // Server accepts null/missing — nullable params in controller
@@ -866,7 +1368,7 @@
                         $"Import completed. {importResult?.ImportedCount ?? 0} record(s) saved." +
                         (hasRefNumber
                             ? $" Reference: Q{_importQuarter}B{_importBatch}-{_importRefYear!.Value:D2}"
-                            : " No reference number assigned."));
+                            : " Saved without a reference number — you can assign one later in the grid."));
                 }
             }
             else

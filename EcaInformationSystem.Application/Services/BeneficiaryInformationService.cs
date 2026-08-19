@@ -2812,7 +2812,9 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
             return result;
         }
-        public async Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName)
+        public async Task<BeneficiaryPreviewResultDto> PreviewImportAsync(
+            Stream fileStream, string fileName, string sheetName,
+            Dictionary<int, Dictionary<string, string>>? corrections = null)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -2924,6 +2926,17 @@ namespace EcaInformationSystem.Application.Services
 
             var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // ✅ NEW — lets the user "accept" a spelling-suggestion correction
+            // in the UI (e.g. Region "CARAGAA" → "CARAGA") and re-validate
+            // without re-editing and re-uploading the Excel file. Applied
+            // right after the raw cell value is read, before matching.
+            string ApplyCorrection(int rowNumber, string field, string rawValue) =>
+                corrections != null &&
+                corrections.TryGetValue(rowNumber, out var fieldMap) &&
+                fieldMap.TryGetValue(field, out var correctedValue)
+                    ? correctedValue
+                    : rawValue;
+
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
@@ -2942,9 +2955,9 @@ namespace EcaInformationSystem.Application.Services
                                                                               // col 3 = NO. (ignored)
                     var oscaIdNumber = row.Cell(4).GetFormattedString().Trim();  // OSCA ID NUMBER
                     var oscaIdDateIssued = row.Cell(5).GetFormattedString().Trim();  // OSCA ID DATE ISSUED
-                    var ncscRrnRaw = row.Cell(6).GetFormattedString().Trim();  // NCSC RRN
+                    var ncscRrnRaw = ApplyCorrection(rowNumber, "NcscRrn", row.Cell(6).GetFormattedString().Trim());  // NCSC RRN
                     var lastName = row.Cell(7).GetFormattedString().Trim();  // LAST NAME
-                    var firstName = row.Cell(8).GetFormattedString().Trim();  // FIRST NAME
+                    var firstName = ApplyCorrection(rowNumber, "FirstName", row.Cell(8).GetFormattedString().Trim());  // FIRST NAME
                     var middleName = row.Cell(9).GetFormattedString().Trim(); // MIDDLE NAME
                     var extensionName = row.Cell(10).GetFormattedString().Trim(); // EXTENSION
                     var birthMonthRaw = row.Cell(11).GetFormattedString().Trim(); // BIRTH MONTH
@@ -2952,11 +2965,11 @@ namespace EcaInformationSystem.Application.Services
                     var birthYearRaw = row.Cell(13).GetFormattedString().Trim(); // BIRTH YEAR
                                                                                  // col 14 = AGE (ignored — computed)
                     var sexRaw = row.Cell(15).GetFormattedString().Trim(); // SEX
-                    var citizenshipRaw = row.Cell(16).GetFormattedString().Trim(); // CITIZENSHIP
-                    var regionName = row.Cell(17).GetFormattedString().Trim(); // REGION
-                    var provinceName = row.Cell(18).GetFormattedString().Trim(); // PROVINCE
-                    var municipalityName = row.Cell(19).GetFormattedString().Trim(); // MUNICIPALITY/CITY
-                    var barangayName = row.Cell(20).GetFormattedString().Trim(); // BARANGAY
+                    var citizenshipRaw = ApplyCorrection(rowNumber, "Citizenship", row.Cell(16).GetFormattedString().Trim()); // CITIZENSHIP
+                    var regionName = ApplyCorrection(rowNumber, "Region", row.Cell(17).GetFormattedString().Trim()); // REGION
+                    var provinceName = ApplyCorrection(rowNumber, "Province", row.Cell(18).GetFormattedString().Trim()); // PROVINCE
+                    var municipalityName = ApplyCorrection(rowNumber, "Municipality", row.Cell(19).GetFormattedString().Trim()); // MUNICIPALITY/CITY
+                    var barangayName = ApplyCorrection(rowNumber, "Barangay", row.Cell(20).GetFormattedString().Trim()); // BARANGAY
                     var contactNumber = row.Cell(21).GetFormattedString().Trim(); // CONTACT NUMBER
                     var dateOfDeath = row.Cell(22).GetFormattedString().Trim(); // DATE OF DEATH
                     var dateApplied = row.Cell(23).GetFormattedString().Trim(); // DATE APPLIED
@@ -2965,7 +2978,7 @@ namespace EcaInformationSystem.Application.Services
                     var complianceRaw = row.Cell(26).GetFormattedString().Trim(); // COMPLIANCE (FOR NCSC)
                     var validator = row.Cell(27).GetFormattedString().Trim(); // NAME OF VALIDATOR (FOR NCSC)
                     var validationDateRaw = row.Cell(28).GetFormattedString().Trim(); // VALIDATION DATE (FOR NCSC)
-                    var isEligibleRaw = row.Cell(29).GetFormattedString().Trim(); // IsEligible 
+                    var isEligibleRaw = ApplyCorrection(rowNumber, "NcscAssessment", row.Cell(29).GetFormattedString().Trim()); // IsEligible
                     var paymentStatus = row.Cell(30).GetFormattedString().Trim();  // col 30 = PAYMENT STATUS FOR NCSC —  Paid, Unpaid, Pending
 
                     bool rowHasHardError = false;
@@ -2978,13 +2991,15 @@ namespace EcaInformationSystem.Application.Services
                             RowNumber = rowNumber,
                             Field = CommonConstants.FirstName.ToTitleCase(),
                             Message = CommonConstants.FirstNameRequired,
-                            RawValue = firstName
+                            RawValue = firstName,
+                            CorrectionField = "FirstName"
                         });
                         rowHasHardError = true;
                     }
 
-                    // ── Birth Date ───────────────────────────────────────────────
-                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
+                    // ── Birth Date — correction applies to the whole combined
+                    // "Month Day Year" string, typed by the user in that form. ──
+                    var birthDateRaw = ApplyCorrection(rowNumber, "BirthDate", $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}");
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
@@ -2992,13 +3007,14 @@ namespace EcaInformationSystem.Application.Services
                             RowNumber = rowNumber,
                             Field = CommonConstants.BirthDate.ToTitleCase(),
                             Message = CommonConstants.InvalidBirthDate,
-                            RawValue = birthDateRaw
+                            RawValue = birthDateRaw,
+                            CorrectionField = "BirthDate"
                         });
                         rowHasHardError = true;
                         birthDate = DateTime.MinValue;
                     }
 
-                    // ── NCSC RRN ─────────────────────────────────────────────────
+                    // ── NCSC RRN — digits only ─────────────────────────────────────
                     int? ncscRrn = null;
                     if (!string.IsNullOrWhiteSpace(ncscRrnRaw))
                     {
@@ -3012,7 +3028,8 @@ namespace EcaInformationSystem.Application.Services
                                 Field = CommonConstants.NcscRrn,
                                 Message = CommonConstants.InvalidRrn,
                                 RawValue = ncscRrnRaw,
-                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName
+                                Suggestion = CommonConstants.RemoveSpecialCharactersFromName,
+                                CorrectionField = "NcscRrn"
                             });
                             rowHasHardError = true;
                         }
@@ -3027,6 +3044,7 @@ namespace EcaInformationSystem.Application.Services
                             RowNumber = rowNumber,
                             Field = CommonConstants.Citizenship.ToTitleCase(),
                             Message = "Invalid citizenship value. Accepted: FILIPINO or DUAL CITIZENSHIP.",
+                            CorrectionField = "Citizenship",
                             RawValue = citizenshipRaw,
                             Suggestion = "Use FILIPINO or DUAL CITIZENSHIP"
                         });
@@ -3049,30 +3067,18 @@ namespace EcaInformationSystem.Application.Services
                     }
                     else if (region == null)
                     {
+                        var suggestedRegion = GetSuggestedName(regions, x => x.Name, regionName);
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Region,
                             Message = CommonConstants.RegionNotFound,
                             RawValue = regionName,
-                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
+                            Suggestion = suggestedRegion is { } sr
                                 ? $"{CommonConstants.PossibleMatch} '{sr}'"
-                                : CommonConstants.CheckSpelling
-                        });
-                        rowHasHardError = true;
-                    }
-
-                    if (region == null)
-                    {
-                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
-                        {
-                            RowNumber = rowNumber,
-                            Field = CommonConstants.Region,
-                            Message = CommonConstants.RegionNotFound,
-                            RawValue = regionName,
-                            Suggestion = GetSuggestedName(regions, x => x.Name, regionName) is { } sr
-                                ? $"{CommonConstants.PossibleMatch} '{sr}'"
-                                : CommonConstants.CheckSpelling
+                                : CommonConstants.CheckSpelling,
+                            SuggestedValue = suggestedRegion,
+                            CorrectionField = "Region"
                         });
                         rowHasHardError = true;
                     }
@@ -3081,15 +3087,19 @@ namespace EcaInformationSystem.Application.Services
                     var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
                     if (province == null)
                     {
+                        var suggestedProvince = GetSuggestedName(provinces, x => x.Name, provinceName);
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Province.ToTitleCase(),
                             Message = CommonConstants.ProvinceNotFound,
                             RawValue = provinceName,
-                            Suggestion = GetSuggestedName(provinces, x => x.Name, provinceName) is { } sp
+                            Suggestion = suggestedProvince is { } sp
                                 ? $"{CommonConstants.PossibleMatch} '{sp}'"
-                                : CommonConstants.CheckSpelling
+                                : CommonConstants.CheckSpelling,
+                            SuggestedValue = suggestedProvince,
+                            CorrectionField = "Province",
+                            RowRegion = regionName
                         });
                         rowHasHardError = true;
                     }
@@ -3102,15 +3112,20 @@ namespace EcaInformationSystem.Application.Services
                     var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
                     if (municipality == null)
                     {
+                        var suggestedMunicipality = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName);
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Municipality,
                             Message = CommonConstants.MunicipalityNotFound,
                             RawValue = municipalityName,
-                            Suggestion = GetSuggestedName(municipalitiesInProvince, x => x.Name, municipalityName) is { } sm
+                            Suggestion = suggestedMunicipality is { } sm
                                 ? $"{CommonConstants.PossibleMatch} '{sm}'"
-                                : CommonConstants.CheckSpelling
+                                : CommonConstants.CheckSpelling,
+                            SuggestedValue = suggestedMunicipality,
+                            CorrectionField = "Municipality",
+                            RowRegion = regionName,
+                            RowProvince = provinceName
                         });
                         rowHasHardError = true;
                     }
@@ -3123,15 +3138,21 @@ namespace EcaInformationSystem.Application.Services
                     var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
                     if (barangay == null)
                     {
+                        var suggestedBarangay = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName);
                         preview.HardErrors.Add(new BeneficiaryImportErrorDto
                         {
                             RowNumber = rowNumber,
                             Field = CommonConstants.Barangay.ToTitleCase(),
                             Message = CommonConstants.BarangayNotFound,
                             RawValue = barangayName,
-                            Suggestion = GetSuggestedName(barangaysInMunicipality, x => x.Name, barangayName) is { } sb
+                            Suggestion = suggestedBarangay is { } sb
                                 ? $"{CommonConstants.PossibleMatch} '{sb}'"
-                                : CommonConstants.CheckSpelling
+                                : CommonConstants.CheckSpelling,
+                            SuggestedValue = suggestedBarangay,
+                            CorrectionField = "Barangay",
+                            RowRegion = regionName,
+                            RowProvince = provinceName,
+                            RowMunicipality = municipalityName
                         });
                         rowHasHardError = true;
                     }
@@ -3145,7 +3166,8 @@ namespace EcaInformationSystem.Application.Services
                             RowNumber = rowNumber,
                             Field = CommonConstants.NcscAssessment.ToTitleCase(),
                             Message = CommonConstants.NcscAssessmentNotFound,
-                            RawValue = isEligibleRaw
+                            RawValue = isEligibleRaw,
+                            CorrectionField = "NcscAssessment"
                         });
                         rowHasHardError = true;
                     }
@@ -3741,7 +3763,8 @@ namespace EcaInformationSystem.Application.Services
      HashSet<int> skipRows,
      int? quarter,      // ✅ new
      string? batch,     // ✅ new
-     int? refYear)
+     int? refYear,
+     Dictionary<int, Dictionary<string, string>>? corrections = null)
         {
             if (fileStream == null || !fileStream.CanRead)
                 throw new Exception(CommonConstants.InvalidExcelUploaded);
@@ -3789,6 +3812,16 @@ namespace EcaInformationSystem.Application.Services
 
             var uploadedRowKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            // ✅ Same correction mechanism as PreviewImportAsync — applied here
+            // too since this is the method that actually performs the save,
+            // and must honor whatever the user accepted during preview.
+            string ApplyCorrection(int rowNumber, string field, string rawValue) =>
+                corrections != null &&
+                corrections.TryGetValue(rowNumber, out var fieldMap) &&
+                fieldMap.TryGetValue(field, out var correctedValue)
+                    ? correctedValue
+                    : rawValue;
+
             for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
             {
                 var row = worksheet.Row(rowNumber);
@@ -3813,9 +3846,9 @@ namespace EcaInformationSystem.Application.Services
                     // col 3 = NO. (ignored)
                     var oscaIdNumber = row.Cell(4).GetFormattedString().Trim();
                     var oscaIdDateIssued = row.Cell(5).GetFormattedString().Trim();
-                    var ncscRrnRaw = row.Cell(6).GetFormattedString().Trim();
+                    var ncscRrnRaw = ApplyCorrection(rowNumber, "NcscRrn", row.Cell(6).GetFormattedString().Trim());
                     var lastName = row.Cell(7).GetFormattedString().Trim();
-                    var firstName = row.Cell(8).GetFormattedString().Trim();
+                    var firstName = ApplyCorrection(rowNumber, "FirstName", row.Cell(8).GetFormattedString().Trim());
                     var middleName = row.Cell(9).GetFormattedString().Trim();
                     var extensionName = row.Cell(10).GetFormattedString().Trim();
                     var birthMonthRaw = row.Cell(11).GetFormattedString().Trim();
@@ -3823,11 +3856,11 @@ namespace EcaInformationSystem.Application.Services
                     var birthYearRaw = row.Cell(13).GetFormattedString().Trim();
                     // col 14 = AGE (ignored)
                     var sexRaw = row.Cell(15).GetFormattedString().Trim();
-                    var citizenshipRaw = row.Cell(16).GetFormattedString().Trim();
-                    var regionName = row.Cell(17).GetFormattedString().Trim();
-                    var provinceName = row.Cell(18).GetFormattedString().Trim();
-                    var municipalityName = row.Cell(19).GetFormattedString().Trim();
-                    var barangayName = row.Cell(20).GetFormattedString().Trim();
+                    var citizenshipRaw = ApplyCorrection(rowNumber, "Citizenship", row.Cell(16).GetFormattedString().Trim());
+                    var regionName = ApplyCorrection(rowNumber, "Region", row.Cell(17).GetFormattedString().Trim());
+                    var provinceName = ApplyCorrection(rowNumber, "Province", row.Cell(18).GetFormattedString().Trim());
+                    var municipalityName = ApplyCorrection(rowNumber, "Municipality", row.Cell(19).GetFormattedString().Trim());
+                    var barangayName = ApplyCorrection(rowNumber, "Barangay", row.Cell(20).GetFormattedString().Trim());
                     var contactNumber = row.Cell(21).GetFormattedString().Trim();
                     var dateOfDeath = row.Cell(22).GetFormattedString().Trim();
                     var dateApplied = row.Cell(23).GetFormattedString().Trim();
@@ -3836,7 +3869,7 @@ namespace EcaInformationSystem.Application.Services
                     var complianceRaw = row.Cell(26).GetFormattedString().Trim();
                     var validator = row.Cell(27).GetFormattedString().Trim();
                     var validationDateRaw = row.Cell(28).GetFormattedString().Trim();
-                    var isEligibleRaw = row.Cell(29).GetFormattedString().Trim();
+                    var isEligibleRaw = ApplyCorrection(rowNumber, "NcscAssessment", row.Cell(29).GetFormattedString().Trim());
                     var paymentStatusRaw = row.Cell(30).GetFormattedString().Trim();
 
                     bool rowHasError = false;
@@ -3855,7 +3888,7 @@ namespace EcaInformationSystem.Application.Services
                     }
 
                     // ── Birth Date ────────────────────────────────────────────────
-                    var birthDateRaw = $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}";
+                    var birthDateRaw = ApplyCorrection(rowNumber, "BirthDate", $"{birthMonthRaw} {birthDayRaw} {birthYearRaw}");
                     if (!TryParseExcelDate(birthDateRaw, out var birthDate))
                     {
                         result.Errors.Add(new BeneficiaryImportErrorDto

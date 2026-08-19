@@ -284,10 +284,14 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpPost("import/preview")]
         [Authorize(Policy = "AdminOrPDO")]
         public async Task<IActionResult> PreviewImport(
-     IFormFile file, [FromForm] string sheetName)
+     IFormFile file, [FromForm] string sheetName, [FromForm] string? correctionsJson = null)
         {
+            var corrections = string.IsNullOrWhiteSpace(correctionsJson)
+                ? null
+                : JsonSerializer.Deserialize<Dictionary<int, Dictionary<string, string>>>(correctionsJson);
+
             using var stream = file.OpenReadStream();
-            var result = await _service.PreviewImportAsync(stream, file.FileName, sheetName);
+            var result = await _service.PreviewImportAsync(stream, file.FileName, sheetName, corrections);
             return Ok(result);
         }
         // ✅ NEW — read-only crossmatch scan, run as a background job so large
@@ -386,16 +390,20 @@ namespace EcaInformationSystem.Api.Controllers
             [FromForm] string skipRowsJson,
             [FromForm] int? quarter,       // ✅ nullable
             [FromForm] string? batch,      // ✅ nullable
-            [FromForm] int? refYear)       // ✅ nullable
+            [FromForm] int? refYear,       // ✅ nullable
+            [FromForm] string? correctionsJson = null)
         {
             var skipRows = JsonSerializer.Deserialize<HashSet<int>>(skipRowsJson) ?? new();
+            var corrections = string.IsNullOrWhiteSpace(correctionsJson)
+                ? null
+                : JsonSerializer.Deserialize<Dictionary<int, Dictionary<string, string>>>(correctionsJson);
             var userName = User.Identity?.Name ?? "System";
 
             using var stream = file.OpenReadStream();
 
             var result = await _service.ConfirmImportAsync(
                 stream, file.FileName, sheetName, userName, skipRows,
-                quarter, batch, refYear);
+                quarter, batch, refYear, corrections);
 
             return Ok(result);
         }
