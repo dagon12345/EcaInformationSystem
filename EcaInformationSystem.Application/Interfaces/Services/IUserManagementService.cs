@@ -10,7 +10,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // assignment screen, so a region's admins only see (and can only link
         // biometric IDs for) their own region's users. The unfiltered
         // overload above stays as-is for other callers (general User
-        // Management, Document Tracking) that aren't region-scoped today.
+        // Management, Application Tracking) that aren't region-scoped today.
         Task<List<UserListDto>> GetAllUsersAsync(int regionCode);
         Task<UserListDto?> GetUserByIdAsync(Guid id);
         Task ApproveAsync(Guid userId, string role, string? remarks, string approvedBy);

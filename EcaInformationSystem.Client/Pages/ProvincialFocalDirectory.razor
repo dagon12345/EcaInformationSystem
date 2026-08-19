@@ -255,7 +255,7 @@
         // race where this page's OnInitializedAsync and MainLayout's
         // OnAfterRenderAsync both fire concurrently: without this, the Focal
         // briefly sees the full staff shell and a burst of staff-only API/hub
-        // calls (transaction-tier, MFA status, documentTrackingHub,
+        // calls (transaction-tier, MFA status, applicationTrackingHub,
         // systemUpdateHub, biometricStatusHub) all 403 before the slower
         // layout-level redirect kicks in.
         if (AuthService.GetRole() == "Focal")

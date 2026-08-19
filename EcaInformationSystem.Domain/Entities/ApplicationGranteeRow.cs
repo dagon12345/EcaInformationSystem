@@ -1,13 +1,13 @@
 namespace EcaInformationSystem.Domain.Entities
 {
-    // A single grantee's document inside a DocumentBatch. Names are freeform —
+    // A single grantee's document inside an ApplicationBatch. Names are freeform —
     // not linked to BeneficiaryInformation — since this tracks the physical
     // document, not the grantee record itself.
-    public class DocumentGranteeRow
+    public class ApplicationGranteeRow
     {
         public Guid Id { get; set; }
-        public Guid DocumentBatchId { get; set; }
-        public DocumentBatch? DocumentBatch { get; set; }
+        public Guid ApplicationBatchId { get; set; }
+        public ApplicationBatch? ApplicationBatch { get; set; }
 
         public string FirstName { get; set; } = string.Empty;
         public string? MiddleName { get; set; }

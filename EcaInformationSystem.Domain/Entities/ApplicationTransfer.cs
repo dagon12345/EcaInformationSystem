@@ -2,15 +2,15 @@ using EcaInformationSystem.Domain.Common.Enum;
 
 namespace EcaInformationSystem.Domain.Entities
 {
-    // Append-only log of every hand-off a DocumentBatch goes through — this is
+    // Append-only log of every hand-off an ApplicationBatch goes through — this is
     // what renders as "status and date relayed" on the batch card.
-    public class DocumentTransfer
+    public class ApplicationTransfer
     {
         public Guid Id { get; set; }
-        public Guid DocumentBatchId { get; set; }
-        public DocumentBatch? DocumentBatch { get; set; }
+        public Guid ApplicationBatchId { get; set; }
+        public ApplicationBatch? ApplicationBatch { get; set; }
 
-        public DocumentTrackingStatus Status { get; set; }
+        public ApplicationTrackingStatus Status { get; set; }
 
         public Guid FromUserId { get; set; }
         public string FromUserName { get; set; } = string.Empty;
@@ -22,7 +22,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string? Note { get; set; }
 
         // ── Batch/relay-level finding — separate from the Finance-only,
-        // grantee-row-specific findings (DocumentGranteeRow.HasFinding). Any
+        // grantee-row-specific findings (ApplicationGranteeRow.HasFinding). Any
         // role, at any relay stage, can optionally flag this transfer as a
         // finding (e.g. "missing attachment"). FindingJustification is its own
         // field, distinct from the general-purpose Note above, so a hand-off

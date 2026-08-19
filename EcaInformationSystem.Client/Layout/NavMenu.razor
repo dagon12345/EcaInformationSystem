@@ -91,10 +91,18 @@
         }
     }
 
-    @* ── Document Tracking — visible to everyone; actions are gated inside the page ── *@
-    <div class="nav-section-label">Document Tracking</div>
-    <NavLink class="nav-item" href="document-tracking">
+    @* ── Tracking — Application Tracking (grantee document batches) and Document
+         Tracking (any important document) are two separate features that share
+         the same "hand it off, accept it, route it" shape, so they're grouped
+         under one section here even though each has its own nav-item/route.
+         Both are visible to everyone; actions are gated inside each page. ── *@
+    <div class="nav-section-label">Tracking</div>
+    <NavLink class="nav-item" href="application-tracking">
         <span class="nav-icon"><i class="bi bi-truck"></i></span>
+        <span class="nav-label">Application Tracking</span>
+    </NavLink>
+    <NavLink class="nav-item" href="document-tracking">
+        <span class="nav-icon"><i class="bi bi-send"></i></span>
         <span class="nav-label">Document Tracking</span>
     </NavLink>
 
@@ -456,8 +464,10 @@
             ("View Activity Logs", _isAdmin),
             ("View WFP-ECA", _isFinance || _isAdmin), // Admin views only; edit is Finance/SuperAdmin
             ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
-            ("Log a Document Batch (Document Tracking)", _isViewer || _isAdmin),
-            ("Act on a Document Batch tagged to you", true), // any role, once it's actually tagged to them
+            ("Log an Application Batch (Application Tracking)", _isViewer || _isAdmin),
+            ("Act on a Application Batch tagged to you", true), // any role, once it's actually tagged to them
+            ("Create a Tracked Document (Document Tracking)", true), // creation is unrestricted
+            ("Delete a Tracked Document (Admin/SuperAdmin/Finance)", _isAdmin || _isFinance),
             ("Manage Users (Approve/Deactivate/Delete)", _isFinance || _isSuperAdmin),
             ("Publish System Updates", _isSuperAdmin), // SuperAdmin only — broadcasts the refresh banner
         };

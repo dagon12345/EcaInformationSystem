@@ -75,6 +75,7 @@ builder.Services.AddScoped<FocalBeneficiaryClientService>();
 builder.Services.AddScoped<VoiceCallStateService>();
 builder.Services.AddScoped<PostsClientService>();
 builder.Services.AddScoped<ActivityClientService>();
+builder.Services.AddScoped<ApplicationTrackingClientService>();
 builder.Services.AddScoped<DocumentTrackingClientService>();
 builder.Services.AddScoped<SystemUpdateClientService>();
 builder.Services.AddScoped<BiometricStatusClientService>();

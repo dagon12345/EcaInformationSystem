@@ -1,6 +1,6 @@
-namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
+namespace EcaInformationSystem.Shared.DTOs.ApplicationTracking
 {
-    public class DocumentGranteeRowDto
+    public class ApplicationGranteeRowDto
     {
         public Guid Id { get; set; }
         public string FirstName { get; set; } = string.Empty;
@@ -16,7 +16,7 @@ namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
         public DateTime? FindingResolvedAt { get; set; }
     }
 
-    public class CreateDocumentGranteeRowDto
+    public class CreateApplicationGranteeRowDto
     {
         public string FirstName { get; set; } = string.Empty;
         public string? MiddleName { get; set; }

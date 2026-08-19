@@ -1,0 +1,158 @@
+/* ── Search bar ─────────────────────────────────────────────────────── */
+.scd-toolbar {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 8px rgba(0,0,0,.05);
+}
+
+.scd-search-wrap {
+    position: relative;
+    max-width: 380px;
+}
+
+.scd-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.scd-search-input {
+    padding-left: 34px !important;
+    border-radius: 8px;
+    border-color: var(--border);
+}
+
+.scd-search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 .2rem rgba(59,130,246,.15);
+}
+
+.scd-count-pill {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--navy);
+    background: var(--navy-pale);
+    border: 1px solid #dbe4f3;
+    border-radius: 20px;
+    padding: 4px 12px;
+    white-space: nowrap;
+}
+
+/* ── Card / table shell ────────────────────────────────────────────── */
+.scd-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 10px rgba(0,0,0,.06);
+}
+
+.scd-table-scroll {
+    overflow-x: auto;
+}
+
+.scd-table {
+    margin-bottom: 0;
+    font-size: 13px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.scd-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--navy-pale);
+    color: var(--navy);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    border-bottom: 2px solid #dbe4f3;
+    padding: 12px 14px;
+    white-space: nowrap;
+}
+
+.scd-table thead th:first-child { border-top-left-radius: 0; }
+
+.scd-table tbody td {
+    padding: 11px 14px;
+    vertical-align: middle;
+    border-bottom: 1px solid #eef1f6;
+    color: var(--text-main);
+}
+
+.scd-table tbody tr {
+    transition: background-color .12s ease;
+}
+
+.scd-table tbody tr:hover {
+    background-color: var(--row-hover);
+}
+
+.scd-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.scd-loc-primary {
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.scd-loc-secondary {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.scd-muted-cell {
+    color: var(--text-muted);
+}
+
+.scd-contact-number {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+
+.scd-contact-email {
+    color: var(--accent);
+    font-size: 12.5px;
+    word-break: break-word;
+}
+
+.scd-empty-value {
+    color: #c3cad6;
+}
+
+.scd-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.scd-actions .btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+}
+
+.scd-empty-state {
+    padding: 64px 24px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.scd-empty-state i {
+    font-size: 34px;
+    color: #cbd5e1;
+    display: block;
+    margin-bottom: 10px;
+}

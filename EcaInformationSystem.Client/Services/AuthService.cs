@@ -14,19 +14,19 @@ namespace EcaInformationSystem.Client.Services
         private readonly HttpClient _http;
         private readonly IJSRuntime _js;
         private readonly ChatClientService _chatClientService; // ✅ NEW
-        private readonly DocumentTrackingClientService _documentTrackingClientService;
+        private readonly ApplicationTrackingClientService _applicationTrackingClientService;
         private readonly IConfiguration _config; // ✅ NEW
         // ── In-memory cache so sync helpers work after InitAsync ─────────────
         private string? _cachedRole;
         private int? _cachedRegionCode;
 
         public AuthService(HttpClient http, IJSRuntime js, ChatClientService chatClientService,
-            DocumentTrackingClientService documentTrackingClientService, IConfiguration config)
+            ApplicationTrackingClientService applicationTrackingClientService, IConfiguration config)
         {
             _http = http;
             _js = js;
             _chatClientService = chatClientService;
-            _documentTrackingClientService = documentTrackingClientService;
+            _applicationTrackingClientService = applicationTrackingClientService;
             _config = config; // ✅ NEW
         }
 
@@ -195,8 +195,8 @@ namespace EcaInformationSystem.Client.Services
                 if (userId.HasValue)
                 {
                     var apiBase = _config["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
-                    var hubUrl = new Uri(new Uri(apiBase), "documentTrackingHub").ToString();
-                    await _documentTrackingClientService.ConnectAsync(hubUrl, userId.Value);
+                    var hubUrl = new Uri(new Uri(apiBase), "applicationTrackingHub").ToString();
+                    await _applicationTrackingClientService.ConnectAsync(hubUrl, userId.Value);
                 }
             }
             catch { }
@@ -242,7 +242,7 @@ namespace EcaInformationSystem.Client.Services
 
             // ✅ NEW — tear down the chat connection on logout
             await _chatClientService.DisconnectAsync();
-            await _documentTrackingClientService.DisconnectAsync();
+            await _applicationTrackingClientService.DisconnectAsync();
         }
 
         public async Task<string?> GetTokenAsync()

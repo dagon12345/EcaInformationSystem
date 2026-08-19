@@ -144,7 +144,7 @@ namespace EcaInformationSystem.Application.Services
         // `Log.UserName` isn't a foreign key — it's a free-text column, and
         // different call sites across the codebase write different things into
         // it for the same person (their login UserName in most places, but
-        // their FullName display string in a few, e.g. Document Tracking's
+        // their FullName display string in a few, e.g. Application Tracking's
         // activity log). Grouping directly on that raw string, like the
         // repository-level query does, therefore risks splitting one person's
         // activity into two separate leaderboard rows — and any raw name that

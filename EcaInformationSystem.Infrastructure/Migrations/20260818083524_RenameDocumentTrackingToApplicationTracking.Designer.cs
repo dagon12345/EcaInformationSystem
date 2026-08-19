@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818083524_RenameDocumentTrackingToApplicationTracking")]
+    partial class RenameDocumentTrackingToApplicationTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,8 +24,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.HasSequence<int>("DocumentTrackingSerialSeq");
 
             modelBuilder.Entity("BeneficiaryVerificationChecklist", b =>
                 {
@@ -305,9 +306,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int>("MilestoneYear")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Priority")
                         .HasColumnType("int");
 
                     b.Property<int>("PsgcCodeMunicipality")
@@ -1680,62 +1678,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("DarReports");
                 });
 
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.DocumentRoute", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("AcceptedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Action")
-                        .HasColumnType("int");
-
-                    b.Property<string>("FindingJustification")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("FromUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FromUserName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<bool>("IsFinding")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("RaisedByRole")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("RelayedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("ToUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ToUserName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("TrackedDocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TrackedDocumentId");
-
-                    b.ToTable("DocumentRoutes");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.DtrDayMark", b =>
                 {
                     b.Property<int>("Id")
@@ -2889,59 +2831,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("SystemUpdateNotices");
                 });
 
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.TrackedDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CurrentHolderName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("CurrentHolderUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CurrentLegAcceptedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("SerialNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SerialNumber")
-                        .IsUnique();
-
-                    b.ToTable("TrackedDocuments");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.UserProfilePicture", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3364,17 +3253,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.Navigation("DarReport");
                 });
 
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.DocumentRoute", b =>
-                {
-                    b.HasOne("EcaInformationSystem.Domain.Entities.TrackedDocument", "TrackedDocument")
-                        .WithMany("Routes")
-                        .HasForeignKey("TrackedDocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TrackedDocument");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.FocalInviteJurisdiction", b =>
                 {
                     b.HasOne("EcaInformationSystem.Domain.Entities.FocalInvite", "FocalInvite")
@@ -3521,11 +3399,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.PendingUserRegistration", b =>
                 {
                     b.Navigation("Jurisdictions");
-                });
-
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.TrackedDocument", b =>
-                {
-                    b.Navigation("Routes");
                 });
 #pragma warning restore 612, 618
         }

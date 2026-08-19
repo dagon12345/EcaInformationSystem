@@ -1,34 +1,33 @@
-using EcaInformationSystem.Shared.DTOs.Common;
-using EcaInformationSystem.Shared.DTOs.DocumentTracking;
+using EcaInformationSystem.Shared.DTOs.ApplicationTracking;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.JSInterop;
 using System.Net.Http.Json;
 
 namespace EcaInformationSystem.Client.Services
 {
-    // Real-time notifications for the Document Tracking feature — mirrors
-    // ApplicationTrackingClientService's connection + pending-count pattern.
-    // PendingForMeCount is approximated over the most recent 200 documents
-    // (see RefreshPendingCountAsync) since the list endpoint is paginated.
-    public class DocumentTrackingClientService : IAsyncDisposable
+    // Real-time "you have an application to accept" notifications for Application
+    // Tracking — mirrors ChatClientService's connection pattern (JWT-authenticated
+    // SignalR, singleton so the connection survives page navigation) plus a
+    // ChatStateService.UnreadMentionCount-style running badge count.
+    public class ApplicationTrackingClientService : IAsyncDisposable
     {
         private readonly HttpClient _http;
         private readonly IJSRuntime _js;
         private HubConnection? _hubConnection;
         private Guid? _currentUserId;
 
-        public event Action<DocumentTaggedNotificationDto>? OnDocumentTagged;
-        // Fires for ANY tracked document change (create/accept/relay/return/
-        // complete/edit), not just ones tagged to me — so any open Document
-        // Tracking page reflects the change live regardless of who's holding it.
-        public event Action<TrackedDocumentDto>? OnDocumentChanged;
-        public event Action<Guid>? OnDocumentDeleted;
+        public event Action<ApplicationTaggedNotificationDto>? OnApplicationTagged;
+        // Fires for ANY batch change (accept/relay/resolve/edit/reassign), not just
+        // ones tagged to me — so any open Application Tracking page can refresh live
+        // regardless of who's currently holding the batch.
+        public event Action<Guid>? OnBatchChanged;
+        public event Action<Guid>? OnBatchDeleted;
         public event Action? OnChange;
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
         public int PendingForMeCount { get; private set; }
 
-        public DocumentTrackingClientService(HttpClient http, IJSRuntime js)
+        public ApplicationTrackingClientService(HttpClient http, IJSRuntime js)
         {
             _http = http;
             _js = js;
@@ -57,21 +56,24 @@ namespace EcaInformationSystem.Client.Services
                 })
                 .Build();
 
-            _hubConnection.On<DocumentTaggedNotificationDto>("DocumentTagged", notification =>
+            _hubConnection.On<ApplicationTaggedNotificationDto>("ApplicationTagged", notification =>
             {
-                OnDocumentTagged?.Invoke(notification);
+                OnApplicationTagged?.Invoke(notification);
+                // Re-derive the count from the server rather than just incrementing —
+                // keeps it correct even if this tab already had the page open and
+                // some of its own actions changed the pending set.
                 _ = RefreshPendingCountAsync();
             });
 
-            _hubConnection.On<TrackedDocumentDto>("DocumentChanged", document =>
+            _hubConnection.On<Guid>("ApplicationBatchChanged", batchId =>
             {
-                OnDocumentChanged?.Invoke(document);
+                OnBatchChanged?.Invoke(batchId);
                 _ = RefreshPendingCountAsync();
             });
 
-            _hubConnection.On<Guid>("DocumentDeleted", documentId =>
+            _hubConnection.On<Guid>("ApplicationBatchDeleted", batchId =>
             {
-                OnDocumentDeleted?.Invoke(documentId);
+                OnBatchDeleted?.Invoke(batchId);
                 _ = RefreshPendingCountAsync();
             });
 
@@ -93,22 +95,20 @@ namespace EcaInformationSystem.Client.Services
             OnChange?.Invoke();
         }
 
-        // Documents currently held by me that I haven't accepted yet — the same
-        // definition the Document Tracking page uses to show its "Accept" button.
-        // Approximated over the most recent 200 documents (not a full-table scan)
-        // since the list endpoint is paginated; fine for a badge count.
+        // Batches currently tagged to me that I haven't accepted yet — the same
+        // definition the Application Tracking page itself uses to decide whether to
+        // show the "Accept" button.
         public async Task RefreshPendingCountAsync()
         {
             if (_currentUserId is null) return;
 
             try
             {
-                var page = await _http.GetFromJsonAsync<PagedResultDto<TrackedDocumentListItemDto>>(
-                    "api/document-tracking?page=1&pageSize=200");
-                PendingForMeCount = page?.Items.Count(d =>
-                    d.CurrentHolderUserId == _currentUserId &&
-                    !d.CurrentLegAcceptedAt.HasValue &&
-                    d.Status != 1) ?? 0;
+                var batches = await _http.GetFromJsonAsync<List<ApplicationBatchDto>>("api/application-tracking") ?? new();
+                PendingForMeCount = batches.Count(b =>
+                    b.CurrentHolderUserId == _currentUserId &&
+                    !b.CurrentLegAcceptedAt.HasValue &&
+                    b.CurrentStatus != 6);
             }
             catch
             {

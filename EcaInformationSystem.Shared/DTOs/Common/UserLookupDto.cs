@@ -1,4 +1,4 @@
-namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
+namespace EcaInformationSystem.Shared.DTOs.Common
 {
     // Lightweight user entry for "tag this person" pickers — any authenticated
     // role may fetch this list (unlike the full UserManagement roster).

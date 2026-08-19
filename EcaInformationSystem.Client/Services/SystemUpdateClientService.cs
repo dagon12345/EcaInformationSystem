@@ -8,7 +8,7 @@ namespace EcaInformationSystem.Client.Services
     // Broadcasts "a new version shipped" notices to every connected client —
     // Blazor WASM assemblies are cached by the browser, so a plain redeploy
     // doesn't pick itself up. This tells users what changed and that a hard
-    // refresh (Ctrl+Shift+R) is needed. Mirrors DocumentTrackingClientService's
+    // refresh (Ctrl+Shift+R) is needed. Mirrors ApplicationTrackingClientService's
     // connection pattern (JWT-authenticated SignalR, singleton).
     public class SystemUpdateClientService : IAsyncDisposable
     {

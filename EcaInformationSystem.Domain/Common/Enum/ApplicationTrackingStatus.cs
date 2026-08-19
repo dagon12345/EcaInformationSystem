@@ -1,10 +1,10 @@
 namespace EcaInformationSystem.Domain.Common.Enum
 {
     // The workflow "leg" a document batch is currently on. Each status has an
-    // implicit pending/accepted sub-state (see DocumentBatch.CurrentLegAcceptedAt) —
+    // implicit pending/accepted sub-state (see ApplicationBatch.CurrentLegAcceptedAt) —
     // the tagged CurrentHolderUserId must accept before they can advance the batch
     // to the next leg.
-    public enum DocumentTrackingStatus
+    public enum ApplicationTrackingStatus
     {
         EndorsedByViewer = 0,               // Viewer -> tagged recipient
         ReturnedToViewer = 1,                // Recipient -> the viewer who created the batch

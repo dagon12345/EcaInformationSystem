@@ -7,6 +7,7 @@
 @inject BeneficiaryStateService State
 @inject ActivityClientService ActivityClient
 @inject DocumentUploadQueueService UploadQueue
+@inject ApplicationTrackingClientService AppTracking
 @inject DocumentTrackingClientService DocTracking
 @inject SystemUpdateClientService SystemUpdateClient
 @inject NavigationManager Navigation
@@ -72,6 +73,12 @@
                         title="Documents" @onclick="() => _activeTab = NotifTab.Documents">
                     <i class="bi bi-truck"></i>
                     <span>Documents</span>
+                    @if (AppTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@AppTracking.PendingForMeCount</span> }
+                </button>
+                <button class="notif-bell-tab @(_activeTab == NotifTab.TrackedDocuments ? "notif-bell-tab--active" : "")"
+                        title="Document Tracking" @onclick="() => _activeTab = NotifTab.TrackedDocuments">
+                    <i class="bi bi-send"></i>
+                    <span>Tracking</span>
                     @if (DocTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@DocTracking.PendingForMeCount</span> }
                 </button>
                 <button class="notif-bell-tab @(_activeTab == NotifTab.Updates ? "notif-bell-tab--active" : "")"
@@ -299,6 +306,40 @@
             else if (_activeTab == NotifTab.Documents)
             {
                 <div class="duplicate-dropdown-header">
+                    <span class="fw-bold">Application Tracking</span>
+                    <span class="text-muted small">@AppTracking.PendingForMeCount waiting on you</span>
+                </div>
+
+                <div class="duplicate-dropdown-scroll">
+                    @if (AppTracking.PendingForMeCount == 0)
+                    {
+                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                            <i class="bi bi-check-circle me-2"></i>
+                            Nothing tagged to you right now
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="duplicate-dropdown-item" style="cursor:pointer;" @onclick="GoToApplicationTracking">
+                            <i class="bi bi-truck me-2 text-primary"></i>
+                            <span>
+                                You have <strong>@AppTracking.PendingForMeCount</strong>
+                                application@(AppTracking.PendingForMeCount == 1 ? "" : "s") to accept
+                            </span>
+                        </div>
+                    }
+                </div>
+
+                <div class="duplicate-dropdown-footer">
+                    <button class="duplicate-scan-btn-small" @onclick="GoToApplicationTracking">
+                        <i class="bi bi-arrow-right me-1"></i>
+                        Open Application Tracking
+                    </button>
+                </div>
+            }
+            else if (_activeTab == NotifTab.TrackedDocuments)
+            {
+                <div class="duplicate-dropdown-header">
                     <span class="fw-bold">Document Tracking</span>
                     <span class="text-muted small">@DocTracking.PendingForMeCount waiting on you</span>
                 </div>
@@ -314,7 +355,7 @@
                     else
                     {
                         <div class="duplicate-dropdown-item" style="cursor:pointer;" @onclick="GoToDocumentTracking">
-                            <i class="bi bi-truck me-2 text-primary"></i>
+                            <i class="bi bi-send me-2 text-primary"></i>
                             <span>
                                 You have <strong>@DocTracking.PendingForMeCount</strong>
                                 document@(DocTracking.PendingForMeCount == 1 ? "" : "s") to accept
@@ -639,7 +680,7 @@
 }
 
 @code {
-    private enum NotifTab { Duplicates, Calendar, Uploads, Documents, Updates }
+    private enum NotifTab { Duplicates, Calendar, Uploads, Documents, TrackedDocuments, Updates }
     private NotifTab _activeTab = NotifTab.Duplicates;
     private bool _showDropdown;
 
@@ -672,7 +713,7 @@
     private bool _refreshingFromBell;
 
     private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount +
-        DocTracking.PendingForMeCount + (_hasUnseenUpdate ? 1 : 0);
+        AppTracking.PendingForMeCount + DocTracking.PendingForMeCount + (_hasUnseenUpdate ? 1 : 0);
 
     protected override async Task OnInitializedAsync()
     {
@@ -693,11 +734,22 @@
         UploadQueue.OnChanged += OnUploadQueueChanged;
         RefreshUploadState();
 
+        AppTracking.OnChange += HandleAppTrackingChange;
+        await AppTracking.RefreshPendingCountAsync();
+
         DocTracking.OnChange += HandleDocTrackingChange;
         await DocTracking.RefreshPendingCountAsync();
 
         SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
         await LoadUpdateNoticesAsync();
+    }
+
+    private void HandleAppTrackingChange() => InvokeAsync(StateHasChanged);
+
+    private void GoToApplicationTracking()
+    {
+        _showDropdown = false;
+        Navigation.NavigateTo("/application-tracking");
     }
 
     private void HandleDocTrackingChange() => InvokeAsync(StateHasChanged);
@@ -1053,6 +1105,7 @@
 
         UploadQueue.OnChanged -= OnUploadQueueChanged;
 
+        AppTracking.OnChange -= HandleAppTrackingChange;
         DocTracking.OnChange -= HandleDocTrackingChange;
 
         SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;

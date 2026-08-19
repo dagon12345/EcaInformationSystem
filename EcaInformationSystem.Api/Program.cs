@@ -382,6 +382,7 @@ app.UseRateLimiter(); //Must come after CORS, before MapControllers
 app.MapHub<PostsHub>("/postsHub");
 app.MapHub<ActivityHub>("/activityHub");
 app.MapHub<PublicActivityHub>("/publicActivityHub");
+app.MapHub<ApplicationTrackingHub>("/applicationTrackingHub");
 app.MapHub<DocumentTrackingHub>("/documentTrackingHub");
 app.MapHub<SystemUpdateHub>("/systemUpdateHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.BiometricStatusHub>("/biometricStatusHub");

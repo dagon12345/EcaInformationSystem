@@ -14,47 +14,57 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<List<DocumentBatch>> GetAllAsync()
+        public async Task<(List<TrackedDocument> Items, int TotalCount)> GetPagedAsync(int page, int pageSize, string? search)
         {
-            // Newest-added-first — CreatedAt (actual insert time) is the primary
-            // sort, not DateReceived (an admin-entered business date that can be
-            // backdated and so doesn't reliably reflect insert order).
-            return await _context.DocumentBatches
-                .AsNoTracking()
-                .Include(b => b.Rows)
-                .Include(b => b.Transfers)
-                .OrderByDescending(b => b.CreatedAt)
+            var query = _context.TrackedDocuments.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(d => d.SerialNumber.ToLower().Contains(term) || d.Title.ToLower().Contains(term));
+            }
+
+            query = query.OrderByDescending(d => d.CreatedAt);
+
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
+
+            return (items, totalCount);
         }
 
-        public async Task<DocumentBatch?> GetByIdAsync(Guid id)
+        public async Task<TrackedDocument?> GetByIdAsync(Guid id)
         {
-            return await _context.DocumentBatches
-                .Include(b => b.Rows)
-                .Include(b => b.Transfers)
-                .FirstOrDefaultAsync(b => b.Id == id);
+            return await _context.TrackedDocuments
+                .Include(d => d.Routes)
+                .FirstOrDefaultAsync(d => d.Id == id);
         }
 
-        public async Task AddAsync(DocumentBatch batch)
+        public async Task AddAsync(TrackedDocument document)
         {
-            await _context.DocumentBatches.AddAsync(batch);
+            await _context.TrackedDocuments.AddAsync(document);
             await _context.SaveChangesAsync();
         }
 
-        public void AttachNewTransfer(DocumentTransfer transfer)
+        public void AttachNewRoute(DocumentRoute route)
         {
-            _context.DocumentTransfers.Add(transfer);
+            _context.DocumentRoutes.Add(route);
         }
 
-        public void AttachNewRow(DocumentGranteeRow row)
+        public async Task DeleteAsync(TrackedDocument document)
         {
-            _context.DocumentGranteeRows.Add(row);
-        }
-
-        public async Task DeleteAsync(DocumentBatch batch)
-        {
-            _context.DocumentBatches.Remove(batch);
+            _context.TrackedDocuments.Remove(document);
             await _context.SaveChangesAsync();
+        }
+
+        public async Task<int> GetNextSerialSequenceAsync()
+        {
+            var results = await _context.Database
+                .SqlQuery<int>($"SELECT NEXT VALUE FOR DocumentTrackingSerialSeq AS Value")
+                .ToListAsync();
+            return results[0];
         }
 
         public Task SaveChangesAsync() => _context.SaveChangesAsync();

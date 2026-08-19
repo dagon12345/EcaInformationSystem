@@ -1,10 +1,10 @@
 namespace EcaInformationSystem.Shared.DTOs.DocumentTracking
 {
-    public class DocumentTransferDto
+    public class DocumentRouteDto
     {
         public Guid Id { get; set; }
-        public int Status { get; set; }
-        public string StatusLabel { get; set; } = string.Empty;
+        public int Action { get; set; }
+        public string ActionLabel { get; set; } = string.Empty;
 
         public Guid FromUserId { get; set; }
         public string FromUserName { get; set; } = string.Empty;

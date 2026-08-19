@@ -45,6 +45,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IFocalInviteService, FocalInviteService>();
             services.AddScoped<IDirectoryService, DirectoryService>();
             services.AddScoped<IWfpEcaService, WfpEcaService>();
+            services.AddScoped<IApplicationTrackingService, ApplicationTrackingService>();
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
             services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();
             services.AddScoped<ISeniorCitizenDirectoryService, SeniorCitizenDirectoryService>();

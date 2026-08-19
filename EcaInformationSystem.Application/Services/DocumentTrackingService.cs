@@ -3,6 +3,7 @@ using EcaInformationSystem.Application.Interfaces.Repositories;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
+using EcaInformationSystem.Shared.DTOs.Common;
 using EcaInformationSystem.Shared.DTOs.DocumentTracking;
 
 namespace EcaInformationSystem.Application.Services
@@ -10,32 +11,35 @@ namespace EcaInformationSystem.Application.Services
     public class DocumentTrackingService : IDocumentTrackingService
     {
         private readonly IDocumentTrackingRepository _repo;
-        private readonly IPsgcNameCache _psgcNameCache;
         private readonly IUserManagementService _userManagementService;
         private readonly ILogRepository _logRepo;
 
         public DocumentTrackingService(
             IDocumentTrackingRepository repo,
-            IPsgcNameCache psgcNameCache,
             IUserManagementService userManagementService,
             ILogRepository logRepo)
         {
             _repo = repo;
-            _psgcNameCache = psgcNameCache;
             _userManagementService = userManagementService;
             _logRepo = logRepo;
         }
 
-        public async Task<List<DocumentBatchDto>> GetAllAsync()
+        public async Task<PagedResultDto<TrackedDocumentListItemDto>> GetPagedAsync(int page, int pageSize, string? search)
         {
-            var batches = await _repo.GetAllAsync();
-            return batches.Select(MapToDto).ToList();
+            var (items, totalCount) = await _repo.GetPagedAsync(page, pageSize, search);
+            return new PagedResultDto<TrackedDocumentListItemDto>
+            {
+                Items = items.Select(MapToListItemDto).ToList(),
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            };
         }
 
-        public async Task<DocumentBatchDto?> GetByIdAsync(Guid id)
+        public async Task<TrackedDocumentDto?> GetByIdAsync(Guid id)
         {
-            var batch = await _repo.GetByIdAsync(id);
-            return batch is null ? null : MapToDto(batch);
+            var document = await _repo.GetByIdAsync(id);
+            return document is null ? null : MapToDto(document);
         }
 
         public async Task<List<UserLookupDto>> GetTaggableUsersAsync()
@@ -48,58 +52,48 @@ namespace EcaInformationSystem.Application.Services
                 .ToList();
         }
 
-        public async Task<DocumentBatchDto> CreateAsync(CreateDocumentBatchDto dto, Guid callerId, string callerName, string? callerRole = null)
+        public async Task<TrackedDocumentDto> CreateAsync(CreateTrackedDocumentDto dto, Guid callerId, string callerName, string? callerRole)
         {
-            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
-
-            if (dto.Rows is null || dto.Rows.Count == 0)
-                throw new InvalidOperationException("At least one grantee row is required.");
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                throw new InvalidOperationException("Title is required.");
 
             if (dto.RecipientUserId == Guid.Empty)
                 throw new InvalidOperationException("A recipient must be tagged.");
 
             if (dto.RecipientUserId == callerId)
-                throw new InvalidOperationException("You cannot endorse a document batch to yourself.");
+                throw new InvalidOperationException("You cannot tag a document to yourself.");
+
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
 
             var recipientName = await ResolveUserNameAsync(dto.RecipientUserId);
+            var seq = await _repo.GetNextSerialSequenceAsync();
             var now = DateTime.UtcNow;
 
-            var batch = new DocumentBatch
+            var document = new TrackedDocument
             {
                 Id = Guid.NewGuid(),
-                PsgcCodeProvince = dto.PsgcCodeProvince,
-                PsgcCodeMunicipality = dto.PsgcCodeMunicipality,
-                MilestoneYear = dto.MilestoneYear,
-                DateReceived = dto.DateReceived,
+                SerialNumber = $"DT-{now:yyyyMMdd}-{seq:D6}",
+                Title = dto.Title.Trim(),
+                Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
                 CreatedByUserId = callerId,
                 CreatedByName = callerName,
                 CreatedAt = now,
-                CurrentStatus = DocumentTrackingStatus.EndorsedByViewer,
                 CurrentHolderUserId = dto.RecipientUserId,
                 CurrentHolderName = recipientName,
-                CurrentLegAcceptedAt = null
+                CurrentLegAcceptedAt = null,
+                Status = TrackedDocumentStatus.InTransit
             };
 
-            var sort = 0;
-            foreach (var row in dto.Rows)
-            {
-                batch.Rows.Add(new DocumentGranteeRow
-                {
-                    Id = Guid.NewGuid(),
-                    DocumentBatchId = batch.Id,
-                    FirstName = row.FirstName.Trim(),
-                    MiddleName = string.IsNullOrWhiteSpace(row.MiddleName) ? null : row.MiddleName.Trim(),
-                    LastName = row.LastName.Trim(),
-                    Extension = string.IsNullOrWhiteSpace(row.Extension) ? null : row.Extension.Trim(),
-                    SortOrder = sort++
-                });
-            }
-
-            batch.Transfers.Add(new DocumentTransfer
+            // Added directly to document.Routes here (rather than via
+            // AttachNewRoute) is fine — the parent isn't tracked by the context
+            // yet, so there's no already-tracked navigation collection for EF to
+            // get confused by. AttachNewRoute only matters once the document is
+            // an existing, already-tracked entity (see RelayAsync/ReturnAsync/etc).
+            document.Routes.Add(new DocumentRoute
             {
                 Id = Guid.NewGuid(),
-                DocumentBatchId = batch.Id,
-                Status = DocumentTrackingStatus.EndorsedByViewer,
+                TrackedDocumentId = document.Id,
+                Action = DocumentRouteAction.Tagged,
                 FromUserId = callerId,
                 FromUserName = callerName,
                 ToUserId = dto.RecipientUserId,
@@ -112,439 +106,236 @@ namespace EcaInformationSystem.Application.Services
                 RaisedByRole = dto.IsFinding ? callerRole : null
             });
 
-            await LogActivityAsync(callerName, batch, $"Logged a new document batch and endorsed it to {recipientName}");
-            await _repo.AddAsync(batch);
-            return MapToDto(batch);
+            await LogActivityAsync(callerName, document, $"Logged a new tracked document and tagged it to {recipientName}");
+            await _repo.AddAsync(document);
+            return MapToDto(document);
         }
 
-        public async Task<DocumentBatchDto> AcceptAsync(Guid batchId, Guid callerId, string callerName)
+        public async Task<TrackedDocumentDto> AcceptAsync(Guid docId, Guid callerId, string callerName)
         {
-            var batch = await LoadAsync(batchId);
+            var document = await LoadAsync(docId);
 
-            if (batch.CurrentStatus == DocumentTrackingStatus.Completed)
-                throw new InvalidOperationException("This document batch has already been completed.");
+            if (document.CurrentHolderUserId != callerId)
+                throw new InvalidOperationException("You are not the current holder of this document.");
 
-            if (batch.CurrentHolderUserId != callerId)
-                throw new InvalidOperationException("This document was not tagged to you.");
-
-            if (batch.CurrentLegAcceptedAt is not null)
-                throw new InvalidOperationException("You have already accepted this document.");
+            if (document.CurrentLegAcceptedAt is not null)
+                throw new InvalidOperationException("This document has already been accepted.");
 
             var now = DateTime.UtcNow;
-            batch.CurrentLegAcceptedAt = now;
+            var latestRoute = document.Routes
+                .Where(r => r.ToUserId == callerId && r.AcceptedAt == null)
+                .OrderByDescending(r => r.RelayedAt)
+                .First();
+            latestRoute.AcceptedAt = now;
 
-            var latestTransfer = batch.Transfers
-                .Where(t => t.Status == batch.CurrentStatus && t.ToUserId == callerId)
-                .OrderByDescending(t => t.RelayedAt)
-                .FirstOrDefault();
-            if (latestTransfer is not null)
-                latestTransfer.AcceptedAt = now;
+            document.CurrentLegAcceptedAt = now;
 
-            await LogActivityAsync(callerName, batch, "Accepted a document batch");
+            await LogActivityAsync(callerName, document, "Accepted a tracked document");
             await _repo.SaveChangesAsync();
-            return MapToDto(batch);
+            return MapToDto(document);
         }
 
-        public async Task<DocumentBatchDto> ReturnToViewerAsync(Guid batchId, Guid callerId, string callerName, string? note, bool isFinding = false, string? findingJustification = null, string? callerRole = null)
+        public async Task<TrackedDocumentDto> RelayAsync(Guid docId, RelayDocumentToDto dto, Guid callerId, string callerName, string? callerRole)
         {
-            EnsureFindingHasJustification(isFinding, findingJustification);
+            var document = await LoadAsync(docId);
+            EnsureNotCompleted(document);
+            EnsureHolderAccepted(document, callerId);
 
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            EnsureStatus(batch, DocumentTrackingStatus.EndorsedByViewer);
+            if (dto.ToUserId == Guid.Empty || dto.ToUserId == callerId)
+                throw new InvalidOperationException("Select someone else to relay this document to.");
 
-            Advance(batch, DocumentTrackingStatus.ReturnedToViewer, callerId, callerName,
-                batch.CreatedByUserId, batch.CreatedByName, note, isFinding, findingJustification, callerRole);
-
-            await LogActivityAsync(callerName, batch, "Returned a document batch to the Viewer");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> DistributeToPdoAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
-        {
             EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
 
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            EnsureStatus(batch, DocumentTrackingStatus.ReturnedToViewer);
-
             var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.DistributedToPdo, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
-
-            await LogActivityAsync(callerName, batch, $"Distributed a document batch to PDO {toName}");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> EndorseToFinanceAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
-        {
-            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
-
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            if (batch.CurrentStatus != DocumentTrackingStatus.DistributedToPdo
-                && batch.CurrentStatus != DocumentTrackingStatus.ReturnedToPdoForFindings)
-            {
-                throw new InvalidOperationException("This document is not currently held by a PDO.");
-            }
-
-            var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.EndorsedToFinance, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
-
-            await LogActivityAsync(callerName, batch, $"Endorsed a document batch to Finance {toName}");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> ReturnToPdoForFindingsAsync(Guid batchId, Guid callerId, string callerName, ReturnForFindingsDto dto)
-        {
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            EnsureStatus(batch, DocumentTrackingStatus.EndorsedToFinance);
-
-            if (dto.GranteeRowIds is null || dto.GranteeRowIds.Count == 0)
-                throw new InvalidOperationException("Select at least one grantee to tag with a finding.");
-
-            var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.ReturnedToPdoForFindings, callerId, callerName, dto.ToUserId, toName, dto.Note);
-
             var now = DateTime.UtcNow;
-            foreach (var rowId in dto.GranteeRowIds)
-            {
-                var row = batch.Rows.FirstOrDefault(r => r.Id == rowId);
-                if (row is null) continue;
 
-                row.HasFinding = true;
-                row.FindingNote = dto.Note;
-                row.FindingSetAt = now;
-                row.FindingSetByName = callerName;
-                row.FindingResolvedAt = null;
-            }
-
-            await LogActivityAsync(callerName, batch, $"Returned a document batch to PDO {toName} with {dto.GranteeRowIds.Count} finding(s) flagged");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> ForwardToViewerForScanningAsync(Guid batchId, Guid callerId, string callerName, RelayDocumentDto dto, string? callerRole = null)
-        {
-            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
-
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            EnsureStatus(batch, DocumentTrackingStatus.EndorsedToFinance);
-
-            var toName = await ResolveUserNameAsync(dto.ToUserId);
-            Advance(batch, DocumentTrackingStatus.ForwardedToViewerForScanning, callerId, callerName, dto.ToUserId, toName, dto.Note, dto.IsFinding, dto.FindingJustification, callerRole);
-
-            await LogActivityAsync(callerName, batch, $"Forwarded a document batch to Viewer {toName} for scanning");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> CompleteAsync(Guid batchId, Guid callerId, string callerName, string? note)
-        {
-            var batch = await LoadAsync(batchId);
-            EnsureHolderAccepted(batch, callerId);
-            EnsureStatus(batch, DocumentTrackingStatus.ForwardedToViewerForScanning);
-
-            var now = DateTime.UtcNow;
-            batch.CurrentStatus = DocumentTrackingStatus.Completed;
-            batch.CurrentLegAcceptedAt = now;
-
-            _repo.AttachNewTransfer(new DocumentTransfer
+            // Attached directly via the DbSet rather than document.Routes.Add(...) —
+            // adding to an already-tracked parent's loaded navigation collection
+            // was leaving this new row in a "Modified" (not "Added") state, which
+            // made EF issue an UPDATE for a row that doesn't exist yet and throw
+            // DbUpdateConcurrencyException ("expected to affect 1 row(s), but
+            // actually affected 0").
+            _repo.AttachNewRoute(new DocumentRoute
             {
                 Id = Guid.NewGuid(),
-                DocumentBatchId = batch.Id,
-                Status = DocumentTrackingStatus.Completed,
+                TrackedDocumentId = document.Id,
+                Action = DocumentRouteAction.Relayed,
+                FromUserId = callerId,
+                FromUserName = callerName,
+                ToUserId = dto.ToUserId,
+                ToUserName = toName,
+                RelayedAt = now,
+                AcceptedAt = null,
+                Note = dto.Note,
+                IsFinding = dto.IsFinding,
+                FindingJustification = dto.IsFinding ? dto.FindingJustification : null,
+                RaisedByRole = dto.IsFinding ? callerRole : null
+            });
+
+            document.CurrentHolderUserId = dto.ToUserId;
+            document.CurrentHolderName = toName;
+            document.CurrentLegAcceptedAt = null;
+
+            await LogActivityAsync(callerName, document, $"Relayed a tracked document to {toName}");
+            await _repo.SaveChangesAsync();
+            return MapToDto(document);
+        }
+
+        public async Task<TrackedDocumentDto> ReturnAsync(Guid docId, ReturnDocumentDto dto, Guid callerId, string callerName, string? callerRole)
+        {
+            var document = await LoadAsync(docId);
+            EnsureNotCompleted(document);
+            EnsureHolderAccepted(document, callerId);
+
+            var inboundRoute = document.Routes
+                .Where(r => r.ToUserId == callerId)
+                .OrderByDescending(r => r.RelayedAt)
+                .FirstOrDefault();
+            if (inboundRoute is null)
+                throw new InvalidOperationException("Cannot determine who this document came from.");
+
+            EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
+
+            var targetUserId = inboundRoute.FromUserId;
+            var targetUserName = inboundRoute.FromUserName;
+            var now = DateTime.UtcNow;
+
+            _repo.AttachNewRoute(new DocumentRoute
+            {
+                Id = Guid.NewGuid(),
+                TrackedDocumentId = document.Id,
+                Action = DocumentRouteAction.Returned,
+                FromUserId = callerId,
+                FromUserName = callerName,
+                ToUserId = targetUserId,
+                ToUserName = targetUserName,
+                RelayedAt = now,
+                AcceptedAt = null,
+                Note = dto.Note,
+                IsFinding = dto.IsFinding,
+                FindingJustification = dto.IsFinding ? dto.FindingJustification : null,
+                RaisedByRole = dto.IsFinding ? callerRole : null
+            });
+
+            document.CurrentHolderUserId = targetUserId;
+            document.CurrentHolderName = targetUserName;
+            document.CurrentLegAcceptedAt = null;
+
+            await LogActivityAsync(callerName, document, $"Returned a tracked document to {targetUserName}");
+            await _repo.SaveChangesAsync();
+            return MapToDto(document);
+        }
+
+        public async Task<TrackedDocumentDto> CompleteAsync(Guid docId, CompleteDocumentDto dto, Guid callerId, string callerName)
+        {
+            var document = await LoadAsync(docId);
+            EnsureNotCompleted(document);
+            EnsureHolderAccepted(document, callerId);
+
+            var now = DateTime.UtcNow;
+            document.Status = TrackedDocumentStatus.Completed;
+
+            _repo.AttachNewRoute(new DocumentRoute
+            {
+                Id = Guid.NewGuid(),
+                TrackedDocumentId = document.Id,
+                Action = DocumentRouteAction.Completed,
                 FromUserId = callerId,
                 FromUserName = callerName,
                 ToUserId = callerId,
                 ToUserName = callerName,
                 RelayedAt = now,
                 AcceptedAt = now,
-                Note = note
+                Note = dto.Note
             });
 
-            await LogActivityAsync(callerName, batch, "Marked a document batch as completed / scanned");
+            await LogActivityAsync(callerName, document, "Marked a tracked document as completed");
             await _repo.SaveChangesAsync();
-            return MapToDto(batch);
+            return MapToDto(document);
         }
 
-        public async Task<DocumentBatchDto> ResolveFindingAsync(Guid batchId, Guid rowId, Guid callerId, string callerName, bool isSuperAdmin = false)
+        public async Task<TrackedDocumentDto> UpdateAsync(Guid docId, UpdateTrackedDocumentDto dto, Guid callerId, bool isSuperAdmin)
         {
-            var batch = await LoadAsync(batchId);
+            var document = await LoadAsync(docId);
 
-            if (!isSuperAdmin && batch.CurrentHolderUserId != callerId)
-                throw new InvalidOperationException("Only the current holder of this document batch can resolve a finding.");
+            if (!isSuperAdmin && document.CreatedByUserId != callerId)
+                throw new InvalidOperationException("Only the creator or a SuperAdmin can edit this document.");
 
-            var row = batch.Rows.FirstOrDefault(r => r.Id == rowId);
-            if (row is null)
-                throw new InvalidOperationException("Grantee row not found.");
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                throw new InvalidOperationException("Title is required.");
 
-            row.HasFinding = false;
-            row.FindingResolvedAt = DateTime.UtcNow;
+            document.Title = dto.Title.Trim();
+            document.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
 
-            await LogActivityAsync(callerName, batch, $"Resolved a finding on grantee row '{row.FirstName} {row.LastName}'");
+            if (Enum.IsDefined(typeof(TrackedDocumentStatus), dto.Status))
+                document.Status = (TrackedDocumentStatus)dto.Status;
+
+            await LogActivityAsync(document.CreatedByName, document, "Edited a tracked document's details");
             await _repo.SaveChangesAsync();
-            return MapToDto(batch);
+            return MapToDto(document);
         }
 
-        // ── SuperAdmin-only overrides ────────────────────────────────────────
-
-        public async Task DeleteAsync(Guid batchId, string callerName)
+        public async Task DeleteAsync(Guid docId, string callerRole)
         {
-            var batch = await LoadAsync(batchId);
-            await LogActivityAsync(callerName, batch, "Deleted a document batch");
-            await _repo.DeleteAsync(batch);
+            var document = await LoadAsync(docId);
+
+            if (callerRole is not ("Admin" or "SuperAdmin" or "Finance"))
+                throw new InvalidOperationException("Only Admin, SuperAdmin, or Finance may delete a tracked document.");
+
+            await LogActivityAsync(document.CreatedByName, document, "Deleted a tracked document");
+            await _repo.DeleteAsync(document);
         }
 
-        public async Task<DocumentBatchDto> UpdateHeaderAsync(Guid batchId, UpdateDocumentBatchHeaderDto dto, string callerName)
+        public async Task<TrackedDocumentDto> UpdateRouteAsync(Guid docId, Guid routeId, UpdateDocumentRouteNoteDto dto, Guid callerId, bool isSuperAdmin)
         {
-            var batch = await LoadAsync(batchId);
+            var document = await LoadAsync(docId);
+            var route = document.Routes.FirstOrDefault(r => r.Id == routeId)
+                ?? throw new InvalidOperationException("Routing history entry not found.");
 
-            batch.PsgcCodeProvince = dto.PsgcCodeProvince;
-            batch.PsgcCodeMunicipality = dto.PsgcCodeMunicipality;
-            batch.MilestoneYear = dto.MilestoneYear;
-            batch.DateReceived = dto.DateReceived;
+            if (!isSuperAdmin && route.FromUserId != callerId)
+                throw new InvalidOperationException("You can only correct your own routing entries.");
 
-            await LogActivityAsync(callerName, batch, "Edited a document batch's details");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> AddRowAsync(Guid batchId, CreateDocumentGranteeRowDto dto, string callerName)
-        {
-            if (string.IsNullOrWhiteSpace(dto.FirstName) || string.IsNullOrWhiteSpace(dto.LastName))
-                throw new InvalidOperationException("First and Last name are required.");
-
-            var batch = await LoadAsync(batchId);
-            var nextSort = batch.Rows.Any() ? batch.Rows.Max(r => r.SortOrder) + 1 : 0;
-
-            _repo.AttachNewRow(new DocumentGranteeRow
-            {
-                Id = Guid.NewGuid(),
-                DocumentBatchId = batch.Id,
-                FirstName = dto.FirstName.Trim(),
-                MiddleName = string.IsNullOrWhiteSpace(dto.MiddleName) ? null : dto.MiddleName.Trim(),
-                LastName = dto.LastName.Trim(),
-                Extension = string.IsNullOrWhiteSpace(dto.Extension) ? null : dto.Extension.Trim(),
-                SortOrder = nextSort
-            });
-
-            await LogActivityAsync(callerName, batch, $"Added grantee row '{dto.FirstName.Trim()} {dto.LastName.Trim()}' to a document batch");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> UpdateRowAsync(Guid batchId, Guid rowId, CreateDocumentGranteeRowDto dto, string callerName)
-        {
-            if (string.IsNullOrWhiteSpace(dto.FirstName) || string.IsNullOrWhiteSpace(dto.LastName))
-                throw new InvalidOperationException("First and Last name are required.");
-
-            var batch = await LoadAsync(batchId);
-            var row = batch.Rows.FirstOrDefault(r => r.Id == rowId);
-            if (row is null)
-                throw new InvalidOperationException("Grantee row not found.");
-
-            row.FirstName = dto.FirstName.Trim();
-            row.MiddleName = string.IsNullOrWhiteSpace(dto.MiddleName) ? null : dto.MiddleName.Trim();
-            row.LastName = dto.LastName.Trim();
-            row.Extension = string.IsNullOrWhiteSpace(dto.Extension) ? null : dto.Extension.Trim();
-
-            await LogActivityAsync(callerName, batch, $"Edited grantee row '{row.FirstName} {row.LastName}' in a document batch");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> DeleteRowAsync(Guid batchId, Guid rowId, string callerName)
-        {
-            var batch = await LoadAsync(batchId);
-            var row = batch.Rows.FirstOrDefault(r => r.Id == rowId);
-            if (row is null)
-                throw new InvalidOperationException("Grantee row not found.");
-
-            if (batch.Rows.Count == 1)
-                throw new InvalidOperationException("A document batch must have at least one grantee row.");
-
-            batch.Rows.Remove(row);
-
-            await LogActivityAsync(callerName, batch, $"Removed grantee row '{row.FirstName} {row.LastName}' from a document batch");
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        public async Task<DocumentBatchDto> ReassignRecipientAsync(Guid batchId, Guid newRecipientUserId, Guid callerId, string callerName)
-        {
-            if (newRecipientUserId == Guid.Empty)
-                throw new InvalidOperationException("Select who this document should be tagged to instead.");
-
-            var batch = await LoadAsync(batchId);
-
-            if (batch.CurrentStatus == DocumentTrackingStatus.Completed)
-                throw new InvalidOperationException("This document batch has already been completed.");
-
-            if (newRecipientUserId == batch.CurrentHolderUserId)
-                throw new InvalidOperationException("That user is already tagged on this document.");
-
-            var newRecipientName = await ResolveUserNameAsync(newRecipientUserId);
-            var previousHolderName = batch.CurrentHolderName;
-            var now = DateTime.UtcNow;
-
-            // Same CurrentStatus — this is a correction, not a workflow advance —
-            // but still logged as a transfer entry so the relay history shows who
-            // corrected the tagging and when.
-            _repo.AttachNewTransfer(new DocumentTransfer
-            {
-                Id = Guid.NewGuid(),
-                DocumentBatchId = batch.Id,
-                Status = batch.CurrentStatus,
-                FromUserId = callerId,
-                FromUserName = callerName,
-                ToUserId = newRecipientUserId,
-                ToUserName = newRecipientName,
-                RelayedAt = now,
-                AcceptedAt = null,
-                Note = $"Recipient corrected from {previousHolderName} to {newRecipientName}"
-            });
-
-            batch.CurrentHolderUserId = newRecipientUserId;
-            batch.CurrentHolderName = newRecipientName;
-            batch.CurrentLegAcceptedAt = null;
-
-            await LogActivityAsync(callerName, batch, $"Corrected the recipient on a document batch from {previousHolderName} to {newRecipientName}");
-
-            await _repo.SaveChangesAsync();
-            return MapToDto(batch);
-        }
-
-        // Only SuperAdmin can correct ANY relay history entry's Note/finding.
-        // Every other role (including plain Admin) can only correct/clear the
-        // entry THEY raised (their own FromUserId) — e.g. fixing a typo, or
-        // unchecking "finding" to withdraw one they flagged by mistake.
-        // Doesn't touch who it was sent to/from or the batch's workflow stage.
-        // RaisedByRole is only (re)stamped when this edit is what newly turns
-        // the entry into a finding — otherwise the original raiser's role is
-        // preserved.
-        public async Task<DocumentBatchDto> UpdateTransferAsync(Guid batchId, Guid transferId, UpdateTransferNoteDto dto, Guid callerId, string callerName, bool isSuperAdmin, string? callerRole = null)
-        {
             EnsureFindingHasJustification(dto.IsFinding, dto.FindingJustification);
 
-            var batch = await LoadAsync(batchId);
-            var transfer = batch.Transfers.FirstOrDefault(t => t.Id == transferId)
-                ?? throw new InvalidOperationException("Relay history entry not found.");
+            route.Note = dto.Note;
+            route.IsFinding = dto.IsFinding;
+            route.FindingJustification = dto.IsFinding ? dto.FindingJustification : null;
 
-            if (!isSuperAdmin && transfer.FromUserId != callerId)
-                throw new InvalidOperationException("You can only correct a note or finding that you raised yourself.");
-
-            transfer.Note = dto.Note;
-
-            if (dto.IsFinding)
-            {
-                if (!transfer.IsFinding)
-                    transfer.RaisedByRole = callerRole;
-                transfer.FindingJustification = dto.FindingJustification;
-            }
-            else
-            {
-                transfer.FindingJustification = null;
-                transfer.RaisedByRole = null;
-            }
-            transfer.IsFinding = dto.IsFinding;
-
-            await LogActivityAsync(callerName, batch, "Corrected a relay history entry's note/finding");
+            await LogActivityAsync(document.CreatedByName, document, "Corrected a routing history entry's note/finding");
             await _repo.SaveChangesAsync();
-            return MapToDto(batch);
+            return MapToDto(document);
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────
 
-        private async Task<DocumentBatch> LoadAsync(Guid batchId)
+        private async Task<TrackedDocument> LoadAsync(Guid docId)
         {
-            var batch = await _repo.GetByIdAsync(batchId);
-            if (batch is null)
-                throw new InvalidOperationException("Document batch not found.");
-            return batch;
+            var document = await _repo.GetByIdAsync(docId);
+            if (document is null)
+                throw new InvalidOperationException("Document not found.");
+            return document;
         }
 
-        private static void EnsureHolderAccepted(DocumentBatch batch, Guid callerId)
+        private static void EnsureNotCompleted(TrackedDocument document)
         {
-            if (batch.CurrentHolderUserId != callerId)
+            if (document.Status == TrackedDocumentStatus.Completed)
+                throw new InvalidOperationException("This document has already been marked completed.");
+        }
+
+        private static void EnsureHolderAccepted(TrackedDocument document, Guid callerId)
+        {
+            if (document.CurrentHolderUserId != callerId)
                 throw new InvalidOperationException("This document is not currently tagged to you.");
-            if (batch.CurrentLegAcceptedAt is null)
-                throw new InvalidOperationException("Accept the document before relaying it further.");
-        }
-
-        private static void EnsureStatus(DocumentBatch batch, DocumentTrackingStatus expected)
-        {
-            if (batch.CurrentStatus != expected)
-                throw new InvalidOperationException("This document is not in the right stage for that action.");
+            if (document.CurrentLegAcceptedAt is null)
+                throw new InvalidOperationException("You must accept this document before relaying it.");
         }
 
         // A finding flag with no explanation is useless to whoever receives it —
         // require a justification whenever "flag as a finding" is checked.
-        private static void EnsureFindingHasJustification(bool isFinding, string? note)
+        private static void EnsureFindingHasJustification(bool isFinding, string? justification)
         {
-            if (isFinding && string.IsNullOrWhiteSpace(note))
-                throw new InvalidOperationException("Please explain the finding — a justification is required when flagging one.");
-        }
-
-        private void Advance(
-            DocumentBatch batch,
-            DocumentTrackingStatus newStatus,
-            Guid fromUserId, string fromUserName,
-            Guid toUserId, string toUserName,
-            string? note,
-            bool isFinding = false, string? findingJustification = null, string? raisedByRole = null)
-        {
-            var now = DateTime.UtcNow;
-
-            // Attached directly via the DbSet rather than batch.Transfers.Add(...) —
-            // adding to an already-tracked parent's loaded navigation collection
-            // was leaving this new row in a "Modified" (not "Added") state, which
-            // made EF issue an UPDATE for a row that doesn't exist yet and throw
-            // DbUpdateConcurrencyException ("expected to affect 1 row(s), but
-            // actually affected 0").
-            _repo.AttachNewTransfer(new DocumentTransfer
-            {
-                Id = Guid.NewGuid(),
-                DocumentBatchId = batch.Id,
-                Status = newStatus,
-                FromUserId = fromUserId,
-                FromUserName = fromUserName,
-                ToUserId = toUserId,
-                ToUserName = toUserName,
-                RelayedAt = now,
-                AcceptedAt = null,
-                Note = note,
-                IsFinding = isFinding,
-                FindingJustification = isFinding ? findingJustification : null,
-                RaisedByRole = isFinding ? raisedByRole : null
-            });
-
-            batch.CurrentStatus = newStatus;
-            batch.CurrentHolderUserId = toUserId;
-            batch.CurrentHolderName = toUserName;
-            batch.CurrentLegAcceptedAt = null;
-        }
-
-        // Staged onto the same DbContext as the batch change it accompanies —
-        // callers add this BEFORE their own final _repo.SaveChangesAsync() so
-        // everything commits together in one transaction, not a separate round trip.
-        private async Task LogActivityAsync(string userName, DocumentBatch batch, string action)
-        {
-            var provinceName = _psgcNameCache.GetProvinceName(batch.PsgcCodeProvince) ?? $"Province {batch.PsgcCodeProvince}";
-            var municipalityName = _psgcNameCache.GetMunicipalityName(batch.PsgcCodeMunicipality) ?? $"Municipality {batch.PsgcCodeMunicipality}";
-
-            await _logRepo.AddAsync(new Log
-            {
-                Id = Guid.NewGuid(),
-                Category = "DocumentTracking",
-                UserName = userName,
-                CreatedAt = DateTime.UtcNow,
-                Activity = $"{action} — {municipalityName}, {provinceName} (Milestone {batch.MilestoneYear})"
-            });
+            if (isFinding && string.IsNullOrWhiteSpace(justification))
+                throw new InvalidOperationException("A finding requires a justification.");
         }
 
         private async Task<string> ResolveUserNameAsync(Guid userId)
@@ -555,74 +346,89 @@ namespace EcaInformationSystem.Application.Services
             return user.FullName;
         }
 
-        private DocumentBatchDto MapToDto(DocumentBatch batch)
+        // Staged onto the same DbContext as the document change it accompanies —
+        // callers add this BEFORE their own final _repo.SaveChangesAsync() so
+        // everything commits together in one transaction, not a separate round trip.
+        private async Task LogActivityAsync(string userName, TrackedDocument document, string action)
         {
-            return new DocumentBatchDto
+            await _logRepo.AddAsync(new Log
             {
-                Id = batch.Id,
-                PsgcCodeProvince = batch.PsgcCodeProvince,
-                ProvinceName = _psgcNameCache.GetProvinceName(batch.PsgcCodeProvince) ?? $"Province {batch.PsgcCodeProvince}",
-                PsgcCodeMunicipality = batch.PsgcCodeMunicipality,
-                MunicipalityName = _psgcNameCache.GetMunicipalityName(batch.PsgcCodeMunicipality) ?? $"Municipality {batch.PsgcCodeMunicipality}",
-                MilestoneYear = batch.MilestoneYear,
-                DateReceived = batch.DateReceived,
-                CreatedByUserId = batch.CreatedByUserId,
-                CreatedByName = batch.CreatedByName,
-                CreatedAt = batch.CreatedAt,
-                CurrentStatus = (int)batch.CurrentStatus,
-                CurrentStatusLabel = StatusLabel(batch.CurrentStatus),
-                CurrentHolderUserId = batch.CurrentHolderUserId,
-                CurrentHolderName = batch.CurrentHolderName,
-                CurrentLegAcceptedAt = batch.CurrentLegAcceptedAt,
-                RowCount = batch.Rows.Count,
-                FindingCount = batch.Rows.Count(r => r.HasFinding),
-                Rows = batch.Rows
-                    .OrderBy(r => r.SortOrder)
-                    .Select(r => new DocumentGranteeRowDto
+                Id = Guid.NewGuid(),
+                Category = "DocumentTracking",
+                UserName = userName,
+                CreatedAt = DateTime.UtcNow,
+                Activity = $"{action} — {document.SerialNumber} ({document.Title})"
+            });
+        }
+
+        private TrackedDocumentDto MapToDto(TrackedDocument document)
+        {
+            return new TrackedDocumentDto
+            {
+                Id = document.Id,
+                SerialNumber = document.SerialNumber,
+                Title = document.Title,
+                Description = document.Description,
+                CreatedByUserId = document.CreatedByUserId,
+                CreatedByName = document.CreatedByName,
+                CreatedAt = document.CreatedAt,
+                CurrentHolderUserId = document.CurrentHolderUserId,
+                CurrentHolderName = document.CurrentHolderName,
+                CurrentLegAcceptedAt = document.CurrentLegAcceptedAt,
+                Status = (int)document.Status,
+                StatusLabel = StatusLabel(document.Status),
+                Routes = document.Routes
+                    .OrderBy(r => r.RelayedAt)
+                    .Select(r => new DocumentRouteDto
                     {
                         Id = r.Id,
-                        FirstName = r.FirstName,
-                        MiddleName = r.MiddleName,
-                        LastName = r.LastName,
-                        Extension = r.Extension,
-                        SortOrder = r.SortOrder,
-                        HasFinding = r.HasFinding,
-                        FindingNote = r.FindingNote,
-                        FindingSetAt = r.FindingSetAt,
-                        FindingSetByName = r.FindingSetByName,
-                        FindingResolvedAt = r.FindingResolvedAt
-                    }).ToList(),
-                Transfers = batch.Transfers
-                    .OrderBy(t => t.RelayedAt)
-                    .Select(t => new DocumentTransferDto
-                    {
-                        Id = t.Id,
-                        Status = (int)t.Status,
-                        StatusLabel = StatusLabel(t.Status),
-                        FromUserId = t.FromUserId,
-                        FromUserName = t.FromUserName,
-                        ToUserId = t.ToUserId,
-                        ToUserName = t.ToUserName,
-                        RelayedAt = t.RelayedAt,
-                        AcceptedAt = t.AcceptedAt,
-                        Note = t.Note,
-                        IsFinding = t.IsFinding,
-                        FindingJustification = t.FindingJustification,
-                        RaisedByRole = t.RaisedByRole
+                        Action = (int)r.Action,
+                        ActionLabel = ActionLabel(r.Action),
+                        FromUserId = r.FromUserId,
+                        FromUserName = r.FromUserName,
+                        ToUserId = r.ToUserId,
+                        ToUserName = r.ToUserName,
+                        RelayedAt = r.RelayedAt,
+                        AcceptedAt = r.AcceptedAt,
+                        Note = r.Note,
+                        IsFinding = r.IsFinding,
+                        FindingJustification = r.FindingJustification,
+                        RaisedByRole = r.RaisedByRole
                     }).ToList()
             };
         }
 
-        private static string StatusLabel(DocumentTrackingStatus status) => status switch
+        private TrackedDocumentListItemDto MapToListItemDto(TrackedDocument document)
         {
-            DocumentTrackingStatus.EndorsedByViewer => "Endorsed by Viewer",
-            DocumentTrackingStatus.ReturnedToViewer => "Returned to Viewer",
-            DocumentTrackingStatus.DistributedToPdo => "Distributed to PDO",
-            DocumentTrackingStatus.EndorsedToFinance => "Endorsed to Finance",
-            DocumentTrackingStatus.ReturnedToPdoForFindings => "Returned to PDO — Findings",
-            DocumentTrackingStatus.ForwardedToViewerForScanning => "Forwarded to Viewer — Scanning",
-            DocumentTrackingStatus.Completed => "Completed",
+            return new TrackedDocumentListItemDto
+            {
+                Id = document.Id,
+                SerialNumber = document.SerialNumber,
+                Title = document.Title,
+                CreatedByName = document.CreatedByName,
+                CreatedAt = document.CreatedAt,
+                CurrentHolderUserId = document.CurrentHolderUserId,
+                CurrentHolderName = document.CurrentHolderName,
+                CurrentLegAcceptedAt = document.CurrentLegAcceptedAt,
+                Status = (int)document.Status,
+                StatusLabel = StatusLabel(document.Status)
+            };
+        }
+
+        private static string StatusLabel(TrackedDocumentStatus status) => status switch
+        {
+            TrackedDocumentStatus.InTransit => "In Transit",
+            TrackedDocumentStatus.Completed => "Completed",
             _ => status.ToString()
+        };
+
+        private static string ActionLabel(DocumentRouteAction action) => action switch
+        {
+            DocumentRouteAction.Tagged => "Tagged",
+            DocumentRouteAction.Relayed => "Relayed",
+            DocumentRouteAction.Returned => "Returned",
+            DocumentRouteAction.Completed => "Completed",
+            _ => action.ToString()
         };
     }
 }

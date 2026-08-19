@@ -13,6 +13,9 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? IncomeClassification { get; set; }
         public int? SeniorCitizensPopulation { get; set; }
         public string? LswdoName { get; set; }
+        public string? LswdoPosition { get; set; }
+        public string? LswdoContactNumber { get; set; }
+        public string? LswdoEmail { get; set; }
         public string? OscaHeadName { get; set; }
         public string? MayorName { get; set; }
         public bool? HasSeniorCitizenCenter { get; set; }

@@ -5,7 +5,7 @@ namespace EcaInformationSystem.Domain.Entities
     // Header of a grouped "documents that arrived" entry — Province/Municipality/
     // Milestone Year/Date Received identify the batch; the actual grantee documents
     // live in Rows, and every hand-off between roles is appended to Transfers.
-    public class DocumentBatch
+    public class ApplicationBatch
     {
         public Guid Id { get; set; }
 
@@ -18,7 +18,9 @@ namespace EcaInformationSystem.Domain.Entities
         public string CreatedByName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
 
-        public DocumentTrackingStatus CurrentStatus { get; set; } = DocumentTrackingStatus.EndorsedByViewer;
+        public ApplicationTrackingStatus CurrentStatus { get; set; } = ApplicationTrackingStatus.EndorsedByViewer;
+
+        public ApplicationPriority Priority { get; set; } = ApplicationPriority.Normal;
 
         // Whoever must act next. AcceptedAt is null while the leg is pending
         // acceptance — only CurrentHolderUserId can accept it, and only after
@@ -27,7 +29,7 @@ namespace EcaInformationSystem.Domain.Entities
         public string CurrentHolderName { get; set; } = string.Empty;
         public DateTime? CurrentLegAcceptedAt { get; set; }
 
-        public ICollection<DocumentGranteeRow> Rows { get; set; } = new List<DocumentGranteeRow>();
-        public ICollection<DocumentTransfer> Transfers { get; set; } = new List<DocumentTransfer>();
+        public ICollection<ApplicationGranteeRow> Rows { get; set; } = new List<ApplicationGranteeRow>();
+        public ICollection<ApplicationTransfer> Transfers { get; set; } = new List<ApplicationTransfer>();
     }
 }

@@ -63,9 +63,11 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
             public DbSet<StickyNote> StickyNotes => Set<StickyNote>();
-            public DbSet<DocumentBatch> DocumentBatches => Set<DocumentBatch>();
-            public DbSet<DocumentGranteeRow> DocumentGranteeRows => Set<DocumentGranteeRow>();
-            public DbSet<DocumentTransfer> DocumentTransfers => Set<DocumentTransfer>();
+            public DbSet<ApplicationBatch> ApplicationBatches => Set<ApplicationBatch>();
+            public DbSet<ApplicationGranteeRow> ApplicationGranteeRows => Set<ApplicationGranteeRow>();
+            public DbSet<ApplicationTransfer> ApplicationTransfers => Set<ApplicationTransfer>();
+            public DbSet<TrackedDocument> TrackedDocuments => Set<TrackedDocument>();
+            public DbSet<DocumentRoute> DocumentRoutes => Set<DocumentRoute>();
             public DbSet<SystemUpdateNotice> SystemUpdateNotices => Set<SystemUpdateNotice>();
             public DbSet<DarReport> DarReports => Set<DarReport>();
             public DbSet<DarEntry> DarEntries => Set<DarEntry>();
@@ -994,22 +996,22 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   });
 
                   // ═══════════════════════════════════════════════════════════════════
-                  // DOCUMENT TRACKING
+                  // APPLICATION TRACKING
                   // ═══════════════════════════════════════════════════════════════════
-                  modelBuilder.Entity<DocumentBatch>(entity =>
+                  modelBuilder.Entity<ApplicationBatch>(entity =>
                   {
                         entity.HasKey(x => x.Id);
                         entity.Property(x => x.CreatedByName).HasMaxLength(200);
                         entity.Property(x => x.CurrentHolderName).HasMaxLength(200);
 
                         entity.HasMany(x => x.Rows)
-                              .WithOne(x => x.DocumentBatch)
-                              .HasForeignKey(x => x.DocumentBatchId)
+                              .WithOne(x => x.ApplicationBatch)
+                              .HasForeignKey(x => x.ApplicationBatchId)
                               .OnDelete(DeleteBehavior.Cascade);
 
                         entity.HasMany(x => x.Transfers)
-                              .WithOne(x => x.DocumentBatch)
-                              .HasForeignKey(x => x.DocumentBatchId)
+                              .WithOne(x => x.ApplicationBatch)
+                              .HasForeignKey(x => x.ApplicationBatchId)
                               .OnDelete(DeleteBehavior.Cascade);
 
                         entity.HasIndex(x => new { x.PsgcCodeProvince, x.PsgcCodeMunicipality, x.MilestoneYear });
@@ -1028,7 +1030,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasIndex(x => x.PublishedAt);
                   });
 
-                  modelBuilder.Entity<DocumentGranteeRow>(entity =>
+                  modelBuilder.Entity<ApplicationGranteeRow>(entity =>
                   {
                         entity.HasKey(x => x.Id);
                         entity.Property(x => x.FirstName).HasMaxLength(150);
@@ -1039,7 +1041,38 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.FindingSetByName).HasMaxLength(200);
                   });
 
-                  modelBuilder.Entity<DocumentTransfer>(entity =>
+                  modelBuilder.Entity<ApplicationTransfer>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.FromUserName).HasMaxLength(200);
+                        entity.Property(x => x.ToUserName).HasMaxLength(200);
+                        entity.Property(x => x.Note).HasMaxLength(1000);
+                        entity.Property(x => x.FindingJustification).HasMaxLength(1000);
+                        entity.Property(x => x.RaisedByRole).HasMaxLength(50);
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // DOCUMENT TRACKING
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.HasSequence<int>("DocumentTrackingSerialSeq").StartsAt(1).IncrementsBy(1);
+
+                  modelBuilder.Entity<TrackedDocument>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.SerialNumber).HasMaxLength(30);
+                        entity.HasIndex(x => x.SerialNumber).IsUnique();
+                        entity.Property(x => x.Title).HasMaxLength(300);
+                        entity.Property(x => x.Description).HasMaxLength(2000);
+                        entity.Property(x => x.CreatedByName).HasMaxLength(200);
+                        entity.Property(x => x.CurrentHolderName).HasMaxLength(200);
+
+                        entity.HasMany(x => x.Routes)
+                              .WithOne(x => x.TrackedDocument)
+                              .HasForeignKey(x => x.TrackedDocumentId)
+                              .OnDelete(DeleteBehavior.Cascade);
+                  });
+
+                  modelBuilder.Entity<DocumentRoute>(entity =>
                   {
                         entity.HasKey(x => x.Id);
                         entity.Property(x => x.FromUserName).HasMaxLength(200);

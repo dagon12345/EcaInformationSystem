@@ -1,6 +1,7 @@
 ﻿@using EcaInformationSystem.Client.Pages
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.ApplicationTracking
 @using EcaInformationSystem.Shared.DTOs.DocumentTracking
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Net.Http.Json
@@ -14,6 +15,7 @@
 @inject ChatClientService ChatClientService
 @inject VoiceCallClientService VoiceCallClientService
 @inject VoiceCallStateService VoiceCallState
+@inject ApplicationTrackingClientService ApplicationTrackingClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
@@ -258,6 +260,7 @@
         Navigation.LocationChanged += OnLocationChanged;
         UpdateCurrentPage(Navigation.Uri);
 
+        ApplicationTrackingClientService.OnApplicationTagged += HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged += HandleDocumentTagged;
         ChatClientService.OnForceLogout += HandleForceLogout;
     }
@@ -272,10 +275,18 @@
         Navigation.NavigateTo("/login", true);
     }
 
-    private void HandleDocumentTagged(DocumentTaggedNotificationDto notification)
+    private void HandleApplicationTagged(ApplicationTaggedNotificationDto notification)
     {
         Toast.ShowSuccess(
             $"{notification.TaggedByName} tagged you on a document — {notification.MunicipalityName}, {notification.ProvinceName} (Milestone {notification.MilestoneYear}).",
+            "Application Tracking");
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleDocumentTagged(DocumentTaggedNotificationDto notification)
+    {
+        Toast.ShowSuccess(
+            $"{notification.TaggedByName} tagged you on a document — {notification.Title} ({notification.SerialNumber}).",
             "Document Tracking");
         InvokeAsync(StateHasChanged);
     }
@@ -340,6 +351,20 @@
                 }
             }
 
+            if (!ApplicationTrackingClientService.IsConnected && _currentUserId.HasValue)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "applicationTrackingHub").ToString();
+                    await ApplicationTrackingClientService.ConnectAsync(hubUrl, _currentUserId.Value);
+                }
+                catch
+                {
+                    // Non-fatal — badge just won't live-update this session
+                }
+            }
+
             if (!DocumentTrackingClientService.IsConnected && _currentUserId.HasValue)
             {
                 try
@@ -350,7 +375,7 @@
                 }
                 catch
                 {
-                    // Non-fatal — badge just won't live-update this session
+                    // Non-fatal — "tagged you" toasts/badge just won't live-update this session
                 }
             }
 
@@ -558,6 +583,7 @@
         Current = null;
         _bannerCts?.Cancel();
         Navigation.LocationChanged -= OnLocationChanged;
+        ApplicationTrackingClientService.OnApplicationTagged -= HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged -= HandleDocumentTagged;
         ChatClientService.OnForceLogout -= HandleForceLogout;
     }

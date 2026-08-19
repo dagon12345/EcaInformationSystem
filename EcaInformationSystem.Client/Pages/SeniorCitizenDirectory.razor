@@ -47,95 +47,89 @@
         }
     </div>
 
-    <div class="card shadow-sm border-0 mb-3">
-        <div class="card-body py-2">
-            <input class="form-control form-control-sm" style="max-width:360px;"
-                   placeholder="Search by municipality, province, LSWDO, OSCA Head, Mayor..."
-                   @bind="_searchTerm" @bind:event="oninput" />
+    <div class="scd-toolbar mb-3">
+        <div class="p-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="scd-search-wrap">
+                <i class="bi bi-search scd-search-icon"></i>
+                <input class="form-control form-control-sm scd-search-input"
+                       placeholder="Search by municipality, province, LSWDO, OSCA Head, Mayor..."
+                       @bind="_searchTerm" @bind:event="oninput" />
+            </div>
+            @if (!_isLoading)
+            {
+                <span class="scd-count-pill">
+                    <i class="bi bi-signpost-split me-1"></i>@FilteredEntries.Count of @_entries.Count entries
+                </span>
+            }
         </div>
     </div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
-            @if (_isLoading)
-            {
-                <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-            }
-            else if (!FilteredEntries.Any())
-            {
-                <div class="p-4 text-muted text-center">No directory entries found.</div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Province</th>
-                                <th>City / Municipality</th>
-                                <th>Income Class</th>
-                                <th>SC Population</th>
-                                <th>LSWDO</th>
-                                <th>OSCA Head</th>
-                                <th>Mayor</th>
-                                <th class="text-center">SCC</th>
-                                <th class="text-center">Cash Incentive</th>
-                                <th class="text-center">VAOP</th>
-                                <th>Last Updated</th>
-                                <th style="width:170px;">Actions</th>
+    <div class="scd-card">
+        @if (_isLoading)
+        {
+            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        }
+        else if (!FilteredEntries.Any())
+        {
+            <div class="scd-empty-state">
+                <i class="bi bi-inbox"></i>
+                No directory entries found.
+            </div>
+        }
+        else
+        {
+            <div class="scd-table-scroll">
+                <table class="table scd-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Province</th>
+                            <th>City / Municipality</th>
+                            <th>Income Class</th>
+                            <th>SC Population</th>
+                            <th>LSWDO</th>
+                            <th>Position</th>
+                            <th>Contact Number</th>
+                            <th>Email</th>
+                            <th class="text-end" style="width:150px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in FilteredEntries)
+                        {
+                            <tr @key="entry.Id">
+                                <td class="scd-muted-cell">@entry.ProvinceName</td>
+                                <td class="scd-loc-primary">@entry.MunicipalityName</td>
+                                <td>@Cell(entry.IncomeClassification)</td>
+                                <td>@(entry.SeniorCitizensPopulation.HasValue ? entry.SeniorCitizensPopulation.Value.ToString("N0") : EmptyCell())</td>
+                                <td>@Cell(entry.LswdoName)</td>
+                                <td class="scd-muted-cell">@Cell(entry.LswdoPosition)</td>
+                                <td class="scd-contact-number">@Cell(entry.LswdoContactNumber)</td>
+                                <td class="scd-contact-email">@Cell(entry.LswdoEmail)</td>
+                                <td>
+                                    <div class="scd-actions">
+                                        <button class="btn btn-sm btn-outline-secondary" title="View" @onclick="() => OpenViewModal(entry.Id)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" title="History" @onclick="() => OpenHistoryModal(entry.Id)">
+                                            <i class="bi bi-clock-history"></i>
+                                        </button>
+                                        @if (_canEdit)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" title="Edit" @onclick="() => OpenEditModal(entry.Id)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => ConfirmDelete(entry)">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var entry in FilteredEntries)
-                            {
-                                <tr @key="entry.Id">
-                                    <td>@entry.ProvinceName</td>
-                                    <td class="fw-semibold">@entry.MunicipalityName</td>
-                                    <td>@entry.IncomeClassification</td>
-                                    <td>@entry.SeniorCitizensPopulation?.ToString("N0")</td>
-                                    <td>@entry.LswdoName</td>
-                                    <td>@entry.OscaHeadName</td>
-                                    <td>@entry.MayorName</td>
-                                    <td class="text-center">@YesNoBadge(entry.HasSeniorCitizenCenter)</td>
-                                    <td class="text-center">@YesNoBadge(entry.HasCashIncentive)</td>
-                                    <td class="text-center">@YesNoBadge(entry.HasVaopHelpDesk)</td>
-                                    <td class="small text-muted">
-                                        @if (entry.UpdatedAt.HasValue)
-                                        {
-                                            @entry.UpdatedAt.Value.ToLocalTime().ToString("MMM dd, yyyy")
-                                            <br /><span>@entry.UpdatedBy</span>
-                                        }
-                                        else
-                                        {
-                                            <span>—</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        <div class="d-flex gap-1">
-                                            <button class="btn btn-sm btn-outline-secondary" title="View" @onclick="() => OpenViewModal(entry.Id)">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-outline-secondary" title="History" @onclick="() => OpenHistoryModal(entry.Id)">
-                                                <i class="bi bi-clock-history"></i>
-                                            </button>
-                                            @if (_canEdit)
-                                            {
-                                                <button class="btn btn-sm btn-outline-primary" title="Edit" @onclick="() => OpenEditModal(entry.Id)">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => ConfirmDelete(entry)">
-                                                    <i class="bi bi-trash3"></i>
-                                                </button>
-                                            }
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </div>
 </div>
 
@@ -651,17 +645,26 @@
         });
     }
 
-    private static RenderFragment YesNoBadge(bool? value) => builder =>
+    private static RenderFragment Cell(string? value) => builder =>
     {
-        var (text, cls) = value switch
+        if (string.IsNullOrWhiteSpace(value))
         {
-            true => ("Yes", "bg-success-subtle text-success-emphasis border border-success-subtle"),
-            false => ("No", "bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"),
-            null => ("—", "bg-light text-muted")
-        };
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "scd-empty-value");
+            builder.AddContent(2, "—");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.AddContent(0, value);
+        }
+    };
+
+    private static RenderFragment EmptyCell() => builder =>
+    {
         builder.OpenElement(0, "span");
-        builder.AddAttribute(1, "class", $"badge {cls}");
-        builder.AddContent(2, text);
+        builder.AddAttribute(1, "class", "scd-empty-value");
+        builder.AddContent(2, "—");
         builder.CloseElement();
     };
 
