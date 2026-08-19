@@ -103,24 +103,33 @@ namespace EcaInformationSystem.Shared.Helpers
             return ComputeAge(birthDate) >= 80 && !HasAnyValidMilestone(birthDate);
         }
 
-        // True when the grantee's 80th birthday (their nearest/earliest possible
-        // milestone) fell before ProgramStartDate, but a LATER milestone
-        // (85/90/95/100) is still valid — e.g. born 1944-03-16: their 80th
-        // birthday was 2024-03-16, one day before the program started, but
-        // their 85th (2029) is fine. Purely informational — unlike
-        // MissedProgramStartCutoff, this does NOT make them permanently
-        // ineligible, so it must never affect IsEligible/PaymentStatus.
-        // Milestone birthdays are strictly increasing with birth date, so if
-        // the 80th missed the cutoff every later one by definition didn't —
-        // this case can only ever be about the 80th specifically.
+        // True when the ONE milestone (80/85/90/95/100) that actually lands in
+        // 2024 for this birth year — i.e. birthYear + milestone == 2024 —
+        // fell before ProgramStartDate, but the grantee still has a LATER
+        // milestone available (so this can never fire for the 100th, since
+        // there's nothing after it — that case is permanent, see
+        // MissedProgramStartCutoff below). Only five birth years can ever
+        // satisfy this: 1944 (80th), 1939 (85th), 1934 (90th), 1929 (95th),
+        // 1924 (100th, always excluded by the guard above). For any OTHER
+        // birth year, none of their milestones land in 2024 at all, so the
+        // March 17 cutoff date literally cannot apply to them — every other
+        // milestone year is either entirely before 2024 (program didn't
+        // exist, moot) or entirely after it (automatically past the cutoff
+        // date since it's a whole later year).
+        //
+        // Purely informational — unlike MissedProgramStartCutoff, this does
+        // NOT make them permanently ineligible, so it must never affect
+        // IsEligible/PaymentStatus.
         public static bool MissedNearestMilestoneOnly(DateTime birthDate)
         {
             if (birthDate == default) return false;
-            if (ComputeAge(birthDate) < 80) return false;
             if (MissedProgramStartCutoff(birthDate)) return false;
 
-            var eightiethBirthday = SafeDate(birthDate.Year + 80, birthDate.Month, birthDate.Day);
-            return eightiethBirthday < ProgramStartDate;
+            var milestoneAgeIn2024 = ProgramStartDate.Year - birthDate.Year;
+            if (Array.IndexOf(Milestones, milestoneAgeIn2024) < 0) return false;
+
+            var milestoneBirthday2024 = SafeDate(ProgramStartDate.Year, birthDate.Month, birthDate.Day);
+            return milestoneBirthday2024 < ProgramStartDate;
         }
 
         // The next milestone (age, year) a grantee flagged by

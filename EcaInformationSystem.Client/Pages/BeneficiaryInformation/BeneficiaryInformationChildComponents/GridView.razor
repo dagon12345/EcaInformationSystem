@@ -520,7 +520,7 @@
                                                 <td>@Highlight(item.BirthDate.ToString("MMM dd, yyyy"))</td>
                                                 <td>
                                                     <span class="tbl-badge @(item.MissedProgramStartCutoff || item.MissedNearestMilestoneOnly ? "cutoff-miss" : GetAgeBadgeClass(item.BirthDate))"
-                                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : item.MissedNearestMilestoneOnly ? "Missed the nearest (80th) milestone cutoff — not ineligible, will qualify at a later milestone" : null)">
+                                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : item.MissedNearestMilestoneOnly ? "Missed the nearest milestone cutoff — not ineligible, will qualify at a later milestone" : null)">
                                                         @if (item.MissedProgramStartCutoff || item.MissedNearestMilestoneOnly)
                                                         {
                                                             <i class="bi bi-exclamation-triangle-fill me-1"></i>
@@ -535,7 +535,7 @@
                                                     }
                                                     else if (item.MissedNearestMilestoneOnly)
                                                     {
-                                                        <span class="tbl-badge cutoff-miss" title="Missed the nearest (80th) milestone cutoff — not ineligible, will qualify at a later milestone">—</span>
+                                                        <span class="tbl-badge cutoff-miss" title="Missed the nearest milestone cutoff — not ineligible, will qualify at a later milestone">—</span>
                                                     }
                                                     else
                                                     {
@@ -854,7 +854,7 @@
 
                                 <div class="beneficiary-card-badges">
                                     <span class="tbl-badge @(item.MissedProgramStartCutoff || item.MissedNearestMilestoneOnly ? "cutoff-miss" : GetAgeBadgeClass(item.BirthDate))"
-                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : item.MissedNearestMilestoneOnly ? "Missed the nearest (80th) milestone cutoff — not ineligible, will qualify at a later milestone" : null)">
+                                          title="@(item.MissedProgramStartCutoff ? "Missed ECA program start cutoff (March 17, 2024) — permanently ineligible" : item.MissedNearestMilestoneOnly ? "Missed the nearest milestone cutoff — not ineligible, will qualify at a later milestone" : null)">
                                         @if (item.MissedProgramStartCutoff || item.MissedNearestMilestoneOnly)
                                         {
                                             <i class="bi bi-exclamation-triangle-fill me-1"></i>

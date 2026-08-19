@@ -364,7 +364,7 @@
                     <i class="bi bi-exclamation-triangle-fill mt-1"></i>
                     <div>
                         <strong>Missed the nearest milestone cutoff.</strong><br />
-                        This grantee's 80th birthday fell before the program's start date
+                        This grantee's @MissedMilestoneAge<sup>th</sup> birthday fell before the program's start date
                         (@EcaEligibilityHelper.ProgramStartDate.ToString("MMMM d, yyyy")), so they did not qualify under
                         Milestone Year 2024. This does not make them ineligible — they will next qualify at their
                         <strong>@NextMilestoneAge<sup>th</sup> milestone in @NextMilestoneYear</strong>.
@@ -2074,12 +2074,19 @@
         model.BirthDate != default && model.BirthDate != DateTime.MinValue
         && EcaEligibilityHelper.MissedProgramStartCutoff(model.BirthDate);
 
-    // Informational only — their 80th birthday missed the cutoff but a later
-    // milestone (85/90/95/100) is still valid, so this must never affect
-    // IsEligible/PaymentStatus, unlike MissedProgramStartCutoff above.
+    // Informational only — whichever milestone (80/85/90/95/100) lands in
+    // 2024 for this birth year missed the cutoff, but a LATER milestone is
+    // still valid, so this must never affect IsEligible/PaymentStatus,
+    // unlike MissedProgramStartCutoff above. Only birth years 1944/1939/
+    // 1934/1929 can ever trigger this (1924's 100th has no later milestone
+    // to fall back on, so it's a MissedProgramStartCutoff case instead).
     private bool MissedNearestMilestoneOnly =>
         model.BirthDate != default && model.BirthDate != DateTime.MinValue
         && EcaEligibilityHelper.MissedNearestMilestoneOnly(model.BirthDate);
+
+    // The milestone age (80/85/90/95) that landed in 2024 for this grantee
+    // and missed the cutoff — only meaningful when MissedNearestMilestoneOnly.
+    private int MissedMilestoneAge => EcaEligibilityHelper.ProgramStartDate.Year - model.BirthDate.Year;
 
     private int NextMilestoneAge => EcaEligibilityHelper.NextValidMilestoneAfterCutoffMiss(model.BirthDate).Age;
     private int NextMilestoneYear => EcaEligibilityHelper.NextValidMilestoneAfterCutoffMiss(model.BirthDate).Year;
