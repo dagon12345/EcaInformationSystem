@@ -1,0 +1,905 @@
+@* BeneficiaryCrossmatch.razor — crossmatch an uploaded Excel sheet against the
+   system's existing grantee records. Read-only report: nothing is saved or
+   created here. New / Possible Match rows can be downloaded as an
+   import-ready file to complete and upload later via the Import tab. *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
+@inject ToastService toast
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject BeneficiaryStateService State
+
+<HxModal @ref="_modal" Size="ModalSize.ExtraLarge" Scrollable="true" CloseOnEscape="false" OnHiding="OnModalHiding">
+    <HeaderTemplate>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-people-fill text-primary"></i>
+            <h5 class="mb-0">
+                Crossmatch Grantees
+                @if (_result is not null)
+                {
+                    <span class="badge bg-primary ms-2 fw-normal">@_result.TotalRows row(s) scanned</span>
+                }
+            </h5>
+        </div>
+    </HeaderTemplate>
+    <BodyTemplate>
+
+        @if (_result is null)
+        {
+            @* ══════════════ STEP 1 — upload / scan ══════════════ *@
+            <div class="crossmatch-intro alert alert-info d-flex gap-2 align-items-start py-2 px-3 mb-3" style="font-size:13px;">
+                <i class="bi bi-info-circle-fill mt-1"></i>
+                <div>
+                    Upload a grantee list to check which records already exist in the system.
+                    This is a <strong>read-only check</strong> — nothing is saved automatically.
+                    New and Possible Match rows can be downloaded as an import-ready file
+                    to complete and upload later via the Import tab.
+                </div>
+            </div>
+
+            <div class="import-file-row">
+                <InputFile OnChange="HandleFileSelected" accept=".xlsx" class="ff-input" disabled="@_isScanning" />
+                @if (_isLoadingSheets)
+                {
+                    <span class="ff-loading mt-1">
+                        <span class="spinner-border spinner-border-sm"></span> Reading sheets...
+                    </span>
+                }
+            </div>
+
+            @if (_sheetNames.Any())
+            {
+                <div class="ff mt-2">
+                    <label class="ff-label">Worksheet</label>
+                    <InputSelect class="ff-input" @bind-Value="_selectedSheetName" disabled="@_isScanning">
+                        @foreach (var sheet in _sheetNames)
+                        {
+                            <option value="@sheet">@sheet</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_uploadedFileName))
+                {
+                    <div class="import-file-info mt-1">
+                        <i class="bi bi-file-earmark-excel text-success me-1"></i>
+                        <strong>@_uploadedFileName</strong>
+                        &nbsp;·&nbsp; @_sheetNames.Count worksheet(s) found
+                    </div>
+                }
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_scanError))
+            {
+                <div class="alert alert-danger py-2 px-3 mt-2 mb-0 small">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>@_scanError
+                </div>
+            }
+
+            <div class="d-flex align-items-center gap-2 mt-3">
+                <button class="sys-btn sys-btn-save" @onclick="RunCrossmatchAsync"
+                        disabled="@(_isScanning || _uploadedBytes == null || !_sheetNames.Any() || string.IsNullOrWhiteSpace(_selectedSheetName))">
+                    @if (_isScanning)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Scanning...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search me-1"></i>
+                        <span>Run Crossmatch</span>
+                    }
+                </button>
+
+                @if (_isScanning)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="RequestCancelScanAsync">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+                }
+            </div>
+
+            @if (_isScanning)
+            {
+                <div class="xm-progress-wrap">
+                    <div class="xm-progress-percent">@ProgressPercent<span>%</span></div>
+                    <div class="xm-progress-track">
+                        <div class="xm-progress-fill" style="width:@(ProgressPercent)%;">
+                            <span class="xm-progress-sheen"></span>
+                        </div>
+                    </div>
+                    <span class="xm-progress-status">
+                        @if (_progressTotal > 0)
+                        {
+                            <text>Comparing row @_progressProcessed of @_progressTotal against existing records...</text>
+                        }
+                        else
+                        {
+                            <text>Reading the file...</text>
+                        }
+                    </span>
+                    <span class="xm-progress-hint">Handles large files (20,000+ rows) — feel free to leave this open, or cancel any time.</span>
+                </div>
+            }
+        }
+        else
+        {
+            @* ══════════════ STEP 2 — results ══════════════ *@
+            @if (_isShowingCachedResult)
+            {
+                <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 px-3 mb-3" style="font-size:13px;">
+                    <i class="bi bi-clock-history"></i>
+                    <div class="flex-grow-1">
+                        Showing your last crossmatch
+                        @if (!string.IsNullOrWhiteSpace(_uploadedFileName)) { <text> of <strong>@_uploadedFileName</strong></text> }
+                        @if (State.LastCrossmatchAt.HasValue) { <text> — scanned @State.LastCrossmatchAt.Value.ToString("MMM dd, yyyy hh:mm tt")</text> }.
+                        No need to re-scan or re-download unless the data has changed.
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="DismissCachedResult">
+                        <i class="bi bi-x-lg me-1"></i>Dismiss
+                    </button>
+                </div>
+            }
+            <div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-2 py-2">
+                    <i class="bi bi-plus-circle me-1"></i>@_result.NewCount New
+                </span>
+                @if (_result.NewCount > 0)
+                {
+                    <button class="btn btn-xs btn-outline-success" style="font-size:11px;" disabled="@_isExporting"
+                            @onclick="() => ExportAllAsync(CrossmatchStatus.New)">
+                        <i class="bi bi-download me-1"></i>Export All New
+                    </button>
+                }
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-2">
+                    <i class="bi bi-question-circle me-1"></i>@_result.PossibleCount Possible Match
+                </span>
+                @if (_result.PossibleCount > 0)
+                {
+                    <button class="btn btn-xs btn-outline-warning" style="font-size:11px;" disabled="@_isExporting"
+                            @onclick="() => ExportAllAsync(CrossmatchStatus.Possible)">
+                        <i class="bi bi-download me-1"></i>Export All Possible
+                    </button>
+                }
+                <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle px-2 py-2">
+                    <i class="bi bi-check-circle me-1"></i>@_result.ExistingCount Already in System
+                </span>
+                @if (_result.ErrorCount > 0)
+                {
+                    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle px-2 py-2">
+                        <i class="bi bi-exclamation-triangle me-1"></i>@_result.ErrorCount Could Not Be Read
+                    </span>
+                }
+                <button class="btn btn-sm btn-outline-secondary ms-auto" @onclick="ResetScan">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>New Scan
+                </button>
+            </div>
+
+            @* ── Filter tabs ── *@
+            <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn @(_statusFilter == null ? "btn-primary" : "btn-outline-secondary")" @onclick="() => SetStatusFilter(null)">All</button>
+                    <button class="btn @(_statusFilter == CrossmatchStatus.New ? "btn-success" : "btn-outline-success")" @onclick="() => SetStatusFilter(CrossmatchStatus.New)">New</button>
+                    <button class="btn @(_statusFilter == CrossmatchStatus.Possible ? "btn-warning" : "btn-outline-warning")" @onclick="() => SetStatusFilter(CrossmatchStatus.Possible)">Possible</button>
+                    <button class="btn @(_statusFilter == CrossmatchStatus.Existing ? "btn-secondary" : "btn-outline-secondary")" @onclick="() => SetStatusFilter(CrossmatchStatus.Existing)">Existing</button>
+                    @if (_result.ErrorCount > 0)
+                    {
+                        <button class="btn @(_statusFilter == CrossmatchStatus.Error ? "btn-danger" : "btn-outline-danger")" @onclick="() => SetStatusFilter(CrossmatchStatus.Error)">Errors</button>
+                    }
+                </div>
+                <div class="input-group input-group-sm" style="max-width:220px;">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Search name..." value="@_searchTerm" @oninput="OnSearchInput" />
+                </div>
+                <span class="text-muted small ms-auto">@_visibleRows.Count of @_result.Rows.Count row(s)</span>
+            </div>
+
+            @if (_selectedRows.Count > 0)
+            {
+                <div class="alert alert-primary d-flex align-items-center gap-2 py-2 px-3 mb-2" style="font-size:13px;">
+                    <i class="bi bi-info-circle-fill"></i>
+                    <div class="flex-grow-1">
+                        <strong>@_selectedRows.Count</strong> row(s) selected.
+                        Download as an import-ready file, fill in any remaining details
+                        (location, NCSC assessment, payment status, etc.) in Excel,
+                        then upload it via the <strong>Import</strong> tab.
+                    </div>
+                    <button class="btn btn-sm btn-primary" @onclick="() => ExportSelectedAsync()" disabled="@_isExporting">
+                        @if (_isExporting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Preparing...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-download me-1"></i>
+                            <span>Download Selected</span>
+                        }
+                    </button>
+                </div>
+            }
+
+            @* ── Left: results table  |  Right: side-by-side compare panel ── *@
+            <div class="d-flex gap-3 crossmatch-compare-wrap @(_viewingRow is not null || _isCompareLoading ? "crossmatch-compare-wrap--viewing" : "")">
+            <div class="crossmatch-list" style="flex:1; min-width:0;">
+            <div style="max-height: 480px; overflow-y: auto;">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                        <tr>
+                            <th style="width:30px;"></th>
+                            <th style="width:30px;">#</th>
+                            <th>Name</th>
+                            <th>Birth Date</th>
+                            <th>OSCA ID / RRN</th>
+                            <th>Location</th>
+                            <th style="width:110px;">Status</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!_pagedRows.Any())
+                        {
+                            <tr><td colspan="8" class="text-center text-muted py-3">No rows match your filter.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in _pagedRows)
+                            {
+                            <tr class="@RowClass(row)">
+                                <td class="text-center">
+                                    @if (row.Status is CrossmatchStatus.New or CrossmatchStatus.Possible)
+                                    {
+                                        <input type="checkbox" checked="@_selectedRows.Contains(row.RowNumber)"
+                                               @onchange="e => ToggleRowSelected(row, (bool)(e.Value ?? false))" />
+                                    }
+                                </td>
+                                <td class="text-muted small">@row.RowNumber</td>
+                                <td>
+                                    <div class="fw-semibold" style="font-size:12px;">
+                                        @row.LastName, @row.FirstName @row.MiddleName
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(row.OscaIdNumber))
+                                    {
+                                        <div class="text-muted" style="font-size:10px;">OSCA: @row.OscaIdNumber</div>
+                                    }
+                                </td>
+                                <td style="font-size:11px;">@(row.BirthDate?.ToString("MMM dd, yyyy") ?? "—")</td>
+                                <td style="font-size:11px;">
+                                    @(row.OscaIdNumber ?? "—") / @(row.NcscRrn?.ToString() ?? "—")
+                                </td>
+                                <td style="font-size:11px;">
+                                    @row.MunicipalityName
+                                    @if (!string.IsNullOrWhiteSpace(row.BarangayName))
+                                    {
+                                        <span> — @row.BarangayName</span>
+                                    }
+                                </td>
+                                <td>@StatusBadge(row)</td>
+                                <td style="font-size:11px;">
+                                    @switch (row.Status)
+                                    {
+                                        case CrossmatchStatus.Existing:
+                                        case CrossmatchStatus.Possible:
+                                            <div class="d-flex align-items-start justify-content-between gap-2">
+                                                <div>
+                                                    <span class="text-muted">Matches:</span> <strong>@row.ExistingFullName</strong>
+                                                    @if (row.MatchScore > 0)
+                                                    {
+                                                        <span class="badge bg-light text-dark border ms-1">@((row.MatchScore * 100).ToString("F0"))%</span>
+                                                    }
+                                                    <div class="text-muted">@row.MatchReason</div>
+                                                </div>
+                                                @if (row.ExistingId.HasValue)
+                                                {
+                                                    <button class="btn btn-xs btn-outline-info btn-sm flex-shrink-0" style="font-size:11px;"
+                                                            @onclick="() => LoadCompareAsync(row)">
+                                                        <i class="bi bi-eye me-1"></i>View
+                                                    </button>
+                                                }
+                                            </div>
+                                            break;
+                                        case CrossmatchStatus.Error:
+                                            <div class="text-danger">
+                                                @foreach (var err in row.ParseErrors)
+                                                {
+                                                    <div>@err</div>
+                                                }
+                                            </div>
+                                            break;
+                                        case CrossmatchStatus.New:
+                                            <span class="text-muted">Not found in system. Select to include in the export.</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── Pagination — keeps the DOM small regardless of file size ── *@
+            @if (_visibleRows.Count > 0)
+            {
+                <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap gap-2">
+                    <span class="text-muted small">
+                        Showing @(PageStartIndex + 1)–@(PageStartIndex + _pagedRows.Count) of @_visibleRows.Count
+                    </span>
+                    <div class="d-flex align-items-center gap-2">
+                        <select class="form-select form-select-sm w-auto" @bind="PageSizeBinding">
+                            <option value="50">50 / page</option>
+                            <option value="100">100 / page</option>
+                            <option value="250">250 / page</option>
+                            <option value="500">500 / page</option>
+                        </select>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" @onclick="() => GoToPage(1)" disabled="@(_currentPage <= 1)">
+                                <i class="bi bi-chevron-double-left"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="() => GoToPage(_currentPage - 1)" disabled="@(_currentPage <= 1)">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <span class="btn btn-outline-secondary disabled" style="min-width:90px;">Page @_currentPage of @TotalPages</span>
+                            <button class="btn btn-outline-secondary" @onclick="() => GoToPage(_currentPage + 1)" disabled="@(_currentPage >= TotalPages)">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="() => GoToPage(TotalPages)" disabled="@(_currentPage >= TotalPages)">
+                                <i class="bi bi-chevron-double-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+            </div>
+
+            @* ── Right: side-by-side compare panel ── *@
+            @if (_viewingRow is not null || _isCompareLoading)
+            {
+                <div class="crossmatch-compare-detail" style="width:420px; flex-shrink:0; border-left:1px solid var(--bs-border-color); padding-left:1rem; overflow-y:auto; max-height:560px;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0"><i class="bi bi-columns-gap me-1"></i>Compare</h6>
+                        <button class="btn btn-sm btn-light" @onclick="CloseCompare"><i class="bi bi-x-lg"></i></button>
+                    </div>
+
+                    @if (_isCompareLoading)
+                    {
+                        <div class="d-flex align-items-center gap-2 py-4 justify-content-center">
+                            <span class="spinner-border spinner-border-sm"></span>
+                            <span class="text-muted small">Loading record...</span>
+                        </div>
+                    }
+                    else if (_viewingRow is { } vr)
+                    {
+                        <div class="mb-1">
+                            <span class="badge bg-light text-dark border">@((vr.MatchScore * 100).ToString("F0"))% — @vr.MatchReason</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <div class="fw-semibold small text-primary mb-1">From Uploaded File</div>
+                                <div class="crossmatch-compare-field"><span>Name</span><strong>@vr.LastName, @vr.FirstName @vr.MiddleName</strong></div>
+                                <div class="crossmatch-compare-field"><span>Birth Date</span><strong>@(vr.BirthDate?.ToString("MMM dd, yyyy") ?? "—")</strong></div>
+                                <div class="crossmatch-compare-field"><span>OSCA ID</span><strong>@(vr.OscaIdNumber ?? "—")</strong></div>
+                                <div class="crossmatch-compare-field"><span>NCSC RRN</span><strong>@(vr.NcscRrn?.ToString() ?? "—")</strong></div>
+                                <div class="crossmatch-compare-field"><span>Sex</span><strong>@(vr.Sex == 1 ? "Male" : vr.Sex == 2 ? "Female" : "—")</strong></div>
+                                <div class="crossmatch-compare-field"><span>Location</span><strong>@vr.MunicipalityName — @vr.BarangayName</strong></div>
+                                <div class="crossmatch-compare-field"><span>Contact</span><strong>@(vr.ContactNumber ?? "—")</strong></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="fw-semibold small text-secondary mb-1">Existing in System</div>
+                                @if (_compareRecord is { } er)
+                                {
+                                    <div class="crossmatch-compare-field"><span>Name</span><strong>@er.LastName, @er.FirstName @er.MiddleName</strong></div>
+                                    <div class="crossmatch-compare-field"><span>Birth Date</span><strong>@er.BirthDate.ToString("MMM dd, yyyy")</strong></div>
+                                    <div class="crossmatch-compare-field"><span>OSCA ID</span><strong>@(er.OscaIdNumber ?? "—")</strong></div>
+                                    <div class="crossmatch-compare-field"><span>NCSC RRN</span><strong>@(er.NcscRrn?.ToString() ?? "—")</strong></div>
+                                    <div class="crossmatch-compare-field"><span>Sex</span><strong>@(er.Sex == 1 ? "Male" : er.Sex == 2 ? "Female" : "—")</strong></div>
+                                    <div class="crossmatch-compare-field"><span>Location</span><strong>@er.MunicipalityName — @er.BarangayName</strong></div>
+                                    <div class="crossmatch-compare-field"><span>Contact</span><strong>@(er.PhoneNumbers.FirstOrDefault()?.Number ?? "—")</strong></div>
+                                }
+                                else
+                                {
+                                    <div class="text-muted small">Could not load this record.</div>
+                                }
+                            </div>
+                        </div>
+                        @if (_compareRecord is not null)
+                        {
+                            <button class="btn btn-sm btn-outline-primary w-100 mt-3" @onclick="OpenExistingRecord">
+                                <i class="bi bi-pencil-square me-1"></i>Open Existing Record
+                            </button>
+                        }
+                    }
+                </div>
+            }
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <button class="btn btn-outline-secondary" @onclick="RequestCloseAsync">Close</button>
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private HxModal _modal = default!;
+
+    // ── Upload state ──────────────────────────────────────────────────────
+    private byte[]? _uploadedBytes;
+    private string? _uploadedFileName;
+    private List<string> _sheetNames = new();
+    private string _selectedSheetName = string.Empty;
+    private bool _isLoadingSheets;
+    private bool _isScanning;
+    private string? _scanError;
+    private CancellationTokenSource? _pollCts;
+    private Guid? _activeJobId;
+    private int _progressProcessed;
+    private int _progressTotal;
+
+    private int ProgressPercent => _progressTotal > 0
+        ? Math.Min(100, (int)Math.Round(_progressProcessed * 100.0 / _progressTotal))
+        : 0;
+
+    // ── Result state ─────────────────────────────────────────────────────
+    private CrossmatchResultDto? _result;
+    private bool _isShowingCachedResult;
+    private CrossmatchStatus? _statusFilter;
+    private string _searchTerm = string.Empty;
+    private readonly HashSet<int> _selectedRows = new();
+    private bool _isExporting;
+
+    // ✅ Cached, materialized once per filter/search/result change instead of
+    // re-running LINQ over thousands of rows on every render. Combined with
+    // pagination below (only one page's worth of rows ever hits the DOM),
+    // this is what keeps the modal responsive on files with thousands of rows.
+    private List<CrossmatchRowDto> _visibleRows = new();
+    private List<CrossmatchRowDto> _pagedRows = new();
+    private CancellationTokenSource? _searchDebounceCts;
+
+    // ── Pagination ───────────────────────────────────────────────────────
+    private int _currentPage = 1;
+    private int _pageSize = 100;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_visibleRows.Count / (double)_pageSize));
+    private int PageStartIndex => (_currentPage - 1) * _pageSize;
+
+    private string PageSizeBinding
+    {
+        get => _pageSize.ToString();
+        set
+        {
+            if (int.TryParse(value, out var size) && size != _pageSize)
+            {
+                _pageSize = size;
+                GoToPage(1);
+            }
+        }
+    }
+
+    private void GoToPage(int page)
+    {
+        _currentPage = Math.Clamp(page, 1, TotalPages);
+        _pagedRows = _visibleRows.Skip(PageStartIndex).Take(_pageSize).ToList();
+    }
+
+    // ✅ Restore the last scan from BeneficiaryStateService instead of
+    // starting over — the modal reopening (after a search, a filter, or
+    // navigating away and back to Records) shouldn't force a re-scan or
+    // re-download of what was already reviewed.
+    public async Task ShowAsync()
+    {
+        if (_result is null && State.LastCrossmatchResult is not null)
+        {
+            _result = State.LastCrossmatchResult;
+            _uploadedFileName = State.LastCrossmatchFileName;
+            _isShowingCachedResult = true;
+            RecomputeVisibleRows();
+        }
+        await _modal.ShowAsync();
+    }
+
+    private IEnumerable<CrossmatchRowDto> FilteredRows
+    {
+        get
+        {
+            if (_result is null) return Enumerable.Empty<CrossmatchRowDto>();
+            var query = _result.Rows.AsEnumerable();
+            if (_statusFilter is not null)
+                query = query.Where(r => r.Status == _statusFilter);
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                var term = _searchTerm.Trim();
+                query = query.Where(r =>
+                    (r.FirstName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (r.LastName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (r.OscaIdNumber?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+            return query;
+        }
+    }
+
+    private void RecomputeVisibleRows()
+    {
+        _visibleRows = FilteredRows.ToList();
+        GoToPage(1);
+    }
+
+    private void SetStatusFilter(CrossmatchStatus? status)
+    {
+        _statusFilter = status;
+        RecomputeVisibleRows();
+    }
+
+    // ✅ Debounced — with 20k+ rows, re-filtering on every keystroke adds up.
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? string.Empty;
+
+        _searchDebounceCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _searchDebounceCts = cts;
+
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            RecomputeVisibleRows();
+            StateHasChanged();
+        }
+        catch (OperationCanceledException) { /* superseded by a newer keystroke */ }
+    }
+
+    private static string RowClass(CrossmatchRowDto row) => row.Status switch
+    {
+        CrossmatchStatus.New => "table-success",
+        CrossmatchStatus.Possible => "table-warning",
+        CrossmatchStatus.Error => "table-danger",
+        _ => ""
+    };
+
+    private RenderFragment StatusBadge(CrossmatchRowDto row) => builder =>
+    {
+        var (cls, label) = row.Status switch
+        {
+            CrossmatchStatus.New => ("bg-success", "New"),
+            CrossmatchStatus.Possible => ("bg-warning text-dark", "Possible"),
+            CrossmatchStatus.Existing => ("bg-secondary", "Existing"),
+            _ => ("bg-danger", "Error")
+        };
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"badge {cls}");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+    };
+
+    // ── Upload ────────────────────────────────────────────────────────────
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        _scanError = null;
+        _sheetNames.Clear();
+        _selectedSheetName = string.Empty;
+        _uploadedBytes = null;
+
+        var file = e.File;
+        if (file is null) return;
+
+        try
+        {
+            _isLoadingSheets = true;
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(20 * 1024 * 1024).CopyToAsync(ms);
+            _uploadedBytes = ms.ToArray();
+            _uploadedFileName = file.Name;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_uploadedBytes), "file", _uploadedFileName);
+            var response = await Http.PostAsync("api/beneficiary/import/sheets", content);
+            if (response.IsSuccessStatusCode)
+            {
+                _sheetNames = await response.Content.ReadFromJsonAsync<List<string>>() ?? new();
+                if (_sheetNames.Any())
+                    _selectedSheetName = _sheetNames[0];
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                _scanError = $"Could not read worksheets from the uploaded file. ({(int)response.StatusCode} {response.StatusCode}: {body})";
+            }
+        }
+        catch (Exception ex)
+        {
+            _scanError = $"Failed to read file: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingSheets = false;
+        }
+    }
+
+    // ── Scan — runs as a background job on the server so large files (tested
+    // up to 20k+ rows) don't hit the HTTP request timeout that caused
+    // repeated failures on 9k-row files. We upload once via the long-timeout
+    // client, get a job id back immediately, then poll for progress. ────────
+    private async Task RunCrossmatchAsync()
+    {
+        if (_uploadedBytes is null || string.IsNullOrWhiteSpace(_selectedSheetName)) return;
+
+        _scanError = null;
+        _isScanning = true;
+        _progressProcessed = 0;
+        _progressTotal = 0;
+        _pollCts = new CancellationTokenSource();
+
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_uploadedBytes), "file", _uploadedFileName ?? "upload.xlsx");
+            content.Add(new StringContent(_selectedSheetName), "sheetName");
+
+            var uploadClient = HttpClientFactory.CreateClient("AuthorizedClientLongRunning");
+            var startResponse = await uploadClient.PostAsync("api/beneficiary/crossmatch/start", content, _pollCts.Token);
+            if (!startResponse.IsSuccessStatusCode)
+            {
+                var error = await startResponse.Content.ReadAsStringAsync();
+                _scanError = string.IsNullOrWhiteSpace(error) ? "Crossmatch scan failed to start." : error;
+                return;
+            }
+
+            var start = await startResponse.Content.ReadFromJsonAsync<CrossmatchJobStartResultDto>(cancellationToken: _pollCts.Token);
+            if (start is null)
+            {
+                _scanError = "Crossmatch scan failed to start.";
+                return;
+            }
+
+            _activeJobId = start.JobId;
+            await PollJobAsync(start.JobId, _pollCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            toast.ShowWarning("Crossmatch scan cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _scanError = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _isScanning = false;
+            _pollCts = null;
+            _activeJobId = null;
+        }
+    }
+
+    private async Task PollJobAsync(Guid jobId, CancellationToken ct)
+    {
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(800, ct);
+
+            var response = await Http.GetAsync($"api/beneficiary/crossmatch/status/{jobId}", ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _scanError = "Lost track of the crossmatch scan. Please try again.";
+                return;
+            }
+
+            var status = await response.Content.ReadFromJsonAsync<CrossmatchJobStatusDto>(cancellationToken: ct);
+            if (status is null) continue;
+
+            _progressProcessed = status.Processed;
+            _progressTotal = status.Total;
+            StateHasChanged();
+
+            switch (status.Status)
+            {
+                case "Completed":
+                    _result = status.Result;
+                    _isShowingCachedResult = false;
+                    RecomputeVisibleRows();
+                    if (_result is not null)
+                        State.SetLastCrossmatch(_result, _uploadedFileName);
+                    return;
+                case "Failed":
+                    _scanError = string.IsNullOrWhiteSpace(status.Error) ? "Crossmatch scan failed." : status.Error;
+                    return;
+                case "Cancelled":
+                    toast.ShowWarning("Crossmatch scan cancelled.");
+                    return;
+                // "Running" — keep polling.
+            }
+        }
+    }
+
+    // ✅ Cancel guard — confirm before discarding an in-progress scan. Tells
+    // the server to stop the background job (not just the client poll loop),
+    // so a cancelled scan doesn't keep burning server CPU in the background.
+    private async Task RequestCancelScanAsync()
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Cancel the crossmatch scan in progress?");
+        if (!confirmed) return;
+
+        if (_activeJobId.HasValue)
+        {
+            try { await Http.PostAsync($"api/beneficiary/crossmatch/cancel/{_activeJobId.Value}", null); }
+            catch { /* best-effort — the client-side cancel below still stops polling */ }
+        }
+        _pollCts?.Cancel();
+    }
+
+    private void ResetScan()
+    {
+        _result = null;
+        _statusFilter = null;
+        _searchTerm = string.Empty;
+        _visibleRows.Clear();
+        _pagedRows.Clear();
+        _currentPage = 1;
+        _selectedRows.Clear();
+        _uploadedBytes = null;
+        _uploadedFileName = null;
+        _sheetNames.Clear();
+        _selectedSheetName = string.Empty;
+        _scanError = null;
+        _viewingRow = null;
+        _compareRecord = null;
+        _isShowingCachedResult = false;
+    }
+
+    // ✅ Explicit dismissal of the restored last-scan result — clears the
+    // shared cache in BeneficiaryStateService too, unlike ResetScan (which
+    // just backs out to the upload screen without touching the cache, in
+    // case the user backs out of "New Scan" without actually running one).
+    private void DismissCachedResult()
+    {
+        State.ClearLastCrossmatch();
+        ResetScan();
+    }
+
+    // ✅ Cancel guard — confirm before closing the modal if a scan is running
+    // or unsaved "New" row selections would be lost.
+    private async Task OnModalHiding(ModalHidingEventArgs e)
+    {
+        if (!_isScanning && _selectedRows.Count == 0) return;
+
+        var message = _isScanning
+            ? "A crossmatch scan is still running. Close anyway?"
+            : "You have selected rows that haven't been downloaded yet. Close anyway?";
+        var confirmed = await JS.InvokeAsync<bool>("confirm", message);
+        if (!confirmed)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (_activeJobId.HasValue)
+        {
+            try { await Http.PostAsync($"api/beneficiary/crossmatch/cancel/{_activeJobId.Value}", null); }
+            catch { /* best-effort */ }
+        }
+        _pollCts?.Cancel();
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        try { await _modal.HideAsync(); } catch { /* already closed */ }
+    }
+
+    // ── Side-by-side compare (mirrors the "Possible Duplicate Records" modal's
+    // compare panel in GridView.razor) — loads the full existing record so the
+    // uploaded row can be checked against it field-by-field before deciding. ──
+    private CrossmatchRowDto? _viewingRow;
+    private bool _isCompareLoading;
+    private BeneficiaryInformationDto? _compareRecord;
+
+    private async Task LoadCompareAsync(CrossmatchRowDto row)
+    {
+        if (!row.ExistingId.HasValue) return;
+        try
+        {
+            _isCompareLoading = true;
+            _compareRecord = null;
+            _viewingRow = row;
+            StateHasChanged();
+            _compareRecord = await Http.GetFromJsonAsync<BeneficiaryInformationDto>($"api/beneficiary/edit/{row.ExistingId.Value}");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load record for comparison: {ex.Message}");
+        }
+        finally
+        {
+            _isCompareLoading = false;
+        }
+    }
+
+    private void CloseCompare()
+    {
+        _viewingRow = null;
+        _compareRecord = null;
+    }
+
+    private void OpenExistingRecord()
+    {
+        if (_compareRecord is null) return;
+        Navigation.NavigateTo($"/beneficiary-edit/{_compareRecord.Id}");
+    }
+
+    // ── Row selection ────────────────────────────────────────────────────
+    private void ToggleRowSelected(CrossmatchRowDto row, bool selected)
+    {
+        if (selected)
+            _selectedRows.Add(row.RowNumber);
+        else
+            _selectedRows.Remove(row.RowNumber);
+    }
+
+    // ── Export selected/all rows as an import-ready .xlsx ──────────────────
+    // Replaces the earlier "Add to System" flow — crossmatch never creates
+    // records directly. New and Possible Match rows go out in the exact
+    // 30-column layout the Import tab expects, pre-filled with everything
+    // crossmatch already parsed, so the user only has to fill the gaps
+    // (unresolved location, NCSC assessment, payment status) before
+    // uploading it back through Import.
+    private async Task ExportSelectedAsync()
+    {
+        if (_result is null || _selectedRows.Count == 0) return;
+        var rows = _result.Rows.Where(r => _selectedRows.Contains(r.RowNumber)).ToList();
+        await ExportRowsAsync(rows);
+    }
+
+    private async Task ExportAllAsync(CrossmatchStatus status)
+    {
+        if (_result is null) return;
+        var rows = _result.Rows.Where(r => r.Status == status).ToList();
+        await ExportRowsAsync(rows);
+    }
+
+    private async Task ExportRowsAsync(List<CrossmatchRowDto> rows)
+    {
+        if (rows.Count == 0) return;
+
+        _isExporting = true;
+        try
+        {
+            // ✅ Filename tells the user exactly what's inside and that it's
+            // ready to hand to Import — no need to rename anything on save.
+            var statuses = rows.Select(r => r.Status).Distinct().ToList();
+            var label = statuses.Count == 1
+                ? statuses[0] switch
+                {
+                    CrossmatchStatus.New => "New_Grantees",
+                    CrossmatchStatus.Possible => "Possible_Match",
+                    _ => "Grantees"
+                }
+                : "Grantees";
+            var fileName = $"{label}_ReadyForImport_{DateTime.Now:yyyy-MM-dd}.xlsx";
+            var sheetName = statuses.Count == 1 && statuses[0] == CrossmatchStatus.Possible
+                ? "Possible Match — For Import"
+                : "New Grantees — For Import";
+
+            var response = await Http.PostAsJsonAsync(
+                $"api/beneficiary/crossmatch/export-template?sheetName={Uri.EscapeDataString(sheetName)}", rows);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Export failed." : error);
+                return;
+            }
+
+            var fileStream = await response.Content.ReadAsStreamAsync();
+            using var streamRef = new DotNetStreamReference(stream: fileStream);
+            await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            toast.ShowSuccess($"Downloaded {rows.Count} row(s) as {fileName}.");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+}

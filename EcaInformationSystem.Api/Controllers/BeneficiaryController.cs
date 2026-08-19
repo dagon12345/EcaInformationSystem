@@ -2,10 +2,12 @@
 using EcaInformationSystem.Api.Extensions;
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Application.Services;
 using EcaInformationSystem.Domain.Exceptions;
 using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EcaInformationSystem.Api.Controllers
 {
@@ -16,10 +18,18 @@ namespace EcaInformationSystem.Api.Controllers
     {
         private readonly IBeneficiaryInformationService _service;
         private readonly IJurisdictionGuardService _jurisdictionGuardService;
-        public BeneficiaryController(IBeneficiaryInformationService service, IJurisdictionGuardService jurisdictionGuardService)
+        private readonly CrossmatchJobService _crossmatchJobs;
+        private readonly IServiceScopeFactory _scopeFactory;
+        public BeneficiaryController(
+            IBeneficiaryInformationService service,
+            IJurisdictionGuardService jurisdictionGuardService,
+            CrossmatchJobService crossmatchJobs,
+            IServiceScopeFactory scopeFactory)
         {
             _service = service;
             _jurisdictionGuardService = jurisdictionGuardService;
+            _crossmatchJobs = crossmatchJobs;
+            _scopeFactory = scopeFactory;
         }
         [HttpPost("payment-history/{historyId}/set-current")]
         public async Task<IActionResult> SetCurrentPaymentHistory(Guid historyId, [FromBody] SetCurrentPaymentHistoryRequestDto request)
@@ -279,6 +289,93 @@ namespace EcaInformationSystem.Api.Controllers
             using var stream = file.OpenReadStream();
             var result = await _service.PreviewImportAsync(stream, file.FileName, sheetName);
             return Ok(result);
+        }
+        // ✅ NEW — read-only crossmatch scan, run as a background job so large
+        // files (tested up to 20k+ rows) don't time out the HTTP request. The
+        // upload returns a job id immediately; poll crossmatch/status/{jobId}
+        // for progress and the final result. Never touches the database.
+        [HttpPost("crossmatch/start")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public async Task<IActionResult> StartCrossmatch(IFormFile file, [FromForm] string sheetName)
+        {
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            var fileName = file.FileName;
+
+            var job = _crossmatchJobs.Create();
+
+            _ = Task.Run(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var scopedService = scope.ServiceProvider.GetRequiredService<IBeneficiaryInformationService>();
+                try
+                {
+                    using var stream = new MemoryStream(bytes);
+                    var result = await scopedService.GetCrossmatchPreviewAsync(
+                        stream, fileName, sheetName,
+                        (processed, total) =>
+                        {
+                            job.Processed = processed;
+                            job.Total = total;
+                        },
+                        job.Cts.Token);
+
+                    job.Result = result;
+                    job.Status = CrossmatchJobStatus.Completed;
+                }
+                catch (OperationCanceledException)
+                {
+                    job.Status = CrossmatchJobStatus.Cancelled;
+                }
+                catch (Exception ex)
+                {
+                    job.Error = ex.Message;
+                    job.Status = CrossmatchJobStatus.Failed;
+                }
+            });
+
+            return Ok(new CrossmatchJobStartResultDto { JobId = job.JobId });
+        }
+
+        [HttpGet("crossmatch/status/{jobId}")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public IActionResult GetCrossmatchStatus(Guid jobId)
+        {
+            var job = _crossmatchJobs.Get(jobId);
+            if (job is null) return NotFound();
+
+            return Ok(new CrossmatchJobStatusDto
+            {
+                Status = job.Status.ToString(),
+                Processed = job.Processed,
+                Total = job.Total,
+                Result = job.Status == CrossmatchJobStatus.Completed ? job.Result : null,
+                Error = job.Error
+            });
+        }
+
+        [HttpPost("crossmatch/cancel/{jobId}")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public IActionResult CancelCrossmatch(Guid jobId)
+        {
+            return _crossmatchJobs.Cancel(jobId) ? Ok() : NotFound();
+        }
+
+        // ✅ NEW — exports selected crossmatch rows (New or Possible Match)
+        // into an import-ready .xlsx so the user can fill in the remaining
+        // details (location if unresolved, NCSC assessment, payment status,
+        // etc.) and hand it to the Import tab later, instead of creating
+        // records directly from the crossmatch modal.
+        [HttpPost("crossmatch/export-template")]
+        [Authorize(Policy = "AdminOrPDO")]
+        public IActionResult ExportCrossmatchTemplate([FromBody] List<CrossmatchRowDto> rows, [FromQuery] string sheetName)
+        {
+            if (rows is null || rows.Count == 0)
+                return BadRequest("No rows selected to export.");
+
+            var bytes = _service.ExportCrossmatchRowsAsTemplate(rows, string.IsNullOrWhiteSpace(sheetName) ? "For Import" : sheetName);
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         }
         // BeneficiaryController.cs
         [HttpPost("import/confirm")]

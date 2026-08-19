@@ -26,6 +26,10 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<byte[]> GenerateCdrAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<List<LiquidationPreviewRowDto>> BuildCdrPreviewAsync(LiquidationFilterDto filter, LiquidationSettingsDto settings);
         Task<BeneficiaryPreviewResultDto> PreviewImportAsync(Stream fileStream, string fileName, string sheetName);
+        byte[] ExportCrossmatchRowsAsTemplate(List<CrossmatchRowDto> rows, string sheetName);
+        Task<CrossmatchResultDto> GetCrossmatchPreviewAsync(
+            Stream fileStream, string fileName, string sheetName,
+            Action<int, int>? onProgress = null, CancellationToken cancellationToken = default);
         Task<BeneficiaryImportResultDto> ConfirmImportAsync(
                 Stream fileStream,
                 string fileName,

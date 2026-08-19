@@ -50,6 +50,32 @@ public class BeneficiaryStateService
     public DateTime? LastLoaded { get; private set; }
     // ── Fuzzy "Search Similar Names" state ─────────────────────────────────────
     public bool LastResultWasFuzzy { get; private set; }
+
+    // ✅ NEW — last crossmatch scan result, kept here (not inside the modal
+    // component) so it survives closing the modal, searching/filtering the
+    // grid, and navigating to other pages — same pattern as the rest of this
+    // service. Cleared only when a new scan is run or the user explicitly
+    // dismisses it, so the user never has to re-scan or re-download just to
+    // pick up where they left off reviewing.
+    public CrossmatchResultDto? LastCrossmatchResult { get; private set; }
+    public string? LastCrossmatchFileName { get; private set; }
+    public DateTime? LastCrossmatchAt { get; private set; }
+
+    public void SetLastCrossmatch(CrossmatchResultDto result, string? fileName)
+    {
+        LastCrossmatchResult = result;
+        LastCrossmatchFileName = fileName;
+        LastCrossmatchAt = DateTime.Now;
+        NotifyStateChanged();
+    }
+
+    public void ClearLastCrossmatch()
+    {
+        LastCrossmatchResult = null;
+        LastCrossmatchFileName = null;
+        LastCrossmatchAt = null;
+        NotifyStateChanged();
+    }
     public void SetBeneficiaries(List<BeneficiaryListItemDto> items)
     {
         Beneficiaries = items;

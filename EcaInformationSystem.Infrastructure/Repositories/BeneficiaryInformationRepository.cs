@@ -265,6 +265,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     MiddleName = b.MiddleName,
                     BirthDate = b.BirthDate,
                     OscaIdNumber = b.OscaIdNumber,
+                    NcscRrn = b.NcscRrn,
                     Province = b.Province,
                     Municipality = b.Municipality,
                     Barangay = b.Barangay

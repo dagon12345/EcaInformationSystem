@@ -116,6 +116,15 @@
                             }
                         </button>
 
+                        <button class="btn btn-sm btn-primary" @onclick="OpenCrossmatchModal" title="@CrossmatchButtonTitle">
+                            <i class="bi bi-people-fill me-1"></i>
+                            <span>Crossmatch Grantees</span>
+                            @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">@(lastXm.NewCount + lastXm.PossibleCount)</span>
+                            }
+                        </button>
+
                     </div>
 
 
@@ -2063,6 +2072,7 @@ else
                                                                                                         </HxButton>
                                                                                                     </FooterTemplate>
                                                                                                 </HxModal>
+                                                                                                <BeneficiaryCrossmatch @ref="_crossmatch" />
                                                                                                 <HxModal @ref="_duplicateModal" Size="ModalSize.ExtraLarge">
                                                                                                     <HeaderTemplate>
                                                                                                         <div class="d-flex align-items-center gap-2">
@@ -2798,6 +2808,7 @@ else
     private PossibleDuplicateSummaryDto? _duplicateSummary;
     private bool _isLoadingDuplicates;
     private HxModal _duplicateModal = default!;
+    private BeneficiaryCrossmatch _crossmatch = default!;
     private string _duplicateSearchTerm = string.Empty;
     private string _duplicateReasonFilter = string.Empty;
     private Guid? _duplicateViewingId;
@@ -3279,6 +3290,16 @@ private int OtherWarningCount =>
 // and defer the modal-show to AFTER the current render/event cycle settles,
 // rather than trying to show it synchronously from inside another
 // component's event handler chain.
+
+private async Task OpenCrossmatchModal()
+{
+    await _crossmatch.ShowAsync();
+}
+
+private string CrossmatchButtonTitle =>
+    State.LastCrossmatchResult is { } lastXm
+        ? $"Opens your last crossmatch ({lastXm.NewCount} New, {lastXm.PossibleCount} Possible) — no need to re-scan."
+        : "Crossmatch an uploaded grantee list against existing records.";
 
 private void OpenGlobalDuplicateModal()
 {

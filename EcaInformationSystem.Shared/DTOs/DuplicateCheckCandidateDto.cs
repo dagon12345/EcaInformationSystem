@@ -8,6 +8,7 @@
         public string? MiddleName { get; set; }
         public DateTime BirthDate { get; set; }
         public string? OscaIdNumber { get; set; }
+        public int? NcscRrn { get; set; }
         public int Province { get; set; }
         public int Municipality { get; set; }
         public int Barangay { get; set; }

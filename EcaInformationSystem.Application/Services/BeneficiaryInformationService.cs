@@ -2343,12 +2343,15 @@ namespace EcaInformationSystem.Application.Services
             var clean = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
             return clean.Length > 31 ? clean[..31] : clean;
         }
-        public byte[] GenerateImportTemplate()
-        {
-            using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add("HARD COPY OFFICIAL");
+        // ✅ NEW — extracted from GenerateImportTemplate so the exact same
+        // header layout/styling (column widths, title block, the 30-column
+        // header row, freeze panes) can be reused by ExportCrossmatchRowsAsTemplate
+        // without drifting out of sync with the official template.
+        private const int ImportTemplateTotalCols = 30;
 
-            int totalCols = 30;
+        private void BuildImportTemplateHeader(IXLWorksheet worksheet)
+        {
+            int totalCols = ImportTemplateTotalCols;
 
             // ── Row heights ──────────────────────────────────────────────────────────
             worksheet.Row(1).Height = 15.5;
@@ -2513,6 +2516,21 @@ namespace EcaInformationSystem.Application.Services
             HeaderCell(29, "NCSC ASSESSMENT\n(FOR NCSC)\n(ELIGIBLE/INELIGIBLE)", true);
             HeaderCell(30, "PAYMENT STATUS\n(FOR NCSC)", true);
 
+            // ── Freeze, filter, page setup ───────────────────────────────────────────
+            worksheet.SheetView.FreezeRows(11);
+            worksheet.Range(11, 1, 11, totalCols).SetAutoFilter();
+            worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
+            worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+            worksheet.PageSetup.FitToPages(1, 0);
+            worksheet.PageSetup.SetRowsToRepeatAtTop(11, 11);
+        }
+
+        public byte[] GenerateImportTemplate()
+        {
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("HARD COPY OFFICIAL");
+            BuildImportTemplateHeader(worksheet);
+
             // ── Sample data row 12 ───────────────────────────────────────────────────
             var sampleData = new object[]
             {
@@ -2556,7 +2574,7 @@ namespace EcaInformationSystem.Application.Services
                     : XLCellValue.FromObject(sampleData[col - 1]);
             }
 
-            var sampleRange = worksheet.Range(12, 1, 12, totalCols);
+            var sampleRange = worksheet.Range(12, 1, 12, ImportTemplateTotalCols);
             sampleRange.Style.Fill.PatternType = XLFillPatternValues.Solid;
             sampleRange.Style.Fill.BackgroundColor = XLColor.LightYellow;
             sampleRange.Style.Font.Italic = true;
@@ -2629,13 +2647,74 @@ namespace EcaInformationSystem.Application.Services
 
             instructions.Columns().AdjustToContents();
 
-            // ── Freeze, filter, page setup ───────────────────────────────────────────
-            worksheet.SheetView.FreezeRows(11);
-            worksheet.Range(11, 1, 11, totalCols).SetAutoFilter();
-            worksheet.PageSetup.PaperSize = XLPaperSize.LegalPaper;
-            worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
-            worksheet.PageSetup.FitToPages(1, 0);
-            worksheet.PageSetup.SetRowsToRepeatAtTop(11, 11);
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+            return stream.ToArray();
+        }
+
+        // ✅ NEW — exports crossmatch rows (New or Possible Match) into the
+        // exact same 30-column template layout the real import pipeline
+        // expects, pre-filled with everything crossmatch already parsed.
+        // NCSC-only columns (Compliance, Validator, Validation Date,
+        // Assessment, Payment Status) are left blank — those still need PDO
+        // review and aren't something crossmatch can determine on its own.
+        // The file can be handed straight to the Import tab once completed.
+        public byte[] ExportCrossmatchRowsAsTemplate(List<CrossmatchRowDto> rows, string sheetName)
+        {
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add(sheetName);
+            BuildImportTemplateHeader(worksheet);
+
+            static string DateOrBlank(DateTime? d) => d?.ToString("MMMM dd, yyyy") ?? string.Empty;
+            static string YesNoOrBlank(bool? b) => b switch { true => "YES", false => "NO", _ => string.Empty };
+
+            int rowNumber = 12;
+            foreach (var row in rows)
+            {
+                var data = new object[]
+                {
+                    DateOrBlank(row.DateEndorsed),                                                  // 1  DATE ENDORSED
+                    row.BatchCode ?? string.Empty,                                                   // 2  BATCH CODE
+                    string.Empty,                                                                    // 3  NO.
+                    row.OscaIdNumber ?? string.Empty,                                                 // 4  OSCA ID NUMBER
+                    DateOrBlank(row.OscaIdDateIssued),                                                // 5  OSCA ID DATE ISSUED
+                    row.NcscRrn?.ToString() ?? string.Empty,                                          // 6  NCSC RRN
+                    row.LastName ?? string.Empty,                                                     // 7  LAST NAME
+                    row.FirstName ?? string.Empty,                                                    // 8  FIRST NAME
+                    row.MiddleName ?? string.Empty,                                                   // 9  MIDDLE NAME
+                    row.Extension ?? string.Empty,                                                    // 10 EXTENSION
+                    row.BirthDate?.ToString("MMMM").ToUpperInvariant() ?? string.Empty,               // 11 BIRTH MONTH
+                    row.BirthDate?.Day.ToString() ?? string.Empty,                                    // 12 BIRTH DAY
+                    row.BirthDate?.Year.ToString() ?? string.Empty,                                   // 13 BIRTH YEAR
+                    string.Empty,                                                                     // 14 AGE (auto)
+                    row.Sex == 1 ? "MALE" : row.Sex == 2 ? "FEMALE" : string.Empty,                    // 15 SEX
+                    row.Citizenship == 1 ? "FILIPINO" : row.Citizenship == 2 ? "DUAL CITIZENSHIP" : string.Empty, // 16 CITIZENSHIP
+                    row.RegionName ?? string.Empty,                                                    // 17 REGION
+                    row.ProvinceName ?? string.Empty,                                                  // 18 PROVINCE
+                    row.MunicipalityName ?? string.Empty,                                              // 19 MUNICIPALITY/CITY
+                    row.BarangayName ?? string.Empty,                                                  // 20 BARANGAY
+                    row.ContactNumber ?? string.Empty,                                                 // 21 CONTACT NUMBER
+                    DateOrBlank(row.DateOfDeath),                                                      // 22 DATE OF DEATH
+                    DateOrBlank(row.DateApplied),                                                      // 23 DATE APPLIED
+                    YesNoOrBlank(row.IsIndigenousPeople),                                               // 24 INDIGENOUS PERSON
+                    YesNoOrBlank(row.IsPersonWithDisability),                                           // 25 PERSON WITH DISABILITY
+                    string.Empty,                                                                      // 26 COMPLIANCE — for PDO/NCSC to fill in
+                    string.Empty,                                                                      // 27 VALIDATOR — for PDO/NCSC to fill in
+                    string.Empty,                                                                      // 28 VALIDATION DATE — for PDO/NCSC to fill in
+                    string.Empty,                                                                      // 29 NCSC ASSESSMENT — for PDO/NCSC to fill in
+                    string.Empty,                                                                      // 30 PAYMENT STATUS — for PDO/NCSC to fill in
+                };
+
+                for (int col = 1; col <= data.Length; col++)
+                    worksheet.Cell(rowNumber, col).Value = XLCellValue.FromObject(data[col - 1]);
+
+                rowNumber++;
+            }
+
+            var dataRange = worksheet.Range(12, 1, Math.Max(12, rowNumber - 1), ImportTemplateTotalCols);
+            dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
@@ -3134,6 +3213,526 @@ namespace EcaInformationSystem.Application.Services
 
             return preview;
         }
+
+        // ✅ NEW — read-only crossmatch scan. Parses the same Excel template as
+        // PreviewImportAsync/ConfirmImportAsync but never touches the database:
+        // every row is classified as New / Possible / Existing / Error and
+        // handed back with its parsed fields so the UI can let the user add the
+        // New ones individually afterwards. No rows are imported here.
+        public async Task<CrossmatchResultDto> GetCrossmatchPreviewAsync(
+            Stream fileStream, string fileName, string sheetName,
+            Action<int, int>? onProgress = null, CancellationToken cancellationToken = default)
+        {
+            if (fileStream == null || !fileStream.CanRead)
+                throw new Exception(CommonConstants.InvalidExcelUploaded);
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new Exception(CommonConstants.InvalidExcelFile);
+
+            var extension = Path.GetExtension(fileName);
+            if (!string.Equals(extension, CommonConstants.ExcelFileExtension, StringComparison.OrdinalIgnoreCase))
+                throw new Exception(CommonConstants.OnlyExcelFilesAllowed);
+
+            var result = new CrossmatchResultDto();
+
+            var regions = await _regionRepository.GetAllAsync();
+            var provinces = (await _provinceRepository.GetAllProvinceAsync())
+                .GroupBy(x => x.Name!.Trim().ToUpperInvariant())
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .ToList();
+            var municipalities = (await _municipalityRepository.GetAllMunicipalityAsync()).ToList();
+            var barangays = (await _barangayRepository.GetBarangaysAsync()).ToList();
+
+            var duplicatePool = await _repo.GetDuplicateCheckPoolAsync();
+
+            var provinceNameByCode = provinces
+                .GroupBy(p => p.PsgcCodeProvince)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+            var municipalityNameByCode = municipalities
+                .GroupBy(m => m.PsgcCodeMunicipality)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+            var barangayNameByCode = barangays
+                .GroupBy(b => b.PsgcCodeBarangay)
+                .ToDictionary(g => g.Key, g => g.First().Name ?? string.Empty);
+
+            // ✅ FIX — this used to be a HashSet<string> plus a separate
+            // duplicatePool.First(c => BuildExactDupKey(...) == exactKey)
+            // linear scan every time a row hit an exact match. With ~8,500
+            // existing records and thousands of "Existing" rows in a file,
+            // that's an O(rows × pool) scan re-building keys for every
+            // candidate every time — the actual cause of the scan appearing
+            // to freeze partway through. A dictionary makes the lookup O(1).
+            var exactKeyIndex = duplicatePool
+                .GroupBy(d => BuildExactDupKey(d.LastName, d.FirstName, d.MiddleName, d.BirthDate))
+                .ToDictionary(g => g.Key, g => g.First());
+            var oscaIdIndex = duplicatePool
+                .Where(d => !string.IsNullOrWhiteSpace(d.OscaIdNumber))
+                .GroupBy(d => d.OscaIdNumber!.Trim().ToUpperInvariant())
+                .ToDictionary(g => g.Key, g => g.First());
+            var ncscRrnIndex = duplicatePool
+                .Where(d => d.NcscRrn.HasValue)
+                .GroupBy(d => d.NcscRrn!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // ✅ Birth-year bucketing — the naive full-pool scan below used to
+            // be O(rows × pool) per unmatched row, which is what made large
+            // imports (9k+ rows against a large existing pool) time out —
+            // and even after bucketing by birth year alone, a program for
+            // centenarians has birth years clustered in a fairly narrow
+            // range (many people turning 80-100 in the same few years), so
+            // a single year's bucket can still hold thousands of candidates
+            // — that's what kept stalling the scan partway through. Bucketing
+            // by (birth year, last-name initial) as well cuts each bucket
+            // down by roughly 26x on top of the year filter.
+            char NormalizeInitial(string? name) =>
+                string.IsNullOrWhiteSpace(name) ? '#' : char.ToUpperInvariant(name.Trim()[0]);
+
+            var poolByYearAndInitial = duplicatePool
+                .GroupBy(c => (Year: c.BirthDate.Year, Initial: NormalizeInitial(c.LastName)))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            List<DuplicateCheckCandidateDto> GetYearBucketCandidates(int year, string? lastName)
+            {
+                var initial = NormalizeInitial(lastName);
+                var candidates = new List<DuplicateCheckCandidateDto>();
+                for (int y = year - 1; y <= year + 1; y++)
+                {
+                    if (poolByYearAndInitial.TryGetValue((y, initial), out var bucket))
+                        candidates.AddRange(bucket);
+                }
+                return candidates;
+            }
+
+            string BuildExistingFullName(DuplicateCheckCandidateDto c) =>
+                string.Join(", ", new[] { c.LastName?.Trim(), c.FirstName?.Trim() }.Where(s => !string.IsNullOrWhiteSpace(s))) +
+                (string.IsNullOrWhiteSpace(c.MiddleName) ? string.Empty : $" {c.MiddleName.Trim()}");
+
+            void FillExistingInfo(CrossmatchRowDto rowDto, DuplicateCheckCandidateDto c, double score, string reason)
+            {
+                rowDto.ExistingId = c.Id;
+                rowDto.ExistingFullName = BuildExistingFullName(c);
+                rowDto.ExistingBirthDate = c.BirthDate;
+                rowDto.ExistingOscaId = c.OscaIdNumber;
+                rowDto.ExistingMunicipality = municipalityNameByCode.GetValueOrDefault(c.Municipality, string.Empty);
+                rowDto.ExistingBarangay = barangayNameByCode.GetValueOrDefault(c.Barangay, string.Empty);
+                rowDto.MatchScore = score;
+                rowDto.MatchReason = reason;
+            }
+
+            // ✅ Same per-component weighting as the whole-grid "Possible
+            // Duplicate Records" matcher (BeneficiaryInformationRepository.
+            // FindAllPossibleDuplicatesAsync), not a naive concatenated-string
+            // comparison. Scoring "ROSARIO ORO" against "ROSARIO DUMANGAS" as
+            // one string rewards the shared first name so heavily that a
+            // completely different last name barely drags the score down —
+            // that's what was producing false "Possible Match" hits at 60-70%
+            // for names that only share a first name. Comparing Last/First
+            // (and Middle, if both have one) separately, each with its own
+            // floor, fixes that.
+            (DuplicateCheckCandidateDto Candidate, double Score)? FindBestSoftMatch(
+                string? firstName, string? lastName, string? middleName, DateTime birthDate)
+            {
+                if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
+                    return null;
+
+                var lastTrim = lastName?.Trim();
+                var firstTrim = firstName?.Trim();
+                var middleTrim = middleName?.Trim();
+                var incomingHasMiddle = !string.IsNullOrWhiteSpace(middleTrim);
+
+                var best = GetYearBucketCandidates(birthDate.Year, lastTrim)
+                    .Where(c => Math.Abs((c.BirthDate - birthDate).TotalDays) <= 365)
+                    .Select(c =>
+                    {
+                        var lastNameScore = NameSimilarityHelper.ComputeNameSimilarity(lastTrim, c.LastName?.Trim());
+                        var firstNameScore = NameSimilarityHelper.ComputeNameSimilarity(firstTrim, c.FirstName?.Trim());
+                        return (Candidate: c, LastNameScore: lastNameScore, FirstNameScore: firstNameScore);
+                    })
+                    // ── Per-component floor: a weak last-name or first-name
+                    // match can't be compensated for by the other field.
+                    .Where(x => x.LastNameScore >= 0.60 && x.FirstNameScore >= 0.60)
+                    .Select(x =>
+                    {
+                        var candidateHasMiddle = !string.IsNullOrWhiteSpace(x.Candidate.MiddleName);
+                        double score;
+                        if (incomingHasMiddle && candidateHasMiddle)
+                        {
+                            var middleScore = NameSimilarityHelper.ComputeNameSimilarity(middleTrim, x.Candidate.MiddleName?.Trim());
+                            score = (x.LastNameScore * 0.40) + (x.FirstNameScore * 0.40) + (middleScore * 0.20);
+                        }
+                        else
+                        {
+                            score = (x.LastNameScore * 0.50) + (x.FirstNameScore * 0.50);
+                        }
+                        return (x.Candidate, Score: score);
+                    })
+                    .Where(x => x.Score >= 0.75)
+                    .OrderByDescending(x => x.Score)
+                    .ToList();
+
+                return best.Count == 0 ? null : ((DuplicateCheckCandidateDto Candidate, double Score)?)best[0];
+            }
+
+            using var workbook = new XLWorkbook(fileStream);
+
+            if (string.IsNullOrWhiteSpace(sheetName))
+                throw new Exception(CommonConstants.PleaseSelectAWorksheet);
+
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws => ws.Name == sheetName);
+            if (worksheet == null)
+                throw new Exception($"{CommonConstants.WorksheetNotFound} {sheetName}");
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+            if (lastRow < 1)
+                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
+
+            // ✅ NEW — detect columns by header text instead of assuming a fixed
+            // template layout. The only hard requirement is that the sheet has
+            // a header row with Last Name / First Name / a birth date column
+            // somewhere — the rest (location, IDs, etc.) are read wherever
+            // they're found and simply left blank if missing. This means the
+            // user no longer has to re-arrange their file to match our
+            // official template just to run a crossmatch.
+            var (headerRowNumber, columns) = DetectCrossmatchColumns(worksheet);
+            var firstDataRowNumber = headerRowNumber + 1;
+            var maxDetectedColumn = columns.Values.DefaultIfEmpty(1).Max();
+
+            if (lastRow < firstDataRowNumber)
+                throw new Exception(CommonConstants.ExcelSheet1DoesNotContain);
+
+            string CellText(IXLRow row, string field) =>
+                columns.TryGetValue(field, out var col) ? row.Cell(col).GetFormattedString().Trim() : string.Empty;
+
+            // ✅ Cheap pre-count so the progress bar has a meaningful total
+            // from the very first tick instead of growing as rows are found.
+            var estimatedTotalRows = 0;
+            for (int r = firstDataRowNumber; r <= lastRow; r++)
+            {
+                if (!worksheet.Row(r).Cells(1, maxDetectedColumn).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    estimatedTotalRows++;
+            }
+            onProgress?.Invoke(0, estimatedTotalRows);
+
+            for (int rowNumber = firstDataRowNumber; rowNumber <= lastRow; rowNumber++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var row = worksheet.Row(rowNumber);
+
+                if (row.Cells(1, maxDetectedColumn).All(c => string.IsNullOrWhiteSpace(c.GetFormattedString())))
+                    continue;
+
+                result.TotalRows++;
+                onProgress?.Invoke(result.TotalRows, estimatedTotalRows);
+
+                var rowDto = new CrossmatchRowDto { RowNumber = rowNumber };
+
+                try
+                {
+                    var dateEndorsedRaw = CellText(row, "DateEndorsed");
+                    var batchCode = CellText(row, "BatchCode");
+                    var oscaIdNumber = CellText(row, "OscaId");
+                    var oscaIdDateIssuedRaw = CellText(row, "OscaIdDateIssued");
+                    var ncscRrnRaw = CellText(row, "NcscRrn");
+                    var lastName = CellText(row, "LastName");
+                    var firstName = CellText(row, "FirstName");
+                    var middleName = CellText(row, "MiddleName");
+                    var extensionName = CellText(row, "Extension");
+                    var birthDateCombinedRaw = CellText(row, "BirthDate");
+                    var birthMonthRaw = CellText(row, "BirthMonth");
+                    var birthDayRaw = CellText(row, "BirthDay");
+                    var birthYearRaw = CellText(row, "BirthYear");
+                    var sexRaw = CellText(row, "Sex");
+                    var citizenshipRaw = CellText(row, "Citizenship");
+                    var regionName = CellText(row, "Region");
+                    var provinceName = CellText(row, "Province");
+                    var municipalityName = CellText(row, "Municipality");
+                    var barangayName = CellText(row, "Barangay");
+                    var contactNumber = CellText(row, "ContactNumber");
+                    var dateOfDeathRaw = CellText(row, "DateOfDeath");
+                    var dateAppliedRaw = CellText(row, "DateApplied");
+                    var isIndigenousPeopleRaw = CellText(row, "IsIndigenousPeople");
+                    var isPersonWithDisabilityRaw = CellText(row, "IsPersonWithDisability");
+
+                    rowDto.BatchCode = NullIfEmpty(batchCode);
+                    rowDto.OscaIdNumber = NullIfEmpty(oscaIdNumber);
+                    rowDto.LastName = NullIfEmpty(lastName);
+                    rowDto.FirstName = NullIfEmpty(firstName);
+                    rowDto.MiddleName = NullIfEmpty(middleName);
+                    rowDto.Extension = NullIfEmpty(extensionName);
+                    rowDto.ContactNumber = NullIfEmpty(contactNumber);
+                    rowDto.Sex = MapSex(sexRaw);
+                    rowDto.Citizenship = MapCitizenship(citizenshipRaw);
+                    rowDto.IsIndigenousPeople = MapIndigenousPeople(isIndigenousPeopleRaw);
+                    rowDto.IsPersonWithDisability = MapIsPersonWithDisability(isPersonWithDisabilityRaw);
+
+                    if (string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName))
+                        rowDto.ParseErrors.Add("Name is required (First Name and Last Name are both blank).");
+
+                    // ✅ Supports either a single combined "Birth Date" column
+                    // or separate Month/Day/Year columns, whichever the
+                    // uploaded sheet actually has.
+                    DateTime birthDate = DateTime.MinValue;
+                    var hasBirthDate = !string.IsNullOrWhiteSpace(birthDateCombinedRaw)
+                        ? TryParseExcelDate(birthDateCombinedRaw, out birthDate)
+                        : TryParseExcelDate($"{birthMonthRaw} {birthDayRaw} {birthYearRaw}", out birthDate);
+
+                    if (!hasBirthDate)
+                    {
+                        var reason = !string.IsNullOrWhiteSpace(birthDateCombinedRaw)
+                            ? DiagnoseInvalidBirthDate(birthDateCombinedRaw, null, null, null)
+                            : DiagnoseInvalidBirthDate(null, birthMonthRaw, birthDayRaw, birthYearRaw);
+                        rowDto.ParseErrors.Add(reason);
+                    }
+                    else
+                        rowDto.BirthDate = birthDate;
+
+                    // ✅ NCSC RRN is a matching *signal*, not a required field —
+                    // an unparseable value is simply left blank rather than
+                    // failing the row. Only Name + Birth Date (and, loosely,
+                    // location) actually matter for crossmatch classification.
+                    if (!string.IsNullOrWhiteSpace(ncscRrnRaw) && int.TryParse(ncscRrnRaw, out var parsedRrn))
+                        rowDto.NcscRrn = parsedRrn;
+
+                    if (ParseNullableDate(oscaIdDateIssuedRaw) is { } oscaIdDateIssued)
+                        rowDto.OscaIdDateIssued = oscaIdDateIssued;
+                    if (ParseNullableDate(dateAppliedRaw) is { } dateApplied)
+                        rowDto.DateApplied = dateApplied;
+                    if (ParseNullableDate(dateEndorsedRaw) is { } dateEndorsed)
+                        rowDto.DateEndorsed = dateEndorsed;
+                    if (ParseNullableDate(dateOfDeathRaw) is { } dateOfDeath)
+                    {
+                        rowDto.DateOfDeath = dateOfDeath;
+                        rowDto.IsDeceased = true;
+                    }
+
+                    var region = FindBestNameMatch(regions, x => x.Name, regionName);
+                    var province = FindBestNameMatch(provinces, x => x.Name, provinceName);
+                    var municipalitiesInProvince = province != null
+                        ? municipalities.Where(m => m.PsgcCodeProvince == province.PsgcCodeProvince).ToList()
+                        : municipalities;
+                    var municipality = FindBestNameMatch(municipalitiesInProvince, x => x.Name, municipalityName);
+                    var barangaysInMunicipality = municipality != null
+                        ? barangays.Where(b => b.PsgcCodeMunicipality == municipality.PsgcCodeMunicipality).ToList()
+                        : barangays;
+                    var barangay = FindBestNameMatch(barangaysInMunicipality, x => x.Name, barangayName);
+
+                    // ✅ Location that doesn't resolve to a known PSGC entry no
+                    // longer blocks the row — crossmatch only strictly needs
+                    // Name + Birth Date to classify New/Possible/Existing.
+                    // Unresolved location is shown as raw text instead, since
+                    // it's still useful context even if it can't be coded.
+
+                    rowDto.PsgcCodeRegion = region?.PsgcCodeRegion ?? 0;
+                    rowDto.RegionName = region?.Name ?? regionName;
+                    rowDto.PsgcCodeProvince = province?.PsgcCodeProvince ?? 0;
+                    rowDto.ProvinceName = province?.Name ?? provinceName;
+                    rowDto.PsgcCodeMunicipality = municipality?.PsgcCodeMunicipality ?? 0;
+                    rowDto.MunicipalityName = municipality?.Name ?? municipalityName;
+                    rowDto.PsgcCodeBarangay = barangay?.PsgcCodeBarangay ?? 0;
+                    rowDto.BarangayName = barangay?.Name ?? barangayName;
+
+                    if (rowDto.ParseErrors.Any())
+                    {
+                        rowDto.Status = CrossmatchStatus.Error;
+                        result.ErrorCount++;
+                        result.Rows.Add(rowDto);
+                        continue;
+                    }
+
+                    // ── Classification: exact ID match > exact name+birthdate > fuzzy > new ──
+                    if (rowDto.NcscRrn.HasValue && ncscRrnIndex.TryGetValue(rowDto.NcscRrn.Value, out var byRrn))
+                    {
+                        rowDto.Status = CrossmatchStatus.Existing;
+                        FillExistingInfo(rowDto, byRrn, 1.0, "NCSC RRN match");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(oscaIdNumber) &&
+                             oscaIdIndex.TryGetValue(oscaIdNumber.Trim().ToUpperInvariant(), out var byOsca))
+                    {
+                        rowDto.Status = CrossmatchStatus.Existing;
+                        FillExistingInfo(rowDto, byOsca, 1.0, "OSCA ID match");
+                    }
+                    else if (exactKeyIndex.TryGetValue(BuildExactDupKey(lastName, firstName, middleName, birthDate), out var exactMatch))
+                    {
+                        rowDto.Status = CrossmatchStatus.Existing;
+                        FillExistingInfo(rowDto, exactMatch, 1.0, "Name + birthdate match");
+                    }
+                    else if (FindBestSoftMatch(firstName, lastName, middleName, birthDate) is { } soft)
+                    {
+                        rowDto.Status = CrossmatchStatus.Possible;
+                        FillExistingInfo(rowDto, soft.Candidate, soft.Score, "Similar name + birthdate");
+                    }
+                    else
+                    {
+                        rowDto.Status = CrossmatchStatus.New;
+                    }
+
+                    switch (rowDto.Status)
+                    {
+                        case CrossmatchStatus.New: result.NewCount++; break;
+                        case CrossmatchStatus.Possible: result.PossibleCount++; break;
+                        case CrossmatchStatus.Existing: result.ExistingCount++; break;
+                    }
+
+                    result.Rows.Add(rowDto);
+                }
+                catch (Exception ex)
+                {
+                    rowDto.Status = CrossmatchStatus.Error;
+                    rowDto.ParseErrors.Add(ex.Message);
+                    result.ErrorCount++;
+                    result.Rows.Add(rowDto);
+                }
+            }
+
+            return result;
+        }
+
+        // ✅ NEW — explains *why* a birth date failed to parse instead of a
+        // generic "invalid or incomplete", e.g. calling out a Feb 29 that
+        // fell on a non-leap year, or a day that doesn't exist in that month.
+        private static readonly string[] MonthNames =
+        {
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        };
+
+        private static string DiagnoseInvalidBirthDate(string? combinedRaw, string? monthRaw, string? dayRaw, string? yearRaw)
+        {
+            if (combinedRaw is not null)
+                return $"Birth Date '{combinedRaw}' could not be recognized as a valid date.";
+
+            if (string.IsNullOrWhiteSpace(monthRaw) && string.IsNullOrWhiteSpace(dayRaw) && string.IsNullOrWhiteSpace(yearRaw))
+                return "Birth Date is missing (Month, Day, and Year are all blank).";
+            if (string.IsNullOrWhiteSpace(yearRaw))
+                return "Birth Year is missing.";
+            if (string.IsNullOrWhiteSpace(monthRaw))
+                return "Birth Month is missing.";
+            if (string.IsNullOrWhiteSpace(dayRaw))
+                return "Birth Day is missing.";
+
+            int? month = TryParseMonth(monthRaw);
+            if (month is null)
+                return $"'{monthRaw}' is not a recognizable month.";
+
+            if (!int.TryParse(yearRaw.Trim(), out var year) || year < 1900 || year > DateTime.Today.Year)
+                return $"'{yearRaw}' is not a valid birth year.";
+
+            if (!int.TryParse(dayRaw.Trim(), out var day) || day < 1)
+                return $"'{dayRaw}' is not a valid day.";
+
+            var daysInMonth = DateTime.DaysInMonth(year, month.Value);
+            if (day > daysInMonth)
+            {
+                if (month.Value == 2 && day == 29)
+                    return $"February 29, {year} is not valid — {year} is not a leap year.";
+                return $"{MonthNames[month.Value - 1]} only has {daysInMonth} days, so day {day} does not exist.";
+            }
+
+            return $"'{monthRaw} {dayRaw} {yearRaw}' could not be parsed as a date.";
+        }
+
+        private static int? TryParseMonth(string monthRaw)
+        {
+            var trimmed = monthRaw.Trim();
+            if (int.TryParse(trimmed, out var num) && num is >= 1 and <= 12)
+                return num;
+
+            for (int i = 0; i < MonthNames.Length; i++)
+            {
+                if (MonthNames[i].Equals(trimmed, StringComparison.OrdinalIgnoreCase) ||
+                    MonthNames[i].StartsWith(trimmed, StringComparison.OrdinalIgnoreCase))
+                    return i + 1;
+            }
+            return null;
+        }
+
+        // ✅ NEW — header-based column detection for crossmatch, so the user
+        // isn't forced to re-arrange an uploaded sheet to match our official
+        // import template. Scans the first 30 rows for the one that looks
+        // most like a header row (matching the most known field aliases),
+        // requiring at minimum Last Name + First Name + a birth date column
+        // to accept it — those, plus location, are the fields that actually
+        // matter for a crossmatch. Everything else is read wherever it's
+        // found and simply left blank if the sheet doesn't have it.
+        private static readonly (string Field, string[] Aliases)[] CrossmatchColumnAliases = new[]
+        {
+            ("LastName", new[] { "LAST NAME", "SURNAME" }),
+            ("FirstName", new[] { "FIRST NAME", "GIVEN NAME" }),
+            ("MiddleName", new[] { "MIDDLE NAME" }),
+            ("Extension", new[] { "EXTENSION NAME", "EXTENSION", "SUFFIX" }),
+            ("BirthDate", new[] { "DATE OF BIRTH", "BIRTH DATE", "BIRTHDATE" }),
+            ("BirthMonth", new[] { "BIRTH MONTH", "MONTH" }),
+            ("BirthDay", new[] { "BIRTH DAY", "DAY" }),
+            ("BirthYear", new[] { "BIRTH YEAR", "YEAR" }),
+            ("OscaId", new[] { "OSCA ID NUMBER", "OSCA ID NO", "OSCA ID", "OSCA NUMBER", "OSCA NO" }),
+            ("OscaIdDateIssued", new[] { "OSCA ID DATE ISSUED", "DATE ISSUED" }),
+            ("NcscRrn", new[] { "NCSC REGISTRATION REFERENCE NUMBER", "NCSC RRN", "RRN" }),
+            ("Sex", new[] { "SEX", "GENDER" }),
+            ("Citizenship", new[] { "CITIZENSHIP" }),
+            ("Region", new[] { "REGION" }),
+            ("Province", new[] { "PROVINCE" }),
+            ("Municipality", new[] { "MUNICIPALITY/CITY", "CITY/MUNICIPALITY", "MUNICIPALITY", "CITY" }),
+            ("Barangay", new[] { "BARANGAY" }),
+            ("ContactNumber", new[] { "CONTACT NUMBER", "CONTACT NO", "MOBILE NUMBER", "PHONE NUMBER", "PHONE" }),
+            ("DateOfDeath", new[] { "DATE OF DEATH" }),
+            ("DateApplied", new[] { "DATE APPLIED" }),
+            ("DateEndorsed", new[] { "DATE ENDORSED" }),
+            ("BatchCode", new[] { "BATCH CODE" }),
+            ("IsIndigenousPeople", new[] { "INDIGENOUS PERSON", "INDIGENOUS" }),
+            ("IsPersonWithDisability", new[] { "PERSON WITH DISABILITY", "PWD" }),
+        };
+
+        private static (int HeaderRow, Dictionary<string, int> Columns) DetectCrossmatchColumns(IXLWorksheet worksheet)
+        {
+            var lastScanRow = Math.Min(worksheet.LastRowUsed()?.RowNumber() ?? 0, 30);
+
+            var bestRow = -1;
+            var bestMap = new Dictionary<string, int>();
+            var bestScore = -1;
+
+            for (int r = 1; r <= lastScanRow; r++)
+            {
+                var row = worksheet.Row(r);
+                var lastCol = row.LastCellUsed()?.Address.ColumnNumber ?? 0;
+                if (lastCol == 0) continue;
+
+                var map = new Dictionary<string, int>();
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var text = System.Text.RegularExpressions.Regex.Replace(
+                        row.Cell(c).GetFormattedString().Trim().ToUpperInvariant(), @"\s+", " ");
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    foreach (var (field, aliases) in CrossmatchColumnAliases)
+                    {
+                        if (map.ContainsKey(field)) continue;
+                        if (aliases.Any(alias => text == alias || text.Contains(alias)))
+                            map[field] = c;
+                    }
+                }
+
+                var hasCore = map.ContainsKey("LastName") && map.ContainsKey("FirstName") &&
+                              (map.ContainsKey("BirthDate") || map.ContainsKey("BirthYear"));
+
+                if (hasCore && map.Count > bestScore)
+                {
+                    bestScore = map.Count;
+                    bestRow = r;
+                    bestMap = map;
+                }
+            }
+
+            if (bestRow < 0)
+            {
+                throw new Exception(
+                    "Could not find a header row with recognizable Last Name, First Name, and Birth Date columns. " +
+                    "Make sure the sheet has a header row labeling these columns (any column order is fine).");
+            }
+
+            return (bestRow, bestMap);
+        }
+
         public async Task<BeneficiaryImportResultDto> ConfirmImportAsync(
      Stream fileStream,
      string fileName,

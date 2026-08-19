@@ -58,6 +58,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IBiometricSyncStatusService, BiometricSyncStatusService>();
             services.AddScoped<IBiometricDeviceSettingService, BiometricDeviceSettingService>();
             services.AddScoped<IDtrDayMarkService, DtrDayMarkService>();
+            services.AddSingleton<CrossmatchJobService>();
             return services;
         }
     }
