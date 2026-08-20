@@ -40,7 +40,9 @@
         public Guid Id { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string? OscaIdNumber { get; set; }
+        public string? BatchCode { get; set; }
         public int Sex { get; set; }
+        public int MilestoneYear { get; set; }
         public int Age { get; set; }
         public string? ProvinceName { get; set; }
         public string? MunicipalityName { get; set; }

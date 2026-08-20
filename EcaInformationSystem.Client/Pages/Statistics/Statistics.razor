@@ -653,10 +653,10 @@
                         <tr>
                             <th style="width:36px;">#</th>
                             <th>Full Name</th>
-                            <th style="width:60px;">Sex</th>
+                            <th style="width:90px;">Milestone Year</th>
                             <th style="width:50px;">Age</th>
                             <th>Location</th>
-                            <th>OSCA ID</th>
+                            <th>Batch Code</th>
                             <th>Status</th>
                             <th style="min-width:260px;">Payment History</th>
                         </tr>
@@ -668,10 +668,10 @@
                             <tr>
                                 <td>@rowNum</td>
                                 <td class="fw-semibold">@m.FullName</td>
-                                <td>@(m.Sex == 1 ? "Male" : m.Sex == 2 ? "Female" : "—")</td>
+                                <td>@(m.MilestoneYear > 0 ? m.MilestoneYear.ToString() : "—")</td>
                                 <td>@m.Age</td>
                                 <td>@m.MunicipalityName, @m.ProvinceName</td>
-                                <td>@(string.IsNullOrWhiteSpace(m.OscaIdNumber) ? "—" : m.OscaIdNumber)</td>
+                                <td>@(string.IsNullOrWhiteSpace(m.BatchCode) ? "—" : m.BatchCode)</td>
                                 <td><span class="badge @GetMemberStatusBadgeClass(m.PaymentStatus)">@GetMemberStatusLabel(m.PaymentStatus)</span></td>
                                 <td>
                                     @if (!m.PaymentHistories.Any())
