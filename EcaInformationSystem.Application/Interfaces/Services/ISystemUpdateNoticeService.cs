@@ -6,6 +6,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
     {
         Task<List<SystemUpdateNoticeDto>> GetAllAsync();
         Task<SystemUpdateNoticeDto?> GetLatestAsync();
+        Task<string> GetNextVersionAsync();
         Task<SystemUpdateNoticeDto> PublishAsync(CreateSystemUpdateNoticeDto dto, Guid callerId, string callerName);
     }
 }

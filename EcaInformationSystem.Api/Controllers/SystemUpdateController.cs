@@ -37,6 +37,13 @@ namespace EcaInformationSystem.Api.Controllers
             return latest is null ? NotFound() : Ok(latest);
         }
 
+        // SuperAdmin only — suggested next version for the publish form
+        // (auto-increments the patch segment of the latest notice). Purely a
+        // convenience default; the admin can still type any version manually.
+        [HttpGet("next-version")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> GetNextVersion() => Ok(new { version = await _service.GetNextVersionAsync() });
+
         // SuperAdmin only — publishes a release note and immediately pushes
         // it to every connected client via SignalR so open sessions see the
         // "refresh to update" banner without needing to reload first.

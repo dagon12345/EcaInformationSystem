@@ -17,3 +17,16 @@ window.hardReload = function () {
 
     window.location.reload();
 };
+
+// Plain reload used by the "Refresh Now" prompts (SystemUpdates page,
+// UnifiedNotificationBell, FocalLayout banner) instead of hardReload() above.
+// Safe because wwwroot/web.config already serves index.html, blazor.boot.json,
+// blazor.webassembly.js and dotnet.js with no-cache headers while the
+// content-hashed _framework/*.dll/.wasm files are cached for a year — so a
+// normal reload always re-fetches the current manifest and only downloads
+// the files that actually changed, instead of the entire runtime every time.
+// Lighter (no wholesale cache wipe / forced bypass-cache fetches, which are
+// slow and can behave inconsistently on mobile Safari) and just as correct.
+window.syncReload = function () {
+    window.location.reload();
+};

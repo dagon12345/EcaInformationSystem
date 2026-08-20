@@ -26,10 +26,10 @@
                 </span>
             </div>
         </div>
-        <button class="btn btn-outline-primary btn-sm" disabled="@_refreshing" @onclick="HardRefreshAsync"
-                title="Hard refresh — bypasses the disk cache, same as Ctrl+Shift+R">
+        <button class="btn btn-outline-primary btn-sm" disabled="@_refreshing" @onclick="SyncRefreshAsync"
+                title="Reload to sync the latest changes">
             <i class="bi bi-arrow-clockwise me-1 @(_refreshing ? "spin" : "")"></i>
-            @(_refreshing ? "Refreshing..." : "Refresh")
+            @(_refreshing ? "Syncing..." : "Refresh")
         </button>
     </div>
 
@@ -51,7 +51,10 @@
                     <div class="card-header bg-light"><strong>Publish New Update</strong></div>
                     <div class="card-body">
                         <div class="mb-2">
-                            <label class="form-label small">Version</label>
+                            <label class="form-label small">
+                                Version
+                                <span class="text-muted">(auto-suggested — edit to override)</span>
+                            </label>
                             <input class="form-control form-control-sm" placeholder="e.g. 1.4.0" @bind="_version" />
                         </div>
                         <div class="mb-2">
@@ -125,7 +128,7 @@
     private string _changes = string.Empty;
     private List<SystemUpdateNoticeDto>? _history;
 
-    private async Task HardRefreshAsync()
+    private async Task SyncRefreshAsync()
     {
         if (_refreshing) return;
         _refreshing = true;
@@ -139,9 +142,11 @@
 
         // Brief pause so the spin is actually visible before the page tears down.
         await Task.Delay(350);
-        // hardReload (not a plain location.reload) — forces every framework file
-        // to be re-fetched bypassing the disk cache, same as Ctrl+Shift+R.
-        await JS.InvokeVoidAsync("hardReload");
+        // syncReload — a plain reload is enough now that index.html/blazor.boot.json
+        // are served no-cache (see wwwroot/web.config), so it always picks up the
+        // new deploy without re-downloading the whole runtime. Works the same on
+        // mobile browsers, unlike the old hardReload's forced cache-storage wipe.
+        await JS.InvokeVoidAsync("syncReload");
     }
 
     protected override async Task OnInitializedAsync()
@@ -150,7 +155,29 @@
         _authorized = AuthService.IsSuperAdmin();
 
         if (_authorized)
+        {
             await LoadHistoryAsync();
+            await LoadNextVersionAsync();
+        }
+    }
+
+    private async Task LoadNextVersionAsync()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<NextVersionResponse>("api/system-updates/next-version");
+            if (result != null && string.IsNullOrWhiteSpace(_version))
+                _version = result.Version;
+        }
+        catch
+        {
+            // Non-fatal — the admin can still type a version in manually.
+        }
+    }
+
+    private class NextVersionResponse
+    {
+        public string Version { get; set; } = string.Empty;
     }
 
     private async Task LoadHistoryAsync()
@@ -197,6 +224,7 @@
             _title = string.Empty;
             _changes = string.Empty;
             await LoadHistoryAsync();
+            await LoadNextVersionAsync();
         }
         finally
         {

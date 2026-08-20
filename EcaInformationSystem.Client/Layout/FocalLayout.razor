@@ -229,9 +229,10 @@
 
         await SystemUpdateClient.AcknowledgeAsync(_updateNotice.Version);
         await Task.Delay(350);
-        // hardReload (not a plain location.reload) — forces every framework
-        // file to be re-fetched bypassing the disk cache, same as Ctrl+Shift+R.
-        await JS.InvokeVoidAsync("hardReload");
+        // syncReload — a plain reload is enough now that index.html/blazor.boot.json
+        // are served no-cache (see wwwroot/web.config), so it always picks up
+        // the new deploy without re-downloading the whole runtime.
+        await JS.InvokeVoidAsync("syncReload");
     }
 
     private void RequestLogout() => _showLogoutConfirm = true;
