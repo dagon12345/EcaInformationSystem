@@ -9,8 +9,24 @@ namespace EcaInformationSystem.Api.BackgroundServices
     // POST /reset. ILeaderboardSeasonService/ITransactionTierBroadcaster are
     // scoped services, so a DI scope is created per reset since this
     // background service itself is a singleton.
+    //
+    // Polls every 5 minutes instead of sleeping via a single up-to-7-day
+    // Task.Delay (like ActivityReminderResyncService does for the same
+    // reason). On IIS in-process hosting, an idle app pool (default 20-minute
+    // idle timeout, no "Always On"/preload) stops w3wp.exe when there's no
+    // traffic, which kills any in-flight Task.Delay outright. A long single
+    // delay computed once at startup never gets a chance to fire if the
+    // process dies mid-wait — on the next request IIS just spins the process
+    // back up and the service recomputes the *next* Sunday, silently
+    // skipping the one that was missed. That's why the very first reset
+    // (Season 1 -> 2) fired but the following week's did not. Checking
+    // "is it past the scheduled time yet?" on a short interval means a
+    // restart within the same week still catches an overdue reset instead
+    // of skipping straight to the following one.
     public class LeaderboardWeeklyResetBackgroundService : BackgroundService
     {
+        private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);
+
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<LeaderboardWeeklyResetBackgroundService> _logger;
 
@@ -27,21 +43,23 @@ namespace EcaInformationSystem.Api.BackgroundServices
             {
                 try
                 {
-                    var nextResetUtc = WeeklyResetScheduleHelper.NextSundayElevenFiftyNinePmUtc(DateTime.UtcNow);
-                    var delay = nextResetUtc - DateTime.UtcNow;
-                    if (delay > TimeSpan.Zero)
-                        await Task.Delay(delay, stoppingToken);
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var seasonService = scope.ServiceProvider.GetRequiredService<ILeaderboardSeasonService>();
+                        var seasonInfo = await seasonService.GetActiveSeasonInfoAsync();
 
-                    using var scope = _scopeFactory.CreateScope();
-                    var seasonService = scope.ServiceProvider.GetRequiredService<ILeaderboardSeasonService>();
-                    var broadcaster = scope.ServiceProvider.GetRequiredService<ITransactionTierBroadcaster>();
+                        if (DateTime.UtcNow >= seasonInfo.NextAutoResetAtUtc)
+                        {
+                            var broadcaster = scope.ServiceProvider.GetRequiredService<ITransactionTierBroadcaster>();
 
-                    var result = await seasonService.ResetSeasonAsync(resetBy: null, isAutomatic: true);
-                    await broadcaster.NotifyLeaderboardResetAsync(result);
+                            var result = await seasonService.ResetSeasonAsync(resetBy: null, isAutomatic: true);
+                            await broadcaster.NotifyLeaderboardResetAsync(result);
 
-                    _logger.LogInformation(
-                        "Leaderboard auto-reset: Season {Ended} -> Season {New}",
-                        result.EndedSeasonNumber, result.NewSeasonNumber);
+                            _logger.LogInformation(
+                                "Leaderboard auto-reset: Season {Ended} -> Season {New}",
+                                result.EndedSeasonNumber, result.NewSeasonNumber);
+                        }
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -49,14 +67,11 @@ namespace EcaInformationSystem.Api.BackgroundServices
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Weekly leaderboard auto-reset failed");
-                    // Avoid a tight retry loop if something's persistently broken —
-                    // the next natural Sunday-23:59 computation will retry in ~a week,
-                    // but back off briefly here in case of a transient DB blip so we
-                    // don't miss a reset entirely due to one failed attempt landing
-                    // right at the boundary.
-                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                    _logger.LogError(ex, "Weekly leaderboard auto-reset check failed");
+                    // Non-fatal — the next poll (in 5 minutes) will retry.
                 }
+
+                await Task.Delay(PollInterval, stoppingToken);
             }
         }
     }
