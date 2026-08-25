@@ -1535,7 +1535,13 @@
     }
     private async Task CopyPostLinkAsync(Guid postId)
     {
-        var url = $"{Navigation.BaseUri}post/{postId}";
+        // Routes through the API's /share/post/{id} endpoint (SharePostController)
+        // instead of linking straight into the client app — the client is a
+        // static Blazor WASM SPA with no server-side rendering, so a social-media
+        // crawler hitting it directly would only ever see the generic index.html
+        // shell (no post-specific title/image). The API endpoint detects crawlers
+        // and serves real Open Graph tags, then 302s real visitors into the app.
+        var url = $"{Http.BaseAddress}share/post/{postId}";
         try
         {
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);

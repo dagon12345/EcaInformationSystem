@@ -745,7 +745,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // GetStatisticsMembersAsync — both need the EXACT same "who matches
         // these filters" set and effective-status resolution, so the audit
         // modal's grantee list always agrees with the summary card counts.
-        private async Task<(List<BeneficiaryInformation> AllData, Func<BeneficiaryInformation, int> EffectiveStatus, Func<BeneficiaryInformation, int> EffectiveQuarter)>
+        private async Task<(List<BeneficiaryInformation> AllData, Func<BeneficiaryInformation, int> EffectiveStatus, Func<BeneficiaryInformation, int> EffectiveQuarter, List<BeneficiaryInformation> LocationFilteredData)>
             BuildFilteredStatisticsDataAsync(StatisticsRequestDto request)
         {
             var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
@@ -837,6 +837,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             bool hasPeriodFilter = request.PayrollQuarter.HasValue || request.FiscalYear.HasValue || hasStatusFilter;
             Dictionary<Guid, BeneficiaryPaymentHistory> historyLookup = new();
 
+            // ✅ Snapshot BEFORE the period/status narrowing below reassigns `query`.
+            // IQueryable composition is immutable (Where() wraps, doesn't mutate),
+            // so this keeps referring to the location/date/milestone(coarse)-only
+            // filter — used by the per-quarter breakdown so a beneficiary paid in
+            // Q1 but NOT in whatever their single most-recently-touched fiscal-year
+            // record is doesn't get excluded from the Q1 row (see the breakdown's
+            // candidateIds usage below).
+            var locationOnlyQuery = query;
+
             if (hasPeriodFilter)
             {
                 // ✅ FIXED — status is NOT applied to this query. The single
@@ -882,14 +891,14 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             var allData = await query.ToListAsync();
 
-            // ✅ FIXED — precise in-memory refinement using exact age (month/day
-            // aware), applying the identical bracket rule AgeDistribution uses
-            // below. The SQL-level birth-year range above is only a rough
-            // prefilter; this is what actually decides membership correctly.
-            if (request.MilestoneAge > 0)
+            // Same exact-bracket refinement applied below to allData — factored out
+            // so locationFilteredData (which skips the period/status narrowing) gets
+            // the identical precise age check instead of just the coarse SQL range.
+            List<BeneficiaryInformation> RefineByMilestoneAge(List<BeneficiaryInformation> data)
             {
+                if (request.MilestoneAge <= 0) return data;
                 var m = request.MilestoneAge;
-                allData = allData.Where(b =>
+                return data.Where(b =>
                 {
                     var age = ComputeAge(b.BirthDate);
                     return m == 100
@@ -897,6 +906,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         : age >= m && age < m + 5;
                 }).ToList();
             }
+
+            // ✅ FIXED — precise in-memory refinement using exact age (month/day
+            // aware), applying the identical bracket rule AgeDistribution uses
+            // below. The SQL-level birth-year range above is only a rough
+            // prefilter; this is what actually decides membership correctly.
+            allData = RefineByMilestoneAge(allData);
+
+            // No period/status filter was applied, so locationOnlyQuery already
+            // produced exactly allData — reuse it instead of hitting the DB again.
+            var locationFilteredData = hasPeriodFilter
+                ? RefineByMilestoneAge(await locationOnlyQuery.ToListAsync())
+                : allData;
+
             // ✅ Effective status/quarter/fiscal-year per beneficiary — pulled from the
             // matched historical entry when a period filter is active, otherwise
             // falls back to the beneficiary's current flat columns (unchanged
@@ -906,12 +928,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             int EffectiveQuarter(BeneficiaryInformation b) =>
                 hasPeriodFilter && historyLookup.TryGetValue(b.Id, out var h) ? (h.PayrollQuarter ?? 0) : (b.PayrollQuarter ?? 0);
 
-            return (allData, EffectiveStatus, EffectiveQuarter);
+            return (allData, EffectiveStatus, EffectiveQuarter, locationFilteredData);
         }
 
         public async Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request)
         {
-            var (allData, EffectiveStatus, _) = await BuildFilteredStatisticsDataAsync(request);
+            var (allData, EffectiveStatus, _, locationFilteredData) = await BuildFilteredStatisticsDataAsync(request);
 
             var report = new StatisticsReportDto
             {
@@ -1091,7 +1113,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // rule as the main period filter above, just run once per period
             // present instead of collapsed to one value per beneficiary.
             var hasStatusFilter = request.PaymentStatuses != null && request.PaymentStatuses.Any();
-            var candidateIds = allData.Select(b => b.Id).ToHashSet();
+            // ✅ FIXED — was `allData.Select(b => b.Id)`. When Payment Status=Paid is
+            // selected with no specific quarter, allData is narrowed (in
+            // BuildFilteredStatisticsDataAsync) to whoever's SINGLE most-recently-
+            // touched fiscal-year record is Paid — someone paid in Q1 but with a
+            // later, non-Paid Q2 record was excluded from allData entirely, and
+            // therefore silently missing from the Q1 row here too, undercounting
+            // it relative to selecting Q1 explicitly (which resolves Q1 on its
+            // own). locationFilteredIds only applies the location/date/milestone
+            // filters — not that cross-quarter "one row wins" status narrowing —
+            // so each quarter below still resolves its own authoritative row via
+            // the per-period status filter a few lines down.
+            var candidateIds = locationFilteredData.Select(b => b.Id).ToHashSet();
             var breakdownHistoryQuery = _context.BeneficiaryPaymentHistories.AsNoTracking()
                 .Where(h => candidateIds.Contains(h.BeneficiaryInformationId)
                     && h.PayrollQuarter.HasValue && h.FiscalYear.HasValue);
@@ -1108,7 +1141,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .OrderByDescending(h => h.DateModified ?? h.DateCreated)
                 .ToListAsync();
 
-            var ageById = allData.ToDictionary(b => b.Id, b => ComputeAge(b.BirthDate));
+            // Sourced from locationFilteredData (not allData) so ages resolve for
+            // every candidateId above, including beneficiaries allData excluded via
+            // the cross-quarter status narrowing described above.
+            var ageById = locationFilteredData.ToDictionary(b => b.Id, b => ComputeAge(b.BirthDate));
 
             report.PayrollQuarterBreakdown = breakdownHistories
                 .GroupBy(h => new { h.FiscalYear, h.PayrollQuarter })
@@ -1233,7 +1269,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public async Task<StatisticsMembersPagedResultDto> GetStatisticsMembersAsync(
             StatisticsRequestDto request, string bucket, int pageNumber, int pageSize)
         {
-            var (allData, EffectiveStatus, _) = await BuildFilteredStatisticsDataAsync(request);
+            var (allData, EffectiveStatus, _, _) = await BuildFilteredStatisticsDataAsync(request);
 
             IEnumerable<BeneficiaryInformation> members = bucket?.ToLowerInvariant() switch
             {
