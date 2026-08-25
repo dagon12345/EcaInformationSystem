@@ -1,0 +1,39 @@
+@page "/regional-offices"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>NCSC Regional Offices</PageTitle>
+
+@* Same reasoning as About.razor — no @layout override, AuthorizeView here
+   branches between the standalone public chrome (anonymous, reached from
+   the login navbar) and the plain article embedded in the normal app shell
+   (signed in, reached from the sidebar). *@
+<AuthorizeView>
+    <NotAuthorized>
+        <div class="auth-page-wrapper">
+            <div class="login-navbar">
+                <a href="login" class="login-navbar-brand" style="text-decoration:none;">
+                    <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+                    <div class="login-navbar-brand-text-wrap">
+                        <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                        <div class="login-navbar-brand-sub">Caraga Region</div>
+                    </div>
+                </a>
+
+                <a href="login" class="login-navbar-back-link"><i class="bi bi-arrow-left"></i> <span>Back to Login</span></a>
+            </div>
+
+            <div class="about-page-body">
+                <RegionalOfficesArticle />
+            </div>
+
+            <ScrollToTopButton />
+        </div>
+    </NotAuthorized>
+    <Authorized>
+        <div class="about-page-body">
+            <RegionalOfficesArticle />
+        </div>
+    </Authorized>
+</AuthorizeView>

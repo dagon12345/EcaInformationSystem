@@ -1,0 +1,844 @@
+@page "/ncsc-team-directory"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs
+@using System.Net.Http.Json
+@inject AuthService AuthService
+@inject HttpClient Http
+@inject ToastService toast
+@inject IConfiguration Configuration
+@inject NcscTeamDirectoryClientService RealtimeClient
+@inject IJSRuntime Js
+@implements IAsyncDisposable
+
+<PageTitle>NCSC Team Directory</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="page-header-bar mb-3 d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <div class="page-header-icon">
+                <i class="bi bi-diagram-3-fill"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">NCSC Team Directory</h5>
+                <span class="page-header-sub">
+                    Field and regional office roster, nationwide — editable by Admin/SuperAdmin; view-only for everyone else.
+                    @if (RealtimeClient.IsConnected)
+                    {
+                        <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1">
+                            <i class="bi bi-broadcast me-1"></i>Live
+                        </span>
+                    }
+                </span>
+            </div>
+        </div>
+        @if (_canEdit)
+        {
+            <div class="d-flex gap-2">
+                <button class="btn btn-success btn-sm" @onclick="OpenImportModal">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i>Import Excel
+                </button>
+                <button class="btn btn-primary btn-sm" @onclick="OpenAddModal">
+                    <i class="bi bi-plus-circle me-1"></i>Add Entry
+                </button>
+            </div>
+        }
+    </div>
+
+    <div class="ntd-toolbar mb-3">
+        <div class="p-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+                <div class="ntd-search-wrap">
+                    <i class="bi bi-search ntd-search-icon"></i>
+                    <input class="form-control form-control-sm ntd-search-input"
+                           placeholder="Search by name, position, email..."
+                           @bind="_searchTerm" @bind:event="oninput" />
+                </div>
+                <select class="form-select form-select-sm" style="width:auto;" @bind="_regionFilter">
+                    <option value="0">All Regions</option>
+                    @foreach (var r in _regions)
+                    {
+                        <option value="@r.PsgcCodeRegion">@r.Name</option>
+                    }
+                </select>
+            </div>
+            @if (!_isLoading)
+            {
+                <span class="ntd-count-pill">
+                    <i class="bi bi-people me-1"></i>@FilteredEntries.Count of @_entries.Count entries
+                </span>
+            }
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (!FilteredEntries.Any())
+    {
+        <div class="ntd-empty-state">
+            <i class="bi bi-inbox"></i>
+            No directory entries found.
+        </div>
+    }
+    else
+    {
+        @foreach (var group in GroupedEntries)
+        {
+            <div class="ntd-region-group mb-4">
+                <div class="ntd-region-header">
+                    <i class="bi bi-geo-alt-fill me-1"></i>@group.Key
+                    <span class="ntd-region-count">@group.Count()</span>
+                </div>
+                <div class="ntd-card-grid">
+                    @foreach (var entry in group)
+                    {
+                        <div class="ntd-card" @key="entry.Id">
+                            <div class="ntd-card-name">
+                                @entry.FullName
+                                @if (!string.IsNullOrWhiteSpace(entry.Nickname))
+                                {
+                                    <span class="ntd-card-nickname">"@entry.Nickname"</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(entry.Position))
+                            {
+                                <div class="ntd-card-position">@entry.Position</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(entry.Email))
+                            {
+                                <div class="ntd-card-row"><i class="bi bi-envelope"></i><span>@entry.Email</span></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(entry.MobileNumber))
+                            {
+                                <div class="ntd-card-row"><i class="bi bi-telephone"></i><span>@entry.MobileNumber</span></div>
+                            }
+                            <div class="ntd-card-actions">
+                                <button class="btn btn-sm btn-outline-secondary" title="History" @onclick="() => OpenHistoryModal(entry.Id)">
+                                    <i class="bi bi-clock-history"></i>
+                                </button>
+                                @if (_canEdit)
+                                {
+                                    <button class="btn btn-sm btn-outline-primary" title="Edit" @onclick="() => OpenEditModal(entry.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => ConfirmDelete(entry)">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@* ── Add/Edit Modal ── *@
+<HxModal @ref="_editModal" Size="ModalSize.Regular">
+    <HeaderTemplate>
+        <h5 class="modal-title">@(_draft.Id.HasValue ? "Edit Directory Entry" : "Add Directory Entry")</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label small">Region</label>
+                <select class="form-select form-select-sm" @bind="_draft.PsgcCodeRegion">
+                    <option value="0">-- Select Region --</option>
+                    @foreach (var r in _regions)
+                    {
+                        <option value="@r.PsgcCodeRegion">@r.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Position</label>
+                <input class="form-control form-control-sm" placeholder="e.g. Regional Director" @bind="_draft.Position" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Full Name</label>
+                <input class="form-control form-control-sm" @bind="_draft.FullName" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Nickname</label>
+                <input class="form-control form-control-sm" @bind="_draft.Nickname" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Email Address</label>
+                <input class="form-control form-control-sm" @bind="_draft.Email" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small">Mobile Number</label>
+                <input class="form-control form-control-sm" @bind="_draft.MobileNumber" />
+            </div>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _editModal!.HideAsync()">Close</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="SaveAsync" Disabled="@_isSaving">
+            @(_isSaving ? "Saving..." : "Save")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── History Modal ── *@
+<HxModal @ref="_historyModal">
+    <HeaderTemplate><h5 class="modal-title">Change History</h5></HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingHistory)
+        {
+            <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
+        }
+        else if (!_history.Any())
+        {
+            <p class="text-muted small mb-0">No changes recorded yet.</p>
+        }
+        else
+        {
+            <div class="list-group" style="max-height:400px; overflow-y:auto;">
+                @foreach (var h in _history)
+                {
+                    <div class="list-group-item">
+                        <div class="small text-muted">@h.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt") · @h.UserName</div>
+                        <div>@h.Activity</div>
+                    </div>
+                }
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _historyModal!.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Delete Confirm Modal ── *@
+<HxModal @ref="_deleteModal">
+    <HeaderTemplate><h5 class="modal-title">Delete Directory Entry</h5></HeaderTemplate>
+    <BodyTemplate>
+        <p>Delete the directory entry for <strong>@_pendingDelete?.FullName</strong>? This can only be undone by re-adding it.</p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _deleteModal!.HideAsync()">Cancel</HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="DeleteAsync" Disabled="@_isSaving">
+            @(_isSaving ? "Deleting..." : "Yes, Delete")
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Import Excel Modal ── *@
+<HxModal @ref="_importModal" Size="ModalSize.Large" Scrollable="true">
+    <HeaderTemplate><h5 class="modal-title">Import Directory Entries from Excel</h5></HeaderTemplate>
+    <BodyTemplate>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted small">
+                <i class="bi bi-info-circle me-1"></i>
+                Download the template below, fill in one row per person, then upload it. Region must match a name from
+                the Region filter above (e.g. "Caraga", "NCR", "CAR").
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="DownloadImportTemplateAsync" disabled="@_isDownloadingTemplate">
+                @if (_isDownloadingTemplate)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                else
+                {
+                    <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                }
+                Download Template
+            </button>
+        </div>
+
+        <InputFile OnChange="HandleImportFileSelected" accept=".xlsx" class="form-control form-control-sm" />
+
+        @if (_isLoadingSheets)
+        {
+            <div class="text-muted small mt-2"><span class="spinner-border spinner-border-sm me-1"></span>Reading worksheets...</div>
+        }
+
+        @if (_importSheetNames.Any())
+        {
+            <div class="mt-2" style="max-width:320px;">
+                <label class="form-label small">Worksheet</label>
+                <select class="form-select form-select-sm" @bind="_importSelectedSheet">
+                    @foreach (var sheet in _importSheetNames)
+                    {
+                        <option value="@sheet">@sheet</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-sm btn-primary" @onclick="RunImportPreviewAsync" disabled="@(_isPreviewingImport || string.IsNullOrWhiteSpace(_importSelectedSheet))">
+                    @if (_isPreviewingImport)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Validating...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-cloud-upload me-1"></i>
+                        <span>Validate</span>
+                    }
+                </button>
+            </div>
+        }
+
+        @if (_importPreview != null)
+        {
+            <div class="mt-3">
+                <div class="d-flex gap-3 small text-muted mb-2">
+                    <span>Total rows: <strong>@_importPreview.TotalRows</strong></span>
+                    <span>Clean: <strong class="text-success">@_importPreview.CleanRows</strong></span>
+                    <span>Errors: <strong class="text-danger">@_importPreview.HardErrors.Count</strong></span>
+                </div>
+
+                @if (_importPreview.HardErrors.Any())
+                {
+                    <div class="alert alert-danger py-2 px-2 small mb-2">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Fix the errors below and re-upload. No rows will be imported until errors are resolved.
+                    </div>
+                    <div class="table-responsive" style="max-height:250px; overflow-y:auto;">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light"><tr><th>Row</th><th>Field</th><th>Message</th><th>Value</th></tr></thead>
+                            <tbody>
+                                @foreach (var err in _importPreview.HardErrors)
+                                {
+                                    <tr><td>@err.RowNumber</td><td>@err.Field</td><td>@err.Message</td><td>@err.RawValue</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-success py-2 px-2 small mb-0">
+                        <i class="bi bi-check-circle-fill me-1"></i>All rows are clean and ready to import.
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_importResult != null)
+        {
+            <div class="mt-3">
+                @if (_importResult.HasErrors)
+                {
+                    <div class="alert alert-danger py-2 px-2 small mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Import finished with @_importResult.ErrorCount error(s). No rows with errors were saved.
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-success py-2 px-2 small mb-0">
+                        <i class="bi bi-check-circle-fill me-1"></i>
+                        Imported <strong>@_importResult.ImportedCount</strong> entry(ies).
+                    </div>
+                }
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _importModal!.HideAsync()">Close</HxButton>
+        @if (_importPreview != null && !_importPreview.HardErrors.Any())
+        {
+            <HxButton Color="ThemeColor.Primary" @onclick="RunImportConfirmAsync" Enabled="@(!_isConfirmingImport)">
+                @if (_isConfirmingImport)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    <span>Importing...</span>
+                }
+                else
+                {
+                    <span>Confirm Import</span>
+                }
+            </HxButton>
+        }
+    </FooterTemplate>
+</HxModal>
+
+@code {
+    private List<NcscTeamDirectoryEntryDto> _entries = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isLoadingHistory;
+    private string _searchTerm = string.Empty;
+    private int _regionFilter;
+
+    private bool _canEdit;
+
+    private HxModal? _editModal;
+    private HxModal? _historyModal;
+    private HxModal? _deleteModal;
+
+    private UpsertNcscTeamDirectoryEntryDto _draft = new();
+    private List<RegionLookupDto> _regions = new();
+
+    private List<NcscTeamDirectoryHistoryDto> _history = new();
+    private NcscTeamDirectoryEntryDto? _pendingDelete;
+
+    // ── Excel import state ──────────────────────────────────────────────
+    private HxModal? _importModal;
+    private IBrowserFile? _importFile;
+    private byte[]? _importFileBytes;
+    private string? _importFileName;
+    private List<string> _importSheetNames = new();
+    private string? _importSelectedSheet;
+    private bool _isLoadingSheets;
+    private bool _isDownloadingTemplate;
+    private bool _isPreviewingImport;
+    private bool _isConfirmingImport;
+    private NcscTeamDirectoryPreviewResultDto? _importPreview;
+    private NcscTeamDirectoryImportResultDto? _importResult;
+
+    private List<NcscTeamDirectoryEntryDto> FilteredEntries
+    {
+        get
+        {
+            var result = _entries.AsEnumerable();
+
+            if (_regionFilter > 0)
+                result = result.Where(e => e.PsgcCodeRegion == _regionFilter);
+
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                result = result.Where(e =>
+                    (e.FullName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (e.Nickname?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (e.Position?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (e.Email?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (e.RegionName?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            return result.ToList();
+        }
+    }
+
+    private IEnumerable<IGrouping<string, NcscTeamDirectoryEntryDto>> GroupedEntries =>
+        FilteredEntries
+            .GroupBy(e => e.RegionName ?? "Unassigned")
+            .OrderBy(g => g.Key);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _canEdit = AuthService.IsAdmin();
+
+        await LoadRegionsAsync();
+        await LoadEntriesAsync();
+        await ConnectRealtimeAsync();
+    }
+
+    private async Task LoadRegionsAsync()
+    {
+        try
+        {
+            _regions = await Http.GetFromJsonAsync<List<RegionLookupDto>>("api/Region") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading regions: {ex.Message}");
+        }
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _entries = await Http.GetFromJsonAsync<List<NcscTeamDirectoryEntryDto>>("api/ncsc-team-directory") ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load directory: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "ncscTeamDirectoryHub").ToString();
+            RealtimeClient.OnEntryChanged += HandleEntryChanged;
+            await RealtimeClient.ConnectAsync(hubUrl);
+        }
+        catch { /* non-fatal — the grid still works, just without live push */ }
+    }
+
+    private void HandleEntryChanged(NcscTeamDirectoryChangeDto change)
+    {
+        InvokeAsync(() =>
+        {
+            if (change.ChangeType == "Deleted")
+            {
+                _entries.RemoveAll(e => e.Id == change.Id);
+            }
+            else if (change.Entry != null)
+            {
+                var idx = _entries.FindIndex(e => e.Id == change.Entry.Id);
+                if (idx >= 0) _entries[idx] = change.Entry;
+                else _entries.Add(change.Entry);
+            }
+            StateHasChanged();
+        });
+    }
+
+    private async Task OpenAddModal()
+    {
+        _draft = new UpsertNcscTeamDirectoryEntryDto();
+        await _editModal!.ShowAsync();
+    }
+
+    private async Task OpenEditModal(Guid id)
+    {
+        try
+        {
+            var full = await Http.GetFromJsonAsync<NcscTeamDirectoryEntryDto>($"api/ncsc-team-directory/{id}");
+            if (full == null)
+            {
+                toast.ShowError("Entry not found — it may have been deleted.");
+                return;
+            }
+
+            _draft = new UpsertNcscTeamDirectoryEntryDto
+            {
+                Id = full.Id,
+                PsgcCodeRegion = full.PsgcCodeRegion,
+                Position = full.Position,
+                FullName = full.FullName,
+                Nickname = full.Nickname,
+                Email = full.Email,
+                MobileNumber = full.MobileNumber,
+                RowVersion = full.RowVersion
+            };
+
+            await _editModal!.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load entry: {ex.Message}");
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_draft.PsgcCodeRegion <= 0)
+        {
+            toast.ShowError("Region is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_draft.FullName))
+        {
+            toast.ShowError("Full Name is required.");
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            var isUpdate = _draft.Id.HasValue;
+            var response = isUpdate
+                ? await Http.PutAsJsonAsync("api/ncsc-team-directory", _draft)
+                : await Http.PostAsJsonAsync("api/ncsc-team-directory", _draft);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess(isUpdate ? "Entry updated." : "Entry added.");
+                await _editModal!.HideAsync();
+                await LoadEntriesAsync();
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task OpenHistoryModal(Guid id)
+    {
+        _isLoadingHistory = true;
+        _history = new();
+        await _historyModal!.ShowAsync();
+        try
+        {
+            _history = await Http.GetFromJsonAsync<List<NcscTeamDirectoryHistoryDto>>($"api/ncsc-team-directory/{id}/history") ?? new();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to load history: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingHistory = false;
+        }
+    }
+
+    private async Task ConfirmDelete(NcscTeamDirectoryEntryDto entry)
+    {
+        _pendingDelete = entry;
+        await _deleteModal!.ShowAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_pendingDelete == null) return;
+
+        _isSaving = true;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/ncsc-team-directory/{_pendingDelete.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                toast.ShowSuccess("Entry deleted.");
+                await _deleteModal!.HideAsync();
+                await LoadEntriesAsync();
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            _isSaving = false;
+            _pendingDelete = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        RealtimeClient.OnEntryChanged -= HandleEntryChanged;
+        await Task.CompletedTask;
+    }
+
+    // ── Excel import ─────────────────────────────────────────────────────
+    private async Task OpenImportModal()
+    {
+        _importFile = null;
+        _importFileBytes = null;
+        _importFileName = null;
+        _importSheetNames.Clear();
+        _importSelectedSheet = null;
+        _importPreview = null;
+        _importResult = null;
+        await _importModal!.ShowAsync();
+    }
+
+    private async Task DownloadImportTemplateAsync()
+    {
+        _isDownloadingTemplate = true;
+        try
+        {
+            var response = await Http.GetAsync("api/ncsc-team-directory/download-import-template");
+            if (response.IsSuccessStatusCode)
+            {
+                var fileStream = await response.Content.ReadAsStreamAsync();
+                var fileName = $"NcscTeamDirectory_Template_{DateTime.Now:yyyy-MM-dd}.xlsx";
+                using var streamRef = new DotNetStreamReference(stream: fileStream);
+                await Js.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+            }
+            else
+            {
+                toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Template download failed: {ex.Message}");
+        }
+        finally
+        {
+            _isDownloadingTemplate = false;
+        }
+    }
+
+    private async Task HandleImportFileSelected(InputFileChangeEventArgs e)
+    {
+        _importFile = e.File;
+        _importSheetNames.Clear();
+        _importSelectedSheet = null;
+        _importFileBytes = null;
+        _importFileName = null;
+        _importPreview = null;
+        _importResult = null;
+
+        if (_importFile == null) return;
+
+        if (!_importFile.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            toast.ShowError("Only .xlsx Excel files are supported.");
+            _importFile = null;
+            return;
+        }
+
+        if (_importFile.Size == 0)
+        {
+            toast.ShowError("That file is empty.");
+            _importFile = null;
+            return;
+        }
+
+        if (_importFile.Size > 20 * 1024 * 1024)
+        {
+            toast.ShowError("File is too large. The maximum upload size is 20 MB.");
+            _importFile = null;
+            return;
+        }
+
+        try
+        {
+            _isLoadingSheets = true;
+            await using var uploadStream = _importFile.OpenReadStream(20 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await uploadStream.CopyToAsync(ms);
+            _importFileBytes = ms.ToArray();
+            _importFileName = _importFile.Name;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_importFileBytes), "File", _importFileName);
+
+            var response = await Http.PostAsync("api/ncsc-team-directory/import/sheets", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Access denied. You do not have permission to import records."
+                    : await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            _importSheetNames = await response.Content.ReadFromJsonAsync<List<string>>() ?? new();
+            if (_importSheetNames.Any())
+                _importSelectedSheet = _importSheetNames.First();
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Failed to read Excel sheets: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingSheets = false;
+        }
+    }
+
+    private async Task RunImportPreviewAsync()
+    {
+        if (_importFileBytes == null || string.IsNullOrWhiteSpace(_importSelectedSheet))
+        {
+            toast.ShowError("Please select a file and a worksheet first.");
+            return;
+        }
+
+        _importPreview = null;
+        _importResult = null;
+
+        try
+        {
+            _isPreviewingImport = true;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_importFileBytes), "file", _importFileName ?? "import.xlsx");
+            content.Add(new StringContent(_importSelectedSheet), "sheetName");
+
+            var response = await Http.PostAsync("api/ncsc-team-directory/import/preview", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Access denied. You do not have permission to import records."
+                    : await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            _importPreview = await response.Content.ReadFromJsonAsync<NcscTeamDirectoryPreviewResultDto>();
+            if (_importPreview != null && _importPreview.HardErrors.Any())
+                toast.ShowError($"Validation failed. {_importPreview.HardErrors.Count} error(s) found.");
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Preview failed: {ex.Message}");
+        }
+        finally
+        {
+            _isPreviewingImport = false;
+        }
+    }
+
+    private async Task RunImportConfirmAsync()
+    {
+        if (_importFileBytes == null || string.IsNullOrWhiteSpace(_importSelectedSheet))
+        {
+            toast.ShowError("File data is missing. Please re-select the file.");
+            return;
+        }
+
+        try
+        {
+            _isConfirmingImport = true;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(_importFileBytes), "file", _importFileName ?? "import.xlsx");
+            content.Add(new StringContent(_importSelectedSheet), "sheetName");
+
+            var response = await Http.PostAsync("api/ncsc-team-directory/import/confirm", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                toast.ShowError(response.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Access denied. You do not have permission to import records."
+                    : await response.Content.ReadAsStringAsync());
+                return;
+            }
+
+            _importResult = await response.Content.ReadFromJsonAsync<NcscTeamDirectoryImportResultDto>();
+            _importPreview = null;
+
+            if (_importResult != null)
+            {
+                if (_importResult.HasErrors)
+                {
+                    toast.ShowError($"Import finished with {_importResult.ErrorCount} error(s).");
+                }
+                else
+                {
+                    toast.ShowSuccess($"Import completed. {_importResult.ImportedCount} entry(ies) saved.");
+                    await LoadEntriesAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            toast.ShowError($"Import failed: {ex.Message}");
+        }
+        finally
+        {
+            _isConfirmingImport = false;
+        }
+    }
+
+    public class RegionLookupDto
+    {
+        public int PsgcCodeRegion { get; set; }
+        public string? Name { get; set; }
+    }
+}

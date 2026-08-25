@@ -391,6 +391,7 @@ app.MapHub<SystemUpdateHub>("/systemUpdateHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.BiometricStatusHub>("/biometricStatusHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.SeniorCitizenDirectoryHub>("/seniorCitizenDirectoryHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.TransactionTierHub>("/transactionTierHub");
+app.MapHub<EcaInformationSystem.Api.Hubs.NcscTeamDirectoryHub>("/ncscTeamDirectoryHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),

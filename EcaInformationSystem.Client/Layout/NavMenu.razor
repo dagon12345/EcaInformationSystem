@@ -31,6 +31,21 @@
         <span class="nav-icon"><i class="bi bi-calendar3"></i></span>
         <span class="nav-label">Calendar</span>
     </NavLink>
+    @* ── About — same NCSC blog-style page public visitors see from the login navbar ── *@
+    <NavLink class="nav-item" href="about">
+        <span class="nav-icon"><i class="bi bi-info-circle"></i></span>
+        <span class="nav-label">About</span>
+    </NavLink>
+    @* ── Regional Offices — contact directory, same public page as the login navbar's "Contact" link ── *@
+    <NavLink class="nav-item" href="regional-offices">
+        <span class="nav-icon"><i class="bi bi-telephone"></i></span>
+        <span class="nav-label">Regional Offices</span>
+    </NavLink>
+    @* ── Directory of Officials — same public page as the login navbar's "Officials" link ── *@
+    <NavLink class="nav-item" href="directory-officials">
+        <span class="nav-icon"><i class="bi bi-people"></i></span>
+        <span class="nav-label">Directory of Officials</span>
+    </NavLink>
 
     <div class="nav-section-label">Reports</div>
 
@@ -111,6 +126,11 @@
     <NavLink class="nav-item" href="senior-citizen-directory">
         <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
         <span class="nav-label">Senior Citizens Directory</span>
+    </NavLink>
+    @* ── NCSC Team Directory — nationwide, visible to everyone (view-only); Add/Edit/Delete/Import are gated inside the page to Admin/SuperAdmin ── *@
+    <NavLink class="nav-item" href="ncsc-team-directory">
+        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+        <span class="nav-label">NCSC Team Directory</span>
     </NavLink>
 
     @* ── Provincial Focals — visible to everyone including Focal accounts (that's

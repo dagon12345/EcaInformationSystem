@@ -1,0 +1,140 @@
+<article class="about-article">
+    <div class="about-article-seal">
+        <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
+        <div class="about-article-seal-text">Republika ng Pilipinas</div>
+    </div>
+
+    <div class="about-article-kicker">Get in Touch</div>
+    <h1 class="about-article-title">NCSC Regional Offices</h1>
+    <p class="about-article-lede">
+        Need to reach the National Commission of Senior Citizens directly? Here's every regional office's
+        address, email, and contact number — the Caraga office is the one this system serves.
+    </p>
+
+    <div class="offices-grid">
+        @foreach (var office in _offices)
+        {
+            <div class="office-card @(office.Highlight ? "office-card--highlight" : "")">
+                @if (office.Highlight)
+                {
+                    <div class="office-card-badge"><i class="bi bi-geo-alt-fill me-1"></i>Serves This System</div>
+                }
+                <div class="office-card-name">@office.Name</div>
+                <div class="office-card-row">
+                    <i class="bi bi-signpost-2"></i>
+                    <span>@office.Address</span>
+                </div>
+                <div class="office-card-row">
+                    <i class="bi bi-envelope"></i>
+                    <span>@string.Join(", ", office.Emails)</span>
+                </div>
+                <div class="office-card-row">
+                    <i class="bi bi-telephone"></i>
+                    <span>@string.Join(" · ", office.Phones)</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="about-article-source">
+        <i class="bi bi-info-circle me-1"></i>
+        Source: <a href="https://www.ncsc.gov.ph/regional-offices" target="_blank" rel="noopener noreferrer">ncsc.gov.ph/regional-offices</a>
+    </div>
+</article>
+
+@code {
+    private record Office(string Name, string Address, string[] Emails, string[] Phones, bool Highlight = false);
+
+    // Mirrors ncsc.gov.ph/regional-offices in full — Central Office, every
+    // numbered region, plus CAR/NCR which the source page lists separately
+    // from the numbered regions. Region XIII (Caraga) is flagged as the one
+    // this system serves.
+    private readonly List<Office> _offices = new()
+    {
+        new("Central Office",
+            "20th floor, The Upper Class Tower, Quezon Avenue Corner Scout Reyes, Barangay Paligsahan, District 4, Quezon City",
+            new[] { "contact@ncsc.gov.ph" },
+            new[] { "(02) 8567-5646", "0962-274-3622" }),
+
+        new("Region I — Ilocos Region",
+            "2nd floor Shania Tower, Brgy. Sevilla, City of San Fernando, La Union",
+            new[] { "ro1@ncsc.gov.ph", "gbptadeo@ncsc.gov.ph" },
+            new[] { "0918-622-7078" }),
+
+        new("Region II — Cagayan Valley",
+            "3rd floor A.D. Taccad Commercial Building, Enrile Boulevard, Carig Sur, Tuguegarao City",
+            new[] { "ro2@ncsc.gov.ph", "dlfdelacruz@ncsc.gov.ph" },
+            new[] { "(078) 825-2052", "0955-446-7837", "0938-367-5369" }),
+
+        new("Region III — Central Luzon",
+            "Bldg. No. 10 – PGP Senior Citizens Building, Provincial Capitol Compound, Brgy. Sto. Niño, City of San Fernando, Pampanga 2000",
+            new[] { "ro3@ncsc.gov.ph", "emmdaez@ncsc.gov.ph" },
+            new[] { "0993-790-2340", "0955-446-7840" }),
+
+        new("Region IV-A — CALABARZON",
+            "1009, 2nd floor, GKL Building, J. Nakpil Street, Brgy. 695, Malate, Manila 1004",
+            new[] { "ro4a@ncsc.gov.ph", "lsaderes@ncsc.gov.ph" },
+            new[] { "(02) 8652-4282", "0955-382-2445", "0938-275-8567" }),
+
+        new("Region IV-B — MIMAROPA",
+            "1009, 2nd floor, GKL Building, J. Nakpil Street, Brgy. 695, Malate, Manila",
+            new[] { "ro4b@ncsc.gov.ph", "eldimatatac@ncsc.gov.ph" },
+            new[] { "(02) 8652-4282", "0955-446-7841", "0938-260-7206" }),
+
+        new("Region V — Bicol Region",
+            "2nd Floor, E. Chan Building, Alternate Road, Legazpi City, Albay, Bicol, 4500",
+            new[] { "ro5@ncsc.gov.ph", "mclbpacamarra@ncsc.gov.ph" },
+            new[] { "(052) 826-7173", "0948-523-9738", "0955-446-7845" }),
+
+        new("Region VI — Western Visayas",
+            "GT Hotel Jaro, Mc Arthur Drive, Tabuc Suba, Jaro, Iloilo City, 5000",
+            new[] { "ro6@ncsc.gov.ph", "aroganzon@ncsc.gov.ph" },
+            new[] { "0948-595-4489", "0955-446-7850" }),
+
+        new("Region VII — Central Visayas",
+            "National Commission of Senior Citizens Building, Cebu Provincial Capitol Compound, Cebu City 6000, Cebu",
+            new[] { "ro7@ncsc.gov.ph", "jotabotabo@ncsc.gov.ph" },
+            new[] { "(032) 517-9811", "0938-437-2158", "0955-382-2450" }),
+
+        new("Region VIII — Eastern Visayas",
+            "2nd Floor, Cebu CFI Cooperative Building, Brgy. Guindapunan, Palo, Leyte",
+            new[] { "ro8@ncsc.gov.ph", "ardolaota@ncsc.gov.ph" },
+            new[] { "0955-382-2446", "0938-273-7701" }),
+
+        new("Region IX — Zamboanga Peninsula",
+            "2nd Floor, LLB Real Estate Building, Duterte St., Purok Liberty, Gatas District, Pagadian City 7016",
+            new[] { "ro9@ncsc.gov.ph", "fdsumondong@ncsc.gov.ph" },
+            new[] { "(062) 925-2168", "0948-579-2948", "0955-382-2433" }),
+
+        new("Region X — Northern Mindanao",
+            "L and A Pabayo Bldg., J.R. Borja corner Tiano Brothers, Brgy. 11, Cagayan De Oro City",
+            new[] { "ro10@ncsc.gov.ph", "mjhasum@ncsc.gov.ph" },
+            new[] { "0955-382-2442", "0948-579-2949" }),
+
+        new("Region XI — Davao Region",
+            "2nd Floor, Sazon Building, Mc Arthur Highway, Matina, Davao City",
+            new[] { "ro11@ncsc.gov.ph", "caadegue@ncsc.gov.ph" },
+            new[] { "0938-286-9502", "0955-382-2441" }),
+
+        new("Region XII — SOCCSKSARGEN",
+            "National Commission of Senior Citizens Bldg., Along P. Acharon Blvd., Brgy. Dadiangas South, General Santos City, 9500",
+            new[] { "ro12@ncsc.gov.ph", "rgoco@ncsc.gov.ph" },
+            new[] { "825-8871", "0938-286-9505", "0955-382-2438" }),
+
+        new("Region XIII — Caraga",
+            "Ground Floor, Samping Realty and Development Corporation, J.C. Aquino Avenue, Butuan City",
+            new[] { "ro13@ncsc.gov.ph" },
+            new[] { "0955-382-2435", "0938-414-3439" },
+            Highlight: true),
+
+        new("Cordillera Administrative Region (CAR)",
+            "4th Floor, Development Bank of the Philippines Building, Session Rd, Baguio, 2600 Benguet",
+            new[] { "rocar@ncsc.gov.ph", "llbalisong@ncsc.gov.ph" },
+            new[] { "0928-385-5611", "0938-367-5353", "0997-531-5455" }),
+
+        new("National Capital Region (NCR)",
+            "8th Floor, AAP Tower, 683 Aurora Boulevard, Mariana, Quezon City",
+            new[] { "roncr@ncsc.gov.ph", "aanbalute@ncsc.gov.ph" },
+            new[] { "(02) 8652-5593", "0955-446-7836", "0938-422-6824" }),
+    };
+}

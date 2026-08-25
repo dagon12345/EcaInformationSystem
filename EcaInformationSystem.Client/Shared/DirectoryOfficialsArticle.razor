@@ -1,0 +1,169 @@
+<article class="about-article">
+    <div class="about-article-seal">
+        <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
+        <div class="about-article-seal-text">Republika ng Pilipinas</div>
+    </div>
+
+    <div class="about-article-kicker">Who's Who</div>
+    <h1 class="about-article-title">NCSC Directory of Officials</h1>
+    <p class="about-article-lede">
+        The Commissioners and officials leading the National Commission of Senior Citizens, nationally and
+        across every region — the Caraga entry is the one this system serves.
+    </p>
+
+    @foreach (var group in _groups)
+    {
+        <section class="about-section">
+            <h2 class="about-section-title">@group.Title</h2>
+            <div class="officials-grid">
+                @foreach (var person in group.People)
+                {
+                    <div class="official-card @(person.Highlight ? "official-card--highlight" : "")">
+                        @if (person.Highlight)
+                        {
+                            <div class="office-card-badge"><i class="bi bi-geo-alt-fill me-1"></i>Serves This System</div>
+                        }
+                        <div class="official-card-name">@person.Name</div>
+                        <div class="official-card-position">@person.Position</div>
+                        @if (!string.IsNullOrWhiteSpace(person.Office))
+                        {
+                            <div class="office-card-row">
+                                <i class="bi bi-signpost-2"></i>
+                                <span>@person.Office</span>
+                            </div>
+                        }
+                        @if (person.Emails.Length > 0)
+                        {
+                            <div class="office-card-row">
+                                <i class="bi bi-envelope"></i>
+                                <span>@string.Join(", ", person.Emails)</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(person.Phone))
+                        {
+                            <div class="office-card-row">
+                                <i class="bi bi-telephone"></i>
+                                <span>@person.Phone</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <div class="about-article-source">
+        <i class="bi bi-info-circle me-1"></i>
+        Source: <a href="https://www.ncsc.gov.ph/directory-officials" target="_blank" rel="noopener noreferrer">ncsc.gov.ph/directory-officials</a>
+    </div>
+</article>
+
+@code {
+    private record Person(string Name, string Position, string? Office, string[] Emails, string? Phone = null, bool Highlight = false);
+    private record Group(string Title, List<Person> People);
+
+    // Mirrors ncsc.gov.ph/directory-officials in full — Commissioners, Central
+    // Office division heads, then every Regional Director. Caraga (Region
+    // XIII) is flagged as the one this system serves.
+    private readonly List<Group> _groups = new()
+    {
+        new("Commissioners", new List<Person>
+        {
+            new("Atty. Ma. Merceditas N. Gutierrez", "Chairperson and Chief Executive Officer",
+                "14th floor, The Upper Class Tower, Quezon Avenue Corner Scout Reyes, Barangay Paligsahan, District 4, Quezon City",
+                new[] { "occeo@ncsc.gov.ph" }, "(02) 8567-5646"),
+            new("Lt. Gen. Ricardo Rainier G. Cruz III", "Commissioner",
+                "GKL Bldg., 1009 J. Nakpil St., Brgy. 695, Malate, Manila",
+                new[] { "rrgcruz@ncsc.gov.ph" }, "8652-4282"),
+            new("Dr. Ida Yap-Patron", "Commissioner",
+                "2nd Floor, Sazon Building Km 3, Mc Arthur Highway, Matina, Davao City",
+                new[] { "iypatron@ncsc.gov.ph" }),
+            new("Camilo G. Gudmalin", "Commissioner", null,
+                new[] { "cgudmalin@ncsc.gov.ph" }, "(02) 8567-5646"),
+            new("Leo L. Intia", "Commissioner", null,
+                new[] { "lintia@ncsc.gov.ph" }, "(02) 8567-5646"),
+            new("Gloria J. Mercado", "Commissioner", null,
+                new[] { "gjmercado@ncsc.gov.ph" }, "(02) 8567-5646"),
+            new("Ma. Dolores M. Rigonan", "Commissioner", null,
+                new[] { "mdmrigonan@ncsc.gov.ph" }, "(02) 8567-5646"),
+        }),
+
+        new("Central Office", new List<Person>
+        {
+            new("Ana Marie C. Calapit", "Acting Executive Director IV; Concurrent Director IV, Administrative and Finance Service",
+                null, new[] { "amccalapit@ncsc.gov.ph", "afs@ncsc.gov.ph" }, "8567-5646"),
+            new("Atty. Jasper Allen B. Barrientos", "Head Executive Assistant, Office of the Chairperson and CEO",
+                null, new[] { "occeo@ncsc.gov.ph" }, "8567-5646"),
+            new("Project Development Officer V", "Senior Citizens' Action for Development and Nation-Building (SECADNA) Division",
+                null, new[] { "secadna@ncsc.gov.ph" }, "8567-5646"),
+            new("Nolibelyn P. Macabagdal", "Project Development Officer V, Social Pension and Benefits Division (SPBD)",
+                null, new[] { "npmacabagdal@ncsc.gov.ph", "spbd@ncsc.gov.ph" }, "8567-5646"),
+            new("Joyce Anne C. Pereña", "Project Development Officer V, Wellness, Health, Emergency Response and Benefits Division (WHERBD)",
+                null, new[] { "jacperena@ncsc.gov.ph", "wherbd@ncsc.gov.ph" }, "8567-5646"),
+            new("Nolibelyn P. Macabagdal", "Officer-in-Charge, Policy and Planning Division (PPD)",
+                null, new[] { "npmacabagdal@ncsc.gov.ph", "ppd@ncsc.gov.ph" }, "8567-5646"),
+            new("Loraine Cerillo Valdevieso", "Acting Information Officer V, Information Management and ICT Division (IMICTD)",
+                null, new[] { "lcvaldevieso@ncsc.gov.ph", "imictd@ncsc.gov.ph" }, "8567-5646"),
+            new("Atty. Tecelyn B. Maramag", "Attorney V, Legal Division",
+                null, new[] { "tbmaramag@ncsc.gov.ph", "legal@ncsc.gov.ph" }, "8567-5646"),
+            new("Reyna Lee R. Pedernal", "Chief Administrative Officer, Human Resource Development Division (HRDD)",
+                null, new[] { "rlrpedernal@ncsc.gov.ph", "hrdd@ncsc.gov.ph" }, "8567-5646"),
+            new("Acting Chief Administrative Officer", "Finance Division (FD)",
+                null, new[] { "finance@ncsc.gov.ph" }, "8567-5646"),
+            new("Ruel M. Baron", "Acting Chief Administrative Officer, General Services Division (GSD)",
+                null, new[] { "rmbaron@ncsc.gov.ph", "gsd@ncsc.gov.ph" }, "8567-5646"),
+        }),
+
+        new("Regional Directors", new List<Person>
+        {
+            new("Atty. Luz L. Balisong", "Regional Director IV — CAR",
+                "4th Floor, Development Bank of the Philippines Building, Session Rd, Baguio, 2600 Benguet",
+                new[] { "rocar@ncsc.gov.ph", "llbalisong@ncsc.gov.ph" }),
+            new("Dr. August Anthony N. Balute", "Regional Director IV — NCR",
+                "20th floor, The Upper Class Tower, Quezon Avenue Corner Scout Reyes, Barangay Paligsahan, District 4, Quezon City",
+                new[] { "roncr@ncsc.gov.ph", "aanbalute@ncsc.gov.ph" }, "8652-5593"),
+            new("Atty. Glaiza Bernadeth P. Tadeo", "Regional Director IV — Region I",
+                "2nd floor Shania Tower, Brgy. Sevilla, City of San Fernando, La Union",
+                new[] { "ro1@ncsc.gov.ph", "gbptadeo@ncsc.gov.ph" }),
+            new("Dulceneah Lyra F. Dela Cruz", "Regional Director IV — Region II",
+                "3rd floor A.D. Taccad Commercial Building, Enrile Boulevard, Carig Sur, Tuguegarao City",
+                new[] { "ro2@ncsc.gov.ph", "dlfdelacruz@ncsc.gov.ph" }),
+            new("Emmanuel E. Daez", "Regional Director IV — Region III",
+                "Bldg. No. 10 – PGP Senior Citizens Building, Provincial Capitol Compound, Brgy. Sto. Niño, City of San Fernando, Pampanga 2000",
+                new[] { "ro3@ncsc.gov.ph", "emmdaez@ncsc.gov.ph" }),
+            new("Levita S. Aderes", "Project Development Officer IV — CALABARZON",
+                "1009, 2nd floor, GKL Building, J. Nakpil Street, Brgy. 695, Malate, Manila 1004",
+                new[] { "ro4a@ncsc.gov.ph", "lsaderes@ncsc.gov.ph" }, "8652-4282"),
+            new("Atty. Edwin L. Dimatatac, MD", "Regional Director IV — MIMAROPA",
+                "1009, 2nd floor, GKL Building, J. Nakpil Street, Brgy. 695, Malate, Manila 1004",
+                new[] { "ro4b@ncsc.gov.ph", "eldimatatac@ncsc.gov.ph" }, "8652-4282"),
+            new("Atty. Ma. Clarissa Lavena B. Pacamarra", "Regional Director IV — Region V",
+                "2nd Floor, E. Chan Building, Alternate Road, Legazpi City, Albay, Bicol, 4500",
+                new[] { "ro5@ncsc.gov.ph", "mclbpacamarra@ncsc.gov.ph" }, "(052) 826-7173"),
+            new("Ann Rapunzel O. Ganzon", "Regional Director IV — Region VI",
+                "GT Hotel Jaro, Mc Arthur Drive Tabuc Suba Jaro, Iloilo City, 5000",
+                new[] { "ro6@ncsc.gov.ph", "aroganzon@ncsc.gov.ph" }),
+            new("Jocelyn O. Tabotabo", "Regional Director IV — Region VII",
+                "National Commission of Senior Citizens Building, Cebu Provincial Capitol Compound, Cebu City 6000, Cebu",
+                new[] { "ro7@ncsc.gov.ph", "jotabotabo@ncsc.gov.ph" }, "(032) 517-9811"),
+            new("Antonio R. Dolaota", "Regional Director IV — Region VIII",
+                "2nd Floor, Cebu CFI Cooperative Building, Brgy. Guindapunan, Palo, Leyte",
+                new[] { "ro8@ncsc.gov.ph", "ardolaota@ncsc.gov.ph" }),
+            new("Dr. Fernando D. Sumondong", "Regional Director IV — Region IX",
+                "2nd Floor, LLB Real Estate Building, Duterte St., Purok Liberty, Gatas District, Pagadian City 7016",
+                new[] { "ro9@ncsc.gov.ph", "fdsumondong@ncsc.gov.ph" }, "062-945-0265"),
+            new("Mary Jean H. Asum", "Regional Director IV — Region X",
+                "L and A Pabayo Bldg., J.R. Borja corner Tiano Brothers, Brgy. 11, Cagayan De Oro City",
+                new[] { "ro10@ncsc.gov.ph", "mjhasum@ncsc.gov.ph" }),
+            new("Dr. Cesar A. Adegue IV", "Regional Director IV — Region XI",
+                "2nd Floor, Sazon Building, Mc Arthur Highway, Matina, Davao City",
+                new[] { "ro11@ncsc.gov.ph", "caadegue@ncsc.gov.ph" }),
+            new("Dr. Rochelle G. Oco", "Regional Director IV — Region XII",
+                "Along P. Acharon Blvd., Barangay Dadiangas South, General Santos City",
+                new[] { "ro12@ncsc.gov.ph", "rgoco@ncsc.gov.ph" }, "083-825-8871"),
+            new("Dr. Cesar A. Adegue IV", "Officer-in-Charge — Caraga (Region XIII)",
+                "Ground Floor, Samping Realty and Development Corporation, J.C. Aquino Avenue, Butuan City",
+                new[] { "ro13@ncsc.gov.ph", "caadegue@ncsc.gov.ph" }, Highlight: true),
+        }),
+    };
+}

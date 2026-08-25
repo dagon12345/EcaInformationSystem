@@ -1,0 +1,44 @@
+@page "/about"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>About NCSC</PageTitle>
+
+@* No @layout override here — MainLayout's own AuthorizeView already renders
+   the full app shell (sidebar/top navbar) for a logged-in visitor and just
+   @Body for an anonymous one, so this page renders itself accordingly:
+   the standalone public chrome below only for a visitor who ISN'T logged in
+   (reached via the login page's navbar), and just the article — matching
+   every other page's content-area — when reached from the sidebar while
+   already signed in. Previously this always forced the standalone AuthLayout,
+   which made clicking "About" from inside the app look like it had logged
+   the user out. *@
+<AuthorizeView>
+    <NotAuthorized>
+        <div class="auth-page-wrapper">
+            <div class="login-navbar">
+                <a href="login" class="login-navbar-brand" style="text-decoration:none;">
+                    <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+                    <div class="login-navbar-brand-text-wrap">
+                        <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                        <div class="login-navbar-brand-sub">Caraga Region</div>
+                    </div>
+                </a>
+
+                <a href="login" class="login-navbar-back-link"><i class="bi bi-arrow-left"></i> <span>Back to Login</span></a>
+            </div>
+
+            <div class="about-page-body">
+                <AboutArticle />
+            </div>
+
+            <ScrollToTopButton />
+        </div>
+    </NotAuthorized>
+    <Authorized>
+        <div class="about-page-body">
+            <AboutArticle />
+        </div>
+    </Authorized>
+</AuthorizeView>

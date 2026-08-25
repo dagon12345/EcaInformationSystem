@@ -60,6 +60,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<AnnualGranteeTarget> AnnualGranteeTargets => Set<AnnualGranteeTarget>();
             public DbSet<WfpEcaEntry> WfpEcaEntries => Set<WfpEcaEntry>();
             public DbSet<SeniorCitizenDirectoryEntry> SeniorCitizenDirectoryEntries => Set<SeniorCitizenDirectoryEntry>();
+            public DbSet<NcscTeamDirectoryEntry> NcscTeamDirectoryEntries => Set<NcscTeamDirectoryEntry>();
             public DbSet<UserProfilePicture> UserProfilePictures => Set<UserProfilePicture>();
             public DbSet<ResolvedDuplicatePair> ResolvedDuplicatePairs => Set<ResolvedDuplicatePair>();
             public DbSet<StickyNote> StickyNotes => Set<StickyNote>();
@@ -970,6 +971,24 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                   {
                         entity.HasIndex(x => x.SeniorCitizenDirectoryEntryId)
                         .HasDatabaseName("IX_Log_SeniorCitizenDirectoryEntryId");
+
+                        entity.HasIndex(x => x.NcscTeamDirectoryEntryId)
+                        .HasDatabaseName("IX_Log_NcscTeamDirectoryEntryId");
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // NCSC TEAM DIRECTORY (nationwide field/regional office roster)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<NcscTeamDirectoryEntry>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+
+                        entity.HasIndex(x => new { x.IsDeleted, x.PsgcCodeRegion })
+                        .HasDatabaseName("IX_NcscTeamDirectory_Region");
+
+                        entity.Property(x => x.CreatedBy).HasMaxLength(256);
+                        entity.Property(x => x.UpdatedBy).HasMaxLength(256);
+                        entity.Property(x => x.RowVersion).IsRowVersion();
                   });
 
                   // ═══════════════════════════════════════════════════════════════════

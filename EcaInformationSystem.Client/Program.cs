@@ -81,6 +81,7 @@ builder.Services.AddScoped<SystemUpdateClientService>();
 builder.Services.AddScoped<BiometricStatusClientService>();
 builder.Services.AddScoped<DarReportClientService>();
 builder.Services.AddScoped<SeniorCitizenDirectoryClientService>();
+builder.Services.AddScoped<NcscTeamDirectoryClientService>();
 builder.Services.AddScoped<TransactionTierHubClientService>();
 builder.Services.AddScoped<TransactionTierClientService>();
 await builder.Build().RunAsync();

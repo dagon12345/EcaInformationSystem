@@ -24,11 +24,27 @@ else
     <div class="auth-page-wrapper">
 
         <div class="login-navbar">
-            <div class="login-navbar-brand">
-                <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
-                <div class="login-navbar-brand-text-wrap">
-                    <div class="login-navbar-brand-text">ECA-InFORMS</div>
-                    <div class="login-navbar-brand-sub">Caraga Region</div>
+            <div class="login-navbar-left">
+                <div class="login-navbar-brand">
+                    <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+                    <div class="login-navbar-brand-text-wrap">
+                        <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                        <div class="login-navbar-brand-sub">Caraga Region</div>
+                    </div>
+                </div>
+
+                <span class="login-navbar-left-divider"></span>
+
+                <div class="login-navbar-quicklinks">
+                    <a href="about" class="login-navbar-about-link">
+                        <i class="bi bi-info-circle"></i> <span>About</span>
+                    </a>
+                    <a href="regional-offices" class="login-navbar-about-link">
+                        <i class="bi bi-telephone"></i> <span>Contact</span>
+                    </a>
+                    <a href="directory-officials" class="login-navbar-about-link">
+                        <i class="bi bi-people"></i> <span>Officials</span>
+                    </a>
                 </div>
             </div>
 
@@ -39,6 +55,19 @@ else
             <EditForm Model="model" OnValidSubmit="HandleLoginAsync" OnInvalidSubmit="HandleInvalidSubmit"
                       class="@($"login-navbar-form {(_mobileMenuOpen ? "login-navbar-form--open" : "")}")">
                 <DataAnnotationsValidator />
+
+                @* ── Mobile-only copies of the quick links — the top bar's inline
+                     pills (.login-navbar-quicklinks) get hidden on narrow screens
+                     so they don't crowd/clip against the hamburger button; these
+                     full-width copies live at the top of the same dropdown so
+                     About/Contact/Officials stay reachable and tappable without
+                     getting buried below the login form. ── *@
+                <div class="login-navbar-menu-links">
+                    <a href="about" class="login-navbar-register-btn"><i class="bi bi-info-circle me-1"></i>About</a>
+                    <a href="regional-offices" class="login-navbar-register-btn"><i class="bi bi-telephone me-1"></i>Contact</a>
+                    <a href="directory-officials" class="login-navbar-register-btn"><i class="bi bi-people me-1"></i>Officials</a>
+                </div>
+
                 <InputText @bind-Value="model.UserName" placeholder="Username" class="login-navbar-input" />
                 <InputText type="password" @bind-Value="model.Password" placeholder="Password" class="login-navbar-input" />
                 <button type="submit" class="login-navbar-btn" disabled="@(IsLoading || SecondsLeft.HasValue)">

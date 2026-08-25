@@ -25,5 +25,8 @@
         // Activity. Nullable/unused by every other Category, same pattern as
         // BeneficiaryInformationId above.
         public Guid? SeniorCitizenDirectoryEntryId { get; set; }
+
+        // ✅ NEW — same pattern, for the NCSC Team Directory's "View History" panel.
+        public Guid? NcscTeamDirectoryEntryId { get; set; }
     }
 }

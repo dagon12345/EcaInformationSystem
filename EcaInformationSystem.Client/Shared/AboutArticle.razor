@@ -1,0 +1,81 @@
+<article class="about-article">
+    <div class="about-article-seal">
+        <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
+        <div class="about-article-seal-text">Republika ng Pilipinas</div>
+    </div>
+
+    <div class="about-article-kicker">About the Agency</div>
+    <h1 class="about-article-title">National Commission of Senior Citizens</h1>
+    <p class="about-article-lede">
+        ECA-InFORMS is built to support the mandate of the National Commission of Senior Citizens (NCSC)
+        in the Caraga Region. Here's a look at who NCSC is and what it stands for, nationally.
+    </p>
+
+    @foreach (var item in _sections)
+    {
+        <section class="about-section">
+            <h2 class="about-section-title">@item.Title</h2>
+            @if (item.Groups is not null)
+            {
+                <img src="images/ncsc-core-values.png" alt="NCSC Core Values — CARE and SENIORS" class="about-values-image" />
+                <div class="about-values-grid">
+                    @foreach (var group in item.Groups)
+                    {
+                        <div class="about-value-card">
+                            <div class="about-value-acronym">@group.Acronym</div>
+                            <div class="about-value-words">@group.Words</div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="about-section-body">@item.Body</p>
+            }
+        </section>
+    }
+
+    <div class="about-article-source">
+        <i class="bi bi-info-circle me-1"></i>
+        Source: <a href="https://www.ncsc.gov.ph/about" target="_blank" rel="noopener noreferrer">ncsc.gov.ph/about</a>
+    </div>
+</article>
+
+@code {
+    private record ValueGroup(string Acronym, string Words);
+    private record AboutSection(string Title, string? Body, List<ValueGroup>? Groups = null);
+
+    // Content mirrors ncsc.gov.ph/about up through "Organizational Outcomes"
+    // only — intentionally stops there per editorial direction, since
+    // everything past that section on the source page is logo/branding
+    // artwork rather than text content.
+    private readonly List<AboutSection> _sections = new()
+    {
+        new("Our National Mandate",
+            "The NCSC's core function involves promoting advocacy and collaboration among stakeholders and senior citizens to \"ensure the effective implementation of various programs and services\" for elderly development and well-being, per Republic Act 11350."),
+
+        new("Vision",
+            "The National Commission of Senior Citizens (NCSC) envisions a society that respects and promotes the dignity, security, wellness, and well-being of older persons."),
+
+        new("Mission",
+            "The agency promotes senior citizen rights and welfare by \"formulating, implementing, and monitoring policies, plans, and programs\" to advance active aging and provide an enabling environment for older persons."),
+
+        new("Goal",
+            "The organization aims to establish a healthy community of older persons \"where the well-being, independence, self-reliance, and high quality of life\" are prioritized in a humane society."),
+
+        new("Core Values", null, new List<ValueGroup>
+        {
+            new("CARE", "Compassion · Accountability · Respect · Excellence"),
+            new("SENIORS", "Service · Ethics · Nurturing · Inclusivity · Optimism · Resilience · Solidarity")
+        }),
+
+        new("General Functions",
+            "The NCSC implements government laws regarding senior citizens, formulates protective policies, conducts awareness campaigns, maintains cooperation with local government units, represents the Philippines internationally, and develops nomination procedures for commission members."),
+
+        new("Sectoral Outcomes",
+            "Build communities and strengthen socio-economic development among older persons through human capital development and resilience."),
+
+        new("Organizational Outcomes",
+            "The agency safeguards government program implementation, develops senior citizen empowerment initiatives, advances health and wellness, encourages nation-building contributions, and establishes beneficial community programs.")
+    };
+}

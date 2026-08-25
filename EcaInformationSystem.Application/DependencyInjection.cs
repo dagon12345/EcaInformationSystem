@@ -49,6 +49,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IDocumentTrackingService, DocumentTrackingService>();
             services.AddScoped<ISystemUpdateNoticeService, SystemUpdateNoticeService>();
             services.AddScoped<ISeniorCitizenDirectoryService, SeniorCitizenDirectoryService>();
+            services.AddScoped<INcscTeamDirectoryService, NcscTeamDirectoryService>();
             services.AddScoped<IUserTransactionTierService, UserTransactionTierService>();
             services.AddScoped<ILeaderboardSeasonService, LeaderboardSeasonService>();
             services.AddScoped<IBirthdayGreetingService, BirthdayGreetingService>();
