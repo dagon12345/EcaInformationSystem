@@ -133,7 +133,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     SeasonNumber = p.SeasonNumber,
                     Podium = string.IsNullOrWhiteSpace(p.PodiumDataJson)
                         ? new List<PodiumEntryDto>()
-                        : JsonSerializer.Deserialize<List<PodiumEntryDto>>(p.PodiumDataJson) ?? new List<PodiumEntryDto>()
+                        : JsonSerializer.Deserialize<List<PodiumEntryDto>>(p.PodiumDataJson) ?? new List<PodiumEntryDto>(),
+                    BirthdayUserId = p.BirthdayUserId,
+                    BirthdayUserName = p.BirthdayUserName,
+                    BirthdayTurningAge = p.BirthdayTurningAge
                 };
             }).ToList();
 

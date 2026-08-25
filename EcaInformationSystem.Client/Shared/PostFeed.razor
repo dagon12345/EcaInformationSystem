@@ -287,10 +287,42 @@
     {
         @foreach (var post in _posts)
         {
-            <div class="feed-post @(_highlightedPostId == post.Id ? "feed-post--highlighted" : "") @(post.PostType == 1 ? "feed-post--podium" : "")"
+            <div class="feed-post @(_highlightedPostId == post.Id ? "feed-post--highlighted" : "") @(post.PostType == 1 ? "feed-post--podium" : "") @(post.PostType == 2 ? "feed-post--birthday" : "")"
                  id="@($"post-{post.Id}")"
                  @onmouseenter="() => TrackViewOnce(post.Id)">
-                @if (post.PostType == 1)
+                @if (post.PostType == 2)
+                {
+                    <div class="birthday-banner">
+                        <div class="podium-banner-actions">
+                            <button class="podium-banner-action-btn" title="Copy link to this post" @onclick="() => CopyPostLinkAsync(post.Id)">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>
+                            @if (post.CanDelete)
+                            {
+                                <button class="podium-banner-action-btn" title="Delete post" @onclick="() => RequestDeletePost(post.Id)">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
+                            }
+                        </div>
+                        @if (_linkCopiedPostId == post.Id)
+                        {
+                            <div class="feed-link-copied-toast podium-banner-link-copied-toast">Link copied!</div>
+                        }
+                        <a href="@($"/profile/{post.BirthdayUserId}")" class="birthday-avatar-link" title="View profile">
+                            <img src="@AvatarUrl(post.BirthdayUserId ?? Guid.Empty)" crossorigin="anonymous" alt="" class="birthday-avatar avatar-img"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(post.BirthdayUserName ?? "?")</div>
+                        </a>
+                        <div class="birthday-banner-confetti">🎂 🎈 🎉</div>
+                        <div class="birthday-banner-title">Happy Birthday, @post.BirthdayUserName!</div>
+                        <div class="birthday-banner-subtitle">Turning @post.BirthdayTurningAge today — leave a birthday wish below 👇</div>
+                    </div>
+
+                    <div class="podium-cta">
+                        <i class="bi bi-chat-heart-fill"></i> Say happy birthday in the comments!
+                    </div>
+                }
+                else if (post.PostType == 1)
                 {
                     <div class="podium-banner">
                         <div class="podium-banner-actions">

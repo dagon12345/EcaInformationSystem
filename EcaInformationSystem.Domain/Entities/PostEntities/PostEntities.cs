@@ -23,6 +23,11 @@ namespace EcaInformationSystem.Domain.Entities.PostEntities
         public PostType PostType { get; set; } = PostType.Standard;
         public int? SeasonNumber { get; set; }
         public string? PodiumDataJson { get; set; }
+
+        // ── Birthday greeting (PostType.BirthdayGreeting) — see BirthdayGreetingService ──
+        public Guid? BirthdayUserId { get; set; }
+        public string? BirthdayUserName { get; set; }
+        public int? BirthdayTurningAge { get; set; }
     }
 
     public class PostComment

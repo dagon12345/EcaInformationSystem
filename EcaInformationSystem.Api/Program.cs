@@ -337,6 +337,9 @@ if (!syncOnlyMode)
     // ✅ Weekly transaction-leaderboard reset — every Sunday 11:59 PM
     // Philippine Time, see LeaderboardWeeklyResetBackgroundService.
     builder.Services.AddHostedService<LeaderboardWeeklyResetBackgroundService>();
+
+    // ✅ Auto-posts a birthday greeting to the feed for accounts celebrating today.
+    builder.Services.AddHostedService<BirthdayGreetingBackgroundService>();
 }
 
 builder.Services.Configure<EcaInformationSystem.Api.ZkDevice.ZkDirectOptions>(

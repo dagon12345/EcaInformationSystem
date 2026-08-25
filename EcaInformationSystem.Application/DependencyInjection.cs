@@ -51,6 +51,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<ISeniorCitizenDirectoryService, SeniorCitizenDirectoryService>();
             services.AddScoped<IUserTransactionTierService, UserTransactionTierService>();
             services.AddScoped<ILeaderboardSeasonService, LeaderboardSeasonService>();
+            services.AddScoped<IBirthdayGreetingService, BirthdayGreetingService>();
             services.AddScoped<IDarReportService, DarReportService>();
             services.AddScoped<IAttendanceLogService, AttendanceLogService>();
             services.AddScoped<IDtrService, DtrService>();

@@ -309,6 +309,46 @@ namespace EcaInformationSystem.Application.Services
             };
         }
 
+        private const string BirthdayAuthorName = "NCSC Caraga";
+
+        public async Task<PostDto> CreateBirthdayGreetingPostAsync(Guid userId, string displayName, int turningAge)
+        {
+            var content = $"🎂 It's {displayName}'s birthday today! Turning {turningAge} — drop a birthday wish below! 🎉";
+
+            var post = new Post
+            {
+                Id = Guid.NewGuid(),
+                AuthorUserId = SystemAuthorId,
+                AuthorName = BirthdayAuthorName,
+                Content = content,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false,
+                PostType = PostType.BirthdayGreeting,
+                BirthdayUserId = userId,
+                BirthdayUserName = displayName,
+                BirthdayTurningAge = turningAge
+            };
+
+            await _repo.AddPostAsync(post);
+            await _repo.SaveChangesAsync();
+
+            return new PostDto
+            {
+                Id = post.Id,
+                AuthorUserId = post.AuthorUserId,
+                AuthorName = post.AuthorName,
+                Content = post.Content,
+                CreatedAt = post.CreatedAt,
+                CommentCount = 0,
+                ViewCount = 0,
+                CanDelete = false,
+                PostType = (int)PostType.BirthdayGreeting,
+                BirthdayUserId = post.BirthdayUserId,
+                BirthdayUserName = post.BirthdayUserName,
+                BirthdayTurningAge = post.BirthdayTurningAge
+            };
+        }
+
         public async Task<(byte[] data, string contentType)?> GetImageAsync(Guid imageId, bool thumbnail)
         {
             var image = await _repo.GetImageEntityAsync(imageId);

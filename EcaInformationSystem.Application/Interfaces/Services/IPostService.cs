@@ -24,5 +24,9 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // System-generated announcement post for a weekly leaderboard reset —
         // called by LeaderboardSeasonService right after ranking the season.
         Task<PostDto> CreateLeaderboardPodiumPostAsync(int seasonNumber, List<LeaderboardTopFinisherDto> topThree);
+
+        // System-generated birthday greeting post — called by BirthdayGreetingService
+        // when it finds an active account celebrating today.
+        Task<PostDto> CreateBirthdayGreetingPostAsync(Guid userId, string displayName, int turningAge);
     }
 }

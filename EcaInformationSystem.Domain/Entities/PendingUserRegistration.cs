@@ -62,5 +62,10 @@ namespace EcaInformationSystem.Domain.Entities
         public int? LastSeasonNumber { get; set; }
         public int? LastSeasonRank { get; set; }
         public int? LastSeasonTransactionCount { get; set; }
+
+        // ── Birthday greeting — see BirthdayGreetingService ─────────────────────
+        // Guards against posting more than once per birthday (e.g. the
+        // background service polling multiple times the same day).
+        public int? LastBirthdayGreetedYear { get; set; }
     }
 }

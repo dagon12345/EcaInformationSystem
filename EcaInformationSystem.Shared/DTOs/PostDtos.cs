@@ -21,11 +21,16 @@ namespace EcaInformationSystem.Shared.DTOs
 
         public List<PostImageDto> Images { get; set; } = new();
 
-        // 0 = Standard, 1 = LeaderboardPodium (mirrors Domain.Common.Enum.PostType
-        // as a plain int — DTOs never reference Domain enums, same as ViewerReactionType).
+        // 0 = Standard, 1 = LeaderboardPodium, 2 = BirthdayGreeting (mirrors
+        // Domain.Common.Enum.PostType as a plain int — DTOs never reference
+        // Domain enums, same as ViewerReactionType).
         public int PostType { get; set; }
         public int? SeasonNumber { get; set; }
         public List<PodiumEntryDto> Podium { get; set; } = new();
+
+        public Guid? BirthdayUserId { get; set; }
+        public string? BirthdayUserName { get; set; }
+        public int? BirthdayTurningAge { get; set; }
     }
 
     public class PodiumEntryDto
