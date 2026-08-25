@@ -1207,12 +1207,23 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasKey(x => x.Id);
                         entity.Property(x => x.MarkType).IsRequired().HasMaxLength(20);
                         entity.Property(x => x.NoteText).HasMaxLength(500);
-                        entity.Property(x => x.HalfDay).HasMaxLength(10);
+                        entity.Property(x => x.Slot).HasMaxLength(10);
+                        entity.Property(x => x.SlotEnd).HasMaxLength(10);
                         entity.Property(x => x.UpdatedByName).HasMaxLength(200);
 
-                        entity.HasIndex(x => new { x.UserId, x.Date })
+                        // Not a strict single-row-per-day guarantee — SQL Server
+                        // treats multiple NULL Slots as distinct for uniqueness
+                        // purposes, so this doesn't by itself stop two whole-day
+                        // (Slot=null) rows for the same date. That invariant is
+                        // enforced in DtrDayMarkService (find-or-create by
+                        // (UserId,Date,Slot) before insert), same "app enforces
+                        // it, DB index is a helpful backstop" pattern already
+                        // used elsewhere in this codebase. This index's real job
+                        // is preventing two rows for the same actual (UserId,
+                        // Date, Slot) column-note.
+                        entity.HasIndex(x => new { x.UserId, x.Date, x.Slot })
                         .IsUnique()
-                        .HasDatabaseName("UQ_DtrDayMark_User_Date");
+                        .HasDatabaseName("UQ_DtrDayMark_User_Date_Slot");
                   });
 
                   // ═══════════════════════════════════════════════════════════════════

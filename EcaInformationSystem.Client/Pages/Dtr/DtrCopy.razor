@@ -131,44 +131,9 @@
 
                     <tr class="dtr-doc-note">
                         <td class="dtr-doc-day">@day.Day</td>
-                        @if (note.HalfDay == "AM")
-                        {
-                            <td colspan="2" class="dtr-doc-note-cell">
-                                <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" OnHalfDayChanged="OnHalfDayChanged" />
-                            </td>
-                            <td>
-                                <DtrTimeCell Day="day.Day" Slot="PmIn" CurrentTime="@day.PmTimeIn" LogId="day.PmTimeInLogId"
-                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                            </td>
-                            <td>
-                                <DtrTimeCell Day="day.Day" Slot="PmOut" CurrentTime="@day.PmTimeOut" LogId="day.PmTimeOutLogId"
-                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                            </td>
-                            <td></td>
-                            <td></td>
-                        }
-                        else if (note.HalfDay == "PM")
-                        {
-                            <td>
-                                <DtrTimeCell Day="day.Day" Slot="AmIn" CurrentTime="@day.AmTimeIn" LogId="day.AmTimeInLogId"
-                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                            </td>
-                            <td>
-                                <DtrTimeCell Day="day.Day" Slot="AmOut" CurrentTime="@day.AmTimeOut" LogId="day.AmTimeOutLogId"
-                                             AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                            </td>
-                            <td colspan="2" class="dtr-doc-note-cell">
-                                <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" OnHalfDayChanged="OnHalfDayChanged" />
-                            </td>
-                            <td></td>
-                            <td></td>
-                        }
-                        else
-                        {
-                            <td colspan="6" class="dtr-doc-note-cell">
-                                <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" OnHalfDayChanged="OnHalfDayChanged" />
-                            </td>
-                        }
+                        <td colspan="6" class="dtr-doc-note-cell">
+                            <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" />
+                        </td>
                     </tr>
                 }
                 else
@@ -198,22 +163,18 @@
                                 </button>
                             }
                         </td>
-                        <td>
-                            <DtrTimeCell Day="day.Day" Slot="AmIn" CurrentTime="@day.AmTimeIn" LogId="day.AmTimeInLogId"
-                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                        </td>
-                        <td>
-                            <DtrTimeCell Day="day.Day" Slot="AmOut" CurrentTime="@day.AmTimeOut" LogId="day.AmTimeOutLogId"
-                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                        </td>
-                        <td>
-                            <DtrTimeCell Day="day.Day" Slot="PmIn" CurrentTime="@day.PmTimeIn" LogId="day.PmTimeInLogId"
-                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                        </td>
-                        <td>
-                            <DtrTimeCell Day="day.Day" Slot="PmOut" CurrentTime="@day.PmTimeOut" LogId="day.PmTimeOutLogId"
-                                         AllowEdit="AllowManualPunchEdit" OnAdd="AddPunch" OnEdit="EditPunch" OnClear="ClearPunch" Confirm="Confirm" />
-                        </td>
+                        @foreach (var seg in BuildRowSegments(day.Day))
+                        {
+                            var slotStart = DtrSlotOrder.Slots[seg.Start];
+                            <td colspan="@(seg.End - seg.Start + 1)">
+                                <DtrSlotNoteCell Day="day.Day" Slot="@slotStart" Text="@seg.Text" SlotEndValue="@(seg.SlotEnd ?? slotStart)"
+                                             AvailableEndSlots="@AvailableEndSlots(day.Day, seg.Start)"
+                                             CurrentTime="@GetPunchTime(day, slotStart)" LogId="@GetPunchLogId(day, slotStart)"
+                                             AllowEdit="AllowManualPunchEdit" OnAddPunch="AddPunch" OnEditPunch="EditPunch" OnClearPunch="ClearPunch"
+                                             OnSetNote="OnSetSlotNote" OnChanged="OnSlotNoteChanged" OnBlur="OnSlotNoteBlur" OnClear="OnClearSlotNote"
+                                             OnRangeChanged="OnSlotRangeChanged" Confirm="Confirm" />
+                            </td>
+                        }
                         <td>@(day.UndertimeHours > 0 ? day.UndertimeHours.ToString() : "")</td>
                         <td>@(day.UndertimeMinutes > 0 ? day.UndertimeMinutes.ToString() : "")</td>
                     </tr>
@@ -256,17 +217,91 @@
     [Parameter] public ISet<int> HolidayDays { get; set; } = new HashSet<int>();
     [Parameter] public EventCallback<int> OnToggleHoliday { get; set; }
 
-    // Free-text remarks per day (e.g. "Field Visit", "Seminar") — unlike
-    // WFH/Holiday's fixed labels, this is an actual editable text box in
-    // the row, for whatever office activity doesn't fit those two options.
-    // A note can also be scoped to just AM or just PM (Note.HalfDay) — the
-    // other half then still shows its real punch times.
+    // Free-text remarks for a WHOLE day (e.g. "Field Visit", "Seminar") —
+    // unlike WFH/Holiday's fixed labels, this is an actual editable text
+    // box in the row, for whatever office activity doesn't fit those two
+    // options. For a note on just one specific punch column, see SlotNotes
+    // below instead.
     [Parameter] public IDictionary<int, DtrPrintDocument.DtrNoteEntry> NoteDays { get; set; } = new Dictionary<int, DtrPrintDocument.DtrNoteEntry>();
     [Parameter] public EventCallback<int> OnSetNote { get; set; }
     [Parameter] public EventCallback<(int Day, string Text)> OnNoteChanged { get; set; }
     [Parameter] public EventCallback<int> OnNoteBlur { get; set; }
     [Parameter] public EventCallback<int> OnClearNote { get; set; }
-    [Parameter] public EventCallback<(int Day, string? HalfDay)> OnHalfDayChanged { get; set; }
+
+    // Per-column notes — independent of NoteDays above. Keyed by (Day,
+    // Slot) where Slot is the note's STARTING column; the value's SlotEnd
+    // says how far it extends (same as Slot for a single column). A slot
+    // with no entry here — and not covered by an earlier note's span — just
+    // shows its normal punch-time cell. Multiple notes on the same day can
+    // each cover their own (non-overlapping) run of columns.
+    [Parameter] public IDictionary<(int Day, string Slot), (string Text, string SlotEnd)> SlotNotes { get; set; } = new Dictionary<(int, string), (string, string)>();
+    [Parameter] public EventCallback<(int Day, string Slot)> OnSetSlotNote { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, string Text)> OnSlotNoteChanged { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot)> OnSlotNoteBlur { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot)> OnClearSlotNote { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, string NewSlotEnd)> OnSlotRangeChanged { get; set; }
+
+    private static string? GetPunchTime(DtrDayDto day, string slot) => slot switch
+    {
+        "AmIn" => day.AmTimeIn,
+        "AmOut" => day.AmTimeOut,
+        "PmIn" => day.PmTimeIn,
+        "PmOut" => day.PmTimeOut,
+        _ => null
+    };
+
+    private static int? GetPunchLogId(DtrDayDto day, string slot) => slot switch
+    {
+        "AmIn" => day.AmTimeInLogId,
+        "AmOut" => day.AmTimeOutLogId,
+        "PmIn" => day.PmTimeInLogId,
+        "PmOut" => day.PmTimeOutLogId,
+        _ => null
+    };
+
+    // Walks the 4 AM/PM columns left to right, grouping a note's covered
+    // columns into ONE segment (rendered as one <td colspan>) and leaving
+    // every other, un-noted column as its own single-column segment —
+    // exactly mirroring how the server resolves overlapping ranges, so the
+    // two never disagree about which columns a note actually covers.
+    private List<(int Start, int End, string? Text, string? SlotEnd)> BuildRowSegments(int day)
+    {
+        var segments = new List<(int, int, string?, string?)>();
+        var i = 0;
+        while (i < DtrSlotOrder.Slots.Length)
+        {
+            var slot = DtrSlotOrder.Slots[i];
+            if (SlotNotes.TryGetValue((day, slot), out var noted))
+            {
+                var endIdx = DtrSlotOrder.IndexOf(noted.SlotEnd);
+                segments.Add((i, endIdx, noted.Text, noted.SlotEnd));
+                i = endIdx + 1;
+            }
+            else
+            {
+                segments.Add((i, i, null, null));
+                i++;
+            }
+        }
+        return segments;
+    }
+
+    // Valid "extend through" choices when composing/editing a note starting
+    // at startIdx — every consecutive column from there that isn't the
+    // start of a DIFFERENT note (columns between two note-starts always
+    // belong to whichever note started earlier, so the first other
+    // note-start found is exactly where this one's reach has to stop).
+    private List<string> AvailableEndSlots(int day, int startIdx)
+    {
+        var result = new List<string> { DtrSlotOrder.Slots[startIdx] };
+        for (var j = startIdx + 1; j < DtrSlotOrder.Slots.Length; j++)
+        {
+            if (SlotNotes.ContainsKey((day, DtrSlotOrder.Slots[j])))
+                break;
+            result.Add(DtrSlotOrder.Slots[j]);
+        }
+        return result;
+    }
 
     // Set on both AttendanceManagement.razor (SuperAdmin/Finance) and
     // MyDtr.razor (self-service) — lets the viewer clear ANY time in this
@@ -289,11 +324,15 @@
     private Task ClearPunch((int Day, string Slot, int LogId) e) => OnRemoveManualPunch.InvokeAsync(e.LogId);
     private Task EditPunch((int Day, string Slot, int LogId, TimeOnly NewTime) e) => OnEditManualPunch.InvokeAsync((e.Day, e.LogId, e.NewTime));
 
-    // A day fully excused (WFH, Holiday, or ANY note — whole-day or half-day)
-    // contributes no undertime at all, matching the paper form's convention
-    // that a documented absence isn't counted against the employee. Recomputed
-    // client-side since DtrService (server) has no knowledge of these marks —
-    // they're saved separately, not baked into Document.TotalUndertimeHours/Minutes.
+    // A day fully excused (WFH, Holiday, or a whole-day note) contributes no
+    // undertime at all, matching the paper form's convention that a
+    // documented absence isn't counted against the employee. Per-column
+    // notes (SlotNotes) are deliberately NOT included here — they annotate
+    // one specific punch cell, not the whole day, and undertime is only
+    // ever computed server-side per whole day, so there's no sub-day amount
+    // to subtract for just one noted column. Recomputed client-side since
+    // DtrService (server) has no knowledge of these marks — they're saved
+    // separately, not baked into Document.TotalUndertimeHours/Minutes.
     private (int Hours, int Minutes) AdjustedTotal
     {
         get

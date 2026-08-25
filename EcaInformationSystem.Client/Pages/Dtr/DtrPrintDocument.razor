@@ -74,11 +74,13 @@
   <div class="dtr-doc-wrap-inner">
     <div class="dtr-print-page">
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
-                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote"
+                 SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
                  Confirm="_confirmModal" />
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
-                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote" OnHalfDayChanged="HalfDayChanged"
+                 NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote"
+                 SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
                  Confirm="_confirmModal" />
     </div>
@@ -116,6 +118,14 @@
     private readonly HashSet<int> _holidayDays = new();
     private readonly Dictionary<int, DtrNoteEntry> _noteDays = new();
 
+    // Per-column notes — keyed by (Day, Slot), Slot the note's STARTING
+    // column ("AmIn"|"AmOut"|"PmIn"|"PmOut"); the value's SlotEnd says how
+    // far it extends (same as Slot for a single column). Independent of
+    // _noteDays (whole-day): multiple, non-overlapping slot notes can
+    // coexist on the same day, while any un-covered slots keep showing
+    // real punch cells.
+    private readonly Dictionary<(int Day, string Slot), (string Text, string SlotEnd)> _slotNotes = new();
+
     private Guid _loadedForUserId;
     private DateTime _loadedMonth;
 
@@ -137,6 +147,7 @@
         _wfhDays.Clear();
         _holidayDays.Clear();
         _noteDays.Clear();
+        _slotNotes.Clear();
 
         try
         {
@@ -146,11 +157,18 @@
 
             foreach (var mark in marks)
             {
+                if (mark.Slot is not null)
+                {
+                    // Per-column note — MarkType is always "Note" here.
+                    _slotNotes[(mark.Date.Day, mark.Slot)] = (mark.NoteText ?? string.Empty, mark.SlotEnd ?? mark.Slot);
+                    continue;
+                }
+
                 switch (mark.MarkType)
                 {
                     case "Wfh": _wfhDays.Add(mark.Date.Day); break;
                     case "Holiday": _holidayDays.Add(mark.Date.Day); break;
-                    case "Note": _noteDays[mark.Date.Day] = new DtrNoteEntry { Text = mark.NoteText ?? string.Empty, HalfDay = mark.HalfDay }; break;
+                    case "Note": _noteDays[mark.Date.Day] = new DtrNoteEntry { Text = mark.NoteText ?? string.Empty }; break;
                 }
             }
 
@@ -164,7 +182,7 @@
 
     private DateTime DateFor(int day) => new(Document.PeriodStart.Year, Document.PeriodStart.Month, day);
 
-    private async Task SaveMarkAsync(int day, string markType, string? noteText, string? halfDay = null)
+    private async Task SaveMarkAsync(int day, string markType, string? noteText, string? slot = null, string? slotEnd = null)
     {
         try
         {
@@ -174,7 +192,8 @@
                 Date = DateFor(day),
                 MarkType = markType,
                 NoteText = noteText,
-                HalfDay = halfDay
+                Slot = slot,
+                SlotEnd = slotEnd
             });
         }
         catch (Exception ex)
@@ -183,16 +202,27 @@
         }
     }
 
-    private async Task ClearMarkAsync(int day)
+    private async Task ClearMarkAsync(int day, string? slot = null)
     {
         try
         {
-            await Http.DeleteAsync($"api/dtr/day-marks/{Document.UserId}?date={DateFor(day):yyyy-MM-dd}");
+            var url = $"api/dtr/day-marks/{Document.UserId}?date={DateFor(day):yyyy-MM-dd}";
+            if (slot is not null) url += $"&slot={slot}";
+            await Http.DeleteAsync(url);
         }
         catch (Exception ex)
         {
             Toast.ShowError($"Failed to clear: {ex.Message}");
         }
+    }
+
+    // Whole-day marks (Wfh/Holiday/full-day Note) supersede any per-column
+    // notes on that date — clearing _slotNotes locally here mirrors what
+    // DtrDayMarkService already does server-side.
+    private void ClearSlotNotesForDay(int day)
+    {
+        foreach (var key in _slotNotes.Keys.Where(k => k.Day == day).ToList())
+            _slotNotes.Remove(key);
     }
 
     private async Task ToggleWfh(int day)
@@ -206,6 +236,7 @@
             _wfhDays.Add(day);
             _holidayDays.Remove(day);
             _noteDays.Remove(day);
+            ClearSlotNotesForDay(day);
             await SaveMarkAsync(day, "Wfh", null);
         }
     }
@@ -221,6 +252,7 @@
             _holidayDays.Add(day);
             _wfhDays.Remove(day);
             _noteDays.Remove(day);
+            ClearSlotNotesForDay(day);
             await SaveMarkAsync(day, "Holiday", null);
         }
     }
@@ -232,8 +264,9 @@
 
         _wfhDays.Remove(day);
         _holidayDays.Remove(day);
-        _noteDays[day] = new DtrNoteEntry { Text = string.Empty, HalfDay = null };
-        await SaveMarkAsync(day, "Note", string.Empty, null);
+        ClearSlotNotesForDay(day);
+        _noteDays[day] = new DtrNoteEntry { Text = string.Empty };
+        await SaveMarkAsync(day, "Note", string.Empty);
     }
 
     // Fires on every keystroke — local-only, no network call, so typing
@@ -249,19 +282,7 @@
         if (!_noteDays.TryGetValue(day, out var entry))
             return;
 
-        await SaveMarkAsync(day, "Note", entry.Text, entry.HalfDay);
-    }
-
-    // Switches a note between "whole day" (null), "AM only", or "PM only" —
-    // the other half then shows its real punch times again, and this day's
-    // undertime is excluded from the total either way (see DtrCopy).
-    private async Task HalfDayChanged((int Day, string? HalfDay) change)
-    {
-        if (!_noteDays.TryGetValue(change.Day, out var entry))
-            return;
-
-        entry.HalfDay = change.HalfDay;
-        await SaveMarkAsync(change.Day, "Note", entry.Text, entry.HalfDay);
+        await SaveMarkAsync(day, "Note", entry.Text);
     }
 
     private async Task ClearNote(int day)
@@ -270,12 +291,62 @@
         await ClearMarkAsync(day);
     }
 
-    // Mutable so NoteChanged/HalfDayChanged can update Text/HalfDay
-    // independently without needing to replace the whole dictionary entry.
     public class DtrNoteEntry
     {
         public string Text { get; set; } = string.Empty;
-        public string? HalfDay { get; set; }
+    }
+
+    // ── Per-column notes — independent of the whole-day note above. Each of
+    // the 4 punch slots (AmIn/AmOut/PmIn/PmOut) can carry its own note,
+    // coexisting with the other slots' real punch times on the same day.
+    // Always starts as a single column (SlotEnd = Slot) — extending it
+    // across further columns happens afterward via SlotRangeChanged. ──────
+    private async Task SetSlotNote((int Day, string Slot) input)
+    {
+        var key = (input.Day, input.Slot);
+        if (_slotNotes.ContainsKey(key))
+            return;
+
+        // Mirrors the server: setting a slot note supersedes any whole-day
+        // mark on that date (a day is either "one whole-day thing" or "a mix
+        // of individually-noted/unnoted columns", never both).
+        _wfhDays.Remove(input.Day);
+        _holidayDays.Remove(input.Day);
+        _noteDays.Remove(input.Day);
+        _slotNotes[key] = (string.Empty, input.Slot);
+        await SaveMarkAsync(input.Day, "Note", string.Empty, input.Slot, input.Slot);
+    }
+
+    private void SlotNoteChanged((int Day, string Slot, string Text) change)
+    {
+        if (_slotNotes.TryGetValue((change.Day, change.Slot), out var entry))
+            _slotNotes[(change.Day, change.Slot)] = (change.Text, entry.SlotEnd);
+    }
+
+    private async Task SlotNoteBlur((int Day, string Slot) input)
+    {
+        if (!_slotNotes.TryGetValue((input.Day, input.Slot), out var entry))
+            return;
+
+        await SaveMarkAsync(input.Day, "Note", entry.Text, input.Slot, entry.SlotEnd);
+    }
+
+    private async Task ClearSlotNote((int Day, string Slot) input)
+    {
+        _slotNotes.Remove((input.Day, input.Slot));
+        await ClearMarkAsync(input.Day, input.Slot);
+    }
+
+    // Extends/shrinks an existing slot note's span — e.g. turning a lone
+    // AmOut note into one that also covers PmIn and PmOut. Saves right
+    // away, same as SlotNoteBlur, rather than waiting for a text edit too.
+    private async Task SlotRangeChanged((int Day, string Slot, string NewSlotEnd) input)
+    {
+        if (!_slotNotes.TryGetValue((input.Day, input.Slot), out var entry))
+            return;
+
+        _slotNotes[(input.Day, input.Slot)] = (entry.Text, input.NewSlotEnd);
+        await SaveMarkAsync(input.Day, "Note", entry.Text, input.Slot, input.NewSlotEnd);
     }
 
     private async Task AddManualPunch((int Day, TimeOnly Time) input)

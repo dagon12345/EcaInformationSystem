@@ -16,8 +16,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Where(m => m.UserId == userId && m.Date >= start.Date && m.Date <= end.Date)
                 .ToListAsync();
 
-        public async Task<DtrDayMark?> GetAsync(Guid userId, DateTime date)
-            => await _context.DtrDayMarks.FirstOrDefaultAsync(m => m.UserId == userId && m.Date == date.Date);
+        public async Task<DtrDayMark?> GetAsync(Guid userId, DateTime date, string? slot)
+            => await _context.DtrDayMarks.FirstOrDefaultAsync(m => m.UserId == userId && m.Date == date.Date && m.Slot == slot);
+
+        public async Task<List<DtrDayMark>> GetAllForDateAsync(Guid userId, DateTime date)
+            => await _context.DtrDayMarks.Where(m => m.UserId == userId && m.Date == date.Date).ToListAsync();
 
         public async Task AddAsync(DtrDayMark mark)
             => await _context.DtrDayMarks.AddAsync(mark);
@@ -25,6 +28,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         public Task RemoveAsync(DtrDayMark mark)
         {
             _context.DtrDayMarks.Remove(mark);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveRangeAsync(IEnumerable<DtrDayMark> marks)
+        {
+            _context.DtrDayMarks.RemoveRange(marks);
             return Task.CompletedTask;
         }
 

@@ -872,19 +872,51 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     .OrderByDescending(h => h.DateModified ?? h.DateCreated)
                     .ToListAsync();
 
-                // If a beneficiary somehow has more than one row matching (e.g. two
-                // separate corrections both landing on Q1 2026), keep the most
-                // recently touched one as authoritative for this report.
-                historyLookup = matches
-                    .GroupBy(h => h.BeneficiaryInformationId)
-                    .ToDictionary(g => g.Key, g => g.First());
-
-                // Status filter is a POST-filter on each beneficiary's already-
-                // resolved authoritative entry, not a pre-filter on candidate rows.
                 if (hasStatusFilter)
-                    historyLookup = historyLookup
-                        .Where(kvp => request.PaymentStatuses!.Contains(kvp.Value.PaymentStatus))
-                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                {
+                    // ✅ FIXED — `matches` can legitimately span MULTIPLE periods per
+                    // person when no single PayrollQuarter is selected (e.g. just
+                    // FiscalYear=2026 spans every quarter that year). The old logic
+                    // picked ONE "most-recently-touched row overall" per beneficiary
+                    // and tested only that row against the selected statuses — so
+                    // someone Paid in Q1 but with a LATER, non-Paid Q2 record was
+                    // dropped from every top-level count (the summary cards,
+                    // province/age breakdowns, disbursement total) even though they
+                    // were genuinely Paid in Q1. The per-quarter breakdown table
+                    // (fixed earlier the same way as below) kept showing them
+                    // correctly, which is exactly why the two disagreed — e.g. the
+                    // "Paid" card read 3,493 while the quarter breakdown rows summed
+                    // to 3,502.
+                    //
+                    // Fix: resolve one authoritative row PER PERSON PER PERIOD first
+                    // (same rule the breakdown already uses), then a beneficiary
+                    // qualifies if ANY of their period-resolved rows matches a
+                    // selected status — using that specific row as their
+                    // EffectiveStatus/EffectiveQuarter. When only one period is in
+                    // scope (a specific PayrollQuarter was selected), `matches` only
+                    // ever contains that one period anyway, so this is exactly
+                    // equivalent to the old logic there — no behavior change.
+                    var perPersonPerPeriod = matches
+                        .GroupBy(h => (h.BeneficiaryInformationId, h.FiscalYear, h.PayrollQuarter))
+                        .Select(g => g.First()) // most-recently-touched within that period
+                        .OrderByDescending(h => h.DateModified ?? h.DateCreated)
+                        .ToList();
+
+                    historyLookup = perPersonPerPeriod
+                        .Where(h => request.PaymentStatuses!.Contains(h.PaymentStatus))
+                        .GroupBy(h => h.BeneficiaryInformationId)
+                        .ToDictionary(g => g.Key, g => g.First()); // most-recently-touched QUALIFYING period, if more than one qualifies
+                }
+                else
+                {
+                    // No status filter — every matched row's beneficiary already
+                    // "belongs" regardless of status, so just pick each person's
+                    // single most-recently-touched row as a representative for
+                    // EffectiveStatus/EffectiveQuarter. Unchanged from before.
+                    historyLookup = matches
+                        .GroupBy(h => h.BeneficiaryInformationId)
+                        .ToDictionary(g => g.Key, g => g.First());
+                }
 
                 query = query.Where(b => historyLookup.Keys.Contains(b.Id));
             }

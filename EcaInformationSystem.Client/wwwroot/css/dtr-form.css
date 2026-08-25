@@ -162,16 +162,21 @@
 }
 .dtr-doc-note-input:focus { outline: none; background: #fffbe6; }
 .dtr-doc-print-only { display: none; }
-.dtr-doc-note-scope {
-    border: 1px solid #ccc;
-    border-radius: 2px;
+
+/* A note on just ONE punch column (AmIn/AmOut/PmIn/PmOut) — narrower than
+   the whole-day note input above since it lives inside one AM/PM cell
+   rather than spanning the merged note row. See DtrSlotNoteCell.razor. */
+.dtr-doc-slot-note-input {
+    border: none;
+    border-bottom: 1px solid #000;
     font-size: calc(7px * var(--dtr-font-scale));
     font-family: inherit;
+    text-align: center;
+    width: 56px;
     padding: 0 1px;
-    margin-right: 3px;
-    max-width: 68px;
     vertical-align: middle;
 }
+.dtr-doc-slot-note-input:focus { outline: none; background: #fffbe6; }
 
 /* SuperAdmin/Finance filling in a punch the employee forgot to make — see
    ManualPunchCell.razor. Only ever rendered when AllowManualPunchEdit is

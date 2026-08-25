@@ -74,9 +74,16 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public string MarkType { get; set; } = string.Empty; // "Wfh" | "Holiday" | "Note"
         public string? NoteText { get; set; }
 
-        // Only meaningful when MarkType is "Note": null = whole day,
-        // "AM" = note covers the morning only, "PM" = afternoon only.
-        public string? HalfDay { get; set; }
+        // null = whole-day mark. "AmIn" | "AmOut" | "PmIn" | "PmOut" = a
+        // per-column Note starting at that cell — the other, un-covered
+        // cells that day keep showing their real punch times/editors.
+        public string? Slot { get; set; }
+
+        // The last column this note covers (inclusive) — same value as Slot
+        // for a single-column note, or a later slot to span consecutive
+        // columns (e.g. Slot="AmOut", SlotEnd="PmOut" covers 3 columns).
+        // Only meaningful when Slot is non-null.
+        public string? SlotEnd { get; set; }
     }
 
     public class SetDtrDayMarkRequestDto
@@ -85,7 +92,8 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public DateTime Date { get; set; }
         public string MarkType { get; set; } = string.Empty; // "Wfh" | "Holiday" | "Note"
         public string? NoteText { get; set; }
-        public string? HalfDay { get; set; } // null | "AM" | "PM" — Note only
+        public string? Slot { get; set; } // null | "AmIn" | "AmOut" | "PmIn" | "PmOut" — Note only
+        public string? SlotEnd { get; set; } // null = same as Slot — Note only
     }
 
     // SuperAdmin/Finance filling in a punch the employee forgot to make.

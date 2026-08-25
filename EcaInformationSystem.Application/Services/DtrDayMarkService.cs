@@ -19,32 +19,60 @@ namespace EcaInformationSystem.Application.Services
                 Date = m.Date,
                 MarkType = m.MarkType,
                 NoteText = m.NoteText,
-                HalfDay = m.HalfDay
+                Slot = m.Slot,
+                SlotEnd = m.SlotEnd
             }).ToList();
         }
 
-        public async Task SetAsync(Guid userId, DateTime date, string markType, string? noteText, string? halfDay, string? updatedByName)
+        public async Task SetAsync(Guid userId, DateTime date, string markType, string? noteText, string? slot, string? slotEnd, string? updatedByName)
         {
-            var mark = await _repository.GetAsync(userId, date);
+            var existingForDate = await _repository.GetAllForDateAsync(userId, date);
+
+            if (slot is null)
+            {
+                // Whole-day mark — clears every per-column note on this date,
+                // same "day is one thing" rule as before.
+                await _repository.RemoveRangeAsync(existingForDate.Where(m => m.Slot is not null).ToList());
+            }
+            else
+            {
+                // A ranged note (Slot..SlotEnd) must not overlap any OTHER
+                // existing per-column note on this date — e.g. setting
+                // AmOut→PmOut has to absorb/replace a pre-existing lone PmOut
+                // note, not leave it dangling as an orphaned second mark for
+                // a column this new range now covers. Also clears the
+                // whole-day mark, if any (mutual exclusion, same as above).
+                var effectiveEnd = slotEnd ?? slot;
+                var newStart = DtrSlotOrder.IndexOf(slot);
+                var newEnd = DtrSlotOrder.IndexOf(effectiveEnd);
+
+                var toRemove = existingForDate.Where(m =>
+                    m.Slot is null ||
+                    (m.Slot != slot && DtrSlotOrder.Overlaps(
+                        newStart, newEnd,
+                        DtrSlotOrder.IndexOf(m.Slot), DtrSlotOrder.IndexOf(m.SlotEnd ?? m.Slot))));
+                await _repository.RemoveRangeAsync(toRemove.ToList());
+            }
+
+            var mark = await _repository.GetAsync(userId, date, slot);
             if (mark is null)
             {
-                mark = new DtrDayMark { UserId = userId, Date = date.Date };
+                mark = new DtrDayMark { UserId = userId, Date = date.Date, Slot = slot };
                 await _repository.AddAsync(mark);
             }
 
             mark.MarkType = markType;
             mark.NoteText = markType == "Note" ? noteText : null;
-            // Wfh/Holiday are inherently whole-day — HalfDay only ever applies to Note.
-            mark.HalfDay = markType == "Note" ? halfDay : null;
+            mark.SlotEnd = slot is not null ? (slotEnd ?? slot) : null;
             mark.UpdatedAt = DateTime.Now;
             mark.UpdatedByName = updatedByName;
 
             await _repository.SaveChangesAsync();
         }
 
-        public async Task ClearAsync(Guid userId, DateTime date)
+        public async Task ClearAsync(Guid userId, DateTime date, string? slot)
         {
-            var mark = await _repository.GetAsync(userId, date);
+            var mark = await _repository.GetAsync(userId, date, slot);
             if (mark is null)
                 return;
 

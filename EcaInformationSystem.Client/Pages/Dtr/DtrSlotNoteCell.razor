@@ -1,0 +1,92 @@
+@* DtrSlotNoteCell.razor — a note attached to one or more CONSECUTIVE punch
+   columns (e.g. just AmIn, or AmOut through PmOut), replacing those cells'
+   time display/editors while sibling columns outside the range keep
+   showing their real punch times normally. Independent of the whole-day
+   note (NoteCellContent.razor) — see the header comment on DtrDayMark.cs
+   for how the two are mutually exclusive but a slot note coexists fine
+   with un-noted/other-noted slots on the same day. *@
+@using EcaInformationSystem.Client.Pages.Dtr
+@using EcaInformationSystem.Shared.DTOs.Dtr
+
+@if (Text is not null)
+{
+    @if (AvailableEndSlots.Count > 1)
+    {
+        <select class="dtr-doc-note-scope no-print" @onchange="HandleRangeChanged">
+            @foreach (var s in AvailableEndSlots)
+            {
+                <option value="@s" selected="@(s == SlotEndValue)">Through @SlotLabel(s)</option>
+            }
+        </select>
+    }
+    <input type="text" class="dtr-doc-slot-note-input no-print" value="@Text"
+           placeholder="Note…"
+           @oninput="e => OnChanged.InvokeAsync((Day, Slot, e.Value?.ToString() ?? string.Empty))"
+           @onblur="() => OnBlur.InvokeAsync((Day, Slot))" />
+    <span class="dtr-doc-print-only">@Text</span>
+    <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Remove this note — the column(s) go back to normal time entries"
+            @onclick="() => OnClear.InvokeAsync((Day, Slot))">
+        <i class="bi bi-x-circle"></i>
+    </button>
+}
+else
+{
+    <DtrTimeCell Day="Day" Slot="@Slot" CurrentTime="@CurrentTime" LogId="LogId"
+                 AllowEdit="AllowEdit" OnAdd="OnAddPunch" OnEdit="OnEditPunch" OnClear="OnClearPunch" Confirm="Confirm" />
+    @if (AllowEdit)
+    {
+        <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Add a note here instead of a time"
+                @onclick="() => OnSetNote.InvokeAsync((Day, Slot))">
+            <i class="bi bi-chat-left-text"></i>
+        </button>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public int Day { get; set; }
+    [Parameter, EditorRequired] public string Slot { get; set; } = string.Empty;
+
+    // null = no note on this slot (show the normal punch-time cell below);
+    // non-null (including empty string mid-typing) = note mode.
+    [Parameter] public string? Text { get; set; }
+
+    // The current end-of-range slot — same as Slot for a single column.
+    [Parameter] public string SlotEndValue { get; set; } = string.Empty;
+
+    // Valid "Through" choices, computed by the parent from Slot onward —
+    // every consecutive column not already claimed by a different note.
+    // A single entry (just Slot itself) means there's nothing to extend
+    // into, so the dropdown is hidden entirely.
+    [Parameter] public IReadOnlyList<string> AvailableEndSlots { get; set; } = Array.Empty<string>();
+
+    [Parameter] public string? CurrentTime { get; set; }
+    [Parameter] public int? LogId { get; set; }
+    [Parameter] public bool AllowEdit { get; set; }
+    [Parameter] public ConfirmModal? Confirm { get; set; }
+
+    [Parameter] public EventCallback<(int Day, string Slot)> OnSetNote { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, string Text)> OnChanged { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot)> OnBlur { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot)> OnClear { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, string NewSlotEnd)> OnRangeChanged { get; set; }
+
+    [Parameter] public EventCallback<(int Day, string Slot, TimeOnly Time)> OnAddPunch { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, int LogId, TimeOnly NewTime)> OnEditPunch { get; set; }
+    [Parameter] public EventCallback<(int Day, string Slot, int LogId)> OnClearPunch { get; set; }
+
+    private static string SlotLabel(string slot) => slot switch
+    {
+        "AmIn" => "AM Time In",
+        "AmOut" => "AM Time Out",
+        "PmIn" => "PM Time In",
+        "PmOut" => "PM Time Out",
+        _ => slot
+    };
+
+    private async Task HandleRangeChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (string.IsNullOrEmpty(value)) return;
+        await OnRangeChanged.InvokeAsync((Day, Slot, value));
+    }
+}

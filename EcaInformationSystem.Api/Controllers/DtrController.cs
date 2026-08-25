@@ -303,21 +303,36 @@ namespace EcaInformationSystem.Api.Controllers
             if (dto.MarkType is not ("Wfh" or "Holiday" or "Note"))
                 return BadRequest(new { message = "MarkType must be Wfh, Holiday, or Note." });
 
-            if (dto.HalfDay is not (null or "AM" or "PM"))
-                return BadRequest(new { message = "HalfDay must be AM, PM, or omitted." });
+            if (dto.Slot is not (null or "AmIn" or "AmOut" or "PmIn" or "PmOut"))
+                return BadRequest(new { message = "Slot must be AmIn, AmOut, PmIn, PmOut, or omitted." });
+
+            if (dto.SlotEnd is not (null or "AmIn" or "AmOut" or "PmIn" or "PmOut"))
+                return BadRequest(new { message = "SlotEnd must be AmIn, AmOut, PmIn, PmOut, or omitted." });
+
+            if (dto.Slot is not null && dto.MarkType != "Note")
+                return BadRequest(new { message = "Only a Note can be scoped to a column range — Wfh/Holiday are always whole-day." });
+
+            if (dto.SlotEnd is not null && dto.Slot is null)
+                return BadRequest(new { message = "SlotEnd requires a Slot to start the range from." });
+
+            if (dto.Slot is not null && DtrSlotOrder.IndexOf(dto.SlotEnd ?? dto.Slot) < DtrSlotOrder.IndexOf(dto.Slot))
+                return BadRequest(new { message = "SlotEnd must come at or after Slot (AmIn → AmOut → PmIn → PmOut)." });
 
             var updatedByName = User.Identity?.Name;
-            await _dayMarkService.SetAsync(dto.UserId, dto.Date, dto.MarkType, dto.NoteText, dto.HalfDay, updatedByName);
+            await _dayMarkService.SetAsync(dto.UserId, dto.Date, dto.MarkType, dto.NoteText, dto.Slot, dto.SlotEnd, updatedByName);
             return Ok();
         }
 
         [HttpDelete("day-marks/{userId:guid}")]
-        public async Task<IActionResult> ClearDayMark(Guid userId, [FromQuery] DateTime date)
+        public async Task<IActionResult> ClearDayMark(Guid userId, [FromQuery] DateTime date, [FromQuery] string? slot = null)
         {
             if (!await CanManageUserDtrAsync(userId))
                 return Forbid();
 
-            await _dayMarkService.ClearAsync(userId, date);
+            if (slot is not (null or "AmIn" or "AmOut" or "PmIn" or "PmOut"))
+                return BadRequest(new { message = "Slot must be AmIn, AmOut, PmIn, PmOut, or omitted." });
+
+            await _dayMarkService.ClearAsync(userId, date, slot);
             return Ok();
         }
 

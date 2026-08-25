@@ -1,14 +1,10 @@
-@* NoteCellContent.razor — the actual input/select/clear-button markup for
-   a note cell in DtrCopy.razor, factored out since it's identical whether
-   the note is whole-day (colspan 6) or half-day (colspan 2 next to the
-   real punch data for the other half). *@
+@* NoteCellContent.razor — the actual input/clear-button markup for a
+   WHOLE-DAY note cell (colspan 6) in DtrCopy.razor. Per-column notes (just
+   AmIn/AmOut/PmIn/PmOut individually) are a separate, independent thing —
+   see DtrSlotNoteCell.razor — so this no longer offers a "Full day / AM
+   only / PM only" scope selector; a whole-day note is always whole-day. *@
 @using EcaInformationSystem.Client.Pages.Dtr
 
-<select class="dtr-doc-note-scope no-print" @onchange="HandleScopeChanged">
-    <option value="" selected="@(Note.HalfDay is null)">Full day</option>
-    <option value="AM" selected="@(Note.HalfDay == "AM")">AM only</option>
-    <option value="PM" selected="@(Note.HalfDay == "PM")">PM only</option>
-</select>
 <input type="text" class="dtr-doc-note-input no-print" value="@Note.Text"
        placeholder="Type activity/remarks…"
        @oninput="e => OnNoteChanged.InvokeAsync((Day, e.Value?.ToString() ?? string.Empty))"
@@ -27,12 +23,4 @@
     [Parameter] public EventCallback<(int Day, string Text)> OnNoteChanged { get; set; }
     [Parameter] public EventCallback<int> OnNoteBlur { get; set; }
     [Parameter] public EventCallback<int> OnClearNote { get; set; }
-    [Parameter] public EventCallback<(int Day, string? HalfDay)> OnHalfDayChanged { get; set; }
-
-    private async Task HandleScopeChanged(ChangeEventArgs e)
-    {
-        var value = e.Value?.ToString();
-        var halfDay = string.IsNullOrEmpty(value) ? null : value;
-        await OnHalfDayChanged.InvokeAsync((Day, halfDay));
-    }
 }
