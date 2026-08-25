@@ -20,6 +20,14 @@
 </div>
 
 <nav class="sidebar-nav">
+    @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
+       so it opens in its own tab and never loses your place in the app. Sits
+       first since new users should find it before anything else. ── *@
+    <a class="nav-item" href="help.html" target="_blank" rel="noopener">
+        <span class="nav-icon"><i class="bi bi-question-circle-fill"></i></span>
+        <span class="nav-label">Help</span>
+    </a>
+
     <div class="nav-section-label">Main</div>
 
     <NavLink class="nav-item" href="" Match="NavLinkMatch.All">

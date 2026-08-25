@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ECA-InFORMS — User Manual</title>
+<link rel="icon" href="favicon.png" />
+<link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" onerror="this.remove()" />
+<link rel="stylesheet" href="_content/Havit.Blazor.Components.Web.Bootstrap/bootstrap-icons.lib.css" onerror="this.remove()" />
+<style>
+  :root {
+    --navy: #042C53;
+    --navy-2: #0C447C;
+    --accent: #378ADD;
+    --border: #e5eaf1;
+    --bg: #f5f7fa;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text-main);
+  }
+
+  /* ── Top bar ── */
+  .help-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    background: var(--navy-2);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+  .help-topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .help-topbar-brand img {
+    width: 30px; height: 30px; border-radius: 50%; background: #fff; object-fit: cover;
+  }
+  .help-topbar-sub {
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #b7d4f2;
+    font-weight: 600;
+  }
+  .help-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 18px;
+    padding: 6px 14px;
+    white-space: nowrap;
+  }
+  .help-back-link:hover { background: rgba(255,255,255,0.22); color: #fff; }
+  .help-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .help-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .help-download-btn:hover { background: rgba(255,255,255,0.22); }
+
+  /* ── Layout ── */
+  .help-shell {
+    display: flex;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .help-toc {
+    position: sticky;
+    top: 58px;
+    width: 270px;
+    flex-shrink: 0;
+    max-height: calc(100vh - 58px);
+    overflow-y: auto;
+    padding: 20px 12px 40px 20px;
+  }
+  .help-toc-group-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 18px 0 6px;
+    padding: 0 10px;
+  }
+  .help-toc-group-label:first-child { margin-top: 0; }
+  .help-toc a {
+    display: block;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-main);
+    text-decoration: none;
+    line-height: 1.4;
+    border-left: 3px solid transparent;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .help-toc a:hover { background: #eef3fa; color: var(--navy); }
+  .help-toc a.help-toc-role {
+    font-weight: 700;
+    color: var(--navy);
+  }
+  /* ── Scroll-spy active link — kept in sync with the section currently in
+     view via IntersectionObserver, see the script at the bottom of the page. ── */
+  .help-toc a.active {
+    background: #e3edfa;
+    color: var(--navy);
+    font-weight: 700;
+    border-left-color: var(--accent);
+  }
+
+  .help-content {
+    flex: 1;
+    min-width: 0;
+    padding: 28px 24px 80px;
+  }
+
+  .help-intro {
+    background: linear-gradient(120deg, var(--navy), var(--navy-2));
+    color: #fff;
+    border-radius: 14px;
+    padding: 28px 30px;
+    margin-bottom: 28px;
+  }
+  .help-intro h1 {
+    margin: 0 0 8px;
+    font-size: 26px;
+    font-weight: 800;
+  }
+  .help-intro p {
+    margin: 0;
+    font-size: 14px;
+    color: #cfe3f9;
+    line-height: 1.6;
+    max-width: 720px;
+  }
+  .help-intro-tip {
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+  }
+
+  .help-category {
+    margin: 40px 0 18px;
+    padding-bottom: 8px;
+    border-bottom: 3px solid var(--navy);
+  }
+  .help-category h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--navy);
+  }
+  .help-category:first-of-type { margin-top: 0; }
+
+  .help-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    scroll-margin-top: 70px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.04);
+  }
+  .help-section h3 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .help-section .help-route {
+    font-size: 11.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text-muted);
+    background: #f1f5f9;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-left: auto;
+    font-weight: 600;
+  }
+  .help-purpose {
+    font-size: 13.5px;
+    color: var(--text-main);
+    line-height: 1.6;
+    margin: 10px 0 12px;
+  }
+  .help-access {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  .help-access--everyone { background: #eafaf0; color: #0f7b3d; }
+  .help-access--restricted { background: #fff3e0; color: #9a5b00; }
+  .help-access--admin { background: #fde8e8; color: #b3261e; }
+
+  .help-steps-label, .help-tip-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 14px 0 6px;
+  }
+  .help-steps {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--text-main);
+  }
+  .help-steps li { margin-bottom: 4px; }
+  .help-steps code, .help-purpose code {
+    background: #f1f5f9;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .help-tip {
+    display: flex;
+    gap: 10px;
+    background: #fffaf0;
+    border: 1px solid #fde3a7;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 14px;
+    font-size: 12.5px;
+    color: #7a5200;
+    line-height: 1.6;
+  }
+  .help-tip strong { color: #5c3d00; }
+
+  /* ── Permission matrix ── */
+  .help-matrix-wrap { overflow-x: auto; }
+  table.help-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    min-width: 720px;
+  }
+  table.help-matrix th, table.help-matrix td {
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    text-align: left;
+  }
+  table.help-matrix thead th {
+    background: var(--navy);
+    color: #fff;
+    position: sticky;
+    top: 0;
+  }
+  table.help-matrix tbody tr:nth-child(even) { background: #f8fafc; }
+  .yes { color: #0f7b3d; font-weight: 700; }
+  .no { color: #c3cad6; }
+
+  .help-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 30px 20px 50px;
+  }
+
+  @media (max-width: 900px) {
+    .help-toc { display: none; }
+    .help-content { padding: 20px 16px 60px; }
+  }
+  @media (max-width: 560px) {
+    .help-download-btn span, .help-back-link span { display: none; }
+    .help-download-btn { padding: 6px 10px; }
+  }
+
+  /* ── Print (used by the "PDF" button's window.print()) — sidebar, topbar,
+     and download buttons don't belong in the saved PDF; sections avoid
+     splitting across a page break where possible. ── */
+  @media print {
+    .help-topbar, .help-toc, .help-intro-tip { display: none !important; }
+    body { background: #fff; }
+    .help-shell { display: block; }
+    .help-content { padding: 0; max-width: 100%; }
+    .help-intro { background: #042C53 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .help-section { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+    .help-category { break-after: avoid; }
+    a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 10px; color: #666; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="help-topbar">
+    <div class="help-topbar-brand">
+      <img src="images/ncsc-seal.png" alt="" onerror="this.style.display='none'" />
+      <div>
+        ECA-InFORMS
+        <div class="help-topbar-sub">User Manual</div>
+      </div>
+    </div>
+    <div class="help-topbar-actions">
+      <button type="button" class="help-download-btn" onclick="downloadManualPdf()" title="Save as PDF">
+        <i class="bi bi-file-earmark-pdf"></i><span>&nbsp;PDF</span>
+      </button>
+      <button type="button" class="help-download-btn" onclick="downloadManualWord()" title="Download as Word document">
+        <i class="bi bi-file-earmark-word"></i><span>&nbsp;Word</span>
+      </button>
+      <a href="/" class="help-back-link"><i class="bi bi-arrow-left"></i><span>&nbsp;Back to App</span></a>
+    </div>
+  </div>
+
+  <div class="help-shell">
+    <nav class="help-toc" aria-label="Table of contents">
+      <div class="help-toc-group-label">Start Here</div>
+      <a href="#getting-started">Getting Started &amp; Login</a>
+      <a href="#roles">Understanding Your Role</a>
+      <a href="#focal-accounts">Provincial Focal Accounts</a>
+
+      <div class="help-toc-group-label">Always Available</div>
+      <a href="#messages">Messages (Chat)</a>
+      <a href="#voice-calls">Voice Calls</a>
+      <a href="#sticky-notes">Sticky Notes</a>
+      <a href="#notifications">Notification Bell</a>
+
+      <div class="help-toc-group-label">Main</div>
+      <a href="#feed">Feed</a>
+      <a href="#calendar">Calendar</a>
+      <a href="#info-pages">About / Regional Offices / Officials</a>
+
+      <div class="help-toc-group-label">Reports</div>
+      <a href="#statistics">Statistics &amp; Region Map</a>
+      <a href="#applications-validations">Applications &amp; Validations</a>
+
+      <div class="help-toc-group-label">Records</div>
+      <a href="#create-record">Create Record</a>
+      <a href="#records">Records (Grid &amp; Search)</a>
+      <a href="#import-excel">Bulk Import via Excel</a>
+
+      <div class="help-toc-group-label">Files</div>
+      <a href="#files">Forms Gateway</a>
+
+      <div class="help-toc-group-label">Financial</div>
+      <a href="#liquidation">Liquidation (CDR)</a>
+      <a href="#wfp-eca">WFP-ECA</a>
+
+      <div class="help-toc-group-label">Tracking</div>
+      <a href="#application-tracking">Application Tracking</a>
+      <a href="#document-tracking">Document Tracking</a>
+
+      <div class="help-toc-group-label">Directory</div>
+      <a href="#senior-citizens-directory">Senior Citizens Directory</a>
+      <a href="#ncsc-team-directory">NCSC Team Directory</a>
+      <a href="#provincial-focals">Provincial Focals</a>
+      <a href="#call-logs">Call Logs</a>
+
+      <div class="help-toc-group-label">Administration</div>
+      <a href="#attendance-management">Attendance Management</a>
+      <a href="#user-management">User Management</a>
+      <a href="#conversation-oversight">Conversation Oversight</a>
+      <a href="#system-updates">System Updates</a>
+      <a href="#activity-logs">Activity Logs</a>
+
+      <div class="help-toc-group-label">Your Account</div>
+      <a href="#profile">Profile &amp; Security</a>
+      <a href="#mfa-setup">Two-Factor Authentication</a>
+      <a href="#dar">Daily Accomplishment Report</a>
+      <a href="#my-dtr">My DTR</a>
+
+      <div class="help-toc-group-label">Reference</div>
+      <a href="#permission-matrix">Permission Matrix</a>
+    </nav>
+
+    <main class="help-content">
+
+      <div class="help-intro">
+        <h1>ECA-InFORMS User Manual</h1>
+        <p>
+          A step-by-step guide to every part of the system, organized the same way as the sidebar —
+          so if you can see it in the app, you can find it here. New to the system? Start with
+          <strong>Getting Started &amp; Login</strong> below, then work through each section in order.
+          Already know what you're looking for? Use the menu on the left to jump straight there.
+        </p>
+        <div class="help-intro-tip"><i class="bi bi-lightbulb"></i> Tip: press Ctrl/Cmd+F to search this page for a keyword.</div>
+      </div>
+
+      <!-- ═══════════════════════ GETTING STARTED ═══════════════════════ -->
+      <div class="help-category" id="getting-started-cat"><h2>Start Here</h2></div>
+
+      <section class="help-section" id="getting-started">
+        <h3><i class="bi bi-box-arrow-in-right"></i> Getting Started &amp; Login <span class="help-route">/login</span></h3>
+        <span class="help-access help-access--everyone">Anyone with an account</span>
+        <p class="help-purpose">
+          The login page is also the system's public landing page — even before you sign in, you can browse the
+          public Feed, a calendar of activities, and quick links to <strong>About</strong>, <strong>Contact</strong>
+          (Regional Offices), and <strong>Officials</strong> (Directory of Officials).
+        </p>
+        <div class="help-steps-label">To sign in</div>
+        <ol class="help-steps">
+          <li>Enter your <strong>Username</strong> and <strong>Password</strong>, then click <strong>Sign in</strong>.</li>
+          <li>If your account has two-factor authentication (2FA) turned on, you'll be asked for a 6-digit code from your authenticator app — enter it and click <strong>Verify</strong>.</li>
+          <li>If you enter the wrong password, the page shows how many attempts you have left once you're down to 3 or fewer. After 5 failed attempts your account locks temporarily and a countdown timer appears.</li>
+        </ol>
+        <div class="help-steps-label">Don't have an account yet</div>
+        <ol class="help-steps">
+          <li>Click <strong>Register</strong> next to the sign-in button.</li>
+          <li>Fill in your Full Name, Position, Birth Date, Region, Username, and Password, then submit.</li>
+          <li>Your account is created in a <strong>pending</strong> state — you can't log in yet. An Admin/SuperAdmin/Finance user must approve it first under <a href="#user-management">User Management</a>.</li>
+        </ol>
+        <div class="help-steps-label">Forgot your password</div>
+        <ol class="help-steps">
+          <li>Click <strong>Forgot?</strong> next to the sign-in button.</li>
+          <li>Enter your username and submit the request.</li>
+          <li>This is <strong>not</strong> an automatic email reset — an admin has to review your request and hand you a one-time reset code (see <a href="#user-management">User Management → Password Resets</a>).</li>
+          <li>Once you have that code, use the "Reset your password" link to enter it and set a new password.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> If you're locked out repeatedly or your request seems stuck, contact your regional PDO or an Admin directly rather than re-submitting the form.</div>
+      </section>
+
+      <section class="help-section" id="roles">
+        <h3><i class="bi bi-person-badge"></i> Understanding Your Role</h3>
+        <p class="help-purpose">
+          What you can see and do throughout the app depends on your assigned <strong>role</strong>. Your role and
+          a live checklist of what you personally can/can't do is always visible at the bottom of the sidebar —
+          click your name/badge there to expand the <strong>Your Permissions</strong> panel.
+        </p>
+        <div class="help-steps-label">The roles in this system</div>
+        <ol class="help-steps">
+          <li><strong>SuperAdmin</strong> — full access to everything, including account management and system-wide settings.</li>
+          <li><strong>Admin</strong> — manages grantee records, reports, tracking, and most day-to-day operations for their region.</li>
+          <li><strong>PDO (Project Development Officer)</strong> — works grantee records and directories within their assigned municipalities (jurisdiction).</li>
+          <li><strong>Encoder</strong> — an office-only role that can create, edit, and view grantee records, with no calling/directory features.</li>
+          <li><strong>Finance</strong> — manages WFP-ECA budgets, user accounts, and attendance/DTR administration.</li>
+          <li><strong>Viewer</strong> — read-only access to most reports and records, plus permission to log new Application Tracking batches.</li>
+          <li><strong>Focal</strong> — a partner-LGU contact with a stripped-down view: Feed (view/comment only), Provincial Focals directory, and their own Call Logs.</li>
+        </ol>
+        <p class="help-purpose">See the <a href="#permission-matrix">full Permission Matrix</a> at the bottom of this guide for an exact action-by-action breakdown.</p>
+      </section>
+
+      <section class="help-section" id="focal-accounts">
+        <h3><i class="bi bi-telephone-fill"></i> Provincial Focal Accounts <span class="help-route">/focal-home</span></h3>
+        <span class="help-access help-access--restricted">Focal role only</span>
+        <p class="help-purpose">
+          A <strong>Focal</strong> account (a partner-LGU contact invited through <a href="#provincial-focals">Provincial
+          Focals</a>) doesn't use the full staff interface at all — it gets its own simplified layout with just five
+          pages, reached from its own sidebar:
+        </p>
+        <div class="help-steps-label">What a Focal account can do</div>
+        <ol class="help-steps">
+          <li><strong>Provincial Directory</strong> — the same Provincial Focals directory staff use, for finding people to call.</li>
+          <li><strong>Feed</strong> — the same team Feed as everyone else, but view/react/comment only (no composing posts).</li>
+          <li><strong>Grantee List</strong> — a read-only list of grantee records relevant to their assigned area.</li>
+          <li><strong>My Call Log</strong> — history of their own voice calls.</li>
+          <li><strong>My Profile</strong> — their own account details.</li>
+        </ol>
+        <p class="help-purpose">
+          The <a href="#messages">Messages</a> and <a href="#voice-calls">Voice Calls</a> tools described below still
+          work exactly the same way for Focal accounts — they appear in the top bar next to the Logout button.
+        </p>
+        <div class="help-tip"><strong>Note:</strong> If you're a staff member and land on this simplified view by mistake, it means your account's role is set to Focal — contact an Admin to correct it.</div>
+      </section>
+
+      <!-- ═══════════════════════ ALWAYS AVAILABLE ═══════════════════════ -->
+      <div class="help-category"><h2>Always Available</h2></div>
+      <p class="help-purpose" style="margin: -6px 0 18px;">
+        These four tools live in the top navbar (or as floating buttons) and follow you to every page — you don't
+        need to navigate anywhere special to use them.
+      </p>
+
+      <section class="help-section" id="messages">
+        <h3><i class="bi bi-chat-dots-fill"></i> Messages (Chat)</h3>
+        <span class="help-access help-access--everyone">Everyone, including Focal accounts</span>
+        <p class="help-purpose">
+          Direct messaging between staff — click the <strong>Messages</strong> button in the top navbar (it shows a
+          badge when you have unread messages).
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>Messages</strong> to open the panel and see your conversation list.</li>
+          <li>Click the compose icon to start a new conversation — search for a person by name and click them to open a chat.</li>
+          <li>Type your message and send; a green dot next to someone's name means they're currently online.</li>
+          <li>Click the <strong>@@ mentions</strong> icon to jump to any message where someone mentioned you.</li>
+          <li>To remove a conversation from your list, use its delete option and confirm — this can't be undone.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> Inside a one-on-one conversation, a phone icon in the header lets you start a <a href="#voice-calls">voice call</a> with that person directly — it's only enabled while they're online.</div>
+      </section>
+
+      <section class="help-section" id="voice-calls">
+        <h3><i class="bi bi-telephone-fill"></i> Voice Calls</h3>
+        <span class="help-access help-access--everyone">Everyone, including Focal accounts</span>
+        <p class="help-purpose">
+          Browser-to-browser voice calling between two staff members — no phone number needed, just an internet
+          connection. Calls are started from within a <a href="#messages">Messages</a> conversation, but can be
+          answered from anywhere in the app.
+        </p>
+        <div class="help-steps-label">Making a call</div>
+        <ol class="help-steps">
+          <li>Open a direct conversation with the person in Messages.</li>
+          <li>Click the phone icon in the conversation header (only enabled while they're online and not already on a call).</li>
+          <li>Wait for them to accept — you'll see a "Calling…" bar with a cancel button.</li>
+        </ol>
+        <div class="help-steps-label">Receiving a call</div>
+        <ol class="help-steps">
+          <li>An incoming call shows as a pop-up from anywhere in the app — click the green phone icon to accept, or the red icon to reject.</li>
+        </ol>
+        <div class="help-steps-label">During a call</div>
+        <ol class="help-steps">
+          <li>A control bar shows the call timer and a live microphone-level meter so you can confirm you're being heard.</li>
+          <li>Click the microphone icon to mute/unmute, or the red phone icon to hang up.</li>
+          <li>After hanging up, you can optionally jot down a quick note about what was discussed — this gets saved to <a href="#call-logs">Call Logs</a>. Skipping is fine; the call is already recorded either way.</li>
+        </ol>
+      </section>
+
+      <section class="help-section" id="sticky-notes">
+        <h3><i class="bi bi-stickies-fill"></i> Sticky Notes</h3>
+        <span class="help-access help-access--everyone">All staff roles (not shown to Focal)</span>
+        <p class="help-purpose">
+          Your own private, personal notes/to-do list — click the <strong>Sticky Notes</strong> button in the top
+          navbar. The same notes also appear in a panel on the Feed page; both are just two entry points to the same
+          list.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>+</strong> to create a new note, or click any existing note to edit it.</li>
+          <li>Use the search box to filter your notes.</li>
+          <li>A note can contain plain text, bullet lines, or checklist lines — click a checklist item directly in the list to check it off without opening the note.</li>
+          <li>To delete a note, click the trash icon, then confirm.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> These notes are private to you — no one else on the team can see them.</div>
+      </section>
+
+      <section class="help-section" id="notifications">
+        <h3><i class="bi bi-bell"></i> Notification Bell</h3>
+        <span class="help-access help-access--everyone">All staff roles (not shown to Focal)</span>
+        <p class="help-purpose">
+          One bell icon in the top navbar covers every kind of alert in the system — click it to open a dropdown with
+          separate tabs, each badged with its own pending count:
+        </p>
+        <div class="help-steps-label">Tabs</div>
+        <ol class="help-steps">
+          <li><strong>Duplicates</strong> — results from duplicate-grantee scans.</li>
+          <li><strong>Calendar</strong> — today's scheduled activities.</li>
+          <li><strong>Uploads</strong> — background upload/import progress.</li>
+          <li><strong>Documents</strong> — Application Tracking batches currently tagged to you.</li>
+          <li><strong>Document Tracking</strong> — tracked documents currently tagged to you.</li>
+          <li><strong>Updates</strong> — new System Updates you haven't seen yet.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Focal accounts don't have a notification bell — a system update instead shows up for them as a one-time pop-up with a Refresh Now button.</div>
+      </section>
+
+      <!-- ═══════════════════════ MAIN ═══════════════════════ -->
+      <div class="help-category"><h2>Main</h2></div>
+
+      <section class="help-section" id="feed">
+        <h3><i class="bi bi-grid"></i> Feed <span class="help-route">/</span></h3>
+        <span class="help-access help-access--everyone">Everyone — Focal accounts can view/react/comment only</span>
+        <p class="help-purpose">
+          The team's social wall — announcements, photos, and discussion — plus two built-in team-culture features:
+          a weekly <strong>Transaction Leaderboard</strong> that auto-posts "Season Champions" and a <strong>Birthday</strong>
+          widget that auto-posts a greeting for anyone celebrating that day.
+        </p>
+        <div class="help-steps-label">Posting</div>
+        <ol class="help-steps">
+          <li>Click the composer box at the top of the feed.</li>
+          <li>Type your update and/or click the photo icon to attach images.</li>
+          <li>Click <strong>Post</strong>. (Disabled until you've added text or a photo.)</li>
+        </ol>
+        <div class="help-steps-label">Reacting &amp; commenting</div>
+        <ol class="help-steps">
+          <li>Click the reaction button on any post to open the picker: 👍 Like, 😮 Wow, ❤️ Love, 🎉 Celebrate.</li>
+          <li>Click <strong>Comment</strong> to open the thread, type your reply, and press Enter or click send.</li>
+          <li>You can edit or delete only your own posts/comments — look for the pencil/trash icons.</li>
+        </ol>
+        <div class="help-steps-label">Photos</div>
+        <ol class="help-steps">
+          <li>Click any photo in a post to open it full-screen; zoom/pan and use the arrows to browse multiple images.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Deleting a post or comment shows a confirmation first — this can't be undone once confirmed.</div>
+      </section>
+
+      <section class="help-section" id="calendar">
+        <h3><i class="bi bi-calendar3"></i> Calendar <span class="help-route">/calendar</span></h3>
+        <span class="help-access help-access--restricted">Everyone views; only Admin/SuperAdmin manage, and only for their own region</span>
+        <p class="help-purpose">
+          A month-view calendar of scheduled activities and deadlines across NCSC Caraga, so everyone can see what's
+          coming up.
+        </p>
+        <div class="help-steps-label">Browsing</div>
+        <ol class="help-steps">
+          <li>Use <strong>Today</strong> and the ‹ › arrows to move between months, or click the month title for a quick year/month picker.</li>
+          <li>Click any day to open a popover listing that day's activities; click the eye icon on one to see full details.</li>
+        </ol>
+        <div class="help-steps-label">Creating or editing an activity (Admin/SuperAdmin only)</div>
+        <ol class="help-steps">
+          <li>Click <strong>+ New Activity</strong> at the top, or <strong>+ Add Activity for this day</strong> inside a day's popover.</li>
+          <li>Fill in the details and save. Use the pencil icon to edit, or the trash icon (with a second confirm click) to delete.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> You can only manage activities in your own region — an activity from another region shows as view-only, even for Admins.</div>
+      </section>
+
+      <section class="help-section" id="info-pages">
+        <h3><i class="bi bi-info-circle"></i> About / Regional Offices / Directory of Officials</h3>
+        <span class="help-access help-access--everyone">Everyone, including anonymous visitors on the login page</span>
+        <p class="help-purpose">
+          Three informational pages sourced from NCSC's official website: <strong>About</strong> (the agency's mandate,
+          vision, mission, and core values), <strong>Regional Offices</strong> (every NCSC office's address, email, and
+          phone number nationwide, with Caraga highlighted), and <strong>Directory of Officials</strong> (Commissioners,
+          Central Office division heads, and every Regional Director). These are read-only reference pages — nothing to
+          configure, just browse.
+        </p>
+      </section>
+
+      <!-- ═══════════════════════ REPORTS ═══════════════════════ -->
+      <div class="help-category"><h2>Reports</h2></div>
+
+      <section class="help-section" id="statistics">
+        <h3><i class="bi bi-pin-map-fill"></i> Statistics &amp; Region Map <span class="help-route">/statistics</span></h3>
+        <span class="help-access help-access--everyone">All roles</span>
+        <p class="help-purpose">
+          The main dashboard for grantee counts, payment status, and regional distribution — the go-to page for
+          monitoring program progress.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Expand the filter panel and set Region / Province / Municipality / Payment Status / Payroll Quarter / Fiscal Year as needed.</li>
+          <li>Click <strong>Apply</strong> to load the report — summary cards, charts, and municipality/province breakdowns appear below.</li>
+          <li>Click <strong>Refresh</strong> any time to reload with the latest data.</li>
+          <li>(Admin/SuperAdmin) Expand <strong>Annual Grantee Target</strong> to set a monthly target per region and compare it against actual paid grantees.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> Payroll Quarter and Fiscal Year work together — if you filter by quarter, always also pick a fiscal year, otherwise the count spans every year that quarter ever occurred in.</div>
+      </section>
+
+      <section class="help-section" id="applications-validations">
+        <h3><i class="bi bi-clipboard2-check-fill"></i> Applications &amp; Validations <span class="help-route">/statistics/applications-validations</span></h3>
+        <span class="help-access help-access--everyone">All roles</span>
+        <p class="help-purpose">
+          A focused report showing how many applications were endorsed vs. validated per LGU — a branch of Statistics
+          with its own, simpler filter set.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Expand <strong>Filters</strong> and set a Date Added range, Date Endorsed range, and/or Milestone Year.</li>
+          <li>Click <strong>Apply</strong> (or <strong>Clear</strong> to reset), then review the LGU breakdown table.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> This page has its own filters, separate from the main Statistics page — Region/Province/Municipality selections there don't carry over here.</div>
+      </section>
+
+      <!-- ═══════════════════════ RECORDS ═══════════════════════ -->
+      <div class="help-category"><h2>Records</h2></div>
+
+      <section class="help-section" id="create-record">
+        <h3><i class="bi bi-person-plus"></i> Create Record <span class="help-route">/beneficiary-create</span></h3>
+        <span class="help-access help-access--restricted">Admin, PDO, Encoder</span>
+        <p class="help-purpose">
+          Where a new grantee record gets added to the system — either one at a time through the full application
+          form, or many at once via Excel import.
+        </p>
+        <div class="help-steps-label">Adding one grantee manually</div>
+        <ol class="help-steps">
+          <li>Scroll to the <strong>Manual Entry Form</strong> section.</li>
+          <li>Fill in each section in order: Applicant Info → Address → Family Information → Transaction Account (bank details) → (if applicable) For Deceased Grantees → Attestation/Certification → Verification Checklist.</li>
+          <li>Click <strong>Save</strong> at the bottom.</li>
+          <li>If a similar record already exists, a duplicate-warning modal appears before the save completes — review it carefully before continuing.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> If your session is interrupted mid-form, reopening the page shows a "Restore Draft" banner so you don't lose your work.</div>
+      </section>
+
+      <section class="help-section" id="records">
+        <h3><i class="bi bi-file-text"></i> Records (Grid &amp; Search) <span class="help-route">/beneficiary-records</span></h3>
+        <span class="help-access help-access--everyone">Everyone views/filters/exports; edit actions are gated per-action</span>
+        <p class="help-purpose">
+          The main searchable table of every grantee record — where you look someone up, review their full file,
+          record payments, and generate documents.
+        </p>
+        <div class="help-steps-label">Searching &amp; filtering</div>
+        <ol class="help-steps">
+          <li>Use the quick <strong>Search anything</strong> bar for a name, batch code, barangay, or even a status word like "paid".</li>
+          <li>Click <strong>More Filters</strong> to narrow by Location (Region → Province → Municipality → Barangay), Date Added/Endorsed, Payment Status, Payroll Quarter, Fiscal Year, Mode of Payment, or Payment Date.</li>
+          <li>Click <strong>Apply</strong>, or <strong>Clear</strong> to start over.</li>
+        </ol>
+        <div class="help-steps-label">Viewing a grantee's full record</div>
+        <ol class="help-steps">
+          <li>Click a row (or its <strong>Details</strong> button) to open the full record in a side panel — includes Payment History, printable Annex A/B/M/N forms, the Liveness Check preview, and a change-log ("Logs") tab.</li>
+          <li>Use the panel's <strong>Edit</strong> button to update the record, or <strong>Delete</strong> if you have permission.</li>
+        </ol>
+        <div class="help-steps-label">Bulk actions</div>
+        <ol class="help-steps">
+          <li>Check the boxes next to the rows you want to act on — this enables the toolbar buttons above the table.</li>
+          <li><strong>Generate COE</strong> / <strong>Generate Payroll</strong> produce documents for the selected grantees.</li>
+          <li><strong>Export Excel</strong> downloads the current filtered list.</li>
+          <li><strong>Crossmatch Grantees</strong> scans for duplicate/possible-duplicate records and flags them with a badge.</li>
+          <li>The <strong>Bulk Update</strong> bar has four tabs — <strong>Payment</strong>, <strong>Eligibility/Batch</strong>, <strong>CO Status</strong>, and <strong>Ref Number</strong> — fill in the relevant fields and click the tab's Apply button to update every selected row at once.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Nothing in the toolbar or bulk-update bar works until you've checked at least one row — the page reminds you of this right in the header.</div>
+      </section>
+
+      <section class="help-section" id="import-excel">
+        <h3><i class="bi bi-file-earmark-excel-fill"></i> Bulk Import via Excel</h3>
+        <span class="help-access help-access--restricted">Admin, PDO, Encoder</span>
+        <p class="help-purpose">
+          Found at the top of the <a href="#create-record">Create Record</a> page — lets you add many grantee records
+          at once from a spreadsheet instead of the manual form.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>Download Template</strong> to get the correctly formatted spreadsheet.</li>
+          <li>Fill it in, then upload the file and choose the correct worksheet.</li>
+          <li>Optionally set a Reference Number prefix (quarter/batch/year) — a live preview shows exactly how numbers will be generated.</li>
+          <li>Click <strong>Run Preview</strong> to validate every row before anything is saved.</li>
+          <li>Fix any row-level errors shown inline — some offer one-click suggestions, a location picker, or digit-only corrections you can undo individually.</li>
+          <li>If possible duplicates are found, review them in the popup: toggle each row to <strong>Skip</strong> or <strong>Import</strong>, or use <strong>Skip All</strong> / <strong>Import All Anyway</strong>.</li>
+          <li>Confirm to run the final import.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> Nothing is saved until you confirm — Preview is a safe, repeatable dry run.</div>
+      </section>
+
+      <!-- ═══════════════════════ FILES ═══════════════════════ -->
+      <div class="help-category"><h2>Files</h2></div>
+
+      <section class="help-section" id="files">
+        <h3><i class="bi bi-folder2-open"></i> Forms Gateway <span class="help-route">/forms-gateway</span></h3>
+        <span class="help-access help-access--restricted">Everyone views/downloads; only Admin/SuperAdmin upload, edit, or delete</span>
+        <p class="help-purpose">
+          The shared library of NCSC form templates and payroll-linked documents, organized into folders.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Browse folders in the left sidebar, or use the search bar / sort toggle at the top.</li>
+          <li>Click <strong>Preview</strong> or <strong>Download</strong> on any form card.</li>
+          <li>(Admin/SuperAdmin) Click <strong>New Folder</strong> to organize, or <strong>Upload Form</strong> to add a document — give it a title, choose the file, and optionally tag it to a Payroll Quarter/Fiscal Year.</li>
+          <li>Use the pencil/trash icons on a form card to edit or delete it.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Linking an uploaded PDF to a payroll quarter/year is what makes it automatically show up as that grantee's payroll document in the Records page's Payment History — don't skip this if it's a payroll form.</div>
+      </section>
+
+      <!-- ═══════════════════════ FINANCIAL ═══════════════════════ -->
+      <div class="help-category"><h2>Financial</h2></div>
+
+      <section class="help-section" id="liquidation">
+        <h3><i class="bi bi-plus-slash-minus"></i> Liquidation (CDR) <span class="help-route">/liquidation</span></h3>
+        <span class="help-access help-access--admin">Admin only</span>
+        <p class="help-purpose">
+          Generates the Cash Disbursements Record (CDR) — an Excel report of paid grantees grouped by municipality
+          and milestone year, used for financial liquidation.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Use the filters (province, payment date) to load paid records.</li>
+          <li>Review the grouped preview — each group shows its grantee count and total disbursement.</li>
+          <li>Click <strong>Generate CDR</strong> to produce the Excel file.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Generate CDR stays disabled until records are loaded. If a banner warns that more records match than are shown, narrow your filter before generating.</div>
+      </section>
+
+      <section class="help-section" id="wfp-eca">
+        <h3><i class="bi bi-cash-stack"></i> WFP-ECA <span class="help-route">/wfp-eca</span></h3>
+        <span class="help-access help-access--restricted">Admin/Finance/SuperAdmin can view; only Finance/SuperAdmin can edit</span>
+        <p class="help-purpose">
+          The region's Work Financial Plan — a UACS budget line-item table (Allotment / Obligation / Balance) tracked
+          per fiscal year.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Pick a Fiscal Year from the dropdown.</li>
+          <li>(Finance/SuperAdmin) Click <strong>Add Line Item</strong>, fill in UACS Name, UACS Code, Allotment, Obligation, and Remarks, then save (check icon) or cancel (x icon).</li>
+          <li>Reorder rows with the up/down arrows; delete a row with the trash icon (requires a confirm click).</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Every add, edit, delete, or reorder saves immediately — there's no separate "Save all" step.</div>
+      </section>
+
+      <!-- ═══════════════════════ TRACKING ═══════════════════════ -->
+      <div class="help-category"><h2>Tracking</h2></div>
+
+      <section class="help-section" id="application-tracking">
+        <h3><i class="bi bi-truck"></i> Application Tracking <span class="help-route">/application-tracking</span></h3>
+        <span class="help-access help-access--restricted">Everyone views; logging a batch is Viewer/Admin; only the current holder can move it forward</span>
+        <p class="help-purpose">
+          Tracks physical/scanned document batches (grouped by province, municipality, milestone year, and date
+          received) as they pass through a fixed chain of custody, from initial endorsement to completion.
+        </p>
+        <div class="help-steps-label">The workflow</div>
+        <ol class="help-steps">
+          <li>Endorsed by Viewer → Returned to Viewer → Distributed to PDO → Endorsed to Finance</li>
+          <li>(loop as needed) Returned to PDO with Findings ⇄ Forwarded to Viewer — Scanning</li>
+          <li>Completed</li>
+        </ol>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>(Viewer/Admin) Click <strong>New Application Batch</strong>, fill in Province/Municipality/Milestone Year/Date Received, list the grantee names, and tag who receives it.</li>
+          <li>Click a batch card to expand it; use the search box or status dropdown to find one quickly.</li>
+          <li>Whoever is currently tagged as the holder sees action buttons appropriate to that stage (e.g. <strong>Endorse to Finance</strong>, <strong>Forward to Viewer — Scanning</strong>, <strong>Mark Completed</strong>) — click one and confirm.</li>
+          <li>(Admin/SuperAdmin) Can correct a wrongly-tagged recipient without changing the stage. SuperAdmin can edit or delete any batch regardless of who currently holds it.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> Click "How does this work?" at the top of the page any time for a quick in-page reminder of the stage order.</div>
+      </section>
+
+      <section class="help-section" id="document-tracking">
+        <h3><i class="bi bi-send"></i> Document Tracking <span class="help-route">/document-tracking</span></h3>
+        <span class="help-access help-access--everyone">Anyone can create; deleting is Admin/Finance/SuperAdmin</span>
+        <p class="help-purpose">
+          The free-form sibling of Application Tracking — for relaying a single document person-to-person, with no
+          fixed stages.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>New Tracked Document</strong>, give it a title (a serial number is generated automatically), and tag the first recipient.</li>
+          <li>Use the search bar to find a document by serial number or title.</li>
+          <li>Click <strong>View</strong> on a document to relay it to someone else, return it (the system picks the recipient automatically), or mark it complete.</li>
+          <li>If a document is tagged to you and awaiting your acceptance, click <strong>Accept</strong>.</li>
+        </ol>
+      </section>
+
+      <!-- ═══════════════════════ DIRECTORY ═══════════════════════ -->
+      <div class="help-category"><h2>Directory</h2></div>
+
+      <section class="help-section" id="senior-citizens-directory">
+        <h3><i class="bi bi-people-fill"></i> Senior Citizens Directory <span class="help-route">/senior-citizen-directory</span></h3>
+        <span class="help-access help-access--restricted">Everyone views; PDO/Admin/SuperAdmin edit</span>
+        <p class="help-purpose">
+          A shared, region-scoped reference directory of senior citizens — separate from grantee records, useful for
+          outreach and LGU contact information (LSWDO, SC Focal, OSCA Head, FSCAP President, Mayor, and more).
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>(Editable roles) Click <strong>Add</strong> to create one entry, or <strong>Import Excel</strong> to bulk-load many — download the template, upload your filled-in file, pick the worksheet, run a preview, resolve any flagged duplicates, then confirm.</li>
+          <li>Use <strong>View</strong> and <strong>History</strong> on any row to see full details or its change log — available to everyone.</li>
+          <li>Use <strong>Edit</strong>/<strong>Delete</strong> if you have permission.</li>
+        </ol>
+        <div class="help-tip"><strong>Tip:</strong> A green "Live" badge means changes from other users appear automatically, with no need to refresh.</div>
+      </section>
+
+      <section class="help-section" id="ncsc-team-directory">
+        <h3><i class="bi bi-diagram-3-fill"></i> NCSC Team Directory <span class="help-route">/ncsc-team-directory</span></h3>
+        <span class="help-access help-access--restricted">Everyone views; only Admin/SuperAdmin add, edit, delete, or import</span>
+        <p class="help-purpose">
+          A nationwide contact directory of NCSC field and regional office staff — grouped by region, not just Caraga.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Browse entries grouped by region, or use the search/region filter at the top.</li>
+          <li>(Admin/SuperAdmin) Click <strong>Add Entry</strong> for one person, or <strong>Import Excel</strong> for many.</li>
+          <li>For import: download the template, fill it in (or download the official NCSC roster directly and upload it as-is — the system recognizes both formats automatically), select the worksheet, validate, then confirm.</li>
+          <li>Use the History, Edit, and Delete icons on each card as needed.</li>
+        </ol>
+      </section>
+
+      <section class="help-section" id="provincial-focals">
+        <h3><i class="bi bi-diagram-3-fill"></i> Provincial Focals <span class="help-route">/provincial-focals</span></h3>
+        <span class="help-access help-access--restricted">Everyone except Encoder; inviting is PDO/Admin/SuperAdmin</span>
+        <p class="help-purpose">
+          Directory of PDOs and their partner-LGU "Focal" contacts, grouped by province — with click-to-call for
+          anyone currently online. This is also how a Focal account gets created in the first place.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>How it works</strong> for a quick explainer.</li>
+          <li>(PDO/Admin/SuperAdmin) Click <strong>Invite Focal</strong>, select the province/municipality context, fill in the focal's details, and click <strong>Create Invite</strong> — then <strong>Copy</strong> the generated link and send it to them.</li>
+          <li>Use <strong>Pending Invites</strong> to review outstanding invitations or generate a fresh link if the old one wasn't used.</li>
+        </ol>
+        <div class="help-tip"><strong>Important:</strong> The invite link is not saved anywhere once you close the dialog. If you forgot to copy it, go to Pending Invites and click "Get Link" to generate a new one.</div>
+      </section>
+
+      <section class="help-section" id="call-logs">
+        <h3><i class="bi bi-clock-history"></i> Call Logs <span class="help-route">/call-logs</span></h3>
+        <span class="help-access help-access--restricted">SuperAdmin/Admin see everyone's calls; PDO sees only their own</span>
+        <p class="help-purpose">
+          A history of every voice call made through the app's built-in browser-to-browser calling feature — who
+          called whom, when, how long, and any notes attached.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Browse the table — it's read-only for everyone except SuperAdmin, who can delete an entry if needed.</li>
+        </ol>
+      </section>
+
+      <!-- ═══════════════════════ ADMINISTRATION ═══════════════════════ -->
+      <div class="help-category"><h2>Administration</h2></div>
+
+      <section class="help-section" id="attendance-management">
+        <h3><i class="bi bi-fingerprint"></i> Attendance Management <span class="help-route">/attendance-management</span></h3>
+        <span class="help-access help-access--admin">SuperAdmin, Finance</span>
+        <p class="help-purpose">
+          Links each staff account to their biometric (fingerprint) device ID so Daily Time Records can be generated
+          automatically, and lets you review or print anyone's DTR or a month-wide attendance summary.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li><strong>Assign</strong> tab: search for a user, enter their Biometric ID, and click <strong>Save</strong>.</li>
+          <li><strong>Summary</strong> tab: pick a period (1-15, 16-End, Full Month, or Custom), click <strong>Generate</strong>, then <strong>View DTR</strong> on any user for their printable record.</li>
+          <li><strong>Device</strong> tab: enter the biometric device's IP/port, <strong>Save Settings</strong>, <strong>Test Connection</strong>, or <strong>Run Local Sync</strong> to pull the latest punches.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Syncing punches from the device only works while connected to the office network — but reviewing already-synced DTRs works from anywhere.</div>
+      </section>
+
+      <section class="help-section" id="user-management">
+        <h3><i class="bi bi-people-fill"></i> User Management <span class="help-route">/user-management</span></h3>
+        <span class="help-access help-access--admin">SuperAdmin, Finance</span>
+        <p class="help-purpose">
+          Central account administration — approving registrations, assigning roles and jurisdictions, handling
+          password-reset requests, and deactivating or deleting accounts.
+        </p>
+        <div class="help-steps-label">Users tab</div>
+        <ol class="help-steps">
+          <li>Switch between role sub-tabs (e.g. Pending, Active, Deactivated) and use the filter panel to narrow by name/region/province/municipality.</li>
+          <li><strong>Approve</strong> or <strong>Reject</strong> a pending registration.</li>
+          <li>Use <strong>Reassign role</strong> to change someone's role, or <strong>Set Jurisdiction</strong> to choose which municipalities a PDO can act on (multi-select, with "Select All Visible").</li>
+          <li><strong>Reactivate</strong>/<strong>Deactivate</strong> an account, <strong>Reset MFA</strong> if someone's locked out of their authenticator, or <strong>Delete</strong> to permanently remove an account.</li>
+        </ol>
+        <div class="help-steps-label">Password Resets tab</div>
+        <ol class="help-steps">
+          <li>Review incoming requests, then <strong>Approve</strong> or <strong>Reject</strong> each one.</li>
+          <li>Click <strong>View Code</strong> to see the one-time reset code to hand to the user, or <strong>Regenerate Code</strong> if it expired.</li>
+        </ol>
+        <div class="help-tip"><strong>Warning:</strong> Deleting a user is permanent and cannot be undone — deactivating is the safer, reversible option for someone who's just left temporarily.</div>
+      </section>
+
+      <section class="help-section" id="conversation-oversight">
+        <h3><i class="bi bi-shield-lock-fill"></i> Conversation Oversight <span class="help-route">/chat-oversight</span></h3>
+        <span class="help-access help-access--admin">SuperAdmin only</span>
+        <p class="help-purpose">
+          A read-only audit tool for reviewing direct-message conversations between users, for compliance purposes.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Search for a conversation by name/username in the left panel.</li>
+          <li>Click a conversation to load its messages.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> Opening a conversation here is itself recorded in the Activity Logs for accountability.</div>
+      </section>
+
+      <section class="help-section" id="system-updates">
+        <h3><i class="bi bi-arrow-repeat"></i> System Updates <span class="help-route">/system-updates</span></h3>
+        <span class="help-access help-access--admin">SuperAdmin only</span>
+        <p class="help-purpose">
+          Publish release notes that push live, in real time, to everyone currently using the app.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Fill in Version (auto-suggested, editable), Title, and Changes (one line per change).</li>
+          <li>Click <strong>Publish &amp; Notify Everyone</strong>.</li>
+          <li>Review past releases in the Update History panel.</li>
+        </ol>
+      </section>
+
+      <section class="help-section" id="activity-logs">
+        <h3><i class="bi bi-clock-history"></i> Activity Logs <span class="help-route">/logs</span></h3>
+        <span class="help-access help-access--admin">Admin, SuperAdmin</span>
+        <p class="help-purpose">
+          The audit trail of actions taken on grantee records — payments, bulk updates, edits — for accountability.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Expand <strong>Filters</strong> and set a date range, username, beneficiary name, and/or a keyword to search within the activity text.</li>
+          <li>Click <strong>Apply</strong> and page through the results.</li>
+        </ol>
+      </section>
+
+      <!-- ═══════════════════════ YOUR ACCOUNT ═══════════════════════ -->
+      <div class="help-category"><h2>Your Account</h2></div>
+
+      <section class="help-section" id="profile">
+        <h3><i class="bi bi-person-circle"></i> Profile &amp; Security <span class="help-route">/profile</span></h3>
+        <span class="help-access help-access--everyone">Everyone (your own account)</span>
+        <p class="help-purpose">
+          Manage your avatar, personal details, two-factor authentication, and active login sessions. Visiting
+          someone else's profile shows their public info instead (name, position, region, tier).
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click your avatar to view it full-size, or <strong>Remove picture</strong> to clear it.</li>
+          <li>Edit your details and click <strong>Save</strong>.</li>
+          <li>If 2FA is off, click <strong>Set Up MFA</strong> — see <a href="#mfa-setup">Two-Factor Authentication</a> below.</li>
+          <li>Under Active Sessions, click <strong>Revoke</strong> on any device you don't recognize, or <strong>Log out all other devices</strong> to sign out everywhere else at once.</li>
+        </ol>
+      </section>
+
+      <section class="help-section" id="mfa-setup">
+        <h3><i class="bi bi-shield-lock"></i> Two-Factor Authentication <span class="help-route">/mfa-setup</span></h3>
+        <span class="help-access help-access--everyone">Everyone</span>
+        <p class="help-purpose">
+          Adds a second layer of login security using an authenticator app (like Microsoft Authenticator or Google
+          Authenticator) alongside your password.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Scan the QR code shown on the page with your authenticator app, or click <strong>Copy</strong> to enter the code manually.</li>
+          <li>Enter the 6-digit code your app generates.</li>
+          <li>Click <strong>Enable Two-Factor Authentication</strong>.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> You can click "Set up later" to skip for now — you'll be reminded again at your next login. To turn 2FA back off later, go to Profile and confirm with your password.</div>
+      </section>
+
+      <section class="help-section" id="dar">
+        <h3><i class="bi bi-journal-check"></i> Daily Accomplishment Report <span class="help-route">/dar</span></h3>
+        <span class="help-access help-access--everyone">Every staff user, for their own reports</span>
+        <p class="help-purpose">
+          Semi-monthly accomplishment reporting — log what you worked on each day of a pay period, then print the
+          finished report.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Click <strong>New Report</strong> to start a new period, or <strong>Open</strong> an existing one from the list.</li>
+          <li>Click the pencil icon to edit the header fields, then <strong>Save</strong>.</li>
+          <li>For each daily entry row, click its pencil icon to edit inline, then the check icon to save that row (or the x icon to cancel).</li>
+          <li>Scroll down for a live Print Preview of the finished report.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> There's no single "save everything" button — each row saves itself as soon as you confirm it.</div>
+      </section>
+
+      <section class="help-section" id="my-dtr">
+        <h3><i class="bi bi-clock-history"></i> My DTR <span class="help-route">/my-dtr</span></h3>
+        <span class="help-access help-access--everyone">Every staff user, for their own record</span>
+        <p class="help-purpose">
+          Self-service view of your Daily Time Record, built from your biometric device punches.
+        </p>
+        <div class="help-steps-label">Steps</div>
+        <ol class="help-steps">
+          <li>Choose the Year/Month and a period preset (1-15, 16-End, Full Month, or Custom).</li>
+          <li>Click <strong>Pull Latest Record</strong>.</li>
+        </ol>
+        <div class="help-tip"><strong>Note:</strong> If you see "No biometric device is linked to your account yet," ask a SuperAdmin or Finance user to assign your Biometric ID under <a href="#attendance-management">Attendance Management</a>. Punches only sync when someone runs the sync tool on the office network — but you can view your DTR from anywhere afterward.</div>
+      </section>
+
+      <!-- ═══════════════════════ PERMISSION MATRIX ═══════════════════════ -->
+      <div class="help-category"><h2>Reference</h2></div>
+
+      <section class="help-section" id="permission-matrix">
+        <h3><i class="bi bi-table"></i> Permission Matrix</h3>
+        <p class="help-purpose">
+          A quick reference for who can do what. This mirrors the live "Your Permissions" panel at the bottom of
+          your own sidebar, which always reflects your actual account.
+        </p>
+        <div class="help-matrix-wrap">
+        <table class="help-matrix">
+          <thead>
+            <tr><th>Action</th><th>SuperAdmin</th><th>Admin</th><th>PDO</th><th>Encoder</th><th>Finance</th><th>Viewer</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>View / Filter records</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+            <tr><td>Create record</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Edit record</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓ (own jurisdiction)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Delete record</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Bulk Payment / CO Status / Eligibility</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Generate Payroll</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Generate COE</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Upload / Edit / Delete Forms (Files)</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Liquidation (CDR)</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>View WFP-ECA</td><td class="yes">✓</td><td class="yes">✓ (view only)</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+            <tr><td>Edit WFP-ECA</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+            <tr><td>Log an Application Tracking batch</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+            <tr><td>Create a Tracked Document</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+            <tr><td>Delete a Tracked Document</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+            <tr><td>Edit Senior Citizens Directory</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Edit NCSC Team Directory / Import</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Invite a Provincial Focal</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>View all Call Logs</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">— (own only)</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Attendance Management</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+            <tr><td>Manage Users (Approve/Deactivate/Delete)</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
+            <tr><td>Conversation Oversight</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>Publish System Updates</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+            <tr><td>View Activity Logs</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <div class="help-tip"><strong>Note:</strong> <strong>Focal</strong> accounts use a completely separate, simplified layout (Feed, Provincial Focals, their own Call Logs) and aren't shown in this table. If something here looks different from what you see in the app, trust the app — your sidebar's "Your Permissions" panel always reflects your current, actual access.</div>
+      </section>
+
+      <div class="help-footer">
+        ECA-InFORMS — NCSC Caraga &nbsp;•&nbsp; Questions not covered here? Ask your regional PDO or an Admin.
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // ── Scroll-spy: highlights the sidebar link for whichever section is
+    // currently in view, and keeps that link scrolled into view within the
+    // sidebar itself (it's a long, independently-scrolling list). ──────────
+    (function () {
+      var sections = Array.prototype.slice.call(document.querySelectorAll('main.help-content section.help-section[id]'));
+      var toc = document.querySelector('.help-toc');
+      if (!sections.length || !toc) return;
+
+      var links = {};
+      toc.querySelectorAll('a[href^="#"]').forEach(function (a) {
+        links[a.getAttribute('href').slice(1)] = a;
+      });
+
+      var currentActiveId = null;
+
+      function setActive(id) {
+        if (id === currentActiveId || !links[id]) return;
+        if (currentActiveId && links[currentActiveId]) links[currentActiveId].classList.remove('active');
+        links[id].classList.add('active');
+        currentActiveId = id;
+        // Keep the active link visible inside the sidebar's own scroll area
+        // without also yanking the whole page's scroll position.
+        links[id].scrollIntoView({ block: 'nearest' });
+      }
+
+      var observer = new IntersectionObserver(function (entries) {
+        // Prefer the entry closest to the top of the viewport among those
+        // currently intersecting — avoids flicker when two short sections
+        // are both partially visible at once.
+        var visible = entries.filter(function (e) { return e.isIntersecting; });
+        if (!visible.length) return;
+        visible.sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+        setActive(visible[0].target.id);
+      }, {
+        // Treats a section as "current" once its top has scrolled past the
+        // sticky top bar, and before it scrolls past the vertical middle —
+        // a reading-position band rather than "any pixel visible".
+        rootMargin: '-70px 0px -60% 0px',
+        threshold: 0
+      });
+
+      sections.forEach(function (s) { observer.observe(s); });
+
+      // Initial state on page load (e.g. arriving via a #anchor link).
+      setActive((location.hash && links[location.hash.slice(1)]) ? location.hash.slice(1) : sections[0].id);
+    })();
+
+    // ── "PDF" button — the browser's own print pipeline, not a JS PDF
+    // library: the @media print rules above strip the sidebar/topbar/buttons
+    // and open the OS print dialog, where "Save as PDF" produces a real PDF
+    // with no server round-trip and no external dependency. ──────────────
+    function downloadManualPdf() {
+      window.print();
+    }
+
+    // ── "Word" button — builds a Word-compatible HTML document client-side
+    // (the same trick Word itself uses when it "saves" a web page: an
+    // .html file's content served with a Word MIME type and Office XML
+    // namespaces in <html>, which Word opens natively) and downloads it as
+    // .doc. This intentionally isn't a true .docx (that needs either a
+    // server round-trip through the OpenXML SDK already used elsewhere in
+    // this app, or a client-side docx-building library) — but every version
+    // of Word opens a MIME-flagged HTML file correctly, headings/tables/
+    // formatting included, with zero added dependencies. ──────────────────
+    function downloadManualWord() {
+      var content = document.querySelector('main.help-content').innerHTML;
+
+      var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+        'xmlns:w="urn:schemas-microsoft-com:office:word" ' +
+        'xmlns="http://www.w3.org/TR/REC-html40">' +
+        '<head><meta charset="utf-8"><title>ECA-InFORMS User Manual</title>' +
+        '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View>' +
+        '<w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->' +
+        '<style>' +
+        'body{font-family:Calibri,Arial,sans-serif;color:#1f2937;font-size:11pt;}' +
+        'h1{color:#042C53;font-size:22pt;}' +
+        'h2{color:#042C53;font-size:16pt;border-bottom:2px solid #042C53;padding-bottom:4px;margin-top:26pt;}' +
+        'h3{color:#042C53;font-size:13pt;margin-top:16pt;}' +
+        'p{line-height:1.5;}' +
+        'ol,ul{line-height:1.6;}' +
+        'table{border-collapse:collapse;width:100%;margin:8pt 0;}' +
+        'td,th{border:1px solid #ccc;padding:4pt 8pt;font-size:10pt;text-align:left;}' +
+        'th{background:#042C53;color:#fff;}' +
+        '.help-tip{background:#fffaf0;border:1px solid #fde3a7;padding:8pt;margin-top:8pt;}' +
+        '.help-route{display:none;}' +
+        '.help-access{display:inline-block;font-weight:bold;margin-bottom:6pt;}' +
+        '.help-intro{background:#042C53;color:#fff;padding:14pt;}' +
+        '.help-intro p{color:#eee;}' +
+        '</style></head><body>' +
+        '<h1>ECA-InFORMS User Manual</h1>' +
+        content +
+        '</body></html>';
+
+      var blob = new Blob(['﻿', html], { type: 'application/msword;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'ECA-InFORMS-User-Manual.doc';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+  </script>
+</body>
+</html>
