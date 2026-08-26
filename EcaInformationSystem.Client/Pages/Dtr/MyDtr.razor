@@ -108,7 +108,7 @@
 @code {
     private int _year = DateTime.Today.Year;
     private int _month = DateTime.Today.Month;
-    private string _preset = "first";
+    private string _preset = DateTime.Today.Day <= 15 ? "first" : "second";
     private DateTime _customStart = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _customEnd = new(DateTime.Today.Year, DateTime.Today.Month, 15);
 
@@ -145,10 +145,16 @@
 
     public void Dispose() => BiometricStatus.OnStatusChanged -= HandleStatusChanged;
 
-    private void SetPreset(string preset)
+    private async Task SetPreset(string preset)
     {
         _preset = preset;
         ApplyPreset();
+
+        // Custom needs the user to actually pick Start/End first, so leave that
+        // one to "Pull Latest Record" — the presets already know their dates,
+        // so load immediately instead of making the user click twice.
+        if (preset != "custom")
+            await LoadAsync();
     }
 
     private void ApplyPreset()

@@ -33,12 +33,14 @@
             <div class="tier-leaderboard-header" @onclick="ToggleLeaderboard">
                 <div class="tier-leaderboard-header-left">
                     <i class="bi bi-trophy-fill"></i>
-                    <div>
-                        <div class="tier-leaderboard-title">
-                            Transaction Leaderboard
+                    <div class="tier-leaderboard-header-text">
+                        <div class="tier-leaderboard-title-row">
+                            <span class="tier-leaderboard-title">Transaction Leaderboard</span>
                             @if (_seasonInfo is not null)
                             {
-                                <span class="tier-season-badge">Season @_seasonInfo.SeasonNumber</span>
+                                <span class="tier-season-badge">
+                                    <i class="bi bi-star-fill"></i>Season @_seasonInfo.SeasonNumber
+                                </span>
                             }
                         </div>
                         <div class="tier-leaderboard-subtitle">
@@ -54,6 +56,15 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    @* Was a full-width text banner ("Correcting incomplete grantee
+                       info, following up on missing documents...") shown whenever the
+                       card was expanded — collapsed down to a hover-for-detail icon
+                       so the header stays compact; the explanation is one hover away
+                       instead of always taking up a whole row. *@
+                    <span class="tier-info-icon-btn" tabindex="0" @onclick:stopPropagation="true"
+                          title="Correcting incomplete grantee info, following up on missing documents, and verifying pending records all count toward your weekly rank.">
+                        <i class="bi bi-info-circle"></i>
+                    </span>
                     @if (_isSuperAdmin)
                     {
                         <button type="button" class="tier-reset-btn" title="End this week's season now"
@@ -65,21 +76,6 @@
                     <i class="bi bi-chevron-@(_leaderboardExpanded ? "up" : "down")"></i>
                 </div>
             </div>
-
-            @* ── How to climb — always visible once expanded, independent of
-                 whether the viewer has a last-season result yet. This is the
-                 whole point of the leaderboard: nudge people toward cleaning up
-                 their grantee data, not just "do more clicks". ── *@
-            @if (_leaderboardExpanded)
-            {
-                <div class="tier-leaderboard-tip">
-                    <i class="bi bi-lightbulb-fill me-1"></i>
-                    <span>
-                        Correcting incomplete grantee info, following up on missing documents, and verifying
-                        pending records all count toward your weekly rank.
-                    </span>
-                </div>
-            }
 
             @if (_leaderboardExpanded && _myTier is not null)
             {
@@ -217,7 +213,7 @@
     <div class="feed-header">
         <div class="feed-header-icon"><i class="bi bi-heart-fill"></i></div>
         <div>
-            <div class="feed-header-title">Feed and Messages</div>
+            <div class="feed-header-title">Feed</div>
             <div class="feed-header-subtitle">Updates from NCSC Caraga Region</div>
         </div>
     </div>
@@ -308,14 +304,43 @@
                         {
                             <div class="feed-link-copied-toast podium-banner-link-copied-toast">Link copied!</div>
                         }
-                        <a href="@($"/profile/{post.BirthdayUserId}")" class="birthday-avatar-link" title="View profile">
-                            <img src="@AvatarUrl(post.BirthdayUserId ?? Guid.Empty)" crossorigin="anonymous" alt="" class="birthday-avatar avatar-img"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="birthday-avatar birthday-avatar-fallback" style="display:none;">@GetInitials(post.BirthdayUserName ?? "?")</div>
-                        </a>
-                        <div class="birthday-banner-confetti">🎂 🎈 🎉</div>
-                        <div class="birthday-banner-title">Happy Birthday, @post.BirthdayUserName!</div>
-                        <div class="birthday-banner-subtitle">Turning @post.BirthdayTurningAge today — leave a birthday wish below 👇</div>
+                        @* Floating balloons + falling confetti — purely decorative, behind
+                           the greeting/avatar/subtitle (which sit above via z-index), looping
+                           for as long as this card is on screen. *@
+                        <div class="birthday-banner-fx" aria-hidden="true">
+                            <span class="bb-balloon bb-balloon--1">🎈</span>
+                            <span class="bb-balloon bb-balloon--2">🎈</span>
+                            <span class="bb-balloon bb-balloon--3">🎈</span>
+                            <span class="bb-balloon bb-balloon--4">🎈</span>
+                            <span class="bb-balloon bb-balloon--5">🎈</span>
+                            <span class="bb-confetti bb-confetti--1"></span>
+                            <span class="bb-confetti bb-confetti--2"></span>
+                            <span class="bb-confetti bb-confetti--3"></span>
+                            <span class="bb-confetti bb-confetti--4"></span>
+                            <span class="bb-confetti bb-confetti--5"></span>
+                            <span class="bb-confetti bb-confetti--6"></span>
+                            <span class="bb-confetti bb-confetti--7"></span>
+                            <span class="bb-confetti bb-confetti--8"></span>
+                            <span class="bb-confetti bb-confetti--9"></span>
+                            <span class="bb-confetti bb-confetti--10"></span>
+                        </div>
+
+                        @* Greeting first, then the (bigger) profile picture front-and-center,
+                           then the subtitle — the person being celebrated is the focal point. *@
+                        @* A flex column with an explicit gap — not ad-hoc margins — so the
+                           title/avatar/subtitle stack with guaranteed spacing between them
+                           no matter how big the avatar or how long the name gets; that's
+                           what was letting the avatar's glow crowd into the text before. *@
+                        <div class="birthday-banner-content">
+                            <div class="birthday-banner-title">Happy Birthday, @post.BirthdayUserName!</div>
+                            <a href="@($"/profile/{post.BirthdayUserId}")" class="birthday-avatar-link birthday-avatar-link--big" title="View profile">
+                                <img src="@AvatarUrl(post.BirthdayUserId ?? Guid.Empty)" crossorigin="anonymous" alt="" class="birthday-avatar birthday-avatar--big avatar-img"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="birthday-avatar birthday-avatar--big birthday-avatar-fallback" style="display:none;">@GetInitials(post.BirthdayUserName ?? "?")</div>
+                            </a>
+                            <div class="birthday-banner-subtitle">Turning @post.BirthdayTurningAge today — leave a birthday wish below 👇</div>
+                            <div class="birthday-banner-date">Posted @post.CreatedAt.ToLocalTime().ToString("MMM dd 'at' h:mm tt")</div>
+                        </div>
                     </div>
 
                     <div class="podium-cta">

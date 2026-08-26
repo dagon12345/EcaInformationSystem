@@ -88,6 +88,9 @@
                         }
                         <div class="text-muted small">@_myProfile.Position</div>
                         <span class="badge bg-secondary mt-2">@_myProfile.Role</span>
+                        <button type="button" class="btn btn-sm btn-link p-0 mt-1 d-block" @onclick="OpenPermissionsModal">
+                            <i class="bi bi-shield-check me-1"></i>View my permissions
+                        </button>
                     </div>
                 </div>
 
@@ -493,6 +496,83 @@
     </div>
 }
 
+@* ── Permission legend — moved here from the sidebar (NavMenu) to keep the
+   nav clean; same modal pattern as the tier ladder below. Self-view only. ── *@
+@if (_showPermissionsModal)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6);" @onclick="ClosePermissionsModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi @GetRoleIcon(_role) me-2"></i>@GetRoleLabel(_role)
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="ClosePermissionsModal"></button>
+                </div>
+                <div class="modal-body">
+                    @* .sidebar-legend/.legend-* classes assume a dark background
+                       (they're !important white text) — reused as-is instead of
+                       forking a light variant, so this box keeps its own dark
+                       card inside the otherwise-white modal. *@
+                    <div class="sidebar-legend" style="margin:0;">
+                        <div class="legend-title">Your Permissions</div>
+                        @foreach (var item in GetPermissionRows())
+                        {
+                            <div class="legend-row">
+                                <span class="legend-action">@item.Action</span>
+                                @if (item.Allowed)
+                                {
+                                    <i class="bi bi-check-circle-fill legend-icon legend-icon--yes"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-x-circle-fill legend-icon legend-icon--no"></i>
+                                }
+                            </div>
+                        }
+
+                        @if (_isPdo && _jurisdictions.Any())
+                        {
+                            <div class="legend-title mt-3">
+                                <i class="bi bi-geo-alt me-1"></i>Your Jurisdictions
+                            </div>
+                            <div class="legend-jurisdictions">
+                                @foreach (var name in _jurisdictionNames)
+                                {
+                                    <div class="legend-jurisdiction-item">
+                                        <i class="bi bi-building"></i>
+                                        <span>@name</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (_isPdo && !_jurisdictions.Any())
+                        {
+                            <div class="legend-title mt-3">
+                                <i class="bi bi-geo-alt me-1"></i>Jurisdictions
+                            </div>
+                            <div style="font-size:10px; color:#fbbf24; background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); border-radius:6px; padding:4px 8px; margin-top:4px;">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                No municipalities assigned. Contact your administrator.
+                            </div>
+                        }
+                        else if (_isAdmin || _isEncoder)
+                        {
+                            <div class="legend-title mt-3">
+                                <i class="bi bi-geo-alt me-1"></i>Jurisdictions
+                            </div>
+                            <div class="legend-jurisdiction-item">
+                                <i class="bi bi-globe" style="color:#4ade80 !important;"></i>
+                                <span style="color:#4ade80 !important;">All municipalities</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @* ── Tier ladder ("the legend") — modal, shared by both the "my profile"
    and "someone else's profile" tier cards above. ── *@
 @if (_tierLadderModalLevel.HasValue)
@@ -570,6 +650,18 @@
     private bool _isRevokingSessions;
     private Guid? _pendingSessionId;
 
+    // ── Permission legend (moved here from NavMenu's sidebar) ──────────
+    private bool _showPermissionsModal;
+    private string _role = string.Empty;
+    private bool _isSuperAdmin;
+    private bool _isAdmin;
+    private bool _isPdo;
+    private bool _isViewer;
+    private bool _isFinance;
+    private bool _isEncoder;
+    private List<int> _jurisdictions = new();
+    private List<string> _jurisdictionNames = new();
+
     protected override async Task OnParametersSetAsync()
     {
         await LoadAsync();
@@ -602,6 +694,21 @@
 
                 _myTier = await TierClient.GetMyTierAsync();
                 await LoadSessionsAsync();
+
+                // ── Permission legend (moved here from NavMenu) ────────────
+                _role = AuthService.GetRole() ?? string.Empty;
+                _isSuperAdmin = AuthService.IsSuperAdmin();
+                _isAdmin = AuthService.IsAdmin();
+                _isPdo = AuthService.IsPDO();
+                _isViewer = AuthService.IsViewer();
+                _isFinance = AuthService.IsFinance();
+                _isEncoder = AuthService.IsEncoder();
+
+                if (_isPdo)
+                {
+                    _jurisdictions = AuthService.GetJurisdictionCodes();
+                    await LoadJurisdictionNamesAsync();
+                }
             }
             else
             {
@@ -922,6 +1029,86 @@
 
     private void OpenTierLadderModal(int currentLevel) => _tierLadderModalLevel = currentLevel;
     private void CloseTierLadderModal() => _tierLadderModalLevel = null;
+
+    private void OpenPermissionsModal() => _showPermissionsModal = true;
+    private void ClosePermissionsModal() => _showPermissionsModal = false;
+
+    private async Task LoadJurisdictionNamesAsync()
+    {
+        if (!_jurisdictions.Any()) return;
+
+        try
+        {
+            var allMunis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>("api/Municipality") ?? new();
+
+            _jurisdictionNames = allMunis
+                .Where(m => _jurisdictions.Contains(m.PsgcCodeMunicipality))
+                .OrderBy(m => m.Name)
+                .Select(m => m.Name ?? $"Municipality #{m.PsgcCodeMunicipality}")
+                .ToList();
+
+            if (!_jurisdictionNames.Any())
+                _jurisdictionNames = _jurisdictions.Select(c => $"Municipality #{c}").ToList();
+        }
+        catch
+        {
+            _jurisdictionNames = _jurisdictions.Select(c => $"Municipality #{c}").ToList();
+        }
+    }
+
+    // ── Permission matrix based on the summary table image ───────────────
+    private List<(string Action, bool Allowed)> GetPermissionRows() =>
+        new()
+        {
+            ("View / Filter", true),
+            ("View Statistics", true),
+            ("Export Excel", true),
+            ("Upload PDF", true),
+            ("View / Download Forms", true),
+            ("Upload / Edit / Delete Forms", _isAdmin),
+            ("Create record", _isAdmin || _isPdo || _isEncoder),
+            ("Bulk Ref Number", _isAdmin || _isPdo),
+            ("Edit record(With Jurisdiction for PDO)", _isAdmin || _isPdo || _isEncoder),
+            ("Delete record", _isAdmin),
+            ("Bulk Payment", _isAdmin),
+            ("Bulk CO Status", _isAdmin),
+            ("Bulk Eligibility", _isAdmin),
+            ("Generate Payroll", _isAdmin),
+            ("Generate COE", _isAdmin || _isPdo),
+            ("View Activity Logs", _isAdmin),
+            ("View WFP-ECA", _isFinance || _isAdmin),
+            ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
+            ("Log an Application Batch (Application Tracking)", _isViewer || _isAdmin),
+            ("Act on a Application Batch tagged to you", true),
+            ("Create a Tracked Document (Document Tracking)", true),
+            ("Delete a Tracked Document (Admin/SuperAdmin/Finance)", _isAdmin || _isFinance),
+            ("Manage Users (Approve/Deactivate/Delete)", _isFinance || _isSuperAdmin),
+            ("Publish System Updates", _isSuperAdmin),
+        };
+
+    private static string GetRoleIcon(string role) => role switch
+    {
+        "SuperAdmin" => "bi-shield-fill-exclamation",
+        "Admin" => "bi-shield-fill-check",
+        "PDO" => "bi-person-badge-fill",
+        "Finance" => "bi-cash-stack",
+        "Viewer" => "bi-eye-fill",
+        "Encoder" => "bi-keyboard-fill",
+        "Focal" => "bi-telephone-fill",
+        _ => "bi-person-fill"
+    };
+
+    private static string GetRoleLabel(string role) => role switch
+    {
+        "SuperAdmin" => "Super Administrator",
+        "Admin" => "Administrator",
+        "PDO" => "Project Development Officer",
+        "Finance" => "Finance",
+        "Viewer" => "Viewer",
+        "Encoder" => "Encoder",
+        "Focal" => "Provincial Focal",
+        _ => role
+    };
 
     private void OpenAvatarLightbox() => _showAvatarLightbox = true;
     private void CloseAvatarLightbox() => _showAvatarLightbox = false;

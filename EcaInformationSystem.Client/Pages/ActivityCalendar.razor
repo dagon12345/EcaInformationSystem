@@ -30,7 +30,9 @@
     <div class="calendar-card">
         <div class="calendar-header">
             <button class="btn btn-sm btn-outline-secondary" @onclick="GoToday">Today</button>
-            <button class="btn btn-sm btn-light" @onclick="PrevMonth">&lt;</button>
+            <button class="btn btn-sm btn-light calendar-nav-btn" title="Previous month" @onclick="PrevMonth">
+                <i class="bi bi-chevron-left"></i>
+            </button>
 
             <div class="calendar-title-wrap">
                 <button class="calendar-title-btn" @onclick="ToggleYearMonthPicker">
@@ -63,7 +65,9 @@
                         }
                     </div>
 
-                    <button class="btn btn-sm btn-light" @onclick="NextMonth">&gt;</button>
+                    <button class="btn btn-sm btn-light calendar-nav-btn" title="Next month" @onclick="NextMonth">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
                     @if (_canManage)
                     {
                         <button class="btn btn-sm btn-primary ms-auto" @onclick="() => OpenCreateModal(DateTime.Today)">+ New
@@ -90,9 +94,16 @@
                                 <div class="calendar-week-cells">
                                     @foreach (var cell in week.Days)
                                     {
-                                        <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell-muted") @(cell.Date == DateTime.Today ? "calendar-cell-today" : "") @(cell.Date == DateTime.Today && cell.Segments.Count > 0 ? "calendar-cell-today-busy" : "")"
+                                        <div class="calendar-cell @(cell.IsCurrentMonth ? "" : "calendar-cell-muted") @(cell.Date == DateTime.Today ? "calendar-cell-today" : "") @(cell.Date == DateTime.Today && cell.Segments.Count > 0 ? "calendar-cell-today-busy" : "") @(cell.HolidayName is not null ? "calendar-cell-holiday" : "")"
+                                             title="@cell.HolidayName"
                                              @onclick="() => OnDayClick(cell.Date)">
-                                            <div class="calendar-date">@cell.Date.Day</div>
+                                            <div class="calendar-cell-top-row">
+                                                <div class="calendar-date">@cell.Date.Day</div>
+                                                @if (cell.HolidayName is not null)
+                                                {
+                                                    <span class="calendar-holiday-tag" title="@cell.HolidayName">@cell.HolidayName</span>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                 </div>
@@ -342,6 +353,15 @@
         var firstOfMonth = _visibleMonth;
         var startOffset = (int)firstOfMonth.DayOfWeek;
         var gridStart = firstOfMonth.AddDays(-startOffset);
+        var gridEnd = gridStart.AddDays(41);
+
+        // The 6-week grid can spill into the previous or next calendar year
+        // (e.g. a December/January view) — pull holidays for every year the
+        // grid actually touches instead of assuming _visibleMonth.Year covers it.
+        var holidaysByDate = Enumerable.Range(gridStart.Year, gridEnd.Year - gridStart.Year + 1)
+            .SelectMany(PhilippineHolidays.GetHolidays)
+            .GroupBy(h => h.Date.Date)
+            .ToDictionary(g => g.Key, g => g.First().Name);
 
         for (int i = 0; i < 42; i++)
         {
@@ -352,7 +372,8 @@
             {
                 Date = date,
                 IsCurrentMonth = date.Month == _visibleMonth.Month,
-                Segments = marker?.Segments ?? new List<ActivitySpanSegmentDto>()
+                Segments = marker?.Segments ?? new List<ActivitySpanSegmentDto>(),
+                HolidayName = holidaysByDate.TryGetValue(date.Date, out var name) ? name : null
             });
         }
     }
@@ -501,6 +522,7 @@ LoadMonthAsync();
         public DateTime Date { get; set; }
         public bool IsCurrentMonth { get; set; }
         public List<ActivitySpanSegmentDto> Segments { get; set; } = new();
+        public string? HolidayName { get; set; }
     }
 
     private class WeekRow

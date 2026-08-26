@@ -1,0 +1,152 @@
+@* ChatToastContainer.razor — in-app toast for incoming chat messages (1:1
+   and group), rendered globally (see App.razor) so a message never goes
+   unnoticed just because the user is elsewhere in the app and the floating
+   ChatWidget is closed. Driven by ChatStateService.OnChatToast, which only
+   fires for messages the recipient isn't already looking at (see that
+   event's doc comment). Clicking the toast body opens the widget straight to
+   that room; the inline reply box sends without needing to open anything. *@
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Chat
+@inject ChatStateService ChatState
+@implements IDisposable
+
+<div style="position:fixed;bottom:24px;right:24px;z-index:9998;
+            display:flex;flex-direction:column-reverse;gap:10px;width:320px;
+            pointer-events:none;">
+    @foreach (var toast in _toasts)
+    {
+        <div style="pointer-events:all;background:white;border-radius:12px;
+                    box-shadow:0 6px 28px rgba(0,0,0,0.16);border:1px solid #e5e7eb;
+                    overflow:hidden;animation:chatToastIn .25s ease;">
+            <div style="display:flex;gap:10px;padding:12px 14px;cursor:pointer;"
+                 @onclick="() => OpenAsync(toast)">
+                <div style="width:34px;height:34px;border-radius:50%;background:#185FA5;color:#fff;
+                            display:flex;align-items:center;justify-content:center;font-weight:600;
+                            flex-shrink:0;font-size:13px;">
+                    @Initials(toast.Message.SenderName)
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:baseline;gap:6px;">
+                        <span style="font-size:13px;font-weight:700;color:#111;">@toast.Message.SenderName</span>
+                        @if (toast.RoomType != "Direct")
+                        {
+                            <span style="font-size:11px;color:#6b7280;">in @toast.RoomDisplayName</span>
+                        }
+                    </div>
+                    <div style="font-size:12.5px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        @(string.IsNullOrWhiteSpace(toast.Message.Content) ? "📎 Sent an attachment" : toast.Message.Content)
+                    </div>
+                </div>
+                <button type="button" @onclick="() => Dismiss(toast)" @onclick:stopPropagation="true"
+                        style="background:none;border:none;cursor:pointer;color:#9ca3af;
+                               font-size:13px;padding:0;align-self:flex-start;">✕</button>
+            </div>
+
+            <div style="display:flex;gap:6px;padding:0 14px 12px 14px;" @onclick:stopPropagation="true">
+                <input class="form-control form-control-sm" placeholder="Reply…"
+                       @bind="toast.ReplyText" @bind:event="oninput"
+                       @onkeydown="e => HandleKeyDownAsync(e, toast)" disabled="@toast.IsSending" />
+                <button type="button" class="btn btn-primary btn-sm" @onclick="() => ReplyAsync(toast)"
+                        disabled="@(toast.IsSending || string.IsNullOrWhiteSpace(toast.ReplyText))">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    @@keyframes chatToastIn {
+        from { opacity:0; transform:translateY(12px); }
+        to   { opacity:1; transform:translateY(0); }
+    }
+</style>
+
+@code {
+    private const int AutoDismissMs = 8000;
+    private readonly List<ChatToastItem> _toasts = new();
+
+    protected override void OnInitialized()
+        => ChatState.OnChatToast += HandleChatToast;
+
+    private void HandleChatToast(ChatMessageDto message)
+    {
+        var room = ChatState.Rooms.FirstOrDefault(r => r.Id == message.RoomId);
+        var item = new ChatToastItem(message, room?.DisplayName ?? "New message", room?.Type ?? "Direct");
+        _toasts.Add(item);
+        _ = InvokeAsync(StateHasChanged);
+        _ = AutoDismissAsync(item);
+    }
+
+    private async Task AutoDismissAsync(ChatToastItem item)
+    {
+        await Task.Delay(AutoDismissMs);
+
+        // Don't yank the toast out from under someone mid-reply.
+        if (!string.IsNullOrWhiteSpace(item.ReplyText) || item.IsSending) return;
+        Dismiss(item);
+    }
+
+    private void Dismiss(ChatToastItem item)
+    {
+        _toasts.Remove(item);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenAsync(ChatToastItem item)
+    {
+        Dismiss(item);
+        await ChatState.OpenRoomAsync(item.Message.RoomId);
+    }
+
+    private async Task ReplyAsync(ChatToastItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.ReplyText) || item.IsSending) return;
+
+        item.IsSending = true;
+        StateHasChanged();
+
+        try
+        {
+            await ChatState.QuickReplyAsync(item.Message.RoomId, item.Message.Id, item.ReplyText.Trim());
+            Dismiss(item);
+        }
+        catch
+        {
+            item.IsSending = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDownAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, ChatToastItem item)
+    {
+        if (e.Key == "Enter") await ReplyAsync(item);
+    }
+
+    private static string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+            : parts[0][0].ToString().ToUpperInvariant();
+    }
+
+    public void Dispose() => ChatState.OnChatToast -= HandleChatToast;
+
+    private sealed class ChatToastItem
+    {
+        public ChatMessageDto Message { get; }
+        public string RoomDisplayName { get; }
+        public string RoomType { get; }
+        public string ReplyText { get; set; } = string.Empty;
+        public bool IsSending { get; set; }
+
+        public ChatToastItem(ChatMessageDto message, string roomDisplayName, string roomType)
+        {
+            Message = message;
+            RoomDisplayName = roomDisplayName;
+            RoomType = roomType;
+        }
+    }
+}

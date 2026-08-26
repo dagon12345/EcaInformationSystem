@@ -31,7 +31,7 @@
             <div class="sidebar-backdrop @(mobileOpen ? "show" : "")" @onclick="CloseMobileSidebar"></div>
 
             <div class="sidebar @(collapsed ? "collapsed" : "") @(mobileOpen ? "mobile-open" : "")">
-                <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" UserName="@userName" />
+                <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" />
             </div>
             <div class="main-area">
                 <div class="top-navbar">

@@ -37,7 +37,7 @@ public class BeneficiaryStateService
     public BeneficiaryFilterDto Filter { get; set; } = new()
     {
         PageNumber = 1,
-        PageSize = 10
+        PageSize = 50
     };
 
     public List<BeneficiaryListItemDto> Beneficiaries { get; private set; } = new();

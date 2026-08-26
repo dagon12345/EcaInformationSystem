@@ -35,6 +35,10 @@
 <!-- HAVIT Messenger — place outside app-shell so it overlays everything -->
 <ToastContainer />
 
+<!-- Incoming chat message toasts (1:1 and group) — global so a message never
+     goes unnoticed just because the ChatWidget panel is closed. -->
+<ChatToastContainer />
+
 <style>
     @@keyframes spin { to { transform: rotate(360deg); } }
 </style>

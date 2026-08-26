@@ -83,7 +83,11 @@
                         {
                             <div class="chat-user-picker-item" @onclick="() => StartChatWith(user.UserId)">
                                 <span class="chat-presence-dot @(ChatState.IsUserOnline(user.UserId) ? "online" : "offline")"></span>
-                                <i class="bi bi-person-circle me-2"></i>
+                                <div class="chat-room-icon chat-room-icon--avatar me-2">
+                                    <img src="@AvatarUrl(user.UserId)" crossorigin="anonymous" alt="" class="chat-room-avatar-img"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                    <span class="chat-room-avatar-fallback" style="display:none;">@GetInitials(user.DisplayName)</span>
+                                </div>
                                 <span class="flex-grow-1 text-truncate">@user.DisplayName</span>
                                 <small class="text-muted">@user.Role</small>
                             </div>

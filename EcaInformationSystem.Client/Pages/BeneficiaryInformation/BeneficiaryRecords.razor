@@ -12,6 +12,13 @@
 <!--This is where the search filters positioned-->
 <div class="card shadow-sm mb-3">
     <div class="card-header">
+        @* ── Data quality reminder — filtering/counts here are only as accurate as
+             the source records. Kept as a single low-noise line so it registers at
+             a glance without competing with the grid below. ── *@
+        <div class="data-quality-banner">
+            <i class="bi bi-info-circle-fill"></i>
+            Search and filter results reflect data exactly as encoded. Incomplete or uncleansed records can skew counts — please verify and cleanse data for accurate results.
+        </div>
         <GridView @ref="_list"/>
     </div>
 </div>

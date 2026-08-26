@@ -1,0 +1,194 @@
+/* One merged donut — "of the full-year target, how much ___" — replaces the
+   old flat .dash-stat-card rectangles (and the earlier 4-ring layout) with a
+   single stacked-arc ring plus a side legend, so all 3 counts read as parts
+   of one whole instead of 4 numbers compared by eye across separate boxes. */
+.target-ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    padding: 10px 4px 4px;
+}
+
+/* ── Goal header — sits above the ring instead of as a legend row ───── */
+.target-ring-goal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.target-ring-goal i {
+    color: var(--navy, #0C447C);
+    font-size: 18px;
+    margin-bottom: 2px;
+}
+
+.target-ring-goal-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--navy, #0C447C);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.target-ring-goal-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, #6c757d);
+}
+
+.target-ring-goal-exceeded {
+    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #15803d;
+}
+
+.target-ring {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+}
+
+/* Bigger, front-and-center — this is the star of the section now. */
+.target-ring--merged {
+    width: 260px;
+    height: 260px;
+    margin: 6px 0;
+}
+
+.target-ring svg {
+    width: 100%;
+    height: 100%;
+    /* Rotate so every arc starts at 12 o'clock and sweeps clockwise — the
+       natural reading direction for "progress so far". */
+    transform: rotate(-90deg);
+}
+
+.target-ring-track {
+    fill: none;
+    stroke: #eef0f4;
+    stroke-width: 14;
+}
+
+.target-ring-fill {
+    fill: none;
+    stroke-width: 14;
+    stroke-linecap: round;
+    /* The actual "cool moving UI" — each segment animates from 0-length to
+       its real length whenever _ringAnimateReady flips (component mount,
+       fiscal-year switch, or a saved target), instead of snapping straight
+       to its final state. */
+    transition: stroke-dasharray 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.target-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    pointer-events: none;
+}
+
+.target-ring-center-value {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-main, #1a1a1a);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.target-ring-center-sub {
+    font-size: 13px;
+    color: var(--text-muted, #6c757d);
+    margin-top: 4px;
+}
+
+/* ── Legend — centered row beneath the ring ──────────────────────────── */
+.target-ring-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 220px;
+}
+
+.target-ring-legend--row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 22px;
+    min-width: 0;
+    margin-top: 4px;
+}
+
+.target-ring-legend-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    text-align: left;
+}
+
+.target-ring-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+}
+
+.target-ring-legend-text {
+    font-size: 13px;
+    color: var(--text-main, #1a1a1a);
+    line-height: 1.3;
+}
+
+.target-ring-legend-text strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.target-ring-legend-sub {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted, #6c757d);
+}
+
+/* Staggered fade/slide-in, same easing family as the rest of Statistics'
+   entrance animations (see Statistics.razor.css's stats-card-in) — replays
+   every time this component mounts, right alongside the ring sweeping in. */
+.target-ring-legend-row--anim {
+    animation: target-ring-legend-in 0.4s ease both;
+}
+.target-ring-legend-row--anim:nth-child(1) { animation-delay: 0.05s; }
+.target-ring-legend-row--anim:nth-child(2) { animation-delay: 0.15s; }
+.target-ring-legend-row--anim:nth-child(3) { animation-delay: 0.25s; }
+.target-ring-legend-row--anim:nth-child(4) { animation-delay: 0.35s; }
+
+@keyframes target-ring-legend-in {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .target-ring-fill {
+        transition: none;
+    }
+    .target-ring-legend-row--anim {
+        animation: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .target-ring-wrap {
+        justify-content: center;
+        text-align: left;
+    }
+}

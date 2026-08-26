@@ -59,26 +59,66 @@
             }
             else
             {
-                <div class="dash-stat-grid mb-2">
-                    <div class="dash-stat-card dash-stat-card--navy">
-                        <div class="dash-stat-icon"><i class="bi bi-flag-fill"></i></div>
-                        <div class="dash-stat-value">@_comparison.AnnualTarget.ToString("N0")</div>
-                        <div class="dash-stat-label">Full-Year Target</div>
+                @* One merged ring instead of 4 separate ones — three stacked arcs that
+                   always sum to exactly the Annual Target: Paid (green), Due-but-unpaid
+                   i.e. behind pace (red), and Not-Yet-Due i.e. later quarters (gray).
+                   Re-derived from _comparison every load/fiscal-year switch/save, so
+                   nothing here is hardcoded. _ringAnimateReady starts false and flips
+                   true a beat after the data arrives (see AnimateRingsInAsync) — the
+                   arcs render at 0-length first, then the CSS transition sweeps them
+                   out to their real length, so the ring visibly "fills in" every time
+                   this component mounts, i.e. every time the user navigates here. *@
+                <div class="target-ring-wrap mb-2">
+                    <div class="target-ring-goal">
+                        <i class="bi bi-flag-fill"></i>
+                        <span class="target-ring-goal-value">@_comparison.AnnualTarget.ToString("N0")</span>
+                        <span class="target-ring-goal-label">Full-Year Target</span>
+                        @if (_comparison.TotalPaidYtd > _comparison.AnnualTarget)
+                        {
+                            <span class="target-ring-goal-exceeded">
+                                Exceeded by @((_comparison.TotalPaidYtd - _comparison.AnnualTarget).ToString("N0"))
+                            </span>
+                        }
                     </div>
-                    <div class="dash-stat-card" style="background:#6c757d;">
-                        <div class="dash-stat-icon"><i class="bi bi-calendar-range"></i></div>
-                        <div class="dash-stat-value">@TargetToDate.ToString("N0")</div>
-                        <div class="dash-stat-label">Target Through @ThroughQuarterLabel</div>
+
+                    <div class="target-ring target-ring--merged">
+                        <svg viewBox="0 0 200 200">
+                            <circle class="target-ring-track" cx="100" cy="100" r="@RingRadius"></circle>
+                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                    style="stroke:#15803d; stroke-dasharray:@SegDashArray(PaidCapped); stroke-dashoffset:0;"></circle>
+                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                    style="stroke:#b91c1c; stroke-dasharray:@SegDashArray(DueUnpaid); stroke-dashoffset:@SegDashOffset(PaidCapped);"></circle>
+                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                    style="stroke:#cbd2dc; stroke-dasharray:@SegDashArray(NotYetDue); stroke-dashoffset:@SegDashOffset(PaidCapped + DueUnpaid);"></circle>
+                        </svg>
+                        <div class="target-ring-center">
+                            <div class="target-ring-center-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
+                            <div class="target-ring-center-sub">@FormatPercent(PaidPercent) of @_comparison.AnnualTarget.ToString("N0")</div>
+                        </div>
                     </div>
-                    <div class="dash-stat-card dash-stat-card--green">
-                        <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
-                        <div class="dash-stat-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
-                        <div class="dash-stat-label">Actually Paid Through @ThroughQuarterLabel</div>
-                    </div>
-                    <div class="dash-stat-card @(YtdGapCardClass)">
-                        <div class="dash-stat-icon"><i class="bi @(YtdGap >= 0 ? "bi-arrow-up-circle-fill" : "bi-arrow-down-circle-fill")"></i></div>
-                        <div class="dash-stat-value">@Math.Abs(YtdGap).ToString("N0")</div>
-                        <div class="dash-stat-label">@(YtdGap >= 0 ? "Ahead of Pace" : "Behind Pace")</div>
+
+                    <div class="target-ring-legend target-ring-legend--row">
+                        <div class="target-ring-legend-row target-ring-legend-row--anim">
+                            <span class="target-ring-dot" style="background:#15803d;"></span>
+                            <span class="target-ring-legend-text">
+                                <strong>@_comparison.TotalPaidYtd.ToString("N0")</strong> Paid
+                                <span class="target-ring-legend-sub">Through @ThroughQuarterLabel</span>
+                            </span>
+                        </div>
+                        <div class="target-ring-legend-row target-ring-legend-row--anim">
+                            <span class="target-ring-dot" style="background:#b91c1c;"></span>
+                            <span class="target-ring-legend-text">
+                                <strong>@DueUnpaid.ToString("N0")</strong> @(DueUnpaid > 0 ? "Behind Pace" : "On Pace")
+                                <span class="target-ring-legend-sub">Due through @ThroughQuarterLabel, not yet paid</span>
+                            </span>
+                        </div>
+                        <div class="target-ring-legend-row target-ring-legend-row--anim">
+                            <span class="target-ring-dot" style="background:#cbd2dc;"></span>
+                            <span class="target-ring-legend-text">
+                                <strong>@NotYetDue.ToString("N0")</strong> Not Yet Due
+                                <span class="target-ring-legend-sub">Remaining quarters this fiscal year</span>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -276,9 +316,6 @@
         }
     }
 
-    private int YtdGap => (_comparison?.TotalPaidYtd ?? 0) - TargetToDate;
-    private string YtdGapCardClass => YtdGap >= 0 ? "dash-stat-card--green" : "dash-stat-card--red";
-
     // How many quarters of this fiscal year have actually elapsed: fully
     // elapsed for past years, up through the current calendar quarter for the
     // current year, and none yet for a future year — comparing "paid so far"
@@ -293,6 +330,65 @@
     private string ThroughQuarterLabel => ThroughQuarter == 0 ? "Now" : $"Q{ThroughQuarter}";
 
     private int TargetToDate => _comparison?.Quarterly.Where(q => q.Quarter <= ThroughQuarter).Sum(q => q.Target) ?? 0;
+
+    private double PaidPercent => _comparison is { AnnualTarget: > 0 }
+        ? (double)_comparison.TotalPaidYtd / _comparison.AnnualTarget * 100 : 0;
+
+    private static string FormatPercent(double percent) => $"{Math.Round(percent):0}%";
+
+    // ── Merged-ring segments — always sum to exactly AnnualTarget ──────
+    // Paid is capped at the target so an overachieving region still draws a
+    // clean 100% ring (the "Exceeded by" note in the legend covers the rest,
+    // instead of the arc math trying to draw past a full circle).
+    private double PaidCapped => _comparison is null ? 0
+        : Math.Min(_comparison.TotalPaidYtd, _comparison.AnnualTarget);
+
+    private double DueUnpaid => _comparison is null ? 0
+        : Math.Max(0, TargetToDate - _comparison.TotalPaidYtd);
+
+    private double NotYetDue => _comparison is null ? 0
+        : Math.Max(0, _comparison.AnnualTarget - PaidCapped - DueUnpaid);
+
+    // The ring's <svg>/<circle> elements are written as literal markup above
+    // (not via MarkupString/RenderFragment) so Blazor's CSS-isolation
+    // attribute actually gets applied to them — a dynamically-injected
+    // MarkupString never receives the scoped-CSS attribute, so the
+    // .target-ring-* rules in the .razor.css file would silently never match.
+    // Only each segment's fill length/offset is computed dynamically.
+    private const double RingRadius = 82;
+    private const double RingCircumference = 2 * Math.PI * RingRadius;
+
+    // Starts false so every segment renders at 0-length on first paint; a
+    // beat later (see AnimateRingsInAsync) it flips true and the CSS
+    // transition on stroke-dasharray sweeps every arc out to its real length
+    // at once — the "cool moving" fill-in that replays every time this
+    // component (re)mounts, i.e. every time the user navigates to Statistics
+    // or switches fiscal year / saves a new target.
+    private bool _ringAnimateReady;
+
+    private double SegLen(double count) => _comparison is { AnnualTarget: > 0 }
+        ? RingCircumference * count / _comparison.AnnualTarget : 0;
+
+    private string SegDashArray(double count)
+    {
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var len = _ringAnimateReady ? SegLen(count) : 0;
+        return $"{len.ToString("0.##", ic)} {RingCircumference.ToString("0.##", ic)}";
+    }
+
+    private string SegDashOffset(double precedingCount)
+    {
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        return (-SegLen(precedingCount)).ToString("0.##", ic);
+    }
+
+    private async Task AnimateRingsInAsync()
+    {
+        _ringAnimateReady = false;
+        await Task.Delay(80); // let the 0-length arcs paint first, or the CSS transition has nothing to animate FROM
+        _ringAnimateReady = true;
+        StateHasChanged();
+    }
 
     private static string QuarterMonthRange(int quarterIndex) => QuarterMonthRanges[quarterIndex];
 
@@ -323,6 +419,7 @@
         {
             _isLoading = false;
             StateHasChanged();
+            _ = AnimateRingsInAsync();
         }
     }
 

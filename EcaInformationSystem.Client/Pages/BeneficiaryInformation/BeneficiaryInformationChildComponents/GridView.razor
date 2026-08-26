@@ -58,7 +58,7 @@
 }
     </div>
 <small class="opacity-75 mt-1 d-block">
-    Select the checkbox to Bulk Update payment status or Create Payroll.
+    Select the checkbox to <strong class="text-primary">Bulk Update</strong> payment status or <strong class="text-primary">Create Payroll</strong>.
     <ul class="mb-0 ps-3 mt-1">
         <li><span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.</li>
         <li><span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.</li>
@@ -67,64 +67,6 @@
 </small>
 </div>
                           
-                    </div>
-
-
-                    @* ── card header buttons ── *@
-                    <div class="d-flex gap-2 flex-wrap">
-
-                    <button class="btn btn-sm btn-primary" @onclick="OnGenerateCoeClicked"
-        disabled="@(!checkedIds.Any() || IsGeneratingCoe)">
-    @if (IsGeneratingCoe)
-    {
-        <span class="spinner-border spinner-border-sm me-1"></span>
-        <span>Opening...</span>
-    }
-    else
-    {
-        <i class="bi bi-file-earmark-word me-1"></i>
-        <span>Generate COE</span>
-    }
-</button>
-
-                        @* ✅ Always visible — API enforces Admin/SuperAdmin only *@
-                        <button class="btn btn-sm btn-warning" @onclick="OnGeneratePayrollClicked"
-                                disabled="@(!checkedIds.Any() || IsGeneratingPayroll)">
-                            @if (IsGeneratingPayroll)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                                <span>Opening...</span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-excel me-1"></i>
-                                <span>Generate Payroll</span>
-                            }
-                        </button>
-
-                        <button class="btn btn-success" @onclick="ExportExcel"
-                                disabled="@(!checkedIds.Any() || IsExporting)">
-                            @if (IsExporting)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                                <span>Exporting...</span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-excel me-1"></i>
-                                <span>Export Excel</span>
-                            }
-                        </button>
-
-                        <button class="btn btn-sm btn-primary" @onclick="OpenCrossmatchModal" title="@CrossmatchButtonTitle">
-                            <i class="bi bi-people-fill me-1"></i>
-                            <span>Crossmatch Grantees</span>
-                            @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
-                            {
-                                <span class="badge bg-warning text-dark ms-1">@(lastXm.NewCount + lastXm.PossibleCount)</span>
-                            }
-                        </button>
-
                     </div>
 
 
@@ -311,6 +253,61 @@
                         </div>
                     </div>
 
+                    @* ── RECORD ACTIONS — icon-only, hover for details. Was 4 full
+                         text buttons up in the card header; moved here (left-aligned,
+                         right under the Bulk Update bar, above the grid) and collapsed
+                         to icons so the header stays about the data, not a wall of
+                         buttons. ── *@
+                    <div class="record-actions-bar">
+                        <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OnGenerateCoeClicked"
+                                disabled="@(!checkedIds.Any() || IsGeneratingCoe)"
+                                title="Generate COE for the selected records">
+                            @if (IsGeneratingCoe)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-word"></i>
+                            }
+                        </button>
+
+                        @* Always visible — API enforces Admin/SuperAdmin only *@
+                        <button type="button" class="btn-icon-action btn-icon-action--amber" @onclick="OnGeneratePayrollClicked"
+                                disabled="@(!checkedIds.Any() || IsGeneratingPayroll)"
+                                title="Generate Payroll for the selected records (Admin/SuperAdmin only)">
+                            @if (IsGeneratingPayroll)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-excel"></i>
+                            }
+                        </button>
+
+                        <button type="button" class="btn-icon-action btn-icon-action--green" @onclick="ExportExcel"
+                                disabled="@(!checkedIds.Any() || IsExporting)"
+                                title="Export the selected records to Excel">
+                            @if (IsExporting)
+                            {
+                                <span class="spinner-border spinner-border-sm"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-spreadsheet"></i>
+                            }
+                        </button>
+
+                        <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OpenCrossmatchModal" title="@CrossmatchButtonTitle">
+                            <i class="bi bi-people-fill"></i>
+                            @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
+                            {
+                                <span class="btn-icon-action-badge">@(lastXm.NewCount + lastXm.PossibleCount)</span>
+                            }
+                        </button>
+                    </div>
+
                     @* ── PAGINATION BAR ───────────────────────────────────── *@
                     <div class="pag-bar">
                         <span>
@@ -346,8 +343,6 @@
                             }
                             <select class="form-select form-select-sm w-auto" @bind="State.Filter.PageSize"
                                     @bind:after="OnPageSizeChangedAsync">
-                                <option value="10">10 / page</option>
-                                <option value="20">20 / page</option>
                                 <option value="50">50 / page</option>
                                 <option value="100">100 / page</option>
                                 <option value="500">500 / page</option>
@@ -372,12 +367,12 @@
                             <table class="records-tbl">
                                 <thead>
     <tr>
-        <th style="width:36px;" title="Caution = location code needs correction. Heads-Up = minor data issue worth a quick look.">
-            Issues
-        </th>
         <th style="width:42px;">
             <input type="checkbox" class="form-check-input" checked="@AreAllChecked()"
                    @onchange="ToggleSelectAll" />
+        </th>
+        <th style="width:36px;" title="Caution = location code needs correction. Heads-Up = minor data issue worth a quick look.">
+            Issues
         </th>
         <th>Reference Number</th>
                                         <th class="sortable-th @(!State.Beneficiaries.Any() ? "sort-disabled" : "")"
@@ -401,8 +396,8 @@
                                         <th>Phone</th>
                                         <th style="min-width:140px;">
                                             Last Name
-                                            <br />
-                                            <small class="hdr-subtext" title="Hover the badges on a row to see liveness verification and EFT readiness details">(Liveness / EFT)</small>
+                                            <i class="bi bi-patch-check-fill hdr-info-icon"
+                                               title="A badge before the name means Liveness verified and/or ready for EFT — hover it on a row for details"></i>
                                         </th>
                                         <th>First Name</th>
                                         <th>Middle Name</th>
@@ -445,42 +440,44 @@
                                 <tbody>
                                     @foreach (var item in FilteredBeneficiaries)
                                     {
-                                            <tr @key="item.Id" class="@(checkedIds.Contains(item.Id) ? "row-checked" : "")">
+                                            <tr @key="item.Id" class="@(checkedIds.Contains(item.Id) ? "row-checked" : "") @(pinnedRowId == item.Id ? "row-pinned" : "")"
+                                                @onclick="() => TogglePinnedRow(item.Id)">
 <td>
-    @{
-        var cautions = GetLocationCautions(item);
-        var warnings = GetOtherWarnings(item);
-        var incompleteIssues = GetIncompleteDetails(item);
-    }
-    <div class="d-flex align-items-center gap-1">
-        @if (cautions.Any())
-        {
-            <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
-               title="@($"Caution: {string.Join("; ", cautions)}")"
-               @onclick="() => OpenDetailsPanel(item)"></i>
-        }
-        @if (warnings.Any())
-        {
-            <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
-               title="@($"Heads up: {string.Join("; ", warnings)}")"
-               @onclick="() => OpenDetailsPanel(item)"></i>
-        }
-        @if (incompleteIssues.Any())
-        {
-            <i class="bi bi-person-fill-exclamation text-danger" style="cursor:pointer;"
-               title="@($"Incomplete: {string.Join("; ", incompleteIssues)}")"
-               @onclick="() => OpenDetailsPanel(item)"></i>
-        }
-        @if (!cautions.Any() && !warnings.Any() && !GetIncompleteDetails(item).Any())
-        {
-            <i class="bi bi-check-circle-fill text-success" title="No issues found"></i>
-        }
-    </div>
+    <input type="checkbox" class="form-check-input"
+           checked="@checkedIds.Contains(item.Id)"
+           @onclick:stopPropagation="true"
+           @onchange="() => ToggleCheck(item.Id)" />
 </td>
     <td>
-        <input type="checkbox" class="form-check-input"
-               checked="@checkedIds.Contains(item.Id)"
-               @onchange="() => ToggleCheck(item.Id)" />
+        @{
+            var cautions = GetLocationCautions(item);
+            var warnings = GetOtherWarnings(item);
+            var incompleteIssues = GetIncompleteDetails(item);
+        }
+        <div class="d-flex align-items-center gap-1">
+            @if (cautions.Any())
+            {
+                <i class="bi bi-geo-alt-fill text-warning" style="cursor:pointer;"
+                   title="@($"Caution: {string.Join("; ", cautions)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+            @if (warnings.Any())
+            {
+                <i class="bi bi-info-circle-fill text-info" style="cursor:pointer;"
+                   title="@($"Heads up: {string.Join("; ", warnings)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+            @if (incompleteIssues.Any())
+            {
+                <i class="bi bi-person-fill-exclamation text-danger" style="cursor:pointer;"
+                   title="@($"Incomplete: {string.Join("; ", incompleteIssues)}")"
+                   @onclick="() => OpenDetailsPanel(item)"></i>
+            }
+            @if (!cautions.Any() && !warnings.Any() && !GetIncompleteDetails(item).Any())
+            {
+                <i class="bi bi-check-circle-fill text-success" title="No issues found"></i>
+            }
+        </div>
     </td>
                                                 <td>
                                                     @{
@@ -509,16 +506,13 @@
                                                 <td style="white-space:nowrap;"><span class="batch-code-outline">@Highlight(item.BatchCode)</span></td>
                                                 <td>@Highlight(item.PhoneNumbers.Any() ? string.Join(", ", item.PhoneNumbers.Select(n => n.Number)) : null)</td>
                                                 <td style="min-width:140px; white-space:nowrap;">
-                                                    @if (item.IsLivenessVerified == true)
+                                                    @* Was two separate green badges (heart-pulse + bank icon) sitting
+                                                       inline before the name — collapsed into one hoverable icon so the
+                                                       column reads cleanly; hovering it shows both statuses at once. *@
+                                                    @if (item.IsLivenessVerified == true || item.IsReadyForEft == true)
                                                     {
-                                                        <span class="tbl-badge yes-g me-1" title="Liveness verified@(item.DateOfLiveness.HasValue ? $" on {item.DateOfLiveness:MMM dd, yyyy}" : "")">
-                                                            <i class="bi bi-heart-pulse-fill"></i>
-                                                        </span>
-                                                    }
-                                                    @if (item.IsReadyForEft == true)
-                                                    {
-                                                        <span class="tbl-badge yes-g me-1" title="Ready for Electronic Fund Transfer (EFT)">
-                                                            <i class="bi bi-bank2"></i>
+                                                        <span class="tbl-badge-lv-eft me-1" title="@LivenessEftTooltip(item)">
+                                                            <i class="bi bi-patch-check-fill"></i>
                                                         </span>
                                                     }
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
@@ -765,9 +759,36 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>    
+                            </table>
                         </div>
                     </div>
+                    @* ── Page-number navigator — below the grid instead of above it, so it
+                         reads as "here's the rest of the list" rather than competing with
+                         Prev/Next/jump-box for attention before you've even seen the data.
+                         Click straight to a nearby page (see GetPageNumbersToShow); windowed
+                         so it stays usable even with hundreds of pages. Desktop-only — the
+                         mobile card list below has its own compact Prev/Next bar. ── *@
+                    @if (State.TotalPages > 1)
+                    {
+                        <div class="pag-numbers pag-numbers--below-grid">
+                            @foreach (var p in GetPageNumbersToShow())
+                            {
+                                @if (p is null)
+                                {
+                                    <span class="pag-ellipsis">…</span>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="pag-num-btn @(p == State.Filter.PageNumber ? "pag-num-btn--active" : "")"
+                                            disabled="@(State.IsLoading || p == State.Filter.PageNumber)"
+                                            @onclick="() => GoToSpecificPageAsync(p.Value)">
+                                        @p
+                                    </button>
+                                }
+                            }
+                        </div>
+                    }
                     @* ── MOBILE CARD LIST — only visible below 768px via CSS ──────────────── *@
                     <div class="beneficiary-pag-bar-mobile">
                         <button class="pag-btn-mobile" @onclick="GoToPreviousPageAsync"
@@ -2748,6 +2769,14 @@ else
     private bool IsLogsLoading;
     private bool IsSaving;
     private HashSet<Guid> checkedIds = new();
+
+    // Click a row to "pin" it — a persistent highlight (not just :hover, which
+    // disappears the moment the pointer leaves) so the user has a fixed visual
+    // anchor for which row they're reading while scrolling this wide table
+    // horizontally. Clicking the same row again un-pins it; clicking a
+    // different row moves the anchor.
+    private Guid? pinnedRowId;
+    private void TogglePinnedRow(Guid id) => pinnedRowId = pinnedRowId == id ? null : id;
     private int? bulkPaymentStatus = null;
     private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
@@ -4126,6 +4155,42 @@ private void PayrollPreviewZoomReset() => _payrollPreviewZoom = 100;
         await State.LoadAsync();
     }
 
+    private async Task GoToSpecificPageAsync(int page)
+    {
+        if (page == State.Filter.PageNumber || page < 1 || page > State.TotalPages) return;
+        State.Filter.PageNumber = page;
+        await State.LoadAsync();
+    }
+
+    // Windowed page-number strip below Prev/Next — always shows page 1 and
+    // the last page, plus a couple pages either side of the current one, with
+    // null standing in for an "…" gap. A flat 1..TotalPages loop would be
+    // unusable once there are hundreds/thousands of pages (this grid's page
+    // size can go as low as 10 on a dataset with thousands of records).
+    private List<int?> GetPageNumbersToShow()
+    {
+        var total = State.TotalPages;
+        var current = State.Filter.PageNumber;
+        var result = new List<int?>();
+
+        if (total <= 7)
+        {
+            for (var p = 1; p <= total; p++) result.Add(p);
+            return result;
+        }
+
+        result.Add(1);
+        var start = Math.Max(2, current - 1);
+        var end = Math.Min(total - 1, current + 1);
+
+        if (start > 2) result.Add(null);
+        for (var p = start; p <= end; p++) result.Add(p);
+        if (end < total - 1) result.Add(null);
+
+        result.Add(total);
+        return result;
+    }
+
     private async Task OnPageSizeChangedAsync()
     {
         State.Filter.PageNumber = 1;
@@ -4404,6 +4469,22 @@ private int IncompleteDetailsCount =>
         if (reason.Contains("DIFFERENT middle", StringComparison.OrdinalIgnoreCase)) return "bg-danger";
         if (reason.Contains("Exact name", StringComparison.OrdinalIgnoreCase)) return "bg-warning text-dark";
         return "bg-secondary";
+    }
+
+    private static string LivenessEftTooltip(BeneficiaryListItemDto item)
+    {
+        var parts = new List<string>();
+        if (item.IsLivenessVerified == true)
+        {
+            parts.Add(item.DateOfLiveness.HasValue
+                ? $"Liveness verified on {item.DateOfLiveness:MMM dd, yyyy}"
+                : "Liveness verified");
+        }
+        if (item.IsReadyForEft == true)
+        {
+            parts.Add("Ready for Electronic Fund Transfer (EFT)");
+        }
+        return string.Join(" • ", parts);
     }
 
     private string GetModeOfPaymentText(int mode) => mode switch { 1 => "Cash Advance", 2 => "Bank Transfer", _ => "—" };

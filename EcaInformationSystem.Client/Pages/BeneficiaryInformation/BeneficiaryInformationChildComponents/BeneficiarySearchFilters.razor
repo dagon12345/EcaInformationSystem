@@ -1065,7 +1065,7 @@
             State.Filter.BirthdayTo = BuildMonthDay(_birthdayToMonth, _birthdayToDay);
 
             State.Filter.PageNumber = 1;
-            State.Filter.PageSize = 10;
+            State.Filter.PageSize = 50;
             State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
             // ✅ NEW
             // (BarangayNeedsFixing is already set live by OnBarangayIssueChanged, nothing more needed here)
@@ -1142,7 +1142,7 @@
         State.Filter = new BeneficiaryFilterDto
         {
             PageNumber = 1,
-            PageSize = 10,
+            PageSize = 50,
             // Sort reset to default on clear
             SortColumn = null,
             SortAscending = true

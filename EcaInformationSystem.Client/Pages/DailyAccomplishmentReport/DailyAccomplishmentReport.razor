@@ -11,6 +11,7 @@
 @using EcaInformationSystem.Shared.DTOs.DailyAccomplishmentReport
 @using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Client.Pages.DailyAccomplishmentReport.DailyAccomplishmentReportChildComponents
+@using EcaInformationSystem.Client.Pages.Dtr
 @inject DarReportClientService DarService
 @inject HttpClient Http
 @inject ToastService Toast
@@ -271,9 +272,13 @@
     }
 </div>
 
+<ConfirmModal @ref="_confirmModal" />
+
 @code {
     private List<DarReportListItemDto> _reports = new();
     private bool _loadingList = true;
+
+    private ConfirmModal _confirmModal = default!;
 
     private DarReportUpsertDto? _editing;
     private DateTime _periodStart;
@@ -451,7 +456,10 @@
 
     private async Task DeleteAsync(Guid id)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete this report? This cannot be undone.");
+        var confirmed = await _confirmModal.ConfirmAsync(
+            "Delete Report",
+            "Delete this report? This cannot be undone.",
+            "Delete");
         if (!confirmed) return;
 
         if (await DarService.DeleteAsync(id))

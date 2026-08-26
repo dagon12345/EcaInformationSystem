@@ -649,8 +649,21 @@ namespace EcaInformationSystem.Client.Services
         }
 
         // ── Real-time event handlers ─────────────────────────────────────
+
+        // ✅ NEW — fired for any incoming message the recipient isn't already
+        // looking at (own messages and the currently-open room excluded, same
+        // rule the unread badge already uses), so ChatToastContainer can pop
+        // an in-app toast no matter which page the user is on. Kept separate
+        // from the OS-level chatInterop.notifications.show call below — that
+        // one needs browser permission and can't carry a reply box or a
+        // click-to-open action, this one always works and does both.
+        public event Action<ChatMessageDto>? OnChatToast;
+
         private async void HandleMessageReceived(ChatMessageDto message)
         {
+            var isOwnMessage = message.SenderId == CurrentUserId;
+            var isCurrentlyViewing = ActiveRoom != null && ActiveRoom.Id == message.RoomId && IsWidgetOpen;
+
             if (ActiveRoom != null && message.RoomId == ActiveRoom.Id)
             {
                 Messages.Add(message);
@@ -679,9 +692,6 @@ namespace EcaInformationSystem.Client.Services
                 // makes sense (they obviously already "read" what they just typed).
                 // Only the recipients — anyone who isn't the sender — should ever
                 // have this count go up.
-                var isCurrentlyViewing = ActiveRoom != null && ActiveRoom.Id == message.RoomId && IsWidgetOpen;
-                var isOwnMessage = message.SenderId == CurrentUserId;
-
                 if (isCurrentlyViewing)
                 {
                     _ = MarkActiveRoomAsReadAsync();
@@ -692,16 +702,54 @@ namespace EcaInformationSystem.Client.Services
                 }
             }
 
-            if (message.SenderId != CurrentUserId)
+            if (!isOwnMessage)
             {
                 _ = _js.InvokeVoidAsync("chatInterop.playNotificationSound");
 
-                var roomName = Rooms.FirstOrDefault(r => r.Id == message.RoomId)?.DisplayName ?? "New message";
+                var roomName = room?.DisplayName ?? "New message";
                 var body = string.IsNullOrWhiteSpace(message.Content) ? "Sent an attachment" : message.Content;
                 _ = _js.InvokeVoidAsync("chatInterop.notifications.show", $"{message.SenderName} in {roomName}", body);
+
+                if (!isCurrentlyViewing)
+                {
+                    OnChatToast?.Invoke(message);
+                }
             }
 
             OnChange?.Invoke();
+        }
+
+        // ── Toast-driven actions (click-to-open / quick reply) ───────────
+
+        // Opens the floating widget straight to the given room — same room
+        // resolution fallback JumpToMentionAsync uses, since a toast can
+        // arrive for a room the client hasn't loaded locally yet.
+        public async Task OpenRoomAsync(Guid roomId)
+        {
+            var room = Rooms.FirstOrDefault(r => r.Id == roomId);
+            if (room == null)
+            {
+                await LoadRoomsAsync();
+                room = Rooms.FirstOrDefault(r => r.Id == roomId);
+                if (room == null) return;
+            }
+
+            IsWidgetOpen = true;
+            OnChange?.Invoke();
+            await SelectRoomAsync(room);
+        }
+
+        // Sends a reply straight from a toast without disturbing whatever
+        // room (if any) is currently open in the widget — unlike
+        // SendMessageAsync, this doesn't depend on ActiveRoom.
+        public async Task QuickReplyAsync(Guid roomId, Guid replyToMessageId, string content)
+        {
+            await _chatClient.SendMessageAsync(new SendChatMessageDto
+            {
+                RoomId = roomId,
+                Content = content,
+                ReplyToMessageId = replyToMessageId
+            });
         }
 
         private void HandleMessageDeleted(Guid messageId)

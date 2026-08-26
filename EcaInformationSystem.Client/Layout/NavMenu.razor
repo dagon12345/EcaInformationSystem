@@ -1,12 +1,6 @@
 ﻿@using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
-@using Microsoft.AspNetCore.Components.Authorization
-@using System.Net.Http.Json
-@inject NavigationManager Nav
-@inject AuthenticationStateProvider AuthStateProvider
 @inject AuthService AuthService
-@inject HttpClient Http
-@inject TransactionTierClientService TierClient
 
 <div class="sidebar-brand">
     <NavLink href="" Match="NavLinkMatch.All">
@@ -20,14 +14,6 @@
 </div>
 
 <nav class="sidebar-nav">
-    @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
-       so it opens in its own tab and never loses your place in the app. Sits
-       first since new users should find it before anything else. ── *@
-    <a class="nav-item" href="help.html" target="_blank" rel="noopener">
-        <span class="nav-icon"><i class="bi bi-question-circle-fill"></i></span>
-        <span class="nav-label">Help</span>
-    </a>
-
     <div class="nav-section-label">Main</div>
 
     <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
@@ -208,146 +194,17 @@
             <span class="nav-label">Activity Logs</span>
         </NavLink>
     }
+
+    @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
+       so it opens in its own tab and never loses your place in the app. Sits
+       last, out of the way of the actual work items above it. ── *@
+    <a class="nav-item" href="help.html" target="_blank" rel="noopener">
+        <span class="nav-icon"><i class="bi bi-question-circle-fill"></i></span>
+        <span class="nav-label">Help</span>
+    </a>
 </nav>
 
-@* ── Permission Legend ─────────────────────────────────────────────────────── *@
-@if (!Collapsed && _roleLoaded)
-{
-    <div class="sidebar-legend">
-
-        @* ── Header with toggle ── *@
-        <div class="legend-header" @onclick="() => _legendCollapsed = !_legendCollapsed" style="cursor:pointer; display:flex; align-items:center;
-            justify-content:space-between; margin-bottom:@(_legendCollapsed ? "0" : "8px");">
-            <div class="legend-role-badge @GetRoleBadgeClass(_role)" style="margin-bottom:0; flex:1;">
-                <i class="bi @GetRoleIcon(_role) me-1"></i>
-                @GetRoleLabel(_role)
-            </div>
-            <i class="bi @(_legendCollapsed ? "bi-chevron-down" : "bi-chevron-up") ms-2"
-               style="color:rgba(255,255,255,0.5); font-size:10px; flex-shrink:0;"></i>
-        </div>
-
-        @* ── Collapsible content ── *@
-        @if (!_legendCollapsed)
-        {
-            @* ── Permission rows ── *@
-            <div class="legend-title">Your Permissions</div>
-
-            @foreach (var item in GetPermissionRows())
-            {
-                <div class="legend-row">
-                    <span class="legend-action" style="color:#fff; font-size:10px;">
-                        @item.Action
-                    </span>
-                    @if (item.Allowed)
-                    {
-                        <i class="bi bi-check-circle-fill legend-icon legend-icon--yes" style="color:#4ade80;"></i>
-                    }
-                    else
-                    {
-                        <i class="bi bi-x-circle-fill legend-icon legend-icon--no" style="color:#f87171;"></i>
-                    }
-                </div>
-            }
-
-            @* ── Jurisdiction list ── *@
-            @if (_isPdo && _jurisdictions.Any())
-            {
-                <div class="legend-title mt-2">
-                    <i class="bi bi-geo-alt me-1"></i>Your Jurisdictions
-                </div>
-                <div class="legend-jurisdictions">
-                    @foreach (var name in _jurisdictionNames)
-                    {
-                        <div class="legend-jurisdiction-item">
-                            <i class="bi bi-building" style="font-size:10px;"></i>
-                            <span style="color:#fff; font-size:10px;">@name</span>
-                        </div>
-                    }
-                </div>
-            }
-            else if (_isPdo && !_jurisdictions.Any())
-            {
-                <div class="legend-title mt-2">
-                    <i class="bi bi-geo-alt me-1"></i>Jurisdictions
-                </div>
-                <div style="font-size:10px; color:#fbbf24;
-                    background:rgba(251,191,36,0.1);
-                    border:1px solid rgba(251,191,36,0.3);
-                    border-radius:6px; padding:4px 8px; margin-top:4px;">
-                    <i class="bi bi-exclamation-triangle me-1"></i>
-                    No municipalities assigned. Contact your administrator.
-                </div>
-            }
-            else if (_isAdmin || _isEncoder)
-            {
-                <div class="legend-title mt-2">
-                    <i class="bi bi-geo-alt me-1"></i>Jurisdictions
-                </div>
-                <div class="legend-jurisdiction-item">
-                    <i class="bi bi-globe" style="font-size:10px;"></i>
-                    <span style="color:#4ade80; font-size:10px;">
-                        All municipalities
-                    </span>
-                </div>
-            }
-        }
-    </div>
-}
-
 <div class="sidebar-footer">
-    <button type="button" class="user-card user-card--link" @onclick="GoToProfile" title="View your profile">
-        <div class="position-relative">
-            @if (_currentUserId.HasValue)
-            {
-                <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="avatar avatar-img"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                <div class="avatar" style="display:none;">@GetInitials(DisplayName)</div>
-            }
-            else
-            {
-                <div class="avatar">@GetInitials(DisplayName)</div>
-            }
-            @if (_mfaEnabled == false)
-            {
-                <span class="mfa-warning-dot" title="Add two-factor authentication to secure your account"></span>
-            }
-            @if (_myTier is not null)
-            {
-                <span class="tier-badge-dot @TierVisuals.For(_myTier.TierLevel).CssClass"
-                      title="@($"{_myTier.TierName} tier — {_myTier.TransactionCount} transaction(s). Click to view your profile.")">
-                    <i class="bi @TierVisuals.For(_myTier.TierLevel).Icon"></i>
-                </span>
-            }
-        </div>
-        <div class="user-info">
-            <div class="user-name">@DisplayName</div>
-
-            @if (_myTier is not null)
-            {
-                <div class="user-tier-progress-wrap @TierVisuals.For(_myTier.TierLevel).CssClass"
-                     title="@TierProgressTitle()">
-                    <div class="user-tier-progress-track">
-                        <div class="user-tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
-                    </div>
-                </div>
-            }
-
-            @if (_mfaEnabled == false)
-            {
-                <div class="user-role text-warning">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure your account
-                </div>
-            }
-            else if (_roleLoaded)
-            {
-                <div class="user-role">@GetRoleLabel(_role)</div>
-            }
-            else
-            {
-                <div class="user-role">View Profile</div>
-            }
-        </div>
-    </button>
     <button class="toggle-btn" @onclick="OnToggle">
         <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
         <span>@(Collapsed ? "Expand" : "Collapse")</span>
@@ -357,23 +214,13 @@
 @code {
     [Parameter] public EventCallback OnToggle { get; set; }
     [Parameter] public bool Collapsed { get; set; }
-    [Parameter] public string UserName { get; set; } = "User";
-    private bool _legendCollapsed = true; // open by default
 
-    private string DisplayName = "User";
-    private Guid? _currentUserId;
-    private bool? _mfaEnabled; // null = not checked yet
     private bool _isSuperAdmin;
     private bool _isAdmin;
     private bool _isPdo;
     private bool _isViewer;
     private bool _isFinance;
     private bool _isEncoder;
-    private bool _roleLoaded;
-    private string _role = string.Empty;
-    private List<int> _jurisdictions = new();
-    private List<string> _jurisdictionNames = new();
-    private UserTransactionTierDto? _myTier;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -387,170 +234,7 @@
         _isViewer = AuthService.IsViewer();
         _isFinance = AuthService.IsFinance();
         _isEncoder = AuthService.IsEncoder();
-        _role = AuthService.GetRole() ?? string.Empty;
-        _roleLoaded = true;
-
-        _myTier = await TierClient.GetMyTierAsync();
-
-        // ── Load jurisdiction names for PDO ───────────────────────────────
-        if (_isPdo)
-        {
-            _jurisdictions = AuthService.GetJurisdictionCodes();
-            await LoadJurisdictionNamesAsync();
-        }
-
-        await LoadMfaStatusAsync();
 
         StateHasChanged();
-    }
-
-    // Surfaced as a red dot on the avatar + "Secure your account" instead of
-    // a separate Feed banner — one place, one action: open the profile.
-    private async Task LoadMfaStatusAsync()
-    {
-        try
-        {
-            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
-            _mfaEnabled = status?.IsMfaEnabled ?? true;
-        }
-        catch
-        {
-            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
-        }
-    }
-
-    private class MfaStatusResponse
-    {
-        public bool IsMfaEnabled { get; set; }
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        var fullName = user.FindFirst("FullName")?.Value;
-        DisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : UserName;
-        _currentUserId = Guid.TryParse(user.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
-    }
-
-    private void GoToProfile() => Nav.NavigateTo("/profile");
-
-    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
-    // 404s (API is on a different origin than the client).
-    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
-
-    private async Task LoadJurisdictionNamesAsync()
-    {
-        if (!_jurisdictions.Any()) return;
-
-        try
-        {
-            var allMunis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
-                "api/Municipality") ?? new();
-
-            // ── Filter to only the PDO's assigned codes ───────────────────────
-            _jurisdictionNames = allMunis
-                .Where(m => _jurisdictions.Contains(m.PsgcCodeMunicipality))
-                .OrderBy(m => m.Name)
-                .Select(m => m.Name ?? $"Municipality #{m.PsgcCodeMunicipality}")
-                .ToList();
-
-            // ── Fallback if nothing matched ───────────────────────────────────
-            if (!_jurisdictionNames.Any())
-            {
-                _jurisdictionNames = _jurisdictions
-                    .Select(c => $"Municipality #{c}")
-                    .ToList();
-            }
-        }
-        catch
-        {
-            _jurisdictionNames = _jurisdictions
-                .Select(c => $"Municipality #{c}")
-                .ToList();
-        }
-    }
-    // ── Permission matrix based on the summary table image ───────────────────
-    private List<(string Action, bool Allowed)> GetPermissionRows() =>
-        new()
-        {
-            ("View / Filter", true),
-            ("View Statistics", true), // ✅ NEW
-            ("Export Excel", true),
-            ("Upload PDF", true),
-            ("View / Download Forms", true), // ✅ NEW — everyone
-            ("Upload / Edit / Delete Forms", _isAdmin), // ✅ NEW — Admin/SuperAdmin only
-            ("Create record", _isAdmin || _isPdo || _isEncoder),
-            ("Bulk Ref Number", _isAdmin || _isPdo),
-            ("Edit record(With Jurisdiction for PDO)", _isAdmin || _isPdo || _isEncoder),
-            ("Delete record", _isAdmin),
-            ("Bulk Payment", _isAdmin),
-            ("Bulk CO Status", _isAdmin),
-            ("Bulk Eligibility",_isAdmin),
-            ("Generate Payroll",_isAdmin),
-            ("Generate COE", _isAdmin || _isPdo),
-            ("View Activity Logs", _isAdmin),
-            ("View WFP-ECA", _isFinance || _isAdmin), // Admin views only; edit is Finance/SuperAdmin
-            ("Edit WFP-ECA", _isFinance || _isSuperAdmin),
-            ("Log an Application Batch (Application Tracking)", _isViewer || _isAdmin),
-            ("Act on a Application Batch tagged to you", true), // any role, once it's actually tagged to them
-            ("Create a Tracked Document (Document Tracking)", true), // creation is unrestricted
-            ("Delete a Tracked Document (Admin/SuperAdmin/Finance)", _isAdmin || _isFinance),
-            ("Manage Users (Approve/Deactivate/Delete)", _isFinance || _isSuperAdmin),
-            ("Publish System Updates", _isSuperAdmin), // SuperAdmin only — broadcasts the refresh banner
-        };
-
-    private string GetInitials(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "U";
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
-        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
-    }
-
-    private static string GetRoleBadgeClass(string role) => role switch
-    {
-        "SuperAdmin" => "legend-role-badge--superadmin",
-        "Admin" => "legend-role-badge--admin",
-        "PDO" => "legend-role-badge--pdo",
-        "Finance" => "legend-role-badge--finance",
-        "Viewer" => "legend-role-badge--viewer",
-        "Encoder" => "legend-role-badge--pdo", // shares PDO's visual — same operational tier
-        "Focal" => "legend-role-badge--viewer", // call-only, never actually renders (FocalLayout is used instead)
-        _ => "legend-role-badge--viewer"
-    };
-
-    private static string GetRoleIcon(string role) => role switch
-    {
-        "SuperAdmin" => "bi-shield-fill-exclamation",
-        "Admin" => "bi-shield-fill-check",
-        "PDO" => "bi-person-badge-fill",
-        "Finance" => "bi-cash-stack",
-        "Viewer" => "bi-eye-fill",
-        "Encoder" => "bi-keyboard-fill",
-        "Focal" => "bi-telephone-fill",
-        _ => "bi-person-fill"
-    };
-
-    private static string GetRoleLabel(string role) => role switch
-    {
-        "SuperAdmin" => "Super Administrator",
-        "Admin" => "Administrator",
-        "PDO" => "Project Development Officer",
-        "Finance" => "Finance",
-        "Viewer" => "Viewer",
-        "Encoder" => "Encoder",
-        "Focal" => "Provincial Focal",
-        _ => role
-    };
-
-    private string TierProgressTitle()
-    {
-        if (_myTier is null) return string.Empty;
-
-        return _myTier.NextTierMinCount.HasValue
-            ? $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). " +
-              $"{_myTier.NextTierMinCount.Value - _myTier.TransactionCount:N0} more to reach {_myTier.NextTierName}."
-            : $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). Max tier reached!";
     }
 }
