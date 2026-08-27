@@ -117,6 +117,46 @@
                     <option value="@s.Key">@s.Value</option>
                 }
             </select>
+            <label class="dt-filter-date-label">
+                Date Received
+                <input type="date" class="dt-filter-select" style="width:auto;"
+                       value="@(_dateReceivedFrom?.ToString("yyyy-MM-dd"))"
+                       @onchange="OnDateReceivedFromChanged" />
+                <span class="dt-filter-date-sep">to</span>
+                <input type="date" class="dt-filter-select" style="width:auto;"
+                       value="@(_dateReceivedTo?.ToString("yyyy-MM-dd"))"
+                       @onchange="OnDateReceivedToChanged" />
+            </label>
+            @if (_dateReceivedFrom.HasValue || _dateReceivedTo.HasValue)
+            {
+                <button type="button" class="dt-filter-date-clear" @onclick="ClearDateReceivedFilter" title="Clear date filter">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            }
+            @if (_currentUserId.HasValue)
+            {
+                <label class="dt-filter-toggle" title="Show only the batches currently tagged to you">
+                    <input type="checkbox" @bind="_myBatchesOnly" />
+                    <i class="bi bi-person-check-fill"></i> My Batches Only
+                </label>
+            }
+        </div>
+
+        <div class="dt-stat-row">
+            <div class="dt-stat-tile dt-stat-tile--primary">
+                <div class="dt-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@TotalGranteesReceived().ToString("N0")</div>
+                    <div class="dt-stat-label">Grantee(s) received@(IsAnyFilterActive() ? " — matching filter" : "")</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--accent">
+                <div class="dt-stat-icon"><i class="bi bi-folder2-open"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@FilteredBatches().Count().ToString("N0")</div>
+                    <div class="dt-stat-label">Batch(es)@(IsAnyFilterActive() ? " — matching filter" : "")</div>
+                </div>
+            </div>
         </div>
 
         <div class="dt-card-list">
@@ -955,6 +995,38 @@
         get => _searchTermBacking;
         set { _searchTermBacking = value; _currentPage = 1; }
     }
+    private DateTime? _dateReceivedFrom;
+    private DateTime? _dateReceivedTo;
+    private bool _myBatchesOnly;
+
+    private void OnDateReceivedFromChanged(ChangeEventArgs e)
+    {
+        _dateReceivedFrom = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        _currentPage = 1;
+    }
+
+    private void OnDateReceivedToChanged(ChangeEventArgs e)
+    {
+        _dateReceivedTo = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        _currentPage = 1;
+    }
+
+    private void ClearDateReceivedFilter()
+    {
+        _dateReceivedFrom = null;
+        _dateReceivedTo = null;
+        _currentPage = 1;
+    }
+
+    // "Grantee" = an individual row, not a batch — a batch can bundle
+    // several grantees, so the count the user actually wants ("overall
+    // grantee received") sums RowCount across every batch that survives the
+    // current filter, not just the batch count.
+    private int TotalGranteesReceived() => FilteredBatches().Sum(b => b.RowCount);
+
+    private bool IsAnyFilterActive() =>
+        _dateReceivedFrom.HasValue || _dateReceivedTo.HasValue
+        || !string.IsNullOrWhiteSpace(_statusFilter) || !string.IsNullOrWhiteSpace(_searchTerm);
 
     // ── Pagination ───────────────────────────────────────────────────────
     private const int PageSize = 10;
@@ -1066,6 +1138,13 @@
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
+
+        // Auto-filter to just this person's own tagged batches by default —
+        // with a large queue, scanning every row to spot the ones handed to
+        // you specifically is exactly the friction this avoids. Admin/
+        // SuperAdmin need the full queue for oversight, so they start
+        // unfiltered; anyone can still flip "My Batches Only" off.
+        _myBatchesOnly = !_isAdmin;
 
         await LoadBatchesAsync();
         _users = await Http.GetFromJsonAsync<List<UserLookupDto>>("api/application-tracking/taggable-users") ?? new();
@@ -1317,8 +1396,17 @@
     {
         var query = _batches.AsEnumerable();
 
+        if (_myBatchesOnly && _currentUserId.HasValue)
+            query = query.Where(b => b.CurrentHolderUserId == _currentUserId.Value);
+
         if (!string.IsNullOrWhiteSpace(_statusFilter) && int.TryParse(_statusFilter, out var statusVal))
             query = query.Where(b => b.CurrentStatus == statusVal);
+
+        if (_dateReceivedFrom.HasValue)
+            query = query.Where(b => b.DateReceived.Date >= _dateReceivedFrom.Value.Date);
+
+        if (_dateReceivedTo.HasValue)
+            query = query.Where(b => b.DateReceived.Date <= _dateReceivedTo.Value.Date);
 
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {

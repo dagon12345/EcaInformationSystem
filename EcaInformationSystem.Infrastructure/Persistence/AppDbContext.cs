@@ -17,6 +17,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<Barangay> Barangays => Set<Barangay>();
             public DbSet<PendingUserRegistration> PendingUserRegistrations => Set<PendingUserRegistration>();
             public DbSet<Log> Logs => Set<Log>();
+            public DbSet<BeneficiaryDuplicateHistory> BeneficiaryDuplicateHistories => Set<BeneficiaryDuplicateHistory>();
             public DbSet<AttendanceLog> AttendanceLogs => Set<AttendanceLog>();
             public DbSet<BiometricDeviceUser> BiometricDeviceUsers => Set<BiometricDeviceUser>();
             public DbSet<BiometricSyncStatus> BiometricSyncStatuses => Set<BiometricSyncStatus>();

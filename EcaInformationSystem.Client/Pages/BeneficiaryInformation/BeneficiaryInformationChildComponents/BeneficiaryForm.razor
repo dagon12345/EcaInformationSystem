@@ -244,7 +244,7 @@
             <div class="annexa-grid cols-2 mb-2">
                 <div class="annexa-field">
                     <span class="annexa-item-label">C.3 First Name <span class="annexa-required">*</span></span>
-                    <input class="annexa-input" value="@model.FirstName" @oninput="e => model.FirstName = SanitizeName(e.Value?.ToString())" />
+                    <input class="annexa-input" value="@model.FirstName" @oninput="e => model.FirstName = SanitizeFirstName(e.Value?.ToString())" />
                     <ValidationMessage For="@(() => model.FirstName)" class="ff-err" />
                 </div>
                 <div class="annexa-field">
@@ -1199,6 +1199,74 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── Known Duplicate Warning Modal — an EXACT (100%) match, not a fuzzy
+     one. Saving is still allowed, but only once this has been explicitly
+     acknowledged; the saved record is then permanently flagged as a Known
+     Duplicate (on both records) so it's never mistaken for an ordinary,
+     unrelated entry later. ── *@
+<HxModal @ref="_exactDuplicateModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title text-danger">
+            <i class="bi bi-exclamation-octagon-fill me-2"></i>Known Duplicate Found
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p class="mb-3">
+            This record is an <strong>exact match</strong> (same first name, last name,
+            middle name, and birth date) of an existing grantee already in the system:
+        </p>
+        @if (_exactDuplicate is not null)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle">
+                    <thead class="table-danger">
+                        <tr>
+                            <th>Name</th>
+                            <th>Birth Date</th>
+                            <th>OSCA ID</th>
+                            <th>Municipality</th>
+                            <th>Barangay</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@_exactDuplicate.ExistingFullName</td>
+                            <td>@_exactDuplicate.ExistingBirthDate.ToString("MMM dd, yyyy")</td>
+                            <td>@(_exactDuplicate.ExistingOscaId ?? "—")</td>
+                            <td>@(_exactDuplicate.ExistingMunicipality ?? "—")</td>
+                            <td>@(_exactDuplicate.ExistingBarangay ?? "—")</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+        <p class="text-muted small mt-2 mb-0">
+            If this is genuinely a separate grantee (e.g. two different people who happen
+            to share the exact same name and birth date), click <strong>Save as Known
+            Duplicate</strong> — the record will be saved and permanently flagged on
+            <strong>both</strong> records, so anyone viewing either one can see it has a
+            duplicate. Otherwise click <strong>Cancel</strong> to review your entry —
+            this is very likely the same person already on file.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="CancelExactDuplicateModal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </HxButton>
+        <HxButton Color="ThemeColor.Danger" @onclick="ConfirmCreateAsKnownDuplicate" Disabled="@IsLoading">
+            @if (IsLoading)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-exclamation-octagon me-1"></i>
+            }
+            Save as Known Duplicate
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @* ── ALL @code IS IDENTICAL TO YOUR ORIGINAL — DO NOT CHANGE ── *@
 @code {
     // ✅ Same logo sources as AnnexAPrintDocument — reused from PayrollLogos.cs
@@ -1265,6 +1333,8 @@
     private bool _showSoftDuplicateModal = false;
     private HxModal _softDuplicateModal = default!;
     private CreateBeneficiaryInformationDto? _pendingDto;
+    private SoftDuplicateCandidateDto? _exactDuplicate;
+    private HxModal _exactDuplicateModal = default!;
     private string? _refNumberNote;
     private ReferenceNumberModal _refNumberModal = default!;
     // ── Ref number section toggle ─────────────────────────────────────────────
@@ -1319,6 +1389,27 @@
     {
         if (string.IsNullOrEmpty(input)) return string.Empty;
         return new string(input.Where(c => char.IsLetter(c) || c == ' ' || c == '-').ToArray()).ToUpperInvariant();
+    }
+
+    // First name only: also allows a single dot, for shortened names like "Ma." (Maria).
+    private static string SanitizeFirstName(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        var sb = new System.Text.StringBuilder();
+        var dotSeen = false;
+        foreach (var c in input)
+        {
+            if (char.IsLetter(c) || c == ' ' || c == '-')
+            {
+                sb.Append(c);
+            }
+            else if (c == '.' && !dotSeen)
+            {
+                sb.Append(c);
+                dotSeen = true;
+            }
+        }
+        return sb.ToString().ToUpperInvariant();
     }
 
     private static string SanitizeUpper(string? input)
@@ -2425,6 +2516,18 @@
                 var conflictResult = await response.Content
                     .ReadFromJsonAsync<CreateBeneficiaryResultDto>();
 
+                // Exact (100%) match — a different modal/flow from the fuzzy
+                // "Possible Duplicate" one below; checked first since a
+                // record that's an exact match is never also shown as merely
+                // a soft/fuzzy candidate.
+                if (conflictResult?.RequiresExactDuplicateConfirmation == true)
+                {
+                    _exactDuplicate = conflictResult.ExactDuplicate;
+                    StateHasChanged();
+                    await _exactDuplicateModal.ShowAsync();
+                    return;
+                }
+
                 _softDuplicates = conflictResult?.SoftDuplicates ?? new();
                 _showSoftDuplicateModal = true;
                 StateHasChanged();
@@ -2442,6 +2545,7 @@
                 _softDuplicates.Clear();
                 _pendingDto = null;
                 _showSoftDuplicateModal = false;
+                _exactDuplicate = null;
                 await ClearDraftAsync();
                 ResetForm();
                 return;
@@ -2475,6 +2579,23 @@
         _pendingDto = null;
         _showSoftDuplicateModal = false;
         await _softDuplicateModal.HideAsync();
+    }
+
+    private async Task ConfirmCreateAsKnownDuplicate()
+    {
+        if (_pendingDto is null) return;
+
+        _pendingDto.AcknowledgeExactDuplicate = true;
+        await _exactDuplicateModal.HideAsync();
+        _exactDuplicate = null;
+        await SendCreateRequestAsync(_pendingDto);
+    }
+
+    private async Task CancelExactDuplicateModal()
+    {
+        _exactDuplicate = null;
+        _pendingDto = null;
+        await _exactDuplicateModal.HideAsync();
     }
     #endregion
 

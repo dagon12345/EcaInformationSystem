@@ -58,6 +58,11 @@ namespace EcaInformationSystem.Shared.DTOs
         //  Set to true when the user has reviewed soft duplicated and confirmed they want to proceed
         // </summary>
         public bool BypassSoftDuplicateCheck { get; set; }
+        // Set to true when the user has reviewed the EXACT (100%) duplicate
+        // match shown in the Known Duplicate confirmation modal and chose to
+        // save anyway. Without this, an exact match still blocks Create —
+        // it just no longer blocks it PERMANENTLY.
+        public bool AcknowledgeExactDuplicate { get; set; }
         [Required(ErrorMessage = "Tracking Number is required.")]
         // ✅ NEW
         public string? TrackingNumber { get; set; }

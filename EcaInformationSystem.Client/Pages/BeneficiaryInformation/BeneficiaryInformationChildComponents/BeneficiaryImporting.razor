@@ -458,8 +458,10 @@
 
             <p class="text-muted small mb-2">
                 <i class="bi bi-info-circle me-1"></i>
-                These rows closely match existing records. By default all flagged rows
-                are set to <strong>Skip</strong>.
+                These rows closely match existing records — including any <strong>100% exact</strong>
+                matches, which no longer block the import outright. By default all flagged rows
+                are set to <strong>Skip</strong>. Importing an exact match anyway saves it as a
+                <strong>Known Duplicate</strong>, permanently flagged on both records.
                 Toggle each row or use the bulk actions below.
             </p>
 
@@ -497,10 +499,18 @@
                             var key = DupKey(dup.RowNumber, dup.ExistingId);
                             var isSkipped = skipRows.Contains(key);
                             var pct = (int)(dup.MatchScore * 100);
-                            var badgeCss = pct >= 90 ? "bg-danger"
+                            // 100% = an EXACT DB match (same name + birth date), not a
+                            // fuzzy one — this is what used to hard-block the whole
+                            // import as a "Duplicate" error. It's now reviewable here
+                            // like any other flagged row; importing it anyway saves it
+                            // as a Known Duplicate (see BeneficiaryDuplicateHistory).
+                            var isExactMatch = pct >= 100;
+                            var badgeCss = isExactMatch ? "bg-dark"
+                                          : pct >= 90 ? "bg-danger"
                                           : pct >= 75 ? "bg-warning text-dark"
                                           : "bg-secondary";
-                            var likelihood = pct >= 90 ? "Very likely"
+                            var likelihood = isExactMatch ? "Exact match"
+                                           : pct >= 90 ? "Very likely"
                                            : pct >= 75 ? "Possible"
                                            : "Low";
 
@@ -565,19 +575,42 @@
                                 <td class="text-center">
                                     <span class="badge @badgeCss">@pct%</span>
                                     <div class="text-muted small mt-1">@likelihood</div>
+                                    @if (isExactMatch)
+                                    {
+                                        <div class="text-danger small mt-1" style="max-width:110px; margin:4px auto 0;">
+                                            <i class="bi bi-files"></i> Importing keeps both records, flagged as
+                                            Known Duplicates of each other
+                                        </div>
+                                    }
                                 </td>
 
-                                @* ── Decision toggle ── *@
+                                @* ── Decision toggle ──
+                                     For an exact match, "Import" doubles as the
+                                     acknowledgement — the row is saved AND tagged with a
+                                     BeneficiaryDuplicateHistory entry automatically
+                                     (ConfirmImportAsync), so the label says so up front
+                                     instead of leaving that implicit. ── *@
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm w-100">
                                         <button class="btn @(isSkipped ? "btn-warning" : "btn-outline-warning")"
                                                 @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)">
                                             <i class="bi bi-skip-forward me-1"></i>Skip
                                         </button>
-                                        <button class="btn @(!isSkipped ? "btn-success" : "btn-outline-success")"
-                                                @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)">
-                                            <i class="bi bi-check me-1"></i>Import
-                                        </button>
+                                        @if (isExactMatch)
+                                        {
+                                            <button class="btn @(!isSkipped ? "btn-success" : "btn-outline-success")"
+                                                    @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)"
+                                                    title="Imports this row and permanently flags it as a Known Duplicate of the exact match shown above — visible on both records' Duplicate History, never in the grid/counts by default">
+                                                <i class="bi bi-files me-1"></i>Known Duplicate
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn @(!isSkipped ? "btn-success" : "btn-outline-success")"
+                                                    @onclick="() => ToggleSkip(dup.RowNumber, dup.ExistingId)">
+                                                <i class="bi bi-check me-1"></i>Import
+                                            </button>
+                                        }
                                     </div>
                                 </td>
                             </tr>

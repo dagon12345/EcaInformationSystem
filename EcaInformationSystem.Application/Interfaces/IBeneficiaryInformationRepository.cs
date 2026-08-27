@@ -24,6 +24,27 @@ namespace EcaInformationSystem.Application.Interfaces
             DateTime birthDate,
             Guid? excludeId = null);
 
+        // Same exact-match rule as ExistsDuplicateAsync, but returns the
+        // matched record (display-ready, same shape as a soft-duplicate
+        // candidate) instead of just a bool — used by Create to show the
+        // Known Duplicate confirmation before the user acknowledges and
+        // saves anyway (see BeneficiaryDuplicateHistory).
+        Task<SoftDuplicateCandidateDto?> FindExactDuplicateAsync(string? lastName,
+            string? firstName,
+            string? middleName,
+            DateTime birthDate);
+
+        // Records that `entry.BeneficiaryInformationId` was saved as a Known
+        // Duplicate of `entry.DuplicateOfId` — deliberately separate from the
+        // beneficiary record itself, so it never surfaces in the grid/list/
+        // statistics, only via GetDuplicateHistoryAsync for that one grantee.
+        Task AddDuplicateHistoryAsync(BeneficiaryDuplicateHistory entry);
+
+        // Every Known Duplicate entry involving this beneficiary, on EITHER
+        // side of the pair (it was saved as a duplicate of someone, or someone
+        // else was later saved as a duplicate of it) — display-ready.
+        Task<List<BeneficiaryDuplicateHistoryDto>> GetDuplicateHistoryAsync(Guid beneficiaryId);
+
         Task<int?> GetRegionCodeByNameAsync(string regionName);
         Task<int?> GetProvinceCodeByNameAsync(string provinceName);
         Task<int?> GetMunicipalityCodeByNameAsync(string municipalityName);

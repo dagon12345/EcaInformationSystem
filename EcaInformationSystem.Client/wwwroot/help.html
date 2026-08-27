@@ -721,12 +721,13 @@
         <div class="help-steps-label">Searching &amp; filtering</div>
         <ol class="help-steps">
           <li>Use the quick <strong>Search anything</strong> bar for a name, batch code, barangay, or even a status word like "paid".</li>
-          <li>Click <strong>More Filters</strong> to narrow by Location (Region → Province → Municipality → Barangay), Date Added/Endorsed, Payment Status, Payroll Quarter, Fiscal Year, Mode of Payment, or Payment Date.</li>
-          <li>Click <strong>Apply</strong>, or <strong>Clear</strong> to start over.</li>
+          <li>Click <strong>More Filters</strong> to open the advanced filter popup — narrow by Location (Region → Province → Municipality → Barangay), Date Added/Endorsed, Payment Status, Payroll Quarter, Fiscal Year, Mode of Payment, Payment Date, Age &amp; Birthday, Reference Number, or Personal details.</li>
+          <li>Click <strong>Apply Filters</strong>, or press <strong>Enter</strong> anywhere in the popup to apply immediately — <strong>Clear</strong> resets everything and reopens the popup so you can start over.</li>
+          <li>Once applied, a row of small tags reading <strong>"Filters applied:"</strong> appears under the search bar, listing exactly which advanced filters are active — so you don't have to reopen the popup just to check.</li>
         </ol>
         <div class="help-steps-label">Viewing a grantee's full record</div>
         <ol class="help-steps">
-          <li>Click a row (or its <strong>Details</strong> button) to open the full record in a side panel — includes Payment History, printable Annex A/B/M/N forms, the Liveness Check preview, and a change-log ("Logs") tab.</li>
+          <li>Click a row (or its <strong>Details</strong> button) to pin/highlight it, or <strong>double-click</strong> a row to open the full record straight away in a side panel — includes Payment History, printable Annex A/B/M/N forms, the Liveness Check preview, and a change-log ("Logs") tab.</li>
           <li>Use the panel's <strong>Edit</strong> button to update the record, or <strong>Delete</strong> if you have permission.</li>
         </ol>
         <div class="help-steps-label">Bulk actions</div>
@@ -738,6 +739,17 @@
           <li>The <strong>Bulk Update</strong> bar has four tabs — <strong>Payment</strong>, <strong>Eligibility/Batch</strong>, <strong>CO Status</strong>, and <strong>Ref Number</strong> — fill in the relevant fields and click the tab's Apply button to update every selected row at once.</li>
         </ol>
         <div class="help-tip"><strong>Note:</strong> Nothing in the toolbar or bulk-update bar works until you've checked at least one row — the page reminds you of this right in the header.</div>
+
+        <div class="help-steps-label">Auto-eligibility updates (turning 80)</div>
+        <ol class="help-steps">
+          <li>Under R.A. 11982, a grantee becomes <strong>Eligible</strong> automatically once they actually reach age 80 and their citizenship is Filipino — the system watches for this among whatever records are currently loaded (no separate scan needed).</li>
+          <li>When one or more such grantees are found, an <strong>Auto-Eligibility Update</strong> popup appears listing their Name, Birth Date, Age, Citizenship, and Current Eligibility so you can double-check before anything changes.</li>
+          <li>Use <strong>View</strong> next to any row to scroll to and highlight that grantee in the grid below without losing your current search results.</li>
+          <li>Click <strong>Yes, Mark Eligible</strong> to confirm — this updates the record(s) and adds an entry to that grantee's Logs tab noting it was an automatic update. Click <strong>Not Now</strong> (or just close the popup) to decide later; nothing is changed until you confirm.</li>
+          <li>A green <strong>"N Auto-Eligibility Pending"</strong> tag appears next to the record count whenever there's a pending list waiting — click it anytime to bring the same popup back, even after closing it.</li>
+          <li>Once confirmed, the updated row is highlighted green in the grid for the rest of your session as a visual confirmation.</li>
+        </ol>
+        <div class="help-tip"><strong>Note (PDO accounts):</strong> A PDO only ever sees auto-eligibility candidates that fall inside their own assigned jurisdiction — anything outside it never appears in the popup in the first place, so every row shown can always be confirmed. Admin, SuperAdmin, and Encoder accounts have no jurisdiction restriction and see every candidate.</div>
       </section>
 
       <section class="help-section" id="import-excel">

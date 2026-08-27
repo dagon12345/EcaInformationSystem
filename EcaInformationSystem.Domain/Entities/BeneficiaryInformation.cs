@@ -54,6 +54,13 @@ namespace EcaInformationSystem.Domain.Entities
         // A replacement is about a specific payment history entry (e.g. "their Q1
         // 2026 payout"), not the whole beneficiary record.
 
+        // Known Duplicate tracking (a "100% duplicate" — exact same
+        // LastName+FirstName+MiddleName+BirthDate — that's now allowed to be
+        // saved instead of hard-blocked) lives in the separate
+        // BeneficiaryDuplicateHistory table, not as flags on this entity —
+        // that keeps it out of the grid/list/statistics entirely, visible
+        // only via that grantee's own Duplicate History.
+
         public bool IsDeleted { get; set; }
         public BeneficiaryFinding? Finding { get; set; }
         public int? CgpPageNumber { get; set; }

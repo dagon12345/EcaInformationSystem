@@ -592,6 +592,35 @@ namespace EcaInformationSystem.Api.Controllers
                 return BadRequest(ex.Message);
             }
         }
+        // PDO/Admin/Encoder confirms the "turned 80 + Filipino" auto-eligibility
+        // flip for a batch of candidate grantees surfaced by the grid. Nothing
+        // gets written until this is explicitly confirmed — the service
+        // re-checks both the eligibility criteria and (for PDO only — Encoder
+        // is unrestricted, same as Admin/SuperAdmin) jurisdiction against
+        // fresh DB data, ignoring anything about the submitted ids it can't
+        // independently verify. Uses "GranteeEncodeAccess" (not "AdminOrPDO")
+        // specifically because that's the one policy that already includes
+        // Encoder alongside Admin/PDO/SuperAdmin.
+        [HttpPost("confirm-auto-eligibility")]
+        [Authorize(Policy = "GranteeEncodeAccess")]
+        public async Task<IActionResult> ConfirmAutoEligibility([FromBody] List<Guid> ids)
+        {
+            var userName = User.Identity?.Name ?? "System";
+            var role = User.GetRole();
+            var result = await _service.ConfirmAutoEligibilityAsync(ids, userName, role);
+            return Ok(result);
+        }
+
+        // Known Duplicate history for one grantee — deliberately per-record
+        // only (never a grid/list endpoint), so this never leaks into any
+        // count or statistics feature.
+        [HttpGet("duplicate-history/{id:guid}")]
+        public async Task<IActionResult> GetDuplicateHistory(Guid id)
+        {
+            var result = await _service.GetDuplicateHistoryAsync(id);
+            return Ok(result);
+        }
+
         [HttpGet("global-duplicate-summary")]
         public async Task<IActionResult> GetGlobalDuplicateSummary()
         {

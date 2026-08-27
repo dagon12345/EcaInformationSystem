@@ -31,6 +31,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public int Age { get; set; }
         public int MilestoneYear { get; set; }
         public int Sex { get; set; }
+        public int? Citizenship { get; set; }
 
         public int PsgcCodeRegion { get; set; }
         public int PsgcCodeProvince { get; set; }
@@ -61,6 +62,13 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? PaymentHistorySummary { get; set; }   // ✅ new — hover tooltip text
         public bool HasDocuments { get; set; }
 
+        // Computed fresh from BeneficiaryDuplicateHistories each query — true
+        // whether this grantee is the newer/duplicate side OR the original
+        // side of a Known Duplicate pair. Purely an "there's history — go
+        // look" flag; unlike the old removed HasKnownDuplicate column, this
+        // is never persisted/denormalized, so it can't go stale.
+        public bool HasDuplicateHistory { get; set; }
+
         public string? EligibilityRemarksPreview { get; set; }
         public string? AssessmentRemarksPreview { get; set; }
         public string? FindingRemarksPreview { get; set; }
@@ -88,5 +96,17 @@ namespace EcaInformationSystem.Shared.DTOs
 
         // Informational only — see EcaEligibilityHelper.MissedNearestMilestoneOnly.
         public bool MissedNearestMilestoneOnly => EcaEligibilityHelper.MissedNearestMilestoneOnly(BirthDate);
+
+        // ✅ True only once the grantee has ACTUALLY reached age 80 — i.e.
+        // their 80th birthday has already happened as of today, not merely
+        // that 80 falls in the current calendar year (someone born in
+        // October is still 79 for most of that year). ComputeAge == 80 also
+        // naturally excludes 85/90/95/100 and anyone who turned 80 in an
+        // earlier year and is still Ineligible for some other (not
+        // auto-fixable) reason. Citizenship code 1 = Filipino (see
+        // BeneficiaryInformationService.MapCitizenship).
+        public bool PendingAutoEligibility =>
+            !IsEligible && Citizenship == 1 && !MissedProgramStartCutoff &&
+            EcaEligibilityHelper.ComputeAge(BirthDate) == 80;
     }
 }

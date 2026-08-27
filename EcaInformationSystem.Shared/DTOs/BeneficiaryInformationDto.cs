@@ -23,8 +23,10 @@ namespace EcaInformationSystem.Shared.DTOs
         [Required(ErrorMessage = "Last Name is required.")]
         [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "Last Name can only contain letters, spaces, and dashes.")]
         public string? LastName { get; set; }
+        // Allows a single dot for shortened names like "Ma." (Maria); the lookahead
+        // caps it at one occurrence so multiple dots still fail validation.
         [Required(ErrorMessage = "First Name is required.")]
-        [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "First Name can only contain letters, spaces, and dashes.")]
+        [RegularExpression(@"^(?=[^.]*\.?[^.]*$)[A-Za-zÑñ\s\-.]*$", ErrorMessage = "First Name can only contain letters, spaces, dashes, and a single dot.")]
         public string FirstName { get; set; } = string.Empty;
         [RegularExpression(@"^[A-Za-zÑñ\s\-]*$", ErrorMessage = "Middle Name can only contain letters, spaces, and dashes.")]
         public string? MiddleName { get; set; }

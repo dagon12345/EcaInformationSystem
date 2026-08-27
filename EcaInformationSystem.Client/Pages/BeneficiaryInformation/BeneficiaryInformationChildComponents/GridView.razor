@@ -16,84 +16,94 @@
 <div class="row">
     <div class="col-12">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-light">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="d-flex flex-column">
-                                    @if (State.LastResultWasFuzzy && State.Beneficiaries.Any())
-    {
-        <div class="alert alert-info py-2 px-3 mb-2 d-flex align-items-center gap-2" style="font-size: 13px;">
-            <i class="bi bi-info-circle-fill"></i>
-            <span>No exact match was found — showing names similar to your search instead.</span>
-        </div>
-    }
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <h5 class="mb-0">Showing</h5>
-        <span class="badge bg-primary">@DisplayCount Record(s)</span>
-
-        @if (LocationCautionCount > 0)
-        {
-            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-flex align-items-center gap-1"
-                  title="Records with a location code that needs correction">
-                <i class="bi bi-geo-alt-fill"></i>
-                @LocationCautionCount Location Caution@(LocationCautionCount == 1 ? "" : "s")
-            </span>
-        }
- @if (OtherWarningCount > 0)
-{
-    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-flex align-items-center gap-1"
-          title="Records with a minor data issue worth a quick look">
-        <i class="bi bi-info-circle-fill"></i>
-        @OtherWarningCount Heads-Up@(OtherWarningCount == 1 ? "" : "s")
-    </span>
-}
-@if (IncompleteDetailsCount > 0)
-{
-    <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle d-flex align-items-center gap-1"
-          title="Records missing required details">
-        <i class="bi bi-person-fill-exclamation"></i>
-        @IncompleteDetailsCount Incomplete@(IncompleteDetailsCount == 1 ? "" : "s")
-    </span>
-}
-    </div>
-<small class="opacity-75 mt-1 d-block">
-    Select the checkbox to <strong class="text-primary">Bulk Update</strong> payment status or <strong class="text-primary">Create Payroll</strong>.
-    <ul class="mb-0 ps-3 mt-1">
-        <li><span class="text-warning"><i class="bi bi-geo-alt-fill"></i> Caution</span> — location code needs correction.</li>
-        <li><span class="text-info"><i class="bi bi-info-circle-fill"></i> Heads-Up</span> — minor data issue worth a quick look.</li>
-        <li><span class="text-danger"><i class="bi bi-person-fill-exclamation"></i> Incomplete</span> — missing required details.</li>
-    </ul>
-</small>
-</div>
-                          
-                    </div>
-
-
-                </div>
-            </div>
-
             <div class="card-body p-3">
                 <div class="records-table-wrap">
 
-                    @* ── SELECTION BANNER — separate from bulk-update controls ── *@
-                    <div class="selection-banner @(checkedIds.Any() ? "selection-banner--active" : "")">
-                        <span class="sel-count @(checkedIds.Any() ? "sel-count--active" : "")">
-                            <i class="bi bi-check-circle-fill"></i>
-                            @checkedIds.Count selected
-                        </span>
-                        @if (checkedIds.Any())
-                        {
-                            <button type="button" class="btn-clear-selection" @onclick="ClearSelection">
-                                <i class="bi bi-x-lg"></i> Clear
-                            </button>
-                        }
-                    </div>
+                    @if (State.LastResultWasFuzzy && State.Beneficiaries.Any())
+                    {
+                        <div class="alert alert-info py-2 px-3 mb-2 d-flex align-items-center gap-2" style="font-size: 13px;">
+                            <i class="bi bi-info-circle-fill"></i>
+                            <span>No exact match was found — showing names similar to your search instead.</span>
+                        </div>
+                    }
+
+                    <small class="opacity-75 d-block mb-1">
+                        Select the checkbox to <strong class="text-primary">Bulk Update</strong> payment status or <strong class="text-primary">Create Payroll</strong>.
+                    </small>
 
                     @* ── BULK BAR — all tabs always visible ── *@
                     <div class="bulk-bar">
-                        <div class="bulk-bar-header">
-                            <i class="bi bi-lightning-charge-fill"></i> Bulk Update
+                        <div class="bulk-bar-header d-flex align-items-center justify-content-between flex-wrap">
+                            <span class="d-flex align-items-center gap-2 flex-wrap">
+                                <span><i class="bi bi-lightning-charge-fill"></i> Bulk Update</span>
+                                <span class="bulk-bar-divider"></span>
+                                <span class="selection-banner @(checkedIds.Any() ? "selection-banner--active" : "")"
+                                      style="margin-bottom:0; text-transform:none; letter-spacing:normal;">
+                                    <span class="sel-count @(checkedIds.Any() ? "sel-count--active" : "")">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        @checkedIds.Count selected
+                                    </span>
+                                    @if (checkedIds.Any())
+                                    {
+                                        <button type="button" class="btn-clear-selection btn-clear-selection--cool" @onclick="ClearSelection">
+                                            <i class="bi bi-x-circle-fill"></i> Clear
+                                        </button>
+                                    }
+                                </span>
+                            </span>
+
+                            @* ── RECORD ACTIONS — Generate COE/Payroll, Export Excel,
+                                 Crossmatch — docked at the right edge of the Bulk Update
+                                 header instead of taking their own row. ── *@
+                            <div class="record-actions-bar" style="margin-bottom:0; text-transform:none; letter-spacing:normal;">
+                                <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OnGenerateCoeClicked"
+                                        disabled="@(!checkedIds.Any() || IsGeneratingCoe)"
+                                        title="Generate COE for the selected records">
+                                    @if (IsGeneratingCoe)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-file-earmark-word"></i>
+                                    }
+                                </button>
+
+                                @* Always visible — API enforces Admin/SuperAdmin only *@
+                                <button type="button" class="btn-icon-action btn-icon-action--amber" @onclick="OnGeneratePayrollClicked"
+                                        disabled="@(!checkedIds.Any() || IsGeneratingPayroll)"
+                                        title="Generate Payroll for the selected records (Admin/SuperAdmin only)">
+                                    @if (IsGeneratingPayroll)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-file-earmark-excel"></i>
+                                    }
+                                </button>
+
+                                <button type="button" class="btn-icon-action btn-icon-action--green" @onclick="ExportExcel"
+                                        disabled="@(!checkedIds.Any() || IsExporting)"
+                                        title="Export the selected records to Excel">
+                                    @if (IsExporting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                                    }
+                                </button>
+
+                                <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OpenCrossmatchModal" title="@CrossmatchButtonTitle">
+                                    <i class="bi bi-people-fill"></i>
+                                    @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
+                                    {
+                                        <span class="btn-icon-action-badge">@(lastXm.NewCount + lastXm.PossibleCount)</span>
+                                    }
+                                </button>
+                            </div>
                         </div>
                         <div class="bulk-bar-controls">
                         <div class="btn-group btn-group-sm" role="group">
@@ -253,70 +263,64 @@
                         </div>
                     </div>
 
-                    @* ── RECORD ACTIONS — icon-only, hover for details. Was 4 full
-                         text buttons up in the card header; moved here (left-aligned,
-                         right under the Bulk Update bar, above the grid) and collapsed
-                         to icons so the header stays about the data, not a wall of
-                         buttons. ── *@
-                    <div class="record-actions-bar">
-                        <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OnGenerateCoeClicked"
-                                disabled="@(!checkedIds.Any() || IsGeneratingCoe)"
-                                title="Generate COE for the selected records">
-                            @if (IsGeneratingCoe)
-                            {
-                                <span class="spinner-border spinner-border-sm"></span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-word"></i>
-                            }
-                        </button>
-
-                        @* Always visible — API enforces Admin/SuperAdmin only *@
-                        <button type="button" class="btn-icon-action btn-icon-action--amber" @onclick="OnGeneratePayrollClicked"
-                                disabled="@(!checkedIds.Any() || IsGeneratingPayroll)"
-                                title="Generate Payroll for the selected records (Admin/SuperAdmin only)">
-                            @if (IsGeneratingPayroll)
-                            {
-                                <span class="spinner-border spinner-border-sm"></span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-excel"></i>
-                            }
-                        </button>
-
-                        <button type="button" class="btn-icon-action btn-icon-action--green" @onclick="ExportExcel"
-                                disabled="@(!checkedIds.Any() || IsExporting)"
-                                title="Export the selected records to Excel">
-                            @if (IsExporting)
-                            {
-                                <span class="spinner-border spinner-border-sm"></span>
-                            }
-                            else
-                            {
-                                <i class="bi bi-file-earmark-spreadsheet"></i>
-                            }
-                        </button>
-
-                        <button type="button" class="btn-icon-action btn-icon-action--navy" @onclick="OpenCrossmatchModal" title="@CrossmatchButtonTitle">
-                            <i class="bi bi-people-fill"></i>
-                            @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
-                            {
-                                <span class="btn-icon-action-badge">@(lastXm.NewCount + lastXm.PossibleCount)</span>
-                            }
-                        </button>
-                    </div>
-
-                    @* ── PAGINATION BAR ───────────────────────────────────── *@
+                    @* ── PAGINATION BAR — also carries the Location Caution / Heads-Up /
+                         Incomplete counts as compact pills, instead of those living in
+                         their own header block above. ── *@
                     <div class="pag-bar">
-                        <span>
-                            Showing
-                            <strong>@(((State.Filter.PageNumber - 1) * State.Filter.PageSize) + 1)</strong>
-                            –
-                            <strong>@Math.Min(State.Filter.PageNumber * State.Filter.PageSize, DisplayCount)</strong>
-                            of <strong>@DisplayCount</strong> record(s)
-                            &nbsp;·&nbsp; Page @State.Filter.PageNumber of @State.TotalPages
+                        <span class="d-flex align-items-center flex-wrap gap-2">
+                            <span>
+                                Showing
+                                <strong>@(((State.Filter.PageNumber - 1) * State.Filter.PageSize) + 1)</strong>
+                                –
+                                <strong>@Math.Min(State.Filter.PageNumber * State.Filter.PageSize, DisplayCount)</strong>
+                                of <strong>@DisplayCount</strong> record(s)
+                                &nbsp;·&nbsp; Page @State.Filter.PageNumber of @State.TotalPages
+                            </span>
+                            @if (LocationCautionCount > 0)
+                            {
+                                <span class="pag-count-pill pag-count-pill--warning"
+                                      title="@LocationCautionCount record(s) with a location code that needs correction">
+                                    <i class="bi bi-geo-alt-fill"></i>@LocationCautionCount
+                                </span>
+                            }
+                            @if (OtherWarningCount > 0)
+                            {
+                                <span class="pag-count-pill pag-count-pill--info"
+                                      title="@OtherWarningCount record(s) with a minor data issue worth a quick look">
+                                    <i class="bi bi-info-circle-fill"></i>@OtherWarningCount
+                                </span>
+                            }
+                            @if (IncompleteDetailsCount > 0)
+                            {
+                                <span class="pag-count-pill pag-count-pill--danger"
+                                      title="@IncompleteDetailsCount record(s) missing required details">
+                                    <i class="bi bi-person-fill-exclamation"></i>@IncompleteDetailsCount
+                                </span>
+                            }
+                            @if (_autoEligibilityCandidates.Any())
+                            {
+                                <button type="button" class="pag-count-pill pag-count-pill--success border-0"
+                                        @onclick="ReopenAutoEligibilityModalAsync"
+                                        title="Review and confirm the grantees pending an auto-eligibility update">
+                                    <i class="bi bi-stars"></i>@_autoEligibilityCandidates.Count Auto-Eligibility Pending
+                                </button>
+                            }
+                            @if (State.Filter.IncludeKnownDuplicates)
+                            {
+                                <button type="button" class="pag-count-pill pag-count-pill--neutral border-0"
+                                        @onclick="ToggleShowKnownDuplicatesAsync"
+                                        title="Hide Known Duplicate records from this list again">
+                                    <i class="bi bi-eye-slash"></i>Hide Known Duplicates
+                                </button>
+                            }
+                            else if (State.HiddenKnownDuplicateCount > 0)
+                            {
+                                <button type="button" class="pag-count-pill pag-count-pill--neutral border-0"
+                                        @onclick="ToggleShowKnownDuplicatesAsync"
+                                        title="These records are excluded from the list and every count/statistic by default — click to show them here">
+                                    <i class="bi bi-files"></i>@State.HiddenKnownDuplicateCount Known Duplicate@(State.HiddenKnownDuplicateCount == 1 ? "" : "s") Hidden
+                                </button>
+                            }
                         </span>
                         <div class="pag-controls">
                             <button class="pag-btn" @onclick="GoToPreviousPageAsync"
@@ -440,8 +444,9 @@
                                 <tbody>
                                     @foreach (var item in FilteredBeneficiaries)
                                     {
-                                            <tr @key="item.Id" class="@(checkedIds.Contains(item.Id) ? "row-checked" : "") @(pinnedRowId == item.Id ? "row-pinned" : "")"
-                                                @onclick="() => TogglePinnedRow(item.Id)">
+                                            <tr @key="item.Id" data-beneficiary-id="@item.Id" class="@(checkedIds.Contains(item.Id) ? "row-checked" : "") @(pinnedRowId == item.Id ? "row-pinned" : "") @(State.RecentlyAutoEligibleIds.Contains(item.Id) ? "row-auto-eligible" : "") @(_jumpTargetRowId == item.Id ? "row-jump-target" : "") @(State.Filter.IncludeKnownDuplicates && item.HasDuplicateHistory ? "row-known-duplicate" : "")"
+                                                @onclick="() => TogglePinnedRow(item.Id)"
+                                                @ondblclick="() => OpenDetailsPanel(item)" style="cursor: pointer;">
 <td>
     <input type="checkbox" class="form-check-input"
            checked="@checkedIds.Contains(item.Id)"
@@ -516,6 +521,15 @@
                                                         </span>
                                                     }
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
+                                                    @if (item.HasDuplicateHistory)
+                                                    {
+                                                        <span class="known-duplicate-badge ms-1"
+                                                              @onclick="() => OpenDetailsPanelAndFocusDuplicateHistory(item)"
+                                                              @onclick:stopPropagation="true"
+                                                              title="This grantee has a Known Duplicate on file — click to view">
+                                                            <i class="bi bi-files"></i>
+                                                        </span>
+                                                    }
                                                 </td>
                                                 <td class="fw-bold text-uppercase">@Highlight(item.FirstName)</td>
                                                 <td class="fw-bold text-uppercase">@Highlight(item.MiddleName)</td>
@@ -637,6 +651,13 @@
                                                         <span class="tbl-badge @eligBadge" title="@item.EligibilityRemarksPreview">
                                                             @Highlight(eligLabel)
                                                         </span>
+                                                        @if (State.RecentlyAutoEligibleIds.Contains(item.Id))
+                                                        {
+                                                            <span class="tbl-badge auto-eligible-badge"
+                                                                  title="Automatically marked Eligible — turned 80 and Filipino citizenship, confirmed this session">
+                                                                <i class="bi bi-stars me-1"></i>Auto
+                                                            </span>
+                                                        }
                                                         @if (item.IsEligible &&
                                                         !string.IsNullOrWhiteSpace(item.EligibilityRemarksPreview))
                                                         {
@@ -1255,6 +1276,14 @@
                             <i class="bi bi-upc-scan"></i>Batch @selectedDetails.BatchCode
                         </span>
                     }
+                    @if (_duplicateHistory.Any())
+                    {
+                        <button type="button" class="details-header-badge details-header-badge--duplicate"
+                                @onclick="ScrollToDuplicateHistory"
+                                title="This record has a Known Duplicate on file — click to jump to Duplicate History">
+                            <i class="bi bi-exclamation-triangle-fill"></i>Known Duplicate
+                        </button>
+                    }
                 </div>
             </div>
         </div>
@@ -1333,6 +1362,56 @@
          </div>
     </div>
 </div>
+@if (_duplicateHistory.Any())
+{
+    <h6 id="duplicate-history-anchor" class="section-title--duplicate fw-bold mb-2 d-flex align-items-center justify-content-between">
+        <span>
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Duplicate History
+            <i class="bi bi-info-circle ms-1" style="font-size:11px; cursor:help; opacity:.7;"
+               title="An exact (name + birth date) match that was deliberately kept instead of blocked. Informational only — doesn't affect this record's status or eligibility."></i>
+        </span>
+    </h6>
+    <div class="row g-2 mb-3">
+        <div class="col-12">
+            <div class="duplicate-history-card">
+            <table class="table table-sm mb-0" style="font-size:11.5px;">
+                <thead>
+                    <tr class="text-muted">
+                        <th class="fw-normal py-1">Relationship</th>
+                        <th class="fw-normal py-1">Other Record</th>
+                        <th class="fw-normal py-1">Source</th>
+                        <th class="fw-normal py-1">When</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in _duplicateHistory)
+                    {
+                        <tr>
+                            <td class="py-1">
+                                @if (entry.IsTheNewerRecord)
+                                {
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:10.5px;">Is the duplicate</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size:10.5px;">Has a duplicate</span>
+                                }
+                            </td>
+                            <td class="py-1">
+                                @entry.OtherRecordFullName
+                                <span class="text-muted">· @entry.OtherRecordBirthDate.ToString("MMM d, yyyy")</span>
+                            </td>
+                            <td class="py-1">@entry.Source</td>
+                            <td class="py-1 text-muted" title="By @entry.CreatedBy">@entry.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+}
+
 <h6 class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-person-check-fill me-1"></i>Liveness Verification &amp; EFT Readiness</span>
 </h6>
@@ -2722,6 +2801,85 @@ else
     </FooterTemplate>
 </HxModal>
 
+@* ── AUTO-ELIGIBILITY CONFIRMATION — turned 80 + Filipino. Nothing is
+     written to the DB until the PDO/Admin explicitly confirms here; the
+     server re-validates everything (criteria + jurisdiction) regardless. ── *@
+<HxModal @ref="_autoEligibilityModal" Size="ModalSize.Regular">
+    <HeaderTemplate>
+        <h5 class="modal-title"><i class="bi bi-stars text-success me-2"></i>Auto-Eligibility Update</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            <strong>@_autoEligibilityCandidates.Count</strong> grantee(s) just turned
+            <strong>80</strong> and are <strong>Filipino</strong> citizens — they qualify to be marked
+            <strong class="text-success">Eligible</strong> automatically.
+        </p>
+        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Municipality</th>
+                        <th>Birth Date</th>
+                        <th>Age</th>
+                        <th>Citizenship</th>
+                        <th>Current Eligibility</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _autoEligibilityCandidates.Values)
+                    {
+                        <tr>
+                            <td>@c.LastName, @c.FirstName @c.MiddleName</td>
+                            <td>@c.MunicipalityName</td>
+                            <td>@c.BirthDate.ToString("MMM dd, yyyy")</td>
+                            <td>@c.Age</td>
+                            <td>@GetCitizenshipText(c.Citizenship)</td>
+                            <td>
+                                <span class="badge @(c.IsEligible ? "bg-success" : "bg-secondary")">
+                                    @(c.IsEligible ? "Eligible" : "Ineligible")
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2"
+                                        style="font-size: 11px;"
+                                        @onclick="() => JumpToCandidateInGridAsync(c)"
+                                        title="Jump to this grantee's row in the grid below and highlight it">
+                                    <i class="bi bi-crosshair"></i> View
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="mt-2 mb-0 text-muted small">
+            Confirming will update these records to Eligible and log the change as an automatic
+            update. Choosing "Not Now" (or closing this window) leaves them Ineligible for now —
+            you can bring this list back anytime via the "Auto-Eligibility Pending" button above the grid.
+            Use <strong>View</strong> on any row to jump straight to that grantee's full details —
+            no need to hunt for them in a large result set.
+        </p>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="DismissAutoEligibilityAsync" Disabled="@_isConfirmingAutoEligibility">
+            Not Now
+        </HxButton>
+        <HxButton Color="ThemeColor.Success" @onclick="ConfirmAutoEligibilityAsync" Disabled="@_isConfirmingAutoEligibility">
+            @if (_isConfirmingAutoEligibility)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                <span>Updating...</span>
+            }
+            else
+            {
+                <span>Yes, Mark Eligible</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @code {
     private HxModal _annexBModal = default!;
     private HxModal _livenessModal = default!;
@@ -2770,6 +2928,143 @@ else
     private bool IsSaving;
     private HashSet<Guid> checkedIds = new();
 
+    // ── Auto-eligibility (turned 80 + Filipino) — PDO/Admin confirmation ──
+    // Detected from whatever page is already loaded (no full-table sweep);
+    // nothing is written to the DB until the user confirms in the modal.
+    // _autoEligibilityCandidates accumulates across page loads (keyed by Id,
+    // never silently overwritten) and survives an accidental/"Not Now" close
+    // — it's only ever removed once actually resolved (confirmed or found
+    // no-longer-valid by the server) — so the "Review Pending" button can
+    // always bring the same list back.
+    private HxModal _autoEligibilityModal = default!;
+    private Dictionary<Guid, BeneficiaryListItemDto> _autoEligibilityCandidates = new();
+    private bool _isConfirmingAutoEligibility;
+
+    private async Task CheckForAutoEligibilityCandidatesAsync()
+    {
+        // Ensure role/jurisdiction claims are parsed before IsInJurisdiction
+        // is trusted — idempotent, so calling it again here is cheap even if
+        // some other component already did it.
+        await AuthService.InitAsync();
+
+        // A PDO must never even SEE a candidate outside their jurisdiction
+        // here — they could never confirm it anyway (the server re-checks
+        // and skips it), so showing it first would just be confusing and
+        // exposes another jurisdiction's grantee data for no reason.
+        // IsInJurisdiction is already true unconditionally for
+        // Admin/SuperAdmin/Encoder, so this is a no-op for them.
+        var newlyFound = State.Beneficiaries
+            .Where(b => b.PendingAutoEligibility && !_autoEligibilityCandidates.ContainsKey(b.Id)
+                && AuthService.IsInJurisdiction(b.PsgcCodeMunicipality))
+            .ToList();
+
+        if (!newlyFound.Any())
+            return;
+
+        foreach (var c in newlyFound)
+            _autoEligibilityCandidates[c.Id] = c;
+
+        await InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await _autoEligibilityModal.ShowAsync();
+        });
+    }
+
+    private async Task ReopenAutoEligibilityModalAsync() => await _autoEligibilityModal.ShowAsync();
+
+    // Known Duplicates are excluded from the list (and every count/statistic)
+    // by default — this just flips the opt-in flag and reloads the current
+    // page/filter so they become visible on demand, exactly the same search.
+    private async Task ToggleShowKnownDuplicatesAsync()
+    {
+        State.Filter.IncludeKnownDuplicates = !State.Filter.IncludeKnownDuplicates;
+        State.Filter.PageNumber = 1;
+        await State.LoadAsync();
+    }
+
+    // ── "Jump to this record in the grid" ────────────────────────────────
+    // The whole reason this exists: with a few thousand records loaded under
+    // a broad search, spotting one specific grantee by eye is impractical.
+    // Rather than narrowing the grid to just this record (which would hide
+    // the rest of the search results), this scrolls to and highlights the
+    // row within the CURRENT, full result set — the candidate is already
+    // guaranteed to be part of it, since that's exactly where it was
+    // detected from in the first place (CheckForAutoEligibilityCandidatesAsync
+    // only looks at State.Beneficiaries).
+    private async Task JumpToCandidateInGridAsync(BeneficiaryListItemDto c)
+    {
+        await _autoEligibilityModal.HideAsync();
+
+        _jumpTargetRowId = c.Id;
+        StateHasChanged();
+
+        try
+        {
+            await JS.InvokeVoidAsync("eval",
+                $"document.querySelector('[data-beneficiary-id=\"{c.Id}\"]')?.scrollIntoView({{behavior:'smooth', block:'center'}})");
+        }
+        catch { /* best-effort scroll — the row is still highlighted either way */ }
+    }
+
+    private async Task ConfirmAutoEligibilityAsync()
+    {
+        if (_isConfirmingAutoEligibility) return;
+        _isConfirmingAutoEligibility = true;
+        try
+        {
+            var ids = _autoEligibilityCandidates.Keys.ToList();
+            var result = await State.ConfirmAutoEligibilityAsync(ids);
+
+            await _autoEligibilityModal.HideAsync();
+
+            if (result is null)
+            {
+                toast.ShowError("Couldn't update eligibility right now. Please try again.");
+                return;
+            }
+
+            if (result.UpdatedIds.Any())
+            {
+                toast.ShowSuccess(
+                    $"{result.UpdatedIds.Count} grantee(s) automatically marked Eligible — turned 80 and Filipino citizenship.",
+                    "Eligibility Updated");
+            }
+
+            if (result.SkippedOutsideJurisdictionIds.Any())
+            {
+                toast.ShowWarning(
+                    $"{result.SkippedOutsideJurisdictionIds.Count} record(s) were skipped — outside your assigned jurisdiction.",
+                    "Outside Your Jurisdiction");
+            }
+
+            if (result.SkippedNoLongerValidIds.Any())
+            {
+                toast.ShowWarning(
+                    $"{result.SkippedNoLongerValidIds.Count} record(s) were skipped — no longer a valid candidate (already resolved, or details changed).",
+                    "No Longer a Valid Candidate");
+            }
+
+            // Both updated and skipped are now resolved — drop them from the
+            // pending list. Anything the server didn't mention (shouldn't
+            // normally happen) is left in place rather than silently dropped.
+            foreach (var id in result.UpdatedIds.Concat(result.SkippedIds))
+                _autoEligibilityCandidates.Remove(id);
+        }
+        finally
+        {
+            _isConfirmingAutoEligibility = false;
+        }
+    }
+
+    private async Task DismissAutoEligibilityAsync()
+    {
+        // Deliberately does NOT clear _autoEligibilityCandidates — an
+        // accidental close (or a considered "Not Now") shouldn't lose track
+        // of these; "Review Pending" brings the same list right back.
+        await _autoEligibilityModal.HideAsync();
+    }
+
     // Click a row to "pin" it — a persistent highlight (not just :hover, which
     // disappears the moment the pointer leaves) so the user has a fixed visual
     // anchor for which row they're reading while scrolling this wide table
@@ -2777,10 +3072,18 @@ else
     // different row moves the anchor.
     private Guid? pinnedRowId;
     private void TogglePinnedRow(Guid id) => pinnedRowId = pinnedRowId == id ? null : id;
+
+    // Light-green spotlight for a row just jumped to from the auto-eligibility
+    // modal — separate from pinnedRowId (manual click-to-pin, amber) and
+    // row-auto-eligible (already-confirmed, also green) so the three don't
+    // get visually confused with each other.
+    private Guid? _jumpTargetRowId;
     private int? bulkPaymentStatus = null;
     private DateTime? bulkPaymentDate;
     private bool IsBulkUpdating;
     private BeneficiaryInformationDto? selectedDetails;
+    private List<BeneficiaryDuplicateHistoryDto> _duplicateHistory = new();
+    private bool _isLoadingDuplicateHistory;
     private HxOffcanvas detailsOffcanvas = default!;
     private HxModal logModal = default!;
     private HxModal confirmModal = default!;
@@ -2855,6 +3158,28 @@ protected override void OnInitialized()
         {
             State.ClearDuplicateModalOpenRequest();
             OpenGlobalDuplicateModal();
+        }
+
+        // A cleared/changed filter can leave stale row IDs checked even though
+        // the grid they belonged to is now empty (or a different result set).
+        if (!State.Beneficiaries.Any() && checkedIds.Count > 0)
+        {
+            ClearSelection();
+        }
+
+        // Filters were actually cleared (not just "this search had zero
+        // results" — HasActiveFilter is only false right after
+        // State.ClearData()) — drop any pending auto-eligibility review too,
+        // since it was detected under whatever search just got wiped.
+        if (!State.HasActiveFilter && _autoEligibilityCandidates.Any())
+        {
+            _autoEligibilityCandidates.Clear();
+            _ = _autoEligibilityModal.HideAsync();
+        }
+
+        if (!State.IsLoading)
+        {
+            _ = CheckForAutoEligibilityCandidatesAsync();
         }
 
         InvokeAsync(StateHasChanged);
@@ -2960,6 +3285,17 @@ private async Task OpenDetailsPanelAndFocusPaymentHistory(BeneficiaryListItemDto
     await Task.Delay(150); // let the offcanvas finish rendering before scrolling
     await JS.InvokeVoidAsync("scrollToElement", "payment-history-anchor");
 }
+private async Task OpenDetailsPanelAndFocusDuplicateHistory(BeneficiaryListItemDto item)
+{
+    await OpenDetailsPanel(item);
+    await Task.Delay(150); // let the offcanvas + duplicate-history fetch finish before scrolling
+    await JS.InvokeVoidAsync("scrollToElement", "duplicate-history-anchor");
+}
+
+// Same jump, but for the header badge inside an ALREADY-open offcanvas —
+// no need to reopen/refetch anything.
+private async Task ScrollToDuplicateHistory()
+    => await JS.InvokeVoidAsync("scrollToElement", "duplicate-history-anchor");
 private async Task ConfirmDeletePaymentHistory(PaymentHistoryDto entry)
 {
     _pendingDeletePaymentHistory = entry;
@@ -3866,10 +4202,12 @@ public void Dispose()
         }
 
         selectedDetails = fullDetails;
+        _duplicateHistory = new(); // clear stale data from a previously-viewed record
         StateHasChanged();
         await detailsOffcanvas.ShowAsync();
 
         await LoadPaymentHistoryAsync(item.Id);
+        await LoadDuplicateHistoryAsync(item.Id);
     }
     catch (Exception ex)
     {
@@ -3894,6 +4232,26 @@ private async Task LoadPaymentHistoryAsync(Guid beneficiaryId)
     finally
     {
         isLoadingPaymentHistory = false;
+        StateHasChanged();
+    }
+}
+
+private async Task LoadDuplicateHistoryAsync(Guid beneficiaryId)
+{
+    try
+    {
+        _isLoadingDuplicateHistory = true;
+        StateHasChanged();
+        _duplicateHistory = await Http.GetFromJsonAsync<List<BeneficiaryDuplicateHistoryDto>>(
+            $"api/beneficiary/duplicate-history/{beneficiaryId}") ?? new();
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to load duplicate history: {ex.Message}");
+    }
+    finally
+    {
+        _isLoadingDuplicateHistory = false;
         StateHasChanged();
     }
 }

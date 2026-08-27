@@ -29,12 +29,14 @@ namespace EcaInformationSystem.Application.Services
         private readonly IStatisticsService _statisticsService;
         private readonly IBeneficiaryVerificationChecklistRepository _checklistRepo;
         private readonly IResolvedDuplicatePairRepository _resolvedDuplicatePairRepo;
+        private readonly IJurisdictionGuardService _jurisdictionGuardService;
         private const string GlobalDuplicateScanCacheKey = "global_duplicate_scan_v1";
         public BeneficiaryInformationService(IBeneficiaryInformationRepository repo, IRegionRepository regionRepository
     , IProvinceRepository provinceRepository, IMunicipalityRepository municipalityRepository, IBarangayRepository barangayRepository,
     ILogRepository logRepository, IMemoryCache memoryCache, IPayrollJobTracker payrollJobTracker,
     IBackgroundTaskQueue backgroundTaskQueue, IPsgcNameCache psgcNameCache, IStatisticsService statisticsService,
-    IBeneficiaryVerificationChecklistRepository checklistRepo, IResolvedDuplicatePairRepository resolvedDuplicatePairRepo)
+    IBeneficiaryVerificationChecklistRepository checklistRepo, IResolvedDuplicatePairRepository resolvedDuplicatePairRepo,
+    IJurisdictionGuardService jurisdictionGuardService)
         {
             _repo = repo;
             _regionRepository = regionRepository;
@@ -49,6 +51,7 @@ namespace EcaInformationSystem.Application.Services
             _statisticsService = statisticsService;
             _checklistRepo = checklistRepo;
             _resolvedDuplicatePairRepo = resolvedDuplicatePairRepo;
+            _jurisdictionGuardService = jurisdictionGuardService;
         }
         public async Task SetCurrentPaymentHistoryAsync(Guid beneficiaryId, Guid historyId, string userName)
         {
@@ -245,6 +248,7 @@ namespace EcaInformationSystem.Application.Services
             Age = x.Age,
             MilestoneYear = x.MilestoneYear,
             Sex = x.Sex,
+            Citizenship = x.Citizenship,
             PsgcCodeRegion = x.PsgcCodeRegion,
             PsgcCodeProvince = x.PsgcCodeProvince,
             PsgcCodeMunicipality = x.PsgcCodeMunicipality,
@@ -736,17 +740,53 @@ namespace EcaInformationSystem.Application.Services
             if (!dto.IsSignedDeclaration)
                 throw new Exception("The declaration must be confirmed as signed before this record can be saved.");
             ValidatePhoneNumbers(dto.PhoneNumbers);
-            //Check duplicates
-            var isDuplicate = await _repo.ExistsDuplicateAsync(
-                dto.LastName,
-                dto.FirstName,
-                dto.MiddleName,
-                dto.BirthDate);
-            if (isDuplicate)
-                throw new Exception(CommonConstants.DuplicateFound);
 
-            //Soft duplicate check (fuzzy match, skip if user already confirmed)
-            if (!dto.BypassSoftDuplicateCheck)
+            // Exact (100%) duplicate check — per office policy this no longer
+            // hard-blocks Create outright. It still blocks until the user has
+            // seen and acknowledged the match (AcknowledgeExactDuplicate),
+            // exactly like the fuzzy soft-duplicate flow below — it just no
+            // longer blocks PERMANENTLY. See BeneficiaryDuplicateHistory.
+            SoftDuplicateCandidateDto? exactDuplicate = null;
+            if (!dto.AcknowledgeExactDuplicate)
+            {
+                exactDuplicate = await _repo.FindExactDuplicateAsync(
+                    dto.LastName,
+                    dto.FirstName,
+                    dto.MiddleName,
+                    dto.BirthDate);
+
+                if (exactDuplicate is not null)
+                {
+                    return new CreateBeneficiaryResultDto
+                    {
+                        RequiresConfirmation = true,
+                        RequiresExactDuplicateConfirmation = true,
+                        ExactDuplicate = exactDuplicate
+                    };
+                }
+            }
+            else
+            {
+                // Re-resolve which existing record this is a Known Duplicate
+                // of — never trust an id the client might supply, and the
+                // client's earlier confirmation payload only proves it SAW a
+                // match, not which one (re-checking also protects against
+                // that original match having been deleted/edited since).
+                exactDuplicate = await _repo.FindExactDuplicateAsync(
+                    dto.LastName,
+                    dto.FirstName,
+                    dto.MiddleName,
+                    dto.BirthDate);
+            }
+
+            // Soft duplicate check (fuzzy match) — skipped when the user already
+            // confirmed it directly, AND when they just confirmed the EXACT
+            // (100%) Known Duplicate match above: that confirmation already
+            // covers this exact record, so a second "Possible Duplicate" modal
+            // for the same person right after would be redundant. A record
+            // that ISN'T a 100% exact match still goes through this fuzzy
+            // check normally.
+            if (!dto.BypassSoftDuplicateCheck && !dto.AcknowledgeExactDuplicate)
             {
                 var softMatches = await _repo.FindSoftDuplicatesAsync(
                 dto.FirstName,
@@ -874,6 +914,33 @@ namespace EcaInformationSystem.Application.Services
                 beneficiary.Id,
                 $"{CommonConstants.CreatedBeneficiary} {beneficiary.LastName}, {beneficiary.FirstName}",
                 userName);
+
+            // Known Duplicate — recorded in BeneficiaryDuplicateHistory (never
+            // as a flag on the beneficiary itself, so it can't leak into the
+            // grid/list/statistics), plus a log entry on each side so both
+            // records' own Logs tab mentions it too.
+            if (exactDuplicate is not null)
+            {
+                await _repo.AddDuplicateHistoryAsync(new BeneficiaryDuplicateHistory
+                {
+                    Id = Guid.NewGuid(),
+                    BeneficiaryInformationId = beneficiary.Id,
+                    DuplicateOfId = exactDuplicate.ExistingId,
+                    Source = "Create",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = userName
+                });
+
+                await AddLogAsync(
+                    beneficiary.Id,
+                    $"Saved as a Known Duplicate of {exactDuplicate.ExistingFullName} (exact match on name and birth date) — acknowledged by {userName}",
+                    userName);
+
+                await AddLogAsync(
+                    exactDuplicate.ExistingId,
+                    $"Flagged as having a Known Duplicate — a new grantee record for {beneficiary.LastName}, {beneficiary.FirstName} was saved as an exact match, acknowledged by {userName}",
+                    userName);
+            }
 
             // ✅ NEW — separate log entry specifically for the auto-pending seed, so
             // it shows up distinctly in the beneficiary's Logs modal, not folded into
@@ -1349,6 +1416,73 @@ namespace EcaInformationSystem.Application.Services
             await _repo.SaveChangesAsync();
             InvalidateSummaryCache();
         }
+
+        // PDO-confirmed auto-eligibility flip: turns 80 + Filipino -> Eligible.
+        // Never trusts the client-submitted id list — re-checks the flip
+        // criteria AND the caller's jurisdiction (for PDO) against fresh DB
+        // data before touching anything, so a stale/tampered request can't
+        // flip records outside what the caller is actually allowed to see.
+        //
+        // Only Admin/SuperAdmin/PDO/Encoder ever reach this method — the
+        // controller action is gated by the "GranteeEncodeAccess" policy.
+        // Encoder is unrestricted here, same as Admin/SuperAdmin — it's an
+        // office-wide encoding role with no per-municipality jurisdiction
+        // rows (see JurisdictionGuardService.CheckAsync, which treats it
+        // identically). Only PDO is jurisdiction-restricted.
+        public async Task<ConfirmAutoEligibilityResultDto> ConfirmAutoEligibilityAsync(List<Guid> ids, string userName, string role)
+        {
+            var result = new ConfirmAutoEligibilityResultDto();
+
+            if (ids == null || !ids.Any())
+                return result;
+
+            var candidates = await _repo.GetByIdsAsync(ids);
+
+            HashSet<int>? allowedMunicipalities = null;
+            if (role == "PDO")
+                allowedMunicipalities = (await _jurisdictionGuardService.GetAllowedMunicipalityCodesAsync(userName)).ToHashSet();
+            else if (role != "Admin" && role != "SuperAdmin" && role != "Encoder")
+                return result; // shouldn't happen given the controller policy, but fail closed regardless
+
+            var toUpdate = new List<Guid>();
+
+            foreach (var c in candidates)
+            {
+                // Must have ACTUALLY reached age 80 already (not merely "80
+                // falls this year" — a grantee born in October is still 79
+                // for most of the year). Mirrors
+                // BeneficiaryListItemDto.PendingAutoEligibility exactly.
+                var isValidCandidate = !c.IsEligible && c.Citizenship == 1 &&
+                    EcaEligibilityHelper.ComputeAge(c.BirthDate) == 80 &&
+                    !EcaEligibilityHelper.MissedProgramStartCutoff(c.BirthDate);
+
+                var inJurisdiction = allowedMunicipalities is null || allowedMunicipalities.Contains(c.PsgcCodeMunicipality);
+
+                if (isValidCandidate && inJurisdiction)
+                    toUpdate.Add(c.Id);
+                else if (!inJurisdiction)
+                    result.SkippedOutsideJurisdictionIds.Add(c.Id);
+                else
+                    result.SkippedNoLongerValidIds.Add(c.Id);
+            }
+
+            if (toUpdate.Any())
+            {
+                await _repo.BulkUpdateEligibilityAndBatchCodeAsync(toUpdate, true, null, null);
+
+                foreach (var id in toUpdate)
+                    await AddLogAsync(id, $"Automatically marked Eligible — turned 80 and Filipino citizenship, confirmed by {userName}", userName);
+
+                await _repo.SaveChangesAsync();
+                InvalidateSummaryCache();
+            }
+
+            result.UpdatedIds = toUpdate;
+            return result;
+        }
+
+        public async Task<List<BeneficiaryDuplicateHistoryDto>> GetDuplicateHistoryAsync(Guid beneficiaryId)
+            => await _repo.GetDuplicateHistoryAsync(beneficiaryId);
 
         public async Task BulkUpdateCoStatusAsync(List<Guid> ids, int? coStatus, DateTime? coDateEndorsed, DateTime? coDateApproved,
         string userName, Dictionary<Guid, byte[]>? rowVersions = null)  // ✅ added
@@ -3175,20 +3309,46 @@ namespace EcaInformationSystem.Application.Services
                     if (rowHasHardError)
                         continue;
 
-                    // ── Exact duplicate in DB ─────────────────────────────────────
-                    // ✅ CHANGED — in-memory HashSet lookup instead of a DB round-trip
+                    // ── Exact (100%) duplicate in DB ───────────────────────────────
+                    // ✅ CHANGED — per office policy, an exact match no longer hard-
+                    // blocks the row out of the import. It's surfaced in the same
+                    // review popup as a soft/fuzzy match (MatchScore = 1.0 marks it
+                    // as an exact "Known Duplicate" candidate, not a hard error) — the
+                    // user can still Skip it, or Import Anyway to save it as a Known
+                    // Duplicate (see ConfirmImportAsync / BeneficiaryDuplicateHistory).
                     var exactKey = BuildExactDupKey(lastName, firstName, middleName, birthDate);
-                    var isExactDuplicate = exactDupKeys.Contains(exactKey);
+                    var exactMatchCandidate = duplicatePool.FirstOrDefault(d =>
+                        BuildExactDupKey(d.LastName, d.FirstName, d.MiddleName, d.BirthDate) == exactKey);
 
-                    if (isExactDuplicate)
+                    if (exactMatchCandidate is not null)
                     {
-                        preview.HardErrors.Add(new BeneficiaryImportErrorDto
+                        preview.SoftDuplicates.Add(new SoftDuplicateCandidateDto
                         {
                             RowNumber = rowNumber,
-                            Field = CommonConstants.Duplicate,
-                            Message = CommonConstants.DuplicateRecordExistInDatabase,
-                            RawValue = $"{lastName}, {firstName}"
+                            ImportedName = $"{lastName}, {firstName}",
+                            ImportedMiddleName = middleName ?? string.Empty,
+                            ImportedBirthDate = birthDate,
+                            ExistingId = exactMatchCandidate.Id,
+                            ExistingFullName = $"{exactMatchCandidate.LastName}, {exactMatchCandidate.FirstName}",
+                            ExistingMiddleName = exactMatchCandidate.MiddleName ?? string.Empty,
+                            ExistingBirthDate = exactMatchCandidate.BirthDate,
+                            ExistingOscaId = exactMatchCandidate.OscaIdNumber ?? string.Empty,
+                            ExistingProvince = provinceNameByCode.GetValueOrDefault(exactMatchCandidate.Province, string.Empty),
+                            ExistingMunicipality = municipalityNameByCode.GetValueOrDefault(exactMatchCandidate.Municipality, string.Empty),
+                            ExistingBarangay = barangayNameByCode.GetValueOrDefault(exactMatchCandidate.Barangay, string.Empty),
+                            MatchScore = 1.0
                         });
+                        // A row flagged into SoftDuplicates still counts toward
+                        // CleanRows too (matches the existing soft/fuzzy-match
+                        // convention just below) — the client's "how many will
+                        // actually import" math (BeneficiaryImporting.razor's
+                        // WillBeImported) subtracts the flagged-row count back
+                        // out of CleanRows to correct for this. Skipping this
+                        // increment ONLY for exact matches (as before) broke
+                        // that math, undercounting by exactly the number of
+                        // exact-match rows and showing "0 will import" even
+                        // when Tag & Import was selected.
+                        preview.CleanRows++;
                         continue;
                     }
 
@@ -3779,6 +3939,10 @@ namespace EcaInformationSystem.Application.Services
             var result = new BeneficiaryImportResultDto();
             var beneficiariesToImport = new List<BeneficiaryInformation>();
             var importedPaymentHistoryEntries = new List<BeneficiaryPaymentHistory>(); // ✅ NEW
+            // (newId, existingId, newFullName) — rows imported anyway despite being an
+            // exact DB match; records a BeneficiaryDuplicateHistory entry and logs
+            // both sides once the import itself has been saved.
+            var knownDuplicatePairs = new List<(Guid NewId, Guid ExistingId, string NewFullName)>();
 
             var regions = await _regionRepository.GetAllAsync();
             var provinces = (await _provinceRepository.GetAllProvinceAsync())
@@ -4163,24 +4327,21 @@ namespace EcaInformationSystem.Application.Services
                         }
                     }
 
-                    // ── Exact DB duplicate check ──────────────────────────────────
-                    // ✅ CHANGED — in-memory HashSet lookup instead of a DB round-trip
+                    // ── Exact (100%) DB duplicate check ────────────────────────────
+                    // ✅ CHANGED — per office policy this no longer hard-blocks the
+                    // row. The user already saw this exact match in the review popup
+                    // (PreviewImportAsync surfaces it as a MatchScore=1.0 candidate)
+                    // and chose NOT to skip it — that IS the acknowledgement, same
+                    // spirit as AcknowledgeExactDuplicate in the manual Create flow.
+                    // Record which existing row it matches so the entity below can be
+                    // flagged as a Known Duplicate instead of rejected.
+                    Guid? exactDuplicateOfId = null;
                     if (!rowHasError)
                     {
                         var exactKey = BuildExactDupKey(lastName, firstName, middleName, birthDate);
-                        var isDuplicateInDatabase = exactDupKeys.Contains(exactKey);
-
-                        if (isDuplicateInDatabase)
-                        {
-                            result.Errors.Add(new BeneficiaryImportErrorDto
-                            {
-                                RowNumber = rowNumber,
-                                Field = CommonConstants.Duplicate,
-                                Message = CommonConstants.DuplicateRecordExistInDatabase,
-                                RawValue = $"{lastName}, {firstName}"
-                            });
-                            rowHasError = true;
-                        }
+                        exactDuplicateOfId = duplicatePool
+                            .FirstOrDefault(d => BuildExactDupKey(d.LastName, d.FirstName, d.MiddleName, d.BirthDate) == exactKey)
+                            ?.Id;
                     }
 
                     if (rowHasError)
@@ -4259,6 +4420,9 @@ namespace EcaInformationSystem.Application.Services
 
                     beneficiariesToImport.Add(beneficiary);
                     importedPaymentHistoryEntries.Add(importedPaymentHistory);
+
+                    if (exactDuplicateOfId.HasValue)
+                        knownDuplicatePairs.Add((beneficiary.Id, exactDuplicateOfId.Value, $"{beneficiary.LastName}, {beneficiary.FirstName}"));
                 }
                 catch (Exception ex)
                 {
@@ -4294,6 +4458,32 @@ namespace EcaInformationSystem.Application.Services
             foreach (var historyEntry in importedPaymentHistoryEntries)
             {
                 await _repo.AddPaymentHistoryEntryAsync(historyEntry);
+            }
+
+            // Known Duplicate — recorded in BeneficiaryDuplicateHistory for each
+            // pair imported anyway despite being an exact match, plus a log
+            // entry on each side.
+            foreach (var pair in knownDuplicatePairs)
+            {
+                await _repo.AddDuplicateHistoryAsync(new BeneficiaryDuplicateHistory
+                {
+                    Id = Guid.NewGuid(),
+                    BeneficiaryInformationId = pair.NewId,
+                    DuplicateOfId = pair.ExistingId,
+                    Source = "Import",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = userName
+                });
+
+                await AddLogAsync(
+                    pair.NewId,
+                    $"Imported as a Known Duplicate of an existing record (exact match on name and birth date) — imported anyway by {userName}",
+                    userName);
+
+                await AddLogAsync(
+                    pair.ExistingId,
+                    $"Flagged as having a Known Duplicate — {pair.NewFullName} was imported via Excel as an exact match, imported anyway by {userName}",
+                    userName);
             }
 
             await _repo.SaveChangesAsync();
@@ -5554,6 +5744,17 @@ namespace EcaInformationSystem.Application.Services
             return string.Join("|",
                 version,
                 CommonConstants.BeneficiaryPaginated,
+                filter.IncludeKnownDuplicates.ToString(),
+
+                // BuildNarrowFilterQuery applies filter.Ids ahead of every
+                // other field — without it in the key, two different Ids
+                // filters that happen to match on every OTHER field (e.g.
+                // both otherwise blank) would collide on the same cache
+                // entry and one caller could be served another's results.
+                (filter.Ids != null && filter.Ids.Any())
+                    ? string.Join(",", filter.Ids.OrderBy(x => x))
+                    : CommonConstants.Null,
+
                 filter.PsgcCodeRegion?.ToString() ?? CommonConstants.Null,
                 filter.PageNumber.ToString(),
                 filter.PageSize.ToString(),

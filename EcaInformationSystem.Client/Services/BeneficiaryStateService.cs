@@ -45,6 +45,15 @@ public class BeneficiaryStateService
     public int TotalPages { get; private set; }
     public bool IsLoading { get; private set; }
 
+    // How many records this same filter would additionally match if Known
+    // Duplicates weren't excluded — see BeneficiaryFilterDto.IncludeKnownDuplicates.
+    public int HiddenKnownDuplicateCount { get; private set; }
+
+    // Ids just confirmed by the PDO/Admin as auto-flipped to Eligible (turned
+    // 80 + Filipino) this session — used purely to highlight those rows in
+    // the grid; not persisted, cleared whenever a fresh page is loaded.
+    public HashSet<Guid> RecentlyAutoEligibleIds { get; private set; } = new();
+
 
     // ✅ Add these two
     public DateTime? LastLoaded { get; private set; }
@@ -97,14 +106,17 @@ public class BeneficiaryStateService
         Beneficiaries = new List<BeneficiaryListItemDto>();
         TotalCount = 0;
         TotalPages = 0;
+        HiddenKnownDuplicateCount = 0;
         LastLoaded = null;
         HasActiveFilter = false; // ✅ reset on clear
+        RecentlyAutoEligibleIds.Clear();
         NotifyStateChanged();
     }
     public async Task LoadAsync()
     {
         IsLoading = true;
         ErrorMessage = null;
+        RecentlyAutoEligibleIds.Clear();
         NotifyStateChanged();
 
         try
@@ -117,6 +129,7 @@ public class BeneficiaryStateService
                 Beneficiaries = result?.Items ?? new List<BeneficiaryListItemDto>();
                 TotalCount = result?.TotalCount ?? 0;
                 TotalPages = result?.TotalPages ?? 0;
+                HiddenKnownDuplicateCount = result?.HiddenKnownDuplicateCount ?? 0;
                 LastResultWasFuzzy = false;
 
                 // ✅ Auto-fallback — if the exact search found nothing AND the
@@ -168,6 +181,7 @@ public class BeneficiaryStateService
 
                 Beneficiaries = new List<BeneficiaryListItemDto>();
                 TotalCount = 0;
+                HiddenKnownDuplicateCount = 0;
             }
         }
         catch (HttpRequestException)
@@ -186,6 +200,43 @@ public class BeneficiaryStateService
         }
 
         HasActiveFilter = true;
+    }
+
+    // PDO/Admin has confirmed the "turned 80 + Filipino" auto-eligibility flip
+    // for these candidate ids. The server re-validates everything (criteria +
+    // jurisdiction) before writing anything — this just applies whatever it
+    // actually accepted back onto the already-loaded page, so the grid
+    // reflects it immediately without a full reload, and flags the updated
+    // rows so the UI can highlight them.
+    public async Task<ConfirmAutoEligibilityResultDto?> ConfirmAutoEligibilityAsync(List<Guid> ids)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync("api/beneficiary/confirm-auto-eligibility", ids);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var result = await response.Content.ReadFromJsonAsync<ConfirmAutoEligibilityResultDto>();
+            if (result is null)
+                return null;
+
+            foreach (var id in result.UpdatedIds)
+            {
+                var row = Beneficiaries.FirstOrDefault(b => b.Id == id);
+                if (row is not null)
+                    row.IsEligible = true;
+
+                RecentlyAutoEligibleIds.Add(id);
+            }
+
+            NotifyStateChanged();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex);
+            return null;
+        }
     }
 
     // Returns true if any filter besides the name fields / GeneralSearch / paging

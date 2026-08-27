@@ -6019,6 +6019,45 @@
     color: var(--accent);
 }
 
+.details-header-badge--warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.details-header-badge--warning i {
+    color: #92400e;
+}
+
+/* Known Duplicate — deliberately louder than the other header badges (which
+   are neutral/informational): solid red-orange gradient, bold white text,
+   a soft pulsing glow so it reads as "this needs your attention" the moment
+   the record opens, not something to notice only on close inspection.
+   Clickable — jumps straight to Duplicate History. */
+.details-header-badge--duplicate {
+    background: linear-gradient(135deg, #dc2626, #ea580c);
+    color: white;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+    animation: known-duplicate-pulse 2.2s ease-in-out infinite;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.details-header-badge--duplicate i {
+    color: white;
+}
+
+.details-header-badge--duplicate:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+}
+
+@keyframes known-duplicate-pulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35); }
+    50% { box-shadow: 0 2px 14px rgba(220, 38, 38, 0.65); }
+}
+
 .details-header-action {
     flex: 0 0 auto;
     box-shadow: 0 2px 6px rgba(31, 56, 100, 0.25);
@@ -6518,10 +6557,11 @@
 
     .sf-search-input {
         width: 100%;
-        padding: 8px 36px 8px 32px;
+        height: 30px;
+        padding: 0 36px 0 32px;
         border: 1.5px solid var(--border);
         border-radius: 8px;
-        font-size: 13px;
+        font-size: 12.5px;
         background: var(--bg-input);
         color: var(--text);
         transition: border-color 0.2s;
@@ -7150,8 +7190,8 @@
 
     .sf-btn {
         height: 30px;
-        padding: 0 16px;
-        font-size: 12px;
+        padding: 0 12px;
+        font-size: 11.5px;
         font-weight: 600;
         border-radius: 6px;
         border: 1.5px solid transparent;
@@ -7160,6 +7200,7 @@
         display: inline-flex;
         align-items: center;
         gap: 5px;
+        white-space: nowrap;
     }
 
     .sf-btn-clear {
@@ -7201,9 +7242,6 @@
 
         .selection-banner.selection-banner--active {
             background: #eef4ff;
-            border: 1px solid #93c5fd;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-            padding: 8px 14px;
         }
 
         .selection-banner .sel-count {
@@ -7227,9 +7265,6 @@
         .selection-banner .sel-count.sel-count--active {
             color: #fff;
             background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            font-size: 13px;
-            padding: 5px 14px;
-            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
             animation: sel-count-pop .25s ease;
         }
 
@@ -7256,6 +7291,38 @@
             background: #dbeafe;
         }
 
+        /* Cooler variant used when the selection pill sits inline in the Bulk
+           Update header — solid fill + lift/shadow on hover and a press-down
+           on click, instead of the plain outline button. */
+        .selection-banner .btn-clear-selection.btn-clear-selection--cool {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-color: #93c5fd;
+            box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
+            transition: transform .12s ease, box-shadow .12s ease, background-color .15s ease;
+        }
+
+        .selection-banner .btn-clear-selection.btn-clear-selection--cool:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border-color: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
+        }
+
+        .selection-banner .btn-clear-selection.btn-clear-selection--cool:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+        }
+
+    /* Divider between the "Bulk Update" label and the inline selection
+       counter/Clear button in the bulk bar header. */
+    .bulk-bar-divider {
+        width: 1px;
+        height: 14px;
+        background: var(--border);
+        display: inline-block;
+    }
+
     /* ── Bulk bar ──────────────────────────────────────────── */
     .bulk-bar {
         display: flex;
@@ -7271,6 +7338,8 @@
         .bulk-bar-header {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
+            row-gap: 8px;
             gap: 5px;
             font-size: 11px;
             font-weight: 700;
@@ -7423,6 +7492,73 @@
             cursor: not-allowed;
         }
 
+    /* ── Data-quality count pills — compact, icon + number only (full label
+       lives in the title tooltip) so Location Caution/Heads-Up/Incomplete
+       counts can sit inline next to "Showing X–Y of Z" without pushing the
+       pagination bar into extra height. ── */
+    .pag-count-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        line-height: 1.4;
+        white-space: nowrap;
+    }
+
+    .pag-count-pill--warning {
+        background: #fff8e1;
+        color: #92400e;
+        border-color: #fde68a;
+    }
+
+    .pag-count-pill--info {
+        background: #e0f2fe;
+        color: #075985;
+        border-color: #bae6fd;
+    }
+
+    .pag-count-pill--danger {
+        background: #fee2e2;
+        color: #991b1b;
+        border-color: #fecaca;
+    }
+
+    /* Auto-Eligibility Pending — the one pill here that's clickable (reopens
+       the confirmation modal), so it gets a hover state the read-only
+       Caution/Heads-Up/Incomplete pills don't need. */
+    .pag-count-pill--success {
+        background: #dcfce7;
+        color: #15803d;
+        border-color: #86efac;
+        cursor: pointer;
+        transition: background-color .15s, box-shadow .15s;
+    }
+
+        .pag-count-pill--success:hover {
+            background: #bbf7d0;
+            box-shadow: 0 1px 4px rgba(21, 128, 61, 0.25);
+        }
+
+    /* Known Duplicates hidden/shown toggle — deliberately neutral gray, not a
+       warning/danger tone, since hiding them is the normal/default state, not
+       a problem to flag. */
+    .pag-count-pill--neutral {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #cbd5e1;
+        cursor: pointer;
+        transition: background-color .15s, box-shadow .15s;
+    }
+
+        .pag-count-pill--neutral:hover {
+            background: #e2e8f0;
+            box-shadow: 0 1px 4px rgba(71, 85, 105, 0.2);
+        }
+
     /* ── Page-number navigator — click straight to a nearby page (see
        GetPageNumbersToShow/pag-numbers in GridView.razor) ── */
     .pag-numbers {
@@ -7544,36 +7680,45 @@
 
     /* ── Hover-to-reveal scrollbar — invisible at rest, appears on hover
        instead of always sitting on the edge of the table. Reusable on any
-       scrollable container, not just tables. ── */
-    .hover-scroll {
+       scrollable container, not just tables. .tbl-scroll (the main grid's
+       scroll box, both axes) gets it too, for a minimalist look instead of
+       a chunky scrollbar always sitting on the edge. ── */
+    .hover-scroll,
+    .tbl-scroll {
         scrollbar-width: thin;
         scrollbar-color: transparent transparent;
     }
 
-        .hover-scroll:hover {
+        .hover-scroll:hover,
+        .tbl-scroll:hover {
             scrollbar-color: #c5cdd8 transparent;
         }
 
-        .hover-scroll::-webkit-scrollbar {
+        .hover-scroll::-webkit-scrollbar,
+        .tbl-scroll::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
 
-        .hover-scroll::-webkit-scrollbar-track {
+        .hover-scroll::-webkit-scrollbar-track,
+        .tbl-scroll::-webkit-scrollbar-track {
             background: transparent;
         }
 
-        .hover-scroll::-webkit-scrollbar-thumb {
+        .hover-scroll::-webkit-scrollbar-thumb,
+        .tbl-scroll::-webkit-scrollbar-thumb {
             background: transparent;
             border-radius: 8px;
             transition: background-color .15s;
         }
 
-        .hover-scroll:hover::-webkit-scrollbar-thumb {
+        .hover-scroll:hover::-webkit-scrollbar-thumb,
+        .tbl-scroll:hover::-webkit-scrollbar-thumb {
             background: #c5cdd8;
         }
 
-        .hover-scroll::-webkit-scrollbar-thumb:hover {
+        .hover-scroll::-webkit-scrollbar-thumb:hover,
+        .tbl-scroll::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
 
@@ -7709,6 +7854,59 @@
                 box-shadow: inset 3px 0 0 0 #f59e0b;
             }
 
+            /* Just confirmed by the PDO/Admin as auto-flipped to Eligible
+               (turned 80 + Filipino) this session — a distinct green tint +
+               left accent so it doesn't get confused with .row-checked
+               (bulk-select, blue) or .row-pinned (click-to-pin, amber). Kept
+               after both in source order so it wins ties, and repeated with
+               :hover for the same reason .row-pinned is. */
+            .records-tbl tbody tr.row-auto-eligible,
+            .records-tbl tbody tr.row-auto-eligible:hover {
+                background: #f0fdf4;
+            }
+            .records-tbl tbody tr.row-auto-eligible td:first-child {
+                box-shadow: inset 3px 0 0 0 #16a34a;
+            }
+
+            /* "Jump to this record" spotlight — from the auto-eligibility
+               modal's View button, where finding one row among thousands is
+               otherwise impractical. A light green tint (kept distinct from
+               .row-auto-eligible's slightly deeper green so "here it is" and
+               "already confirmed eligible" never look the same at a glance)
+               plus a brief fade-in pulse so the eye catches it immediately
+               after the page scrolls to it. */
+            .records-tbl tbody tr.row-jump-target,
+            .records-tbl tbody tr.row-jump-target:hover {
+                background: #ecfdf5;
+                animation: row-jump-target-pulse 1.4s ease-out 1;
+            }
+            .records-tbl tbody tr.row-jump-target td:first-child {
+                box-shadow: inset 3px 0 0 0 #34d399;
+            }
+
+            @keyframes row-jump-target-pulse {
+                0% { background-color: #a7f3d0; }
+                100% { background-color: #ecfdf5; }
+            }
+
+            /* A row shown after "Show Known Duplicates" was clicked (hidden
+               by default otherwise) — a red tint on BOTH halves of a pair
+               (the original AND its duplicate), so seeing the same red
+               treatment on two separate rows reads as "these two are linked"
+               even though they may not be adjacent. A red bracket on both
+               edges stands in for an actual connector line between rows,
+               which isn't practical when a pair can land pages apart. */
+            .records-tbl tbody tr.row-known-duplicate,
+            .records-tbl tbody tr.row-known-duplicate:hover {
+                background: #fef2f2;
+            }
+            .records-tbl tbody tr.row-known-duplicate td:first-child {
+                box-shadow: inset 3px 0 0 0 #dc2626;
+            }
+            .records-tbl tbody tr.row-known-duplicate td:last-child {
+                box-shadow: inset -3px 0 0 0 #dc2626;
+            }
+
         .records-tbl td {
             padding: 5px 10px;
             vertical-align: middle;
@@ -7774,6 +7972,17 @@
             color: #92400e;
         }
 
+        /* Sits next to the Eligibility badge — flags a row whose eligibility
+           was just auto-flipped (turned 80 + Filipino) and confirmed by the
+           PDO/Admin this session. Pairs with .row-auto-eligible's green tint
+           as a second, non-color-only identifier (icon + text). */
+        .tbl-badge.auto-eligible-badge {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+            margin-left: 4px;
+        }
+
         .tbl-badge.age-95 {
             background: #fee2e2;
             color: #991b1b;
@@ -7826,6 +8035,31 @@
             cursor: help;
             flex-shrink: 0;
         }
+
+        /* Known Duplicate — a 100%-exact match that was deliberately kept
+           instead of blocked (see BeneficiaryDuplicateHistory). Sits right
+           before the Last Name, same compact circular treatment as
+           .tbl-badge-lv-eft, but in a warning tone so it reads as "pay
+           attention here" rather than a routine status. Clickable — jumps
+           straight to that record's Duplicate History. */
+        .known-duplicate-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background-color .15s;
+        }
+
+            .known-duplicate-badge:hover {
+                background: #fde68a;
+            }
 
         .tbl-badge.no-g {
             background: #f1f5f9;
@@ -8000,12 +8234,12 @@
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 1px 8px rgba(0,0,0,.06);
-        margin-bottom: 14px;
+        margin-bottom: 10px;
     }
     /* header strip — same navy as table header */
     .sf-header {
         background: var(--navy);
-        padding: 10px 16px;
+        padding: 7px 14px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -8016,33 +8250,44 @@
     .sf-header-left {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     .sf-header-icon {
-        width: 30px;
-        height: 30px;
+        width: 24px;
+        height: 24px;
         background: rgba(255,255,255,.15);
-        border-radius: 7px;
+        border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 14px;
+        font-size: 12px;
     }
 
     .sf-header-title {
         color: white;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         letter-spacing: .4px;
         text-transform: uppercase;
         margin: 0;
     }
 
+    /* Data-quality reminder — an info icon beside "Filter Grantees" instead
+       of its own banner line above the grid; hover/tap for the full message. */
+    .sf-header-info {
+        margin-left: 6px;
+        font-size: 11px;
+        color: rgba(255,255,255,.65);
+        text-transform: none;
+        letter-spacing: normal;
+        cursor: help;
+    }
+
     .sf-header-sub {
         color: rgba(255,255,255,.65);
-        font-size: 11px;
+        font-size: 10px;
         margin: 0;
     }
 
@@ -8123,6 +8368,21 @@
         color: var(--accent);
         margin-top: 3px;
     }
+
+    /* Chip showing one applied "More Filters" criterion, so the user can see
+       at a glance what's currently narrowing the grid without reopening the
+       modal. */
+    .sf-active-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--navy);
+        background: var(--navy-pale);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
     /* action row */
     .sf-actions {
         display: flex;
@@ -8135,8 +8395,8 @@
 
     .sf-btn {
         height: 30px;
-        padding: 0 16px;
-        font-size: 12px;
+        padding: 0 12px;
+        font-size: 11.5px;
         font-weight: 600;
         border-radius: 6px;
         border: 1.5px solid transparent;
@@ -8145,6 +8405,7 @@
         display: inline-flex;
         align-items: center;
         gap: 5px;
+        white-space: nowrap;
     }
 
     .sf-btn-clear {
@@ -8179,16 +8440,105 @@
     }
 
     .sf-quickbar {
-        padding: 14px 16px 12px;
+        padding: 10px 14px;
         border-bottom: 1px solid var(--border);
     }
 
+    /* Fields + Clear/Apply/More Filters share this row on wide screens; on
+       narrow ones the actions group wraps to its own line below the fields
+       instead of getting vertically centered against the (much taller,
+       multi-row) fields block, which is what used to make the buttons float
+       and overlap mid-way through the stacked inputs on mobile. */
+    .sf-quickbar-row {
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .sf-search-wrap--inline {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    /* The 5 most-used fields (Full/Last/First/Middle Name, Batch Code) —
+       small labeled inputs in a row, replacing the old single free-text
+       search box (that "search anything" box moved into More Filters). */
+    .sf-quickbar-fields {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        flex: 1 1 auto;
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .sf-quickbar-field {
+        flex: 1 1 120px;
+        min-width: 100px;
+    }
+
+        .sf-quickbar-field label {
+            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+            letter-spacing: .2px;
+        }
+
+        /* Clarifies the expected typing order for the Full Name field —
+           "Last, First Middle Suffix" — since that's the exact sequence
+           GeneralSearch/FullName matching expects. */
+        .sf-quickbar-field-hint {
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+            opacity: .75;
+        }
+
+        .sf-quickbar-field input {
+            width: 100%;
+            height: 30px;
+            font-size: 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            padding: 0 8px;
+            background: #fafbfc;
+            outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+        .sf-quickbar-field input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+            background: white;
+        }
+
     .sf-quickbar-actions {
         display: flex;
-        justify-content: flex-end;
         align-items: center;
-        gap: 8px;
-        margin-top: 10px;
+        gap: 6px;
+        flex: 0 0 auto;
+        white-space: nowrap;
+        margin-left: auto;
+    }
+
+    /* On narrow viewports each quick field already stacks to its own line
+       (via .sf-quickbar-fields' flex-wrap) — once the row itself also wraps,
+       let the actions spread full-width below them instead of staying
+       squeezed to a fixed auto width. */
+    @media (max-width: 576px) {
+        .sf-quickbar-actions {
+            flex: 1 1 100%;
+            margin-left: 0;
+            justify-content: stretch;
+        }
+
+            .sf-quickbar-actions .sf-btn {
+                flex: 1 1 auto;
+                justify-content: center;
+            }
     }
 
     .sf-btn-advanced {
@@ -8213,6 +8563,45 @@
         border-radius: 8px;
         padding: 12px 14px 10px;
     }
+
+    /* ── Sleeker/tighter pass used only inside the More Filters modal —
+       smaller type and gaps so all filter groups fit with far less (ideally
+       zero) scrolling, without touching the other .sf-body consumers
+       (Logs, Statistics, Liquidation) that still use the roomier defaults. ── */
+    .sf-body--modal {
+        gap: 10px;
+    }
+
+        .sf-body--modal .sf-group {
+            padding: 8px 10px 7px;
+        }
+
+        .sf-body--modal .sf-section-label {
+            font-size: 10.5px;
+            padding: 3px 9px;
+            margin-bottom: 6px;
+        }
+
+        .sf-body--modal .sf-grid {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 6px 10px;
+        }
+
+        .sf-body--modal .sf-field label {
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+
+        .sf-body--modal .sf-field input,
+        .sf-body--modal .sf-field select {
+            height: 30px;
+            font-size: 11px;
+            padding: 0 7px;
+        }
+
+        .sf-body--modal .sf-loading-pill {
+            font-size: 9px;
+        }
 
     /* Overrides the plain bottom-border .sf-section-label defined above —
        a filled badge reads faster at a glance than a thin underline once
@@ -9721,6 +10110,128 @@ body {
     background: white;
 }
 
+.dt-filter-date-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.dt-filter-date-sep {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.dt-filter-date-clear {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color .15s;
+}
+
+    .dt-filter-date-clear:hover {
+        color: var(--danger, #dc2626);
+    }
+
+/* "My Batches Only" — on by default for non-admin roles, so someone working
+   a large queue never has to scan every row to find what's tagged to them. */
+.dt-filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+    .dt-filter-toggle:has(input:checked) {
+        background: var(--navy-pale);
+        border-color: var(--navy);
+        color: var(--navy);
+    }
+
+    .dt-filter-toggle input {
+        cursor: pointer;
+    }
+
+/* ── Stat tiles — "N grantee(s) received" / "M batch(es)", tracking whatever
+   combination of filters (status/date/search) is currently active. Bold,
+   colored icon + a large proportional-figure number so the count reads at a
+   glance instead of blending into a line of muted text. ── */
+.dt-stat-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 14px;
+}
+
+.dt-stat-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1 1 220px;
+    padding: 12px 16px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.05);
+}
+
+.dt-stat-icon {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    color: white;
+}
+
+.dt-stat-tile--primary .dt-stat-icon {
+    background: linear-gradient(135deg, var(--navy), #2d5296);
+}
+
+.dt-stat-tile--accent .dt-stat-icon {
+    background: linear-gradient(135deg, #059669, #34d399);
+}
+
+.dt-stat-text {
+    min-width: 0;
+}
+
+.dt-stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--text-main);
+    font-variant-numeric: proportional-nums;
+}
+
+.dt-stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .dt-card-list {
     display: flex;
     flex-direction: column;
@@ -10664,4 +11175,45 @@ body {
     padding: 28px;
     width: 400px;
     max-width: 100%;
+}
+
+/* ── Details offcanvas — "Internal / System Fields" sections ─────────────
+   Every sub-section in here (Date Applied/Endorsed, Duplicate History,
+   Liveness/EFT, Payment History, ...) used to share one plain style — bold
+   navy text with a thin underline — so on a long scroll they visually
+   blended into each other. Gives every section header its own filled
+   "chip" band instead, so where one section ends and the next begins is
+   obvious at a glance. */
+.system-fields-body h6 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--navy-pale, #eef2f8);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    letter-spacing: .2px;
+}
+
+/* Duplicate History — deliberately louder than its neutral siblings (same
+   red theme as the row highlight and the header pill above), since this is
+   the one section that flags something the user should actually notice,
+   not just routine record detail. */
+.system-fields-body h6.section-title--duplicate {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.system-fields-body h6.section-title--duplicate i {
+    color: #dc2626;
+}
+
+.duplicate-history-card {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 10px 12px 6px;
 }

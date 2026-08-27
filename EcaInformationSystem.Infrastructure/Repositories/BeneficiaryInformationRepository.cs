@@ -671,9 +671,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (string.IsNullOrWhiteSpace(term))
                 return new List<Guid>();
 
-            var candidates = await _context.BeneficiaryInformations
-                .AsNoTracking()
-                .Where(b => !b.IsDeleted)
+            var candidates = await ExcludeKnownDuplicates(_context.BeneficiaryInformations
+                    .AsNoTracking()
+                    .Where(b => !b.IsDeleted))
                 .Select(b => new { b.Id, b.LastName, b.FirstName, b.MiddleName })
                 .ToListAsync();
 
@@ -748,7 +748,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         private async Task<(List<BeneficiaryInformation> AllData, Func<BeneficiaryInformation, int> EffectiveStatus, Func<BeneficiaryInformation, int> EffectiveQuarter, List<BeneficiaryInformation> LocationFilteredData)>
             BuildFilteredStatisticsDataAsync(StatisticsRequestDto request)
         {
-            var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
+            var query = ExcludeKnownDuplicates(_context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted));
 
             if (request.Region.HasValue && request.Region.Value > 0)
                 query = query.Where(b => b.Region == request.Region.Value);
@@ -1263,7 +1263,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // by the same Region/Province/Municipality location filters as the rest
             // of the report — so it lists every LGU this program actually has
             // grantees in, not every PSGC municipality nationwide.
-            var universeQuery = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
+            var universeQuery = ExcludeKnownDuplicates(_context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted));
             if (request.Region.HasValue && request.Region.Value > 0)
                 universeQuery = universeQuery.Where(b => b.Region == request.Region.Value);
             if (request.Province.HasValue && request.Province.Value > 0)
@@ -1664,6 +1664,108 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 x.BirthDate.Date == normalizedBirthDate);
         }
 
+        public async Task<SoftDuplicateCandidateDto?> FindExactDuplicateAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate)
+        {
+            var normalizedLastName = (lastName ?? string.Empty).Trim().ToLower();
+            var normalizedFirstName = (firstName ?? string.Empty).Trim().ToLower();
+            var normalizedMiddleName = (middleName ?? string.Empty).Trim().ToLower();
+            var normalizedBirthDate = birthDate.Date;
+
+            var match = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(x => !x.IsDeleted)
+                .Where(x =>
+                    (x.LastName ?? string.Empty).Trim().ToLower() == normalizedLastName &&
+                    (x.FirstName ?? string.Empty).Trim().ToLower() == normalizedFirstName &&
+                    (x.MiddleName ?? string.Empty).Trim().ToLower() == normalizedMiddleName &&
+                    x.BirthDate.Date == normalizedBirthDate)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.FirstName,
+                    x.LastName,
+                    x.MiddleName,
+                    x.BirthDate,
+                    x.OscaIdNumber,
+                    ProvinceName = _context.Provinces.Where(p => p.PsgcCodeProvince == x.Province)
+                        .Select(p => p.Name).FirstOrDefault(),
+                    MunicipalityName = _context.Municipalities.Where(m => m.PsgcCodeMunicipality == x.Municipality)
+                        .Select(m => m.Name).FirstOrDefault(),
+                    BarangayName = _context.Barangays.Where(br => br.PsgcCodeBarangay == x.Barangay)
+                        .Select(br => br.Name).FirstOrDefault()
+                })
+                .FirstOrDefaultAsync();
+
+            if (match is null) return null;
+
+            return new SoftDuplicateCandidateDto
+            {
+                ExistingId = match.Id,
+                ExistingFullName = string.Join(", ",
+                    new[] { match.LastName?.Trim(), match.FirstName?.Trim() }
+                    .Where(s => !string.IsNullOrWhiteSpace(s))) +
+                    (string.IsNullOrWhiteSpace(match.MiddleName) ? string.Empty : $" {match.MiddleName.Trim()}"),
+                ExistingMiddleName = match.MiddleName?.Trim() ?? string.Empty,
+                ExistingBirthDate = match.BirthDate,
+                ExistingOscaId = match.OscaIdNumber ?? string.Empty,
+                ExistingProvince = match.ProvinceName ?? string.Empty,
+                ExistingMunicipality = match.MunicipalityName ?? string.Empty,
+                ExistingBarangay = match.BarangayName ?? string.Empty,
+                MatchScore = 1.0
+            };
+        }
+
+        public async Task AddDuplicateHistoryAsync(BeneficiaryDuplicateHistory entry)
+        {
+            await _context.BeneficiaryDuplicateHistories.AddAsync(entry);
+        }
+
+        public async Task<List<BeneficiaryDuplicateHistoryDto>> GetDuplicateHistoryAsync(Guid beneficiaryId)
+        {
+            var entries = await _context.BeneficiaryDuplicateHistories
+                .AsNoTracking()
+                .Where(h => h.BeneficiaryInformationId == beneficiaryId || h.DuplicateOfId == beneficiaryId)
+                .OrderByDescending(h => h.CreatedAt)
+                .ToListAsync();
+
+            if (!entries.Any())
+                return new List<BeneficiaryDuplicateHistoryDto>();
+
+            var otherIds = entries
+                .Select(h => h.BeneficiaryInformationId == beneficiaryId ? h.DuplicateOfId : h.BeneficiaryInformationId)
+                .Distinct()
+                .ToList();
+
+            var otherRecords = await _context.BeneficiaryInformations
+                .AsNoTracking()
+                .Where(b => otherIds.Contains(b.Id))
+                .Select(b => new { b.Id, b.LastName, b.FirstName, b.MiddleName, b.BirthDate })
+                .ToDictionaryAsync(b => b.Id);
+
+            return entries.Select(h =>
+            {
+                var isNewer = h.BeneficiaryInformationId == beneficiaryId;
+                var otherId = isNewer ? h.DuplicateOfId : h.BeneficiaryInformationId;
+                otherRecords.TryGetValue(otherId, out var other);
+
+                return new BeneficiaryDuplicateHistoryDto
+                {
+                    Id = h.Id,
+                    CreatedAt = h.CreatedAt,
+                    CreatedBy = h.CreatedBy,
+                    Source = h.Source,
+                    IsTheNewerRecord = isNewer,
+                    OtherRecordId = otherId,
+                    OtherRecordFullName = other is null
+                        ? "(record no longer available)"
+                        : string.Join(", ", new[] { other.LastName?.Trim(), other.FirstName?.Trim() }
+                            .Where(s => !string.IsNullOrWhiteSpace(s))) +
+                            (string.IsNullOrWhiteSpace(other.MiddleName) ? string.Empty : $" {other.MiddleName.Trim()}"),
+                    OtherRecordBirthDate = other?.BirthDate ?? default
+                };
+            }).ToList();
+        }
+
         public async Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id)
         {
             return await _context.BeneficiaryInformations
@@ -1885,7 +1987,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
              join barangay in _context.Barangays on b.Barangay equals barangay.PsgcCodeBarangay into barangayJoin
              from barangay in barangayJoin.DefaultIfEmpty()
 
-             where !b.IsDeleted
+             where !b.IsDeleted && !_context.BeneficiaryDuplicateHistories.Any(h => h.BeneficiaryInformationId == b.Id)
              select new BeneficiaryInformationDto
              {
                  Id = b.Id,
@@ -2204,8 +2306,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // Replacement Status; that's now a per-payment-history-entry concern,
             // handled when the caller picks which of this beneficiary's entries
             // to use (a beneficiary can have both replaced and non-replaced entries).
-            var query = _context.BeneficiaryInformations.AsNoTracking()
-                .Where(b => !b.IsDeleted && b.Id != excludeId);
+            var query = ExcludeKnownDuplicates(_context.BeneficiaryInformations.AsNoTracking()
+                .Where(b => !b.IsDeleted && b.Id != excludeId));
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -2262,6 +2364,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var baseQuery = await BuildNarrowFilterQuery(filter);
             var totalCount = await baseQuery.CountAsync();
 
+            // How many additional records this same filter would match if Known
+            // Duplicates weren't excluded — lets the grid show "N Known
+            // Duplicates hidden" without a second client round-trip. baseQuery
+            // above is already a fully-built expression tree by this point, so
+            // flipping the flag here (and restoring it) doesn't affect it.
+            var hiddenKnownDuplicateCount = 0;
+            if (!filter.IncludeKnownDuplicates)
+            {
+                filter.IncludeKnownDuplicates = true;
+                var withDuplicatesQuery = await BuildNarrowFilterQuery(filter);
+                var withDuplicatesCount = await withDuplicatesQuery.CountAsync();
+                filter.IncludeKnownDuplicates = false;
+                hiddenKnownDuplicateCount = withDuplicatesCount - totalCount;
+            }
+
             string sortColumn = filter.SortColumn?.ToLower() ?? "default";
             bool isAscending = filter.SortAscending;
 
@@ -2300,6 +2417,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.Extension,
                     x.b.BirthDate,
                     x.b.Sex,
+                    x.b.Citizenship,
                     x.b.Region,
                     x.b.Province,
                     x.b.Municipality,
@@ -2320,6 +2438,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
+                    HasDuplicateHistory = _context.BeneficiaryDuplicateHistories
+                        .Any(h => h.BeneficiaryInformationId == x.b.Id || h.DuplicateOfId == x.b.Id),
                     FindingStatus = x.finding != null ? x.finding.FindingStatus : (int?)null,
                     EligibilityRemarksPreview = x.b.EligibilityRemarks != null && x.b.EligibilityRemarks.Length > 80
                         ? x.b.EligibilityRemarks.Substring(0, 80) : x.b.EligibilityRemarks,
@@ -2388,6 +2508,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Age = ComputeAge(x.BirthDate),
                     MilestoneYear = ComputeMilestoneYear(x.BirthDate),
                     Sex = x.Sex,
+                    Citizenship = x.Citizenship,
                     PsgcCodeRegion = x.Region,
                     PsgcCodeProvince = x.Province,
                     PsgcCodeMunicipality = x.Municipality,
@@ -2411,6 +2532,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     CoDateEndorsed = x.CoDateEndorsed,
                     CoDateApproved = x.CoDateApproved,
                     HasDocuments = x.HasDocuments,
+                    HasDuplicateHistory = x.HasDuplicateHistory,
                     EligibilityRemarksPreview = x.EligibilityRemarksPreview,
                     AssessmentRemarksPreview = x.AssessmentRemarksPreview,
                     FindingRemarksPreview = x.FindingRemarksPreview,
@@ -2429,7 +2551,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 Items = items,
                 TotalCount = totalCount,
                 PageNumber = pageNumber,
-                PageSize = pageSize
+                PageSize = pageSize,
+                HiddenKnownDuplicateCount = hiddenKnownDuplicateCount
             };
         }
 
@@ -2534,6 +2657,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     FindingStatus = finding != null ? finding.FindingStatus : (int?)null,
                     FindingRemarks = finding != null ? finding.FindingRemarks : null,
                 };
+
+            if (!filter.IncludeKnownDuplicates)
+                query = query.Where(x => !_context.BeneficiaryDuplicateHistories.Any(h => h.BeneficiaryInformationId == x.Beneficiary.Id));
+
             // ── General Search ────────────────────────────────────────────────────────
             // Scans all relevant columns with OR logic.
             // Example: "USA" matches citizenship, remarks, assessment remarks, validator, etc.
@@ -3481,9 +3608,28 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // and the bulk-by-filter methods in Step 8. One source of truth for "what
         // matches this filter" — no joins, operates directly on
         // IQueryable<BeneficiaryInformation>.
+        // Excludes the newer/duplicate side of a Known Duplicate pair (see
+        // BeneficiaryDuplicateHistory) from a beneficiary query — applied by
+        // default everywhere records get listed or counted, so a deliberately
+        // kept exact-duplicate record never inflates the grid, an export, or
+        // any statistic unless explicitly opted back in.
+        private IQueryable<BeneficiaryInformation> ExcludeKnownDuplicates(IQueryable<BeneficiaryInformation> query)
+            => query.Where(b => !_context.BeneficiaryDuplicateHistories.Any(h => h.BeneficiaryInformationId == b.Id));
+
         private async Task<IQueryable<BeneficiaryInformation>> BuildNarrowFilterQuery(BeneficiaryFilterDto filter)
         {
             var query = _context.BeneficiaryInformations.AsNoTracking().Where(b => !b.IsDeleted);
+
+            if (!filter.IncludeKnownDuplicates)
+                query = ExcludeKnownDuplicates(query);
+
+            // "Jump to this exact record" — e.g. from the auto-eligibility modal's
+            // View button, where the target may not match whatever other filters
+            // are active. Takes priority: every other filter still applies on top
+            // (harmless since it's a single known id), but this is what lets the
+            // grid isolate one specific record regardless of page size/sort.
+            if (filter.Ids != null && filter.Ids.Any())
+                query = query.Where(b => filter.Ids.Contains(b.Id));
 
             if (filter.PsgcCodeRegion.HasValue && filter.PsgcCodeRegion.Value > 0)
                 query = query.Where(b => b.Region == filter.PsgcCodeRegion.Value);

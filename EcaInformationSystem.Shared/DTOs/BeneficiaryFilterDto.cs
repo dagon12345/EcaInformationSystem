@@ -68,5 +68,11 @@
         public int? FilterModeOfPayment { get; set; }
         public string? DataQualityIssue { get; set; } // "location" | "headsup" | "incomplete"
 
+        // Default false — records that are the newer/duplicate side of a
+        // Known Duplicate pair (see BeneficiaryDuplicateHistory) are excluded
+        // from results and counts unless this is explicitly set true. Keeps
+        // them out of the grid and every statistic by default, on request.
+        public bool IncludeKnownDuplicates { get; set; }
+
     }
 }

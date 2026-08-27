@@ -16,63 +16,127 @@
                     <i class="bi bi-funnel-fill"></i>
                 </div>
                 <div>
-                    <p class="sf-header-title">Filter Grantees</p>
-                    <p class="sf-header-sub">Search by name — or expand for Region, Payment, Age and more</p>
+                    <p class="sf-header-title">
+                        Filter Grantees
+                        <i class="bi bi-info-circle-fill sf-header-info"
+                           title="Search and filter results reflect data exactly as encoded. Incomplete or uncleansed records can skew counts — please verify and cleanse data for accurate results."></i>
+                    </p>
+                    <p class="sf-header-sub">Search by name — or open More Filters for Region, Payment, Age and more</p>
                 </div>
             </div>
         </div>
 
-        @* ── QUICK SEARCH — always visible, this is the default filter ── *@
+        @* ── QUICK SEARCH — the 5 most-used fields, always visible; the
+             free-text "search anything" box now lives inside More Filters
+             instead, alongside the rest of the advanced criteria. ── *@
         <div class="sf-general-search sf-quickbar">
-            <div class="sf-search-wrap">
-                <i class="bi bi-search sf-search-icon"></i>
-                <input type="text" class="sf-search-input"
-                       placeholder="Search anything — name, batch code, barangay, paid, male, 1926..."
-                       @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
-                @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
-                {
-                    <button class="sf-search-clear" @onclick="ClearGeneralSearch" title="Clear search">
-                        <i class="bi bi-x-lg"></i>
+            <div class="sf-quickbar-row">
+                <div class="sf-quickbar-fields">
+                    <div class="sf-quickbar-field">
+                        <label title="Type in this order for best results — no comma, just spaces">Full Name <span class="sf-quickbar-field-hint">(Last First Middle Suffix)</span></label>
+                        <input type="text" placeholder="e.g. Dela Cruz Juan Santos Jr." disabled="@IsLoading"
+                               @bind="State.Filter.FullName" @bind:event="oninput" />
+                    </div>
+                    <div class="sf-quickbar-field">
+                        <label>Last Name</label>
+                        <input type="text" placeholder="Last name" disabled="@IsLoading"
+                               @bind="State.Filter.LastName" @bind:event="oninput" />
+                    </div>
+                    <div class="sf-quickbar-field">
+                        <label>First Name</label>
+                        <input type="text" placeholder="First name" disabled="@IsLoading"
+                               @bind="State.Filter.FirstName" @bind:event="oninput" />
+                    </div>
+                    <div class="sf-quickbar-field">
+                        <label>Middle Name</label>
+                        <input type="text" placeholder="Middle name" disabled="@IsLoading"
+                               @bind="State.Filter.MiddleName" @bind:event="oninput" />
+                    </div>
+                    <div class="sf-quickbar-field">
+                        <label>Suffix</label>
+                        <input type="text" placeholder="Jr., Sr., III" disabled="@IsLoading"
+                               @bind="State.Filter.Suffix" @bind:event="oninput" />
+                    </div>
+                    <div class="sf-quickbar-field">
+                        <label>Batch Code</label>
+                        <input type="text" placeholder="Batch code" disabled="@IsLoading"
+                               @bind="State.Filter.BatchCode" @bind:event="oninput" />
+                    </div>
+                </div>
+                <div class="sf-quickbar-actions">
+                    <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
+                        <i class="bi bi-x-circle"></i> Clear
                     </button>
-                }
+                    <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync"
+                            disabled="@(IsApplyingFilters || IsLoading)">
+                        @if (IsApplyingFilters)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                            <span>Applying...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-search"></i>
+                            <span>Apply</span>
+                        }
+                    </button>
+                    <button class="sf-btn sf-btn-advanced" @onclick="OpenAdvancedFiltersModal">
+                        <i class="bi bi-sliders"></i>
+                        <span>More Filters</span>
+                    </button>
+                </div>
             </div>
             @if (!string.IsNullOrWhiteSpace(State.Filter.GeneralSearch))
             {
                 <small class="text-muted mt-1 d-block">
                     <i class="bi bi-info-circle me-1"></i>
-                    Searching all columns for
+                    Also searching all columns for
                     <strong>"@State.Filter.GeneralSearch"</strong>
+                    (set in More Filters)
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1" @onclick="ClearGeneralSearch">Clear</button>
                 </small>
             }
-            <div class="sf-quickbar-actions">
-                <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
-                    <i class="bi bi-x-circle"></i> Clear
-                </button>
-                <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync"
-                        disabled="@(IsApplyingFilters || IsLoading)">
-                    @if (IsApplyingFilters)
+            @{
+                var activeAdvancedFilters = GetActiveAdvancedFilterSummary();
+            }
+            @if (activeAdvancedFilters.Any())
+            {
+                <small class="text-muted mt-1 d-flex flex-wrap align-items-center gap-1">
+                    <i class="bi bi-funnel-fill text-primary me-1"></i>
+                    <span>Filters applied:</span>
+                    @foreach (var chip in activeAdvancedFilters)
                     {
-                        <span class="spinner-border spinner-border-sm"></span>
-                        <span>Applying...</span>
+                        <span class="sf-active-filter-chip">@chip</span>
                     }
-                    else
-                    {
-                        <i class="bi bi-search"></i>
-                        <span>Apply</span>
-                    }
-                </button>
-                <button class="sf-btn sf-btn-advanced" @onclick="ToggleCollapse">
-                    <i class="bi bi-sliders"></i>
-                    <span>@(_collapsed ? "More Filters" : "Hide Filters")</span>
-                    <i class="bi bi-chevron-down sf-chevron @(_collapsed ? "" : "open")"></i>
-                </button>
-            </div>
+                </small>
+            }
         </div>
+    </div>
+</div>
 
-        @* ── ADVANCED FILTERS — collapsed by default ── *@
-        @if (!_collapsed)
-        {
-            <div class="sf-body">
+@* ── ADVANCED FILTERS — modal instead of an inline panel, so the search
+     bar above the grid stays a single compact line. ── *@
+<HxModal @ref="_advancedFiltersModal" Size="ModalSize.ExtraLarge" Scrollable="true">
+    <HeaderTemplate>
+        <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>More Filters</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+            <div class="sf-body sf-body--modal" @onkeydown="OnAdvancedFilterKeyDown">
+
+                @* GENERAL SEARCH — moved here from the quick bar; the 5
+                   most-used fields (Full/Last/First/Middle Name, Batch Code)
+                   stay always-visible instead, this free-text "search
+                   everything" box is now an advanced/opt-in criterion. *@
+                <div class="sf-group">
+                    <div class="sf-section-label"><i class="bi bi-search me-1"></i>General Search</div>
+                    <div class="sf-grid">
+                        <div class="sf-field" style="grid-column: 1 / -1;">
+                            <label>Search anything</label>
+                            <input type="text" placeholder="Name, batch code, barangay, paid, male, 1926..."
+                                   @bind="State.Filter.GeneralSearch" @bind:event="oninput" disabled="@IsLoading" />
+                        </div>
+                    </div>
+                </div>
 
                 @* LOCATION *@
                 <div class="sf-group">
@@ -477,34 +541,13 @@
                         </div>
                     </div>
                 </div>
-                @* PERSONAL *@
+                @* PERSONAL — Full/Last/First/Middle Name and Batch Code now
+                   live in the always-visible quick bar instead, since those
+                   are the most-used fields (Suffix too, now); this section
+                   keeps the rest. *@
                 <div class="sf-group">
                     <div class="sf-section-label"><i class="bi bi-person me-1"></i>Personal</div>
                     <div class="sf-grid">
-                        <div class="sf-field">
-                            <label>Full Name</label>
-                            <input type="text" placeholder="Search by name..." @bind="State.Filter.FullName"
-                                   @bind:event="oninput" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Last Name</label>
-                            <input type="text" placeholder="Last name" @bind="State.Filter.LastName"
-                                   @bind:event="oninput" />
-                        </div>
-                        <div class="sf-field">
-                            <label>First Name</label>
-                            <input type="text" placeholder="First name" @bind="State.Filter.FirstName" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Middle Name</label>
-                            <input type="text" placeholder="Middle name" @bind="State.Filter.MiddleName"
-                                   @bind:event="oninput" />
-                        </div>
-                        <div class="sf-field">
-                            <label>Suffix</label>
-                            <input type="text" placeholder="e.g. Jr., Sr., III" @bind="State.Filter.Suffix"
-                                   @bind:event="oninput" />
-                        </div>
                         <div class="sf-field">
                             <label>Sex</label>
                             <select value="@State.Filter.Sex" @onchange="OnSexChanged" disabled="@IsLoading">
@@ -512,10 +555,6 @@
                                 <option value="1">Male</option>
                                 <option value="2">Female</option>
                             </select>
-                        </div>
-                        <div class="sf-field">
-                            <label>Batch Code</label>
-                            <input type="text" placeholder="e.g. 123-45 or 123-45, 678-90" @bind="State.Filter.BatchCode" />
                         </div>
                         @* CO STATUS *@
                         <div class="sf-field">
@@ -572,30 +611,26 @@
                         </div>
                     </div>
                 </div>
-                @* ACTIONS — General Search now lives in the always-visible quick bar above *@
-                <div class="sf-actions">
-                    <button class="sf-btn sf-btn-clear" @onclick="ClearFilterAsync">
-                        <i class="bi bi-x-circle"></i> Clear
-                    </button>
-                    <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync"
-                            disabled="@(IsApplyingFilters || IsLoading)">
-                        @if (IsApplyingFilters)
-                        {
-                            <span class="spinner-border spinner-border-sm"></span>
-                            <span>Applying...</span>
-                        }
-                        else
-                        {
-                            <i class="bi bi-search"></i>
-                            <span>Apply Filters</span>
-                        }
-                    </button>
-                </div>
-
             </div>
-        }
-    </div>
-</div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="ClearFilterAsync">
+            <i class="bi bi-x-circle"></i> Clear
+        </HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ApplyFiltersFromModalAsync"
+                  Enabled="@(!IsApplyingFilters && !IsLoading)">
+            @if (IsApplyingFilters)
+            {
+                <span>Applying...</span>
+            }
+            else
+            {
+                <i class="bi bi-search"></i>
+                <span>Apply Filters</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
 
 @code {
     private int _municipalityLoadSequence = 0;
@@ -685,9 +720,9 @@
     private bool IsFilterBarangayLoading = false;
     private bool IsApplyingFilters = false;
     // Advanced filters (Location, Dates, Payment, Age & Birthday, Reference
-    // Number, Personal) start collapsed — General Search in the quick bar
+    // Number, Personal) live in a modal — General Search in the quick bar
     // above is the default filter; everything else is opt-in via "More Filters".
-    private bool _collapsed = true;
+    private HxModal _advancedFiltersModal = default!;
 
     private Dictionary<int, List<MunicipalityLookupDto>> filterMunicipalityCache = new();
     private Dictionary<int, List<BarangayLookupDto>> filterBarangayCache = new();
@@ -697,7 +732,19 @@
     private int barangaySelectKey = 0;
     private string _complianceValue = string.Empty;
 
-    private void ToggleCollapse() => _collapsed = !_collapsed;
+    private async Task OpenAdvancedFiltersModal() => await _advancedFiltersModal.ShowAsync();
+
+    private async Task ApplyFiltersFromModalAsync()
+    {
+        await ApplyFiltersAsync();
+        await _advancedFiltersModal.HideAsync();
+    }
+
+    private async Task OnAdvancedFilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await ApplyFiltersFromModalAsync();
+    }
     private string _eligibilityValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
     private string _modeOfPaymentValue = string.Empty;
@@ -1277,4 +1324,86 @@
         new(2, "Paid"),
         new(3, "Pending"),
     };
+
+    // Human-readable summary of the advanced (More Filters modal) criteria
+    // that are actually applied right now — so after the modal closes, the
+    // user can still see at a glance which filters produced the current
+    // result set, without having to reopen the modal to check.
+    private List<string> GetActiveAdvancedFilterSummary()
+    {
+        var f = State.Filter;
+        var chips = new List<string>();
+
+        if (f.PsgcCodeRegion is > 0)
+        {
+            var region = State.FilterRegions.FirstOrDefault(r => r.PsgcCodeRegion == f.PsgcCodeRegion);
+            chips.Add($"Region: {region?.Name ?? f.PsgcCodeRegion.ToString()}");
+        }
+        if (State.SelectedProvinceIds.Any())
+            chips.Add($"Province: {State.SelectedProvinceIds.Count}");
+        if (State.SelectedMunicipalityIds.Any())
+            chips.Add($"Municipality: {State.SelectedMunicipalityIds.Count}");
+        if (f.PsgcCodeBarangay is > 0)
+            chips.Add("Barangay");
+        if (!string.IsNullOrWhiteSpace(f.DataQualityIssue))
+            chips.Add($"Data Quality: {f.DataQualityIssue}");
+        if (f.DateAddedFrom.HasValue || f.DateAddedTo.HasValue)
+            chips.Add("Date Added");
+        if (f.DateEndorsedFrom.HasValue || f.DateEndorsedTo.HasValue)
+            chips.Add("Date Endorsed");
+        if (State.SelectedPaymentStatuses.Any())
+            chips.Add("Payment Status");
+        if (State.SelectedPayrollQuarters.Any())
+            chips.Add("Payroll Quarter");
+        if (f.FilterFiscalYear.HasValue)
+            chips.Add($"Fiscal Year: {f.FilterFiscalYear}");
+        if (f.FilterModeOfPayment.HasValue)
+            chips.Add("Mode of Payment");
+        if (f.PaymentDateFrom.HasValue || f.PaymentDateTo.HasValue)
+            chips.Add("Payment Date");
+        if (f.SpecificAge.HasValue)
+            chips.Add($"Age: {f.SpecificAge}");
+        if (f.MilestoneYear.HasValue)
+            chips.Add($"Milestone Year: {f.MilestoneYear}");
+        if (f.SpecificBirthday.HasValue)
+            chips.Add("Specific Birthday");
+        if (f.BirthdayFrom.HasValue || f.BirthdayTo.HasValue)
+            chips.Add("Birthday Range");
+        if (f.FilterQuarter.HasValue)
+            chips.Add($"Ref Quarter: Q{f.FilterQuarter}");
+        if (!string.IsNullOrWhiteSpace(f.FilterBatch))
+            chips.Add($"Ref Batch: {f.FilterBatch}");
+        if (f.FilterRefYear.HasValue)
+            chips.Add($"Ref Year: {f.FilterRefYear}");
+        if (!string.IsNullOrWhiteSpace(f.FilterRegionRoman))
+            chips.Add($"Ref Region: {f.FilterRegionRoman}");
+        if (!string.IsNullOrWhiteSpace(f.FullName))
+            chips.Add($"Full Name: {f.FullName}");
+        if (!string.IsNullOrWhiteSpace(f.LastName))
+            chips.Add($"Last Name: {f.LastName}");
+        if (!string.IsNullOrWhiteSpace(f.FirstName))
+            chips.Add($"First Name: {f.FirstName}");
+        if (!string.IsNullOrWhiteSpace(f.MiddleName))
+            chips.Add($"Middle Name: {f.MiddleName}");
+        if (!string.IsNullOrWhiteSpace(f.Suffix))
+            chips.Add($"Suffix: {f.Suffix}");
+        if (f.Sex is > 0)
+            chips.Add(f.Sex == 1 ? "Sex: Male" : "Sex: Female");
+        if (!string.IsNullOrWhiteSpace(f.BatchCode))
+            chips.Add($"Batch Code: {f.BatchCode}");
+        if (f.CoStatus.HasValue)
+            chips.Add("CO Status");
+        if (f.ReplacementStatus.HasValue)
+            chips.Add("Replacement Status");
+        if (!string.IsNullOrWhiteSpace(f.Validator))
+            chips.Add($"Validator: {f.Validator}");
+        if (f.FindingStatus.HasValue && f.FindingStatus != 3)
+            chips.Add("Findings");
+        if (!string.IsNullOrWhiteSpace(f.ComplianceMode))
+            chips.Add("Compliance");
+        if (!string.IsNullOrWhiteSpace(f.EligibilityMode))
+            chips.Add("Eligibility");
+
+        return chips;
+    }
 }

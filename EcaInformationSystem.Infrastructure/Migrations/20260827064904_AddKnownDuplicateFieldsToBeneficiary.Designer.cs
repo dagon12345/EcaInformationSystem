@@ -4,6 +4,7 @@ using EcaInformationSystem.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcaInformationSystem.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260827064904_AddKnownDuplicateFieldsToBeneficiary")]
+    partial class AddKnownDuplicateFieldsToBeneficiary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -783,34 +786,6 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                     b.ToTable("BeneficiaryDocuments");
                 });
 
-            modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryDuplicateHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BeneficiaryInformationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("DuplicateOfId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("BeneficiaryDuplicateHistories");
-                });
-
             modelBuilder.Entity("EcaInformationSystem.Domain.Entities.BeneficiaryFamilyMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -975,6 +950,9 @@ namespace EcaInformationSystem.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<Guid?>("DuplicateOfId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("EligibilityRemarks")
                         .HasColumnType("nvarchar(max)");
 
@@ -991,6 +969,9 @@ namespace EcaInformationSystem.Infrastructure.Migrations
 
                     b.Property<int?>("FiscalYear")
                         .HasColumnType("int");
+
+                    b.Property<bool>("HasKnownDuplicate")
+                        .HasColumnType("bit");
 
                     b.Property<string>("HouseNumber")
                         .HasMaxLength(50)
