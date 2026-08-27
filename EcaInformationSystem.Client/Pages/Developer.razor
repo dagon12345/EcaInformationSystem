@@ -1,0 +1,38 @@
+@page "/developer"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>About the Developer</PageTitle>
+
+@* Mirrors About.razor: standalone public chrome for an anonymous visitor
+   (reached via the login page's navbar), just the article when already
+   signed in and reached from inside the app shell. *@
+<AuthorizeView>
+    <NotAuthorized>
+        <div class="auth-page-wrapper">
+            <div class="login-navbar">
+                <a href="login" class="login-navbar-brand" style="text-decoration:none;">
+                    <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+                    <div class="login-navbar-brand-text-wrap">
+                        <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                        <div class="login-navbar-brand-sub">Caraga Region</div>
+                    </div>
+                </a>
+
+                <a href="login" class="login-navbar-back-link"><i class="bi bi-arrow-left"></i> <span>Back to Login</span></a>
+            </div>
+
+            <div class="about-page-body">
+                <DeveloperArticle />
+            </div>
+
+            <ScrollToTopButton />
+        </div>
+    </NotAuthorized>
+    <Authorized>
+        <div class="about-page-body">
+            <DeveloperArticle />
+        </div>
+    </Authorized>
+</AuthorizeView>
