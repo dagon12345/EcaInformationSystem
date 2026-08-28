@@ -147,6 +147,19 @@
     letter-spacing: 0.5px;
 }
 
+/* A slot note spanning the whole AmIn..PmOut width (see DtrCopy.razor's
+   isFullRowNote) reads as one clean full-width bar — match the same bold
+   weight as the SATURDAY/SUNDAY/HOLIDAY/WFH label rows above. */
+.dtr-doc-table td.dtr-doc-fullrow-note {
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.dtr-doc-table td.dtr-doc-fullrow-note .dtr-doc-slot-note-input,
+.dtr-doc-table td.dtr-doc-fullrow-note .dtr-doc-print-only {
+    font-weight: 700;
+}
+
 /* Free-text remarks row — an actual input on screen (so it's editable in
    place), swapped for plain text when printed since form controls don't
    always render their value consistently across browsers/printers. */

@@ -77,11 +77,13 @@
                  NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote"
                  SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
+                 ExpandedWeekendDays="_expandedWeekendDays" OnExpandWeekend="ExpandWeekend" OnCollapseWeekend="CollapseWeekend"
                  Confirm="_confirmModal" />
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
                  NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote"
                  SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
+                 ExpandedWeekendDays="_expandedWeekendDays" OnExpandWeekend="ExpandWeekend" OnCollapseWeekend="CollapseWeekend"
                  Confirm="_confirmModal" />
     </div>
   </div>
@@ -125,6 +127,14 @@
     // coexist on the same day, while any un-covered slots keep showing
     // real punch cells.
     private readonly Dictionary<(int Day, string Slot), (string Text, string SlotEnd)> _slotNotes = new();
+
+    // Client-only (not persisted via DtrDayMark): which blank Saturdays/
+    // Sundays the user has manually switched to the normal editable grid
+    // via the pencil icon, so a punch can be added. Shared between both
+    // printed copies for the same reason as _wfhDays etc above.
+    private readonly HashSet<int> _expandedWeekendDays = new();
+    private void ExpandWeekend(int day) => _expandedWeekendDays.Add(day);
+    private void CollapseWeekend(int day) => _expandedWeekendDays.Remove(day);
 
     private Guid _loadedForUserId;
     private DateTime _loadedMonth;
@@ -182,11 +192,11 @@
 
     private DateTime DateFor(int day) => new(Document.PeriodStart.Year, Document.PeriodStart.Month, day);
 
-    private async Task SaveMarkAsync(int day, string markType, string? noteText, string? slot = null, string? slotEnd = null)
+    private async Task<bool> SaveMarkAsync(int day, string markType, string? noteText, string? slot = null, string? slotEnd = null)
     {
         try
         {
-            await Http.PutAsJsonAsync("api/dtr/day-marks", new SetDtrDayMarkRequestDto
+            var response = await Http.PutAsJsonAsync("api/dtr/day-marks", new SetDtrDayMarkRequestDto
             {
                 UserId = Document.UserId,
                 Date = DateFor(day),
@@ -195,10 +205,16 @@
                 Slot = slot,
                 SlotEnd = slotEnd
             });
+
+            if (!response.IsSuccessStatusCode)
+                Toast.ShowError("Failed to save.");
+
+            return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
             Toast.ShowError($"Failed to save: {ex.Message}");
+            return false;
         }
     }
 
@@ -282,7 +298,13 @@
         if (!_noteDays.TryGetValue(day, out var entry))
             return;
 
-        await SaveMarkAsync(day, "Note", entry.Text);
+        // Blur is the actual commit point for a typed note/activity — give
+        // explicit confirmation it was saved, since (especially on a
+        // Saturday/Sunday, where nothing else on the row visibly changes)
+        // the user has no other cue that it didn't just get lost before
+        // they navigate away.
+        if (await SaveMarkAsync(day, "Note", entry.Text) && !string.IsNullOrWhiteSpace(entry.Text))
+            Toast.ShowSuccess("Activity saved.");
     }
 
     private async Task ClearNote(int day)

@@ -65,6 +65,20 @@
                 var isWfh = WfhDays.Contains(day.Day);
                 var isHoliday = HolidayDays.Contains(day.Day);
 
+                // Saturday/Sunday are editable the same as any weekday now —
+                // this just decides whether to show that day's actual grid
+                // (once it has a punch, from the device or added manually) or
+                // fall back to the plain "SATURDAY"/"SUNDAY" label, which is
+                // what an untouched weekend still shows by default.
+                var weekendHasPunch = !string.IsNullOrWhiteSpace(day.AmTimeIn) || !string.IsNullOrWhiteSpace(day.AmTimeOut)
+                    || !string.IsNullOrWhiteSpace(day.PmTimeIn) || !string.IsNullOrWhiteSpace(day.PmTimeOut);
+
+                // A saved per-column note (e.g. "Wtf" spanning PmIn..PmOut)
+                // has no punch time and isn't a whole-day NoteDays entry
+                // either — without this check it would still be masked by
+                // the plain weekend label below after a reload.
+                var weekendHasSlotNote = SlotNotes.Keys.Any(k => k.Day == day.Day);
+
                 @if (!day.IsInPeriod)
                 {
                     @if (i > 0 && !Document.Days[i - 1].IsInPeriod)
@@ -88,11 +102,23 @@
                         </tr>
                     }
                 }
-                else if (day.DayType == DtrDayType.Saturday || day.DayType == DtrDayType.Sunday)
+                else if ((day.DayType == DtrDayType.Saturday || day.DayType == DtrDayType.Sunday)
+                         && !weekendHasPunch && !weekendHasSlotNote && !ExpandedWeekendDays.Contains(day.Day)
+                         && !isHoliday && !isWfh && !NoteDays.ContainsKey(day.Day))
                 {
                     <tr class="dtr-doc-weekend">
                         <td class="dtr-doc-day">@day.Day</td>
-                        <td colspan="6">@(day.DayType == DtrDayType.Saturday ? "SATURDAY" : "SUNDAY")</td>
+                        <td colspan="6">
+                            @(day.DayType == DtrDayType.Saturday ? "SATURDAY" : "SUNDAY")
+                            @if (AllowManualPunchEdit)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-2 no-print"
+                                        title="This day was covered by office activity — add a time record"
+                                        @onclick="() => OnExpandWeekend.InvokeAsync(day.Day)">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            }
+                        </td>
                     </tr>
                 }
                 else if (isHoliday)
@@ -162,11 +188,30 @@
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
                             }
+                            @if ((day.DayType == DtrDayType.Saturday || day.DayType == DtrDayType.Sunday) && !weekendHasPunch && !weekendHasSlotNote)
+                            {
+                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print"
+                                        title="No time was recorded — revert this day back to the default SATURDAY/SUNDAY label"
+                                        @onclick="() => OnCollapseWeekend.InvokeAsync(day.Day)">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            }
                         </td>
-                        @foreach (var seg in BuildRowSegments(day.Day))
+                        @{
+                            var segments = BuildRowSegments(day.Day);
+                            // A single note spanning the whole AmIn..PmOut
+                            // width has nothing left to put in the Undertime
+                            // columns anyway — merge them in too so the row
+                            // reads as one clean full-width cell, same as
+                            // the SATURDAY/SUNDAY/HOLIDAY/WFH label rows,
+                            // instead of leaving two dangling empty cells.
+                            var isFullRowNote = segments.Count == 1 && segments[0].Start == 0
+                                && segments[0].End == DtrSlotOrder.Slots.Length - 1 && segments[0].Text is not null;
+                        }
+                        @foreach (var seg in segments)
                         {
                             var slotStart = DtrSlotOrder.Slots[seg.Start];
-                            <td colspan="@(seg.End - seg.Start + 1)">
+                            <td colspan="@(isFullRowNote ? 6 : seg.End - seg.Start + 1)" class="@(isFullRowNote ? "dtr-doc-fullrow-note" : null)">
                                 <DtrSlotNoteCell Day="day.Day" Slot="@slotStart" Text="@seg.Text" SlotEndValue="@(seg.SlotEnd ?? slotStart)"
                                              AvailableEndSlots="@AvailableEndSlots(day.Day, seg.Start)"
                                              CurrentTime="@GetPunchTime(day, slotStart)" LogId="@GetPunchLogId(day, slotStart)"
@@ -175,8 +220,11 @@
                                              OnRangeChanged="OnSlotRangeChanged" Confirm="Confirm" />
                             </td>
                         }
-                        <td>@(day.UndertimeHours > 0 ? day.UndertimeHours.ToString() : "")</td>
-                        <td>@(day.UndertimeMinutes > 0 ? day.UndertimeMinutes.ToString() : "")</td>
+                        @if (!isFullRowNote)
+                        {
+                            <td>@(day.UndertimeHours > 0 ? day.UndertimeHours.ToString() : "")</td>
+                            <td>@(day.UndertimeMinutes > 0 ? day.UndertimeMinutes.ToString() : "")</td>
+                        }
                     </tr>
                 }
             }
@@ -312,6 +360,18 @@
     [Parameter] public EventCallback<(int Day, TimeOnly Time)> OnAddManualPunch { get; set; }
     [Parameter] public EventCallback<int> OnRemoveManualPunch { get; set; }
     [Parameter] public EventCallback<(int Day, int LogId, TimeOnly NewTime)> OnEditManualPunch { get; set; }
+
+    // Client-only, not persisted: a Saturday/Sunday with no punch still
+    // defaults to the plain "SATURDAY"/"SUNDAY" label — the pencil icon
+    // switches that day into the normal editable grid so a punch can be
+    // added; once one exists, the day shows that way on its own (see
+    // weekendHasPunch above). Owned by DtrPrintDocument (same pattern as
+    // WfhDays/HolidayDays above) so expanding it in one printed copy is
+    // reflected in the other — a plain field here would only affect
+    // whichever DtrCopy instance was clicked.
+    [Parameter] public ISet<int> ExpandedWeekendDays { get; set; } = new HashSet<int>();
+    [Parameter] public EventCallback<int> OnExpandWeekend { get; set; }
+    [Parameter] public EventCallback<int> OnCollapseWeekend { get; set; }
 
     // Owned by DtrPrintDocument, threaded through here to every DtrTimeCell
     // — one shared confirmation dialog instead of one per cell.
