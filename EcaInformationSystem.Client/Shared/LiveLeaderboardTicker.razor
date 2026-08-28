@@ -17,10 +17,11 @@
 @if (_entries.Count > 0)
 {
     <div class="live-ticker">
-        <div class="live-ticker-label" title="Live — updates as transactions are recorded">
+        <div class="live-ticker-label" title="Live Transactions Leaderboard — updates as transactions are recorded">
             <span class="live-ticker-dot"></span>
             <i class="bi bi-trophy-fill"></i>
-            <span>LIVE</span>
+            <span class="live-ticker-label-live">LIVE</span>
+            <span class="live-ticker-label-text">Transactions Leaderboard</span>
         </div>
         <div class="live-ticker-track">
             @foreach (var entry in _entries)

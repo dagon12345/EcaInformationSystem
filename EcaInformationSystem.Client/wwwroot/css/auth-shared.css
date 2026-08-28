@@ -4,6 +4,10 @@
     background: #042C53;
     height: auto !important;
     min-height: 100vh;
+    /* Safety net — nothing inside this wrapper (sliding login fields, ticker
+       marquees, etc.) should ever be able to force a page-wide horizontal
+       scrollbar; each of those already clips its own overflow internally. */
+    overflow-x: hidden;
 }
 
 /* ── Glassmorphism background — used on EVERY public-facing page (Login,
@@ -84,6 +88,12 @@
     .glass-particle { animation: none; }
 }
 
+/* Back to a plain 2-region flex row (brand+quicklinks group | sign-in) per
+   request — the sign-in panel now floats as a position:absolute overlay
+   when expanded (see .login-navbar-fields--open below) instead of
+   occupying grid/flex space, so this group no longer needs its own
+   dedicated track to stay safe from that expansion; a flex-shrink-able
+   .login-navbar-left is enough. */
 .login-navbar {
     position: sticky;
     top: 0;
@@ -101,7 +111,7 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    flex-shrink: 0;
+    min-width: 0;
 }
 
 .login-navbar-left-divider {
@@ -109,6 +119,22 @@
     height: 24px;
     background: rgba(255,255,255,0.18);
     flex-shrink: 0;
+}
+
+/* Sits beside the brand again. overflow-x:auto (scrollbar hidden) is a
+   defensive fallback only — if the group as a whole ever runs out of room
+   on an in-between width, this scrolls internally rather than forcing the
+   whole navbar wider than the viewport. */
+.login-navbar-quicklinks {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.login-navbar-quicklinks::-webkit-scrollbar {
+    display: none;
 }
 
 .login-navbar-about-link {
@@ -131,6 +157,21 @@
     background: rgba(255,255,255,0.16);
     border-color: rgba(255,255,255,0.3);
     color: #fff;
+}
+/* Unmistakably different from hover — inverted (light pill, dark text) so
+   whichever page you're actually on is obvious at a glance, not just a
+   slightly-lighter shade of the same translucent background. */
+.login-navbar-about-link--active {
+    background: #fff;
+    border-color: #fff;
+    color: #0C447C;
+    font-weight: 800;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+.login-navbar-about-link--active:hover {
+    background: #fff;
+    border-color: #fff;
+    color: #0C447C;
 }
 
 .login-navbar-brand {
@@ -192,12 +233,152 @@
     }
 
 .login-navbar-form {
+    position: relative; /* anchors .login-navbar-fields--open below */
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
     gap: 8px;
     flex-wrap: nowrap;
     width: auto !important;
+}
+
+/* Compact icon+label pill that stands in for the whole login form until
+   clicked — desktop only, see the >760px guard below for why. */
+.login-navbar-signin-toggle {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.login-navbar-signin-toggle:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.4);
+    transform: translateY(-1px);
+}
+
+/* Collapsed: an inert, zero-footprint placeholder — takes no space in
+   .login-navbar-form's layout, so col3 of the navbar grid never changes
+   size and neither the brand nor the quicklinks column ever has to react
+   to it. */
+.login-navbar-fields {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-width 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+}
+/* Expanded: floats OUT of the grid entirely as an absolutely-positioned
+   overlay anchored to the navbar's right edge, growing leftward over the
+   page rather than by pushing a grid track. This is what guarantees the
+   quicklinks stay completely stationary while signing in — the grid layout
+   itself never sees this element grow, so it has nothing to react to. */
+.login-navbar-fields--open {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    /* Generous now that this floats free of the grid layout — it only ever
+       needs to fit the viewport, not share space with the quicklinks
+       anymore, so this can comfortably fit every field without clipping. */
+    max-width: min(600px, calc(100vw - 48px));
+    opacity: 1;
+    background: #0C447C;
+    padding: 5px 8px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    z-index: 210;
+}
+
+.login-navbar-signin-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: 2px;
+    transition: background 0.15s ease;
+}
+.login-navbar-signin-close:hover {
+    background: rgba(255,255,255,0.24);
+}
+
+/* Desktop-only compact sizing — smaller inputs/buttons need a smaller
+   expanded width, which in turn leaves the centered quicklinks more room
+   before they ever need to step aside. Scoped to >760px so the mobile
+   dropdown (already correct as-is) is completely untouched. */
+@media (min-width: 761px) {
+    .login-navbar-fields .login-navbar-input {
+        height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
+        width: 104px !important;
+        border-radius: 8px;
+    }
+    .login-navbar-fields .login-navbar-btn {
+        height: 30px;
+        padding: 0 13px;
+        font-size: 12px;
+    }
+    .login-navbar-fields .login-navbar-register-btn {
+        height: 30px;
+        padding: 0 11px;
+        font-size: 12px;
+    }
+    .login-navbar-signin-toggle {
+        height: 32px;
+        padding: 0 14px;
+        font-size: 12px;
+    }
+    .login-navbar-signin-close {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+    }
+}
+
+/* Mobile ignores all of the above — the hamburger dropdown already shows
+   everything at once when open, so the toggle icon is hidden and the
+   fields are forced fully visible regardless of desktop expand state. */
+@media (max-width: 760px) {
+    .login-navbar-signin-toggle,
+    .login-navbar-signin-close {
+        display: none;
+    }
+    .login-navbar-fields {
+        position: static;
+        max-width: none;
+        opacity: 1;
+        overflow: visible;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        width: 100%;
+        gap: 10px;
+        box-shadow: none;
+        background: none;
+        padding: 0;
+    }
 }
 
 .login-navbar-input {
@@ -362,6 +543,17 @@
     animation: features-fade-in-up 0.6s ease-out both;
 }
 
+/* Same pulsing dot as the live-ticker/public-ticker "LIVE" label — actually
+   animated monitoring, not a static broadcast icon. */
+.login-feed-hero-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+    animation: live-ticker-blink 1.6s ease-in-out infinite;
+}
+
 .login-feed-hero-title {
     font-size: clamp(18px, 2.6vw, 24px);
     font-weight: 800;
@@ -427,6 +619,10 @@
 
 @media (max-width: 760px) {
     .login-navbar {
+        /* Desktop's 3-column grid is overkill on mobile — just brand on the
+           left and the hamburger on the right (quicklinks hidden entirely,
+           they live inside the hamburger's dropdown instead). */
+        display: flex;
         flex-wrap: nowrap;
         justify-content: space-between;
     }
@@ -1391,4 +1587,145 @@
     color: #378ADD;
     font-weight: 600;
     margin-bottom: 8px;
+}
+
+/* ── PublicLiveTicker — the same "live scoreboard" strip shown to logged-in
+   users (MainLayout's .live-ticker in app.css), reused across every public
+   page via PublicNavbar/Login. Compact, dark, glowing — the one deliberately
+   "video game" element on an otherwise calm public site, so it reads as
+   "something is happening right now" at a glance. Names arrive pre-masked
+   from the server (see UserTransactionTierController.GetPublicLeaderboard). */
+.public-ticker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 6px 16px;
+    background: linear-gradient(90deg, #0f172a, #1e1b4b 45%, #1e1b4b 55%, #0f172a);
+    border-bottom: 1px solid #312e81;
+    overflow-x: auto;
+    white-space: nowrap;
+    position: relative;
+    z-index: 5;
+}
+
+.public-ticker-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #facc15;
+    text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+}
+.public-ticker-label-live {
+    padding-right: 4px;
+    border-right: 1px solid rgba(250, 204, 21, 0.4);
+}
+.public-ticker-label-text {
+    color: #e2e8f0;
+    text-shadow: none;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+@media (max-width: 640px) {
+    .public-ticker-label-text { display: none; }
+    .public-ticker-label-live { border-right: none; padding-right: 0; }
+}
+
+.public-ticker-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+    animation: live-ticker-blink 1.6s ease-in-out infinite;
+}
+
+.public-ticker-track {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.public-ticker-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.public-ticker-item--rank1 { border-color: rgba(250, 204, 21, 0.5); background: rgba(250, 204, 21, 0.12); }
+.public-ticker-item--rank2 { border-color: rgba(203, 213, 225, 0.5); background: rgba(203, 213, 225, 0.1); }
+.public-ticker-item--rank3 { border-color: rgba(217, 119, 66, 0.5); background: rgba(217, 119, 66, 0.12); }
+
+.public-ticker-rank { font-size: 12px; }
+.public-ticker-name { color: #f8fafc; }
+.public-ticker-fire { color: #fb923c; font-size: 10px; }
+.public-ticker-count {
+    font-weight: 800;
+    color: #a5b4fc;
+    text-shadow: 0 0 8px rgba(165, 180, 252, 0.5);
+}
+
+.public-ticker-more {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.public-ticker-more:hover { color: #e2e8f0; }
+
+@media (max-width: 700px) {
+    .public-ticker-more { display: none; }
+}
+
+/* ── PageViewBadge — minimal eye-icon view counter, same quiet-until-hover
+   language as the Feed's .feed-stats-view-count, reused on the public
+   marketing pages next to each page's kicker badge. */
+.page-view-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-left: 8px;
+    transition: color 0.15s ease;
+}
+.page-view-badge i {
+    font-size: 12px;
+    transition: transform 0.15s ease;
+}
+.page-view-badge:hover {
+    color: #378ADD;
+}
+.page-view-badge:hover i {
+    transform: scale(1.1);
+}
+
+/* On the Features hero's dark background, the badge sits on its own
+   centered line below the "WHAT ECA-InFORMS CAN DO" pill instead of
+   crammed into it. */
+.features-hero .page-view-badge {
+    display: flex;
+    justify-content: center;
+    margin: 6px 0 0;
+    color: #93c5fd;
+}
+.features-hero .page-view-badge:hover {
+    color: #fff;
 }

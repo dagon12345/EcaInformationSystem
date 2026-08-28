@@ -1,0 +1,47 @@
+@* PageViewBadge.razor — minimal "eye icon + count" view badge for the public
+   marketing pages (Features, About, Contact, Officials, Developer). Same
+   visual language as the Feed's view-count chip (outline eye, muted until
+   hovered), just reused here. Counts once per page per browser session —
+   a localStorage flag stops a page refresh from inflating the count. *@
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (_count.HasValue)
+{
+    <span class="page-view-badge" title="@(_count.Value) view@(_count.Value == 1 ? "" : "s")">
+        <i class="bi bi-eye"></i>@_count.Value.ToString("N0")
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public string PageKey { get; set; } = string.Empty;
+
+    private int? _count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var storageKey = $"pv_seen_{PageKey}";
+            var alreadySeen = await JS.InvokeAsync<string?>("localStorage.getItem", storageKey);
+
+            if (string.IsNullOrEmpty(alreadySeen))
+            {
+                var response = await Http.PostAsync($"api/public-page-views/{PageKey}", null);
+                if (response.IsSuccessStatusCode)
+                {
+                    _count = await response.Content.ReadFromJsonAsync<int>();
+                    await JS.InvokeVoidAsync("localStorage.setItem", storageKey, "1");
+                }
+            }
+            else
+            {
+                _count = await Http.GetFromJsonAsync<int>($"api/public-page-views/{PageKey}");
+            }
+        }
+        catch
+        {
+            // Non-fatal — the badge just doesn't render if this fails.
+        }
+    }
+}

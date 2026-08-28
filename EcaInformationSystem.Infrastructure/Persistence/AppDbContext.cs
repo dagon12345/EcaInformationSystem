@@ -27,6 +27,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
             public DbSet<LeaderboardSeason> LeaderboardSeasons => Set<LeaderboardSeason>();
             public DbSet<UserSession> UserSessions => Set<UserSession>();
+            public DbSet<PublicPageView> PublicPageViews => Set<PublicPageView>();
 
             // ✅ NEW — Chat feature
             public DbSet<ChatRoom> ChatRooms => Set<ChatRoom>();
@@ -77,6 +78,12 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
+
+                  modelBuilder.Entity<PublicPageView>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.HasIndex(x => x.PageKey).IsUnique();
+                  });
 
                   modelBuilder.Entity<BeneficiaryFinding>(entity =>
                   {

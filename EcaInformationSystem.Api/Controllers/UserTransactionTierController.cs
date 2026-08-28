@@ -1,4 +1,5 @@
 using EcaInformationSystem.Application.Interfaces;
+using EcaInformationSystem.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -52,6 +53,39 @@ namespace EcaInformationSystem.Api.Controllers
         {
             var userName = User.Identity?.Name ?? "System";
             return Ok(await _service.GetLeaderboardAsync(userName));
+        }
+
+        // ✅ NEW — powers the "live" ticker on the PUBLIC pages (Login,
+        // Features, About, ...) for anonymous visitors, per request. Deliberately
+        // NOT the same payload as GetLeaderboard() above: real staff full names
+        // are internal information, not something to hand to anyone browsing
+        // the public site, so DisplayName is masked here (first name, truncated
+        // to 3 letters + "…") before it ever leaves the server. UserId is also
+        // stripped since it's only used client-side to link to a profile page
+        // that requires login anyway.
+        [HttpGet("public-leaderboard")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicLeaderboard()
+        {
+            var entries = await _service.GetLeaderboardAsync(string.Empty, top: 5);
+            var masked = entries.Select(e => new PublicLeaderboardEntryDto
+            {
+                Rank = e.Rank,
+                DisplayName = MaskName(e.DisplayName),
+                TierLevel = e.TierLevel,
+                TierName = e.TierName,
+                TransactionCount = e.TransactionCount,
+                CurrentStreakDays = e.CurrentStreakDays,
+                IsOnFire = e.IsOnFire
+            });
+            return Ok(masked);
+        }
+
+        // "Lance Andrei Espina" -> "Lan…" — first name only, truncated.
+        private static string MaskName(string displayName)
+        {
+            var firstName = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "?";
+            return firstName.Length <= 3 ? firstName : firstName[..3] + "…";
         }
 
         // Season number + countdown for the leaderboard card header — same

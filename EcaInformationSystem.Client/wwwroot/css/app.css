@@ -980,6 +980,28 @@
     gap: 10px;
 }
 
+/* Minimal view-count chip — icon-first, no "views" text, quiet by default
+   with a small color/scale lift on hover so it doesn't compete with the
+   like/comment counts next to it. */
+.feed-stats-view-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #9ca3af;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.15s ease;
+}
+.feed-stats-view-count i {
+    font-size: 13px;
+    transition: transform 0.15s ease;
+}
+.feed-stats-view-count:hover {
+    color: #378ADD;
+}
+.feed-stats-view-count:hover i {
+    transform: scale(1.1);
+}
+
 /* ── Action bar (Like / Comment) ──────────────────────────────────── */
 .feed-post-actionbar {
     display: flex;
@@ -9774,6 +9796,21 @@ body {
         letter-spacing: 0.08em;
         color: #facc15;
         text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+    }
+    .live-ticker-label-live {
+        padding-right: 4px;
+        border-right: 1px solid rgba(250, 204, 21, 0.4);
+    }
+    .live-ticker-label-text {
+        color: #e2e8f0;
+        text-shadow: none;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: none;
+    }
+    @media (max-width: 560px) {
+        .live-ticker-label-text { display: none; }
+        .live-ticker-label-live { border-right: none; padding-right: 0; }
     }
 
     .live-ticker-dot {

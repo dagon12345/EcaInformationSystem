@@ -1,0 +1,83 @@
+@* PublicLiveTicker.razor — the same "live" ranking strip shown to logged-in
+   users in MainLayout (LiveLeaderboardTicker.razor), sized down for the
+   public site. No SignalR here — that hub requires a JWT an anonymous
+   visitor doesn't have — so this polls api/transaction-tier/public-leaderboard
+   every 25s instead. Names arrive already masked by the server (first name,
+   truncated) for confidentiality; nothing here is clickable since there's
+   no profile to link to without logging in. *@
+@using EcaInformationSystem.Shared.DTOs
+@implements IAsyncDisposable
+@inject HttpClient Http
+
+@if (_entries.Count > 0)
+{
+    <div class="public-ticker">
+        <div class="public-ticker-label" title="Live Transactions Leaderboard — updates automatically as staff record activity">
+            <span class="public-ticker-dot"></span>
+            <i class="bi bi-trophy-fill"></i>
+            <span class="public-ticker-label-live">LIVE</span>
+            <span class="public-ticker-label-text">Transactions Leaderboard</span>
+        </div>
+        <div class="public-ticker-track">
+            @foreach (var entry in _entries)
+            {
+                <div @key="entry.Rank" class="public-ticker-item @RankClass(entry.Rank)">
+                    <span class="public-ticker-rank">@RankGlyph(entry.Rank)</span>
+                    <span class="public-ticker-name">@entry.DisplayName</span>
+                    @if (entry.IsOnFire)
+                    {
+                        <i class="bi bi-fire public-ticker-fire" title="@(entry.CurrentStreakDays)-day streak"></i>
+                    }
+                    <span class="public-ticker-count">@entry.TransactionCount.ToString("N0")</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<PublicLeaderboardEntryDto> _entries = new();
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _refreshTimer = new System.Threading.Timer(async _ => await InvokeAsync(LoadAsync), null, TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(25));
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<PublicLeaderboardEntryDto>>("api/transaction-tier/public-leaderboard");
+            if (result is not null)
+            {
+                _entries = result;
+                StateHasChanged();
+            }
+        }
+        catch { /* non-fatal — ticker just stays hidden/stale if this fails */ }
+    }
+
+    private static string RankClass(int rank) => rank switch
+    {
+        1 => "public-ticker-item--rank1",
+        2 => "public-ticker-item--rank2",
+        3 => "public-ticker-item--rank3",
+        _ => ""
+    };
+
+    private static string RankGlyph(int rank) => rank switch
+    {
+        1 => "🥇",
+        2 => "🥈",
+        3 => "🥉",
+        _ => $"#{rank}"
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

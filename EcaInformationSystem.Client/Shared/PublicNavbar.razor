@@ -1,0 +1,50 @@
+@* PublicNavbar.razor — the full public-site navbar (brand + Features/About/
+   Contact/Officials/Developer quicklinks + a Sign In link), reused on EVERY
+   anonymous-visitor page (Login, Features, About, Regional Offices,
+   Directory of Officials, Developer). Previously only Login.razor had the
+   full quicklinks row — every other page only offered a single "Back to
+   Login" link, so jumping from e.g. Features straight to About meant
+   detouring back through the login page first. This fixes that: the same
+   full navbar now persists everywhere, so any page is one click away from
+   any other. *@
+<div class="login-navbar">
+    <div class="login-navbar-left">
+        <a href="login" class="login-navbar-brand" style="text-decoration:none;">
+            <img src="images/ncsc-seal.png" alt="NCSC Seal" onerror="this.style.display='none'" />
+            <div class="login-navbar-brand-text-wrap">
+                <div class="login-navbar-brand-text">ECA-InFORMS</div>
+                <div class="login-navbar-brand-sub">Caraga Region</div>
+            </div>
+        </a>
+
+        <span class="login-navbar-left-divider"></span>
+
+        <div class="login-navbar-quicklinks">
+            <a href="features" class="login-navbar-about-link @(Current == "features" ? "login-navbar-about-link--active" : "")">
+                <i class="bi bi-stars"></i> <span>Features</span>
+            </a>
+            <a href="about" class="login-navbar-about-link @(Current == "about" ? "login-navbar-about-link--active" : "")">
+                <i class="bi bi-info-circle"></i> <span>About</span>
+            </a>
+            <a href="regional-offices" class="login-navbar-about-link @(Current == "contact" ? "login-navbar-about-link--active" : "")">
+                <i class="bi bi-telephone"></i> <span>Contact</span>
+            </a>
+            <a href="directory-officials" class="login-navbar-about-link @(Current == "officials" ? "login-navbar-about-link--active" : "")">
+                <i class="bi bi-people"></i> <span>Officials</span>
+            </a>
+            <a href="developer" class="login-navbar-about-link @(Current == "developer" ? "login-navbar-about-link--active" : "")">
+                <i class="bi bi-code-slash"></i> <span>Developer</span>
+            </a>
+        </div>
+    </div>
+
+    <a href="login" class="login-navbar-back-link"><i class="bi bi-box-arrow-in-right"></i> <span>Sign In</span></a>
+</div>
+
+<PublicLiveTicker />
+
+@code {
+    // "features" | "about" | "contact" | "officials" | "developer" | null —
+    // lights up that page's quicklink so a visitor always knows where they are.
+    [Parameter] public string? Current { get; set; }
+}

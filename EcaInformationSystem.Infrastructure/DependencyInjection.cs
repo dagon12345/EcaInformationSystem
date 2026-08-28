@@ -49,6 +49,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<ILeaderboardSeasonRepository, LeaderboardSeasonRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
             services.AddScoped<IUserSessionRepository, UserSessionRepository>();
+            services.AddScoped<IPublicPageViewRepository, PublicPageViewRepository>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
             services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();

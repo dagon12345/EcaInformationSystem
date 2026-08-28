@@ -589,7 +589,7 @@
                                         @post.CommentCount comment@(post.CommentCount == 1 ? "" : "s")
                                     </span>
                                 }
-                                <span>@post.ViewCount view@(post.ViewCount == 1 ? "" : "s")</span>
+                                <span class="feed-stats-view-count" title="@(post.ViewCount) view@(post.ViewCount == 1 ? "" : "s")"><i class="bi bi-eye"></i>@post.ViewCount</span>
                             </span>
                         </div>
                     }
