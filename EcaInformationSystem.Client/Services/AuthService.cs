@@ -226,6 +226,19 @@ namespace EcaInformationSystem.Client.Services
 
         public async Task LogoutAsync()
         {
+            // Disconnect THIS tab's own hub connections before telling the
+            // server to revoke/force-logout every OTHER session — the server
+            // broadcasts that "ForceLogout" push to every live connection for
+            // this account (it has no way to know which one is the caller),
+            // so if we're still connected when it fires, this very tab
+            // receives its own force-logout signal and races the manual
+            // logout flow below (double DisconnectAsync/localStorage clears,
+            // sometimes a double navigation) — which is what caused the
+            // intermittent error on click. Disconnecting first means we're
+            // simply not listening anymore by the time that broadcast goes out.
+            await _chatClientService.DisconnectAsync();
+            await _applicationTrackingClientService.DisconnectAsync();
+
             // ✅ NEW — logging out here should log this account out everywhere
             // else it's open too (e.g. PC + phone), not just this tab. Best-
             // effort and done BEFORE clearing the token below, since it needs
@@ -239,10 +252,6 @@ namespace EcaInformationSystem.Client.Services
 
             _cachedRole = null;
             _cachedRegionCode = null;
-
-            // ✅ NEW — tear down the chat connection on logout
-            await _chatClientService.DisconnectAsync();
-            await _applicationTrackingClientService.DisconnectAsync();
         }
 
         public async Task<string?> GetTokenAsync()

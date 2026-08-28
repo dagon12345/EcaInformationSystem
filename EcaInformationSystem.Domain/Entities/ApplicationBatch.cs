@@ -16,6 +16,11 @@ namespace EcaInformationSystem.Domain.Entities
 
         public Guid CreatedByUserId { get; set; }
         public string CreatedByName { get; set; } = string.Empty;
+        // Captured from the creator's account role at logging time — Viewer,
+        // PDO, Admin, or SuperAdmin can all log a batch now, so "Returned to
+        // Viewer"-style labels need this to say who the batch actually goes
+        // back to instead of assuming Viewer.
+        public string? CreatedByRole { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public ApplicationTrackingStatus CurrentStatus { get; set; } = ApplicationTrackingStatus.EndorsedByViewer;

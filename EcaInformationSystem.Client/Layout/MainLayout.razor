@@ -151,7 +151,7 @@
                                 </li>
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>
-                                    <button type="button" class="dropdown-item text-danger" @onclick="RequestLogout">
+                                    <button type="button" class="dropdown-item text-danger" @onclick="RequestLogout" disabled="@_loggingOut">
                                         <i class="bi bi-box-arrow-right me-2"></i>Logout
                                     </button>
                                 </li>
@@ -230,6 +230,11 @@
     private System.Threading.CancellationTokenSource? _bannerCts;
     private UnifiedNotificationBell? _notificationBell;
     private bool _showLogoutConfirm;
+    // Guards against HandleLogout (manual click) and HandleForceLogout (a
+    // "log out other devices" push, or a same-account logout elsewhere)
+    // ever running concurrently — see the comment in AuthService.LogoutAsync
+    // for why that race could happen and what it broke.
+    private bool _loggingOut;
     private bool? _mfaEnabled; // null = not checked yet
     private Guid? _currentUserId;
     private UserTransactionTierDto? _myTier;
@@ -271,8 +276,20 @@
     // it happens to make a request.
     private async void HandleForceLogout()
     {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/login", true);
+        if (_loggingOut) return;
+        _loggingOut = true;
+
+        try
+        {
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch
+        {
+            // Best-effort — we're logging out either way; a failed cleanup
+            // step here shouldn't block leaving the page.
+            Navigation.NavigateTo("/login", true);
+        }
     }
 
     private void HandleApplicationTagged(ApplicationTaggedNotificationDto notification)
@@ -538,11 +555,23 @@
 
     private async Task HandleLogout()
     {
+        if (_loggingOut) return;
+        _loggingOut = true;
+
         Current = null;
         State.ResetGlobalDuplicateState();
-        await AuthService.LogoutAsync();
-        ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
-        await Task.Delay(100);
+
+        try
+        {
+            await AuthService.LogoutAsync();
+            ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+            await Task.Delay(100);
+        }
+        catch
+        {
+            // Best-effort cleanup — still navigate away below regardless.
+        }
+
         Navigation.NavigateTo("/login", true);
     }
 

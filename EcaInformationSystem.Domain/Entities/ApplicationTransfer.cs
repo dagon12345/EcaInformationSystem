@@ -21,6 +21,12 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime? AcceptedAt { get; set; }
         public string? Note { get; set; }
 
+        // The acting user's account role at the moment THIS hand-off happened —
+        // captured for every transfer (unlike RaisedByRole below, which is
+        // finding-specific), so a status label like "Endorsed by Viewer" can
+        // say "Endorsed by PDO" instead when the actor wasn't actually a Viewer.
+        public string? ActorRole { get; set; }
+
         // ── Batch/relay-level finding — separate from the Finance-only,
         // grantee-row-specific findings (ApplicationGranteeRow.HasFinding). Any
         // role, at any relay stage, can optionally flag this transfer as a

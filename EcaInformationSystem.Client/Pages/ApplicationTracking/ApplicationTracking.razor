@@ -50,18 +50,18 @@
             <div class="dt-legend-body">
                 <div class="dt-legend-flow">
                     <div class="dt-legend-step">
-                        <span class="dt-status-pill dt-status-endorsed">Endorsed by Viewer</span>
-                        <p>A Viewer, Admin, or SuperAdmin logs the batch (Province, Municipality, Milestone Year, Date Received, grantee names) and tags who should receive it.</p>
+                        <span class="dt-status-pill dt-status-endorsed">Endorsed by Viewer or PDO</span>
+                        <p>A Viewer, PDO, Admin, or SuperAdmin logs the batch (Province, Municipality, Milestone Year, Date Received, grantee names) and tags who should receive it.</p>
                     </div>
                     <i class="bi bi-arrow-right dt-legend-arrow"></i>
                     <div class="dt-legend-step">
-                        <span class="dt-status-pill dt-status-viewer">Returned to Viewer</span>
-                        <p>The tagged person accepts it, then sends it back to the Viewer who created the batch.</p>
+                        <span class="dt-status-pill dt-status-viewer">Returned to Viewer or PDO</span>
+                        <p>The tagged person accepts it, then sends it back to whoever created the batch (a Viewer or a PDO).</p>
                     </div>
                     <i class="bi bi-arrow-right dt-legend-arrow"></i>
                     <div class="dt-legend-step">
                         <span class="dt-status-pill dt-status-pdo">Distributed to PDO</span>
-                        <p>The Viewer reviews it and tags the PDO responsible for that grantee's area.</p>
+                        <p>The Viewer or PDO who got it back reviews it and tags the PDO responsible for that grantee's area.</p>
                     </div>
                     <i class="bi bi-arrow-right dt-legend-arrow"></i>
                     <div class="dt-legend-step">
@@ -349,7 +349,7 @@
                                         {
                                             case 0: // EndorsedByViewer
                                                 <button class="dt-btn dt-btn-outline" @onclick="() => OpenActionModal(batch.Id, AtAction.ReturnToViewer)" disabled="@_busy">
-                                                    <i class="bi bi-arrow-return-left"></i> Return to Viewer
+                                                    <i class="bi bi-arrow-return-left"></i> Return to @(batch.CreatedByRole ?? "Viewer")
                                                 </button>
                                                 break;
                                             case 1: // ReturnedToViewer
@@ -686,7 +686,7 @@
                     <div class="dt-field">
                         <label>Returning To</label>
                         <div class="text-muted small">
-                            <i class="bi bi-person-check me-1"></i>@(batch?.CreatedByName ?? "the Viewer who created this batch")
+                            <i class="bi bi-person-check me-1"></i>@(batch?.CreatedByName ?? "whoever created this batch")
                         </div>
                     </div>
                 }
@@ -1131,7 +1131,7 @@
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
-        _canCreate = AuthService.IsViewer() || AuthService.IsAdmin();
+        _canCreate = AuthService.IsViewer() || AuthService.IsPDO() || AuthService.IsAdmin();
         _isSuperAdmin = AuthService.IsSuperAdmin();
         _isAdmin = AuthService.IsAdmin(); // true for both Admin and SuperAdmin
         _currentRegionLabel = _isSuperAdmin ? "All Regions" : (AuthService.GetRegionName() ?? "No region assigned");
@@ -1780,7 +1780,7 @@
 
     private string ActionModalTitle() => _actionType switch
     {
-        AtAction.ReturnToViewer => "Return to Viewer",
+        AtAction.ReturnToViewer => $"Return to {_batches.FirstOrDefault(b => b.Id == _actionBatchId)?.CreatedByRole ?? "Viewer"}",
         AtAction.DistributeToPdo => "Distribute to PDO",
         AtAction.EndorseToFinance => "Endorse to Finance",
         AtAction.ReturnToPdoFindings => "Return to PDO — Findings",

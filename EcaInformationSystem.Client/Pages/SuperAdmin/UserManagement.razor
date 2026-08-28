@@ -852,6 +852,13 @@
     private Dictionary<string, List<(int Code, string Name)>>
     _availableProvinces = new();
 
+    // Province/municipality list barely ever changes, but OpenJurisdictionModal
+    // used to re-fetch it (1 call to api/Province, then one MORE call PER
+    // province to api/Municipality/by-province/{code}) every single time the
+    // modal was opened — 80+ round trips, every click. Cached once per page
+    // visit here so every open after the first is instant.
+    private static Dictionary<string, List<(int Code, string Name)>>? _provincesCache;
+
     // ── Computed ──────────────────────────────────────────────────────────────
     private int PendingCount => _users.Count(u => u.ApprovalStatus == 0);
     // ✅ NEW — unique region names for the filter dropdown
@@ -1339,6 +1346,15 @@
         _selectedUser = user;
         _selectedMunicipalities = new HashSet<int>(
             user.Jurisdictions.Select(j => j.PsgcCodeMunicipality));
+
+        // Already fetched earlier this session — reuse it, no network calls.
+        if (_provincesCache is not null)
+        {
+            _availableProvinces = _provincesCache;
+            await _jurisdictionModal.ShowAsync();
+            return;
+        }
+
         _availableProvinces = new();
         _isLoadingJurisdictions = true;
 
@@ -1357,17 +1373,30 @@
                 .OrderBy(p => p.Name)
                 .ToList();
 
-            foreach (var province in uniqueProvinces)
+            // Fire every province's municipality request at once instead of
+            // awaiting them one at a time — turns 80+ sequential round trips
+            // into 80+ concurrent ones for this first (and now only) load.
+            var fetchTasks = uniqueProvinces.Select(async province =>
             {
                 var munis = await Http.GetFromJsonAsync<List<MunicipalityLookupDto>>(
                     $"api/Municipality/by-province/{province.PsgcCodeProvince}")
                     ?? new();
+                return (Province: province, Munis: munis);
+            });
 
+            var results = await Task.WhenAll(fetchTasks);
+
+            var loaded = new Dictionary<string, List<(int Code, string Name)>>();
+            foreach (var (province, munis) in results)
+            {
                 if (munis.Any())
-                    _availableProvinces[province.Name ?? "Unknown"] = munis
+                    loaded[province.Name ?? "Unknown"] = munis
                         .Select(m => (m.PsgcCodeMunicipality, m.Name ?? string.Empty))
                         .ToList();
             }
+
+            _provincesCache = loaded;
+            _availableProvinces = loaded;
         }
         catch (Exception ex)
         {

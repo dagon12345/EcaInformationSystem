@@ -74,6 +74,7 @@ namespace EcaInformationSystem.Application.Services
                 DateReceived = dto.DateReceived,
                 CreatedByUserId = callerId,
                 CreatedByName = callerName,
+                CreatedByRole = callerRole,
                 CreatedAt = now,
                 CurrentStatus = ApplicationTrackingStatus.EndorsedByViewer,
                 CurrentHolderUserId = dto.RecipientUserId,
@@ -116,10 +117,18 @@ namespace EcaInformationSystem.Application.Services
                 Note = dto.Note,
                 IsFinding = dto.IsFinding,
                 FindingJustification = dto.IsFinding ? dto.FindingJustification : null,
-                RaisedByRole = dto.IsFinding ? callerRole : null
+                RaisedByRole = dto.IsFinding ? callerRole : null,
+                ActorRole = callerRole
             });
 
-            await LogActivityAsync(callerName, batch, $"Logged a new application batch and endorsed it to {recipientName}");
+            // One Log row per grantee (not one per batch) — ranking/leaderboard
+            // counts Log rows directly (see LogRepository.CountUserTransactionsAsync),
+            // so a batch of 20 grantees should score the Viewer 20, not 1.
+            foreach (var row in batch.Rows)
+            {
+                await LogActivityAsync(callerName, batch,
+                    $"Logged a new application for {row.FirstName} {row.LastName} and endorsed it to {recipientName}");
+            }
             await _repo.AddAsync(batch);
             return MapToDto(batch);
         }
@@ -530,7 +539,8 @@ namespace EcaInformationSystem.Application.Services
                 Note = note,
                 IsFinding = isFinding,
                 FindingJustification = isFinding ? findingJustification : null,
-                RaisedByRole = isFinding ? raisedByRole : null
+                RaisedByRole = isFinding ? raisedByRole : null,
+                ActorRole = raisedByRole
             });
 
             batch.CurrentStatus = newStatus;
@@ -578,9 +588,12 @@ namespace EcaInformationSystem.Application.Services
                 DateReceived = batch.DateReceived,
                 CreatedByUserId = batch.CreatedByUserId,
                 CreatedByName = batch.CreatedByName,
+                CreatedByRole = batch.CreatedByRole,
                 CreatedAt = batch.CreatedAt,
                 CurrentStatus = (int)batch.CurrentStatus,
-                CurrentStatusLabel = StatusLabel(batch.CurrentStatus),
+                CurrentStatusLabel = StatusLabel(batch.CurrentStatus,
+                    batch.Transfers.Where(t => t.Status == batch.CurrentStatus).OrderByDescending(t => t.RelayedAt).FirstOrDefault()?.ActorRole,
+                    batch.CreatedByRole),
                 Priority = (int)batch.Priority,
                 PriorityLabel = PriorityLabel(batch.Priority),
                 CurrentHolderUserId = batch.CurrentHolderUserId,
@@ -610,7 +623,7 @@ namespace EcaInformationSystem.Application.Services
                     {
                         Id = t.Id,
                         Status = (int)t.Status,
-                        StatusLabel = StatusLabel(t.Status),
+                        StatusLabel = StatusLabel(t.Status, t.ActorRole, batch.CreatedByRole),
                         FromUserId = t.FromUserId,
                         FromUserName = t.FromUserName,
                         ToUserId = t.ToUserId,
@@ -633,10 +646,17 @@ namespace EcaInformationSystem.Application.Services
             _ => priority.ToString()
         };
 
-        private static string StatusLabel(ApplicationTrackingStatus status) => status switch
+        // actorRole = the role of whoever performed THIS specific hand-off (used
+        // for "Endorsed by ___", since a Viewer, PDO, Admin, or SuperAdmin can
+        // all log a batch now). creatorRole = the original batch creator's role
+        // (used for "Returned to ___", since that hand-off always targets
+        // batch.CreatedByUserId, whoever they turned out to be). Both fall back
+        // to "Viewer" for historical rows recorded before these role columns
+        // existed, matching the label these statuses always used to show.
+        private static string StatusLabel(ApplicationTrackingStatus status, string? actorRole, string? creatorRole) => status switch
         {
-            ApplicationTrackingStatus.EndorsedByViewer => "Endorsed by Viewer",
-            ApplicationTrackingStatus.ReturnedToViewer => "Returned to Viewer",
+            ApplicationTrackingStatus.EndorsedByViewer => $"Endorsed by {actorRole ?? "Viewer"}",
+            ApplicationTrackingStatus.ReturnedToViewer => $"Returned to {creatorRole ?? "Viewer"}",
             ApplicationTrackingStatus.DistributedToPdo => "Distributed to PDO",
             ApplicationTrackingStatus.EndorsedToFinance => "Endorsed to Finance",
             ApplicationTrackingStatus.ReturnedToPdoForFindings => "Returned to PDO — Findings",

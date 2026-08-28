@@ -41,7 +41,7 @@ namespace EcaInformationSystem.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateApplicationBatchDto dto)
         {
-            if (!User.IsInRole("Viewer") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
+            if (!User.IsInRole("Viewer") && !User.IsInRole("PDO") && !User.IsInRole("Admin") && !User.IsInRole("SuperAdmin"))
                 return Forbid();
 
             try

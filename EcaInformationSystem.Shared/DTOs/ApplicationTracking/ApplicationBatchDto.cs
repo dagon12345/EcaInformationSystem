@@ -13,6 +13,10 @@ namespace EcaInformationSystem.Shared.DTOs.ApplicationTracking
 
         public Guid CreatedByUserId { get; set; }
         public string CreatedByName { get; set; } = string.Empty;
+        // The creator's account role at logging time (Viewer, PDO, Admin, or
+        // SuperAdmin) — lets the client show "Return to PDO" instead of always
+        // assuming "Return to Viewer" for the EndorsedByViewer -> Return step.
+        public string? CreatedByRole { get; set; }
         public DateTime CreatedAt { get; set; }
 
         // Numeric ApplicationTrackingStatus value + a ready-to-render label, so the
