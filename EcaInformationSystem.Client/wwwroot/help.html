@@ -474,7 +474,7 @@
         <ol class="help-steps">
           <li><strong>SuperAdmin</strong> — full access to everything, including account management and system-wide settings.</li>
           <li><strong>Admin</strong> — manages grantee records, reports, tracking, and most day-to-day operations for their region.</li>
-          <li><strong>PDO (Project Development Officer)</strong> — works grantee records and directories within their assigned municipalities (jurisdiction).</li>
+          <li><strong>PDO (Project Development Officer)</strong> — works grantee records and directories within their assigned municipalities (jurisdiction); can also log new Application Tracking batches.</li>
           <li><strong>Encoder</strong> — an office-only role that can create, edit, and view grantee records, with no calling/directory features.</li>
           <li><strong>Finance</strong> — manages WFP-ECA budgets, user accounts, and attendance/DTR administration.</li>
           <li><strong>Viewer</strong> — read-only access to most reports and records, plus permission to log new Application Tracking batches.</li>
@@ -831,22 +831,22 @@
 
       <section class="help-section" id="application-tracking">
         <h3><i class="bi bi-truck"></i> Application Tracking <span class="help-route">/application-tracking</span></h3>
-        <span class="help-access help-access--restricted">Everyone views; logging a batch is Viewer/Admin; only the current holder can move it forward</span>
+        <span class="help-access help-access--restricted">Everyone views; logging a batch is Viewer/PDO/Admin; only the current holder can move it forward</span>
         <p class="help-purpose">
           Tracks physical/scanned document batches (grouped by province, municipality, milestone year, and date
           received) as they pass through a fixed chain of custody, from initial endorsement to completion.
         </p>
         <div class="help-steps-label">The workflow</div>
         <ol class="help-steps">
-          <li>Endorsed by Viewer → Returned to Viewer → Distributed to PDO → Endorsed to Finance</li>
+          <li>Endorsed by Viewer or PDO → Returned to whoever logged it → Distributed to PDO → Endorsed to Finance</li>
           <li>(loop as needed) Returned to PDO with Findings ⇄ Forwarded to Viewer — Scanning</li>
           <li>Completed</li>
         </ol>
         <div class="help-steps-label">Steps</div>
         <ol class="help-steps">
-          <li>(Viewer/Admin) Click <strong>New Application Batch</strong>, fill in Province/Municipality/Milestone Year/Date Received, list the grantee names, and tag who receives it.</li>
+          <li>(Viewer/PDO/Admin) Click <strong>New Application Batch</strong>, fill in Province/Municipality/Milestone Year/Date Received, list the grantee names, and tag who receives it.</li>
           <li>Click a batch card to expand it; use the search box or status dropdown to find one quickly.</li>
-          <li>Whoever is currently tagged as the holder sees action buttons appropriate to that stage (e.g. <strong>Endorse to Finance</strong>, <strong>Forward to Viewer — Scanning</strong>, <strong>Mark Completed</strong>) — click one and confirm.</li>
+          <li>Whoever is currently tagged as the holder sees action buttons appropriate to that stage (e.g. <strong>Endorse to Finance</strong>, <strong>Forward to Viewer — Scanning</strong>, <strong>Mark Completed</strong>) — click one and confirm. The "Return to..." button always names whoever actually logged the batch (Viewer or PDO).</li>
           <li>(Admin/SuperAdmin) Can correct a wrongly-tagged recipient without changing the stage. SuperAdmin can edit or delete any batch regardless of who currently holds it.</li>
         </ol>
         <div class="help-tip"><strong>Tip:</strong> Click "How does this work?" at the top of the page any time for a quick in-page reminder of the stage order.</div>
@@ -1075,6 +1075,7 @@
         <ol class="help-steps">
           <li>Choose the Year/Month and a period preset (1-15, 16-End, Full Month, or Custom).</li>
           <li>Click <strong>Pull Latest Record</strong>.</li>
+          <li>Click any time cell to add, edit, or clear a punch by hand — useful when a device punch was missed or wrong. Saturdays and Sundays work the same way now: click the pencil icon next to "SATURDAY"/"SUNDAY" to add an entry for a day office activity happened; a blank weekend keeps showing the default label until you do.</li>
         </ol>
         <div class="help-tip"><strong>Note:</strong> If you see "No biometric device is linked to your account yet," ask a SuperAdmin or Finance user to assign your Biometric ID under <a href="#attendance-management">Attendance Management</a>. Punches only sync when someone runs the sync tool on the office network — but you can view your DTR from anywhere afterward.</div>
       </section>
@@ -1105,7 +1106,7 @@
             <tr><td>Liquidation (CDR)</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
             <tr><td>View WFP-ECA</td><td class="yes">✓</td><td class="yes">✓ (view only)</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
             <tr><td>Edit WFP-ECA</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
-            <tr><td>Log an Application Tracking batch</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
+            <tr><td>Log an Application Tracking batch</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td></tr>
             <tr><td>Create a Tracked Document</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
             <tr><td>Delete a Tracked Document</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="yes">✓</td><td class="no">—</td></tr>
             <tr><td>Edit Senior Citizens Directory</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
