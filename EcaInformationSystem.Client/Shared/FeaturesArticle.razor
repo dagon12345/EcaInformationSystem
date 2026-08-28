@@ -1,0 +1,184 @@
+@* FeaturesArticle.razor — public "what can this system do" showcase. Deliberately
+   louder than About/Regional Offices/Officials (which are calm, document-style
+   pages) — this one exists to make a stranger stop scrolling, so it gets its
+   own hero banner, a color per category, and hover/entrance motion. *@
+
+<div class="features-hero">
+    <div class="features-hero-glow features-hero-glow--1"></div>
+    <div class="features-hero-glow features-hero-glow--2"></div>
+    <div class="features-hero-glow features-hero-glow--3"></div>
+
+    <div class="features-hero-badge"><i class="bi bi-stars"></i> WHAT ECA-InFORMS CAN DO</div>
+    <h1 class="features-hero-title">
+        One system. <span class="features-hero-title-accent">Every step</span> of the ECA workflow.
+    </h1>
+    <p class="features-hero-lede">
+        Built to replace scattered spreadsheets, paper trails, and missed hand-offs with one connected system —
+        ECA-InFORMS brings grantee records, document routing, finance, attendance, and your whole team into a
+        single, always-on platform trusted by the National Commission of Senior Citizens, Caraga Region.
+    </p>
+
+    <div class="features-hero-stats">
+        @foreach (var stat in _stats)
+        {
+            <div class="features-hero-stat">
+                <div class="features-hero-stat-value">@stat.Value</div>
+                <div class="features-hero-stat-label">@stat.Label</div>
+            </div>
+        }
+    </div>
+
+    <a href="login" class="features-hero-cta">
+        <i class="bi bi-box-arrow-in-right me-1"></i>Sign in to explore
+    </a>
+</div>
+
+<div class="features-body">
+    @{ var delayIndex = 0; }
+    @foreach (var category in _categories)
+    {
+        <section class="features-category features-category--@category.Accent" style="--fx-delay:@(delayIndex++ * 0.05)s;">
+            <h2 class="features-category-title">
+                <span class="features-category-icon"><i class="bi @category.Icon"></i></span>
+                @category.Title
+            </h2>
+            <p class="features-category-tagline">@category.Tagline</p>
+            <div class="features-grid">
+                @foreach (var feature in category.Features)
+                {
+                    <div class="feature-card">
+                        <div class="feature-card-shine"></div>
+                        <div class="feature-card-icon"><i class="bi @feature.Icon"></i></div>
+                        <div class="feature-card-title">@feature.Title</div>
+                        <div class="feature-card-body">@feature.Body</div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <div class="features-article-cta">
+        <div class="features-article-cta-glow"></div>
+        <p>Ready to see it in action?</p>
+        <a href="login" class="features-article-cta-btn"><i class="bi bi-box-arrow-in-right me-1"></i>Sign in to get started</a>
+    </div>
+</div>
+
+@code {
+    private record Stat(string Value, string Label);
+    private record Feature(string Icon, string Title, string Body);
+    private record FeatureCategory(string Icon, string Title, string Accent, string Tagline, List<Feature> Features);
+
+    private readonly List<Stat> _stats = new()
+    {
+        new("9", "Team Roles"),
+        new("24/7", "Live Updates"),
+        new("100%", "Paperless Trail"),
+    };
+
+    private readonly List<FeatureCategory> _categories = new()
+    {
+        new("bi-person-vcard-fill", "Grantee Records", "blue",
+            "The single source of truth for every grantee — accurate, deduplicated, and always up to date.", new List<Feature>
+        {
+            new("bi-person-plus-fill", "Create & Edit Records",
+                "Full grantee profiles — personal info, address down to barangay, birth date, and status — created or updated in seconds."),
+            new("bi-file-earmark-arrow-up-fill", "Bulk Excel Import",
+                "Bring in hundreds of records at once from a spreadsheet, validated row by row before anything is saved."),
+            new("bi-shield-check", "Smart Duplicate Detection",
+                "Every new or imported record is automatically checked against the whole database for name, birth date, OSCA ID, and RRN matches."),
+            new("bi-clock-history", "Duplicate Resolution History",
+                "Every duplicate match ever reviewed — kept or merged — is logged, so nothing gets second-guessed twice."),
+            new("bi-calendar2-check-fill", "Automatic Eligibility Detection",
+                "Grantees who just turned 80 are automatically flagged as newly eligible — no manual birthday tracking needed."),
+            new("bi-cash", "Payment & Batch Tracking",
+                "Paid/unpaid status, batch codes, reference numbers, and CGP numbers are all tracked per grantee, per payout."),
+            new("bi-flag-fill", "Findings & Compliance Remarks",
+                "Flag a record with a finding or compliance remark, with a full note history for anyone reviewing it later."),
+            new("bi-table", "Powerful Records Grid",
+                "Search, filter by province/municipality/status, sort, and export the full grantee list to Excel in one click."),
+        }),
+
+        new("bi-truck", "Document Workflow", "violet",
+            "No more lost paperwork — every hand-off is tracked, timestamped, and impossible to miss.", new List<Feature>
+        {
+            new("bi-diagram-3-fill", "Application Tracking",
+                "Grantee document batches move through a clear chain of custody — endorsed, distributed, reviewed, and completed — with every hand-off logged."),
+            new("bi-send-fill", "Document Tracking",
+                "A free-form way to relay any important document person-to-person, for things that don't fit the formal batch workflow."),
+            new("bi-bell-fill", "Real-Time Hand-off Alerts",
+                "The moment a document is tagged to you, you're notified — no refreshing, no missed hand-offs."),
+        }),
+
+        new("bi-people-fill", "Directories", "rose",
+            "The right person, in the right office, one search away — every time.", new List<Feature>
+        {
+            new("bi-person-lines-fill", "Senior Citizens Directory",
+                "A nationwide, searchable directory of senior citizen population and welfare data by municipality."),
+            new("bi-diagram-3-fill", "NCSC Team Directory",
+                "A living directory of NCSC staff and their assignments, always up to date."),
+            new("bi-telephone-fill", "Provincial Focals",
+                "Quick access to each province's point of contact, so the right person is always one call away."),
+        }),
+
+        new("bi-pin-map-fill", "Reports & Insights", "orange",
+            "See the whole region's progress at a glance — decisions backed by real numbers, not guesswork.", new List<Feature>
+        {
+            new("bi-map-fill", "Statistics & Region Map",
+                "See grantee counts, payment status, and progress visualized across the whole region at a glance."),
+            new("bi-clipboard2-check-fill", "Applications & Validations",
+                "Track how applications move from submission to endorsement, filtered by the dates that matter."),
+        }),
+
+        new("bi-cash-stack", "Finance", "emerald",
+            "From budget to payroll — every peso accounted for, every document audit-ready.", new List<Feature>
+        {
+            new("bi-cash-coin", "WFP-ECA Budget Tracking",
+                "Manage the Work Financial Plan's UACS line items with a full add/edit/delete history."),
+            new("bi-plus-slash-minus", "Liquidation (CDR)",
+                "Generate Cash Disbursement Records for accountable officers, formatted and ready to file."),
+            new("bi-file-earmark-text-fill", "Payroll & COE Generation",
+                "Produce cash gift payrolls and Certificates of Eligibility straight from validated records."),
+        }),
+
+        new("bi-fingerprint", "Attendance", "cyan",
+            "Time tracking that just works — tap in, or fix it by hand, without the paperwork.", new List<Feature>
+        {
+            new("bi-clock-history", "Biometric DTR",
+                "Daily Time Records generated automatically from fingerprint device punches — no manual logging."),
+            new("bi-pencil-square", "Manual Punch Corrections",
+                "Missed a tap? Add, edit, or clear a time entry by hand, including weekends when office activity happens."),
+            new("bi-journal-check", "Daily Accomplishment Report",
+                "A simple, personal log of what got done each day, tied to your own record."),
+        }),
+
+        new("bi-chat-dots-fill", "Team Collaboration", "pink",
+            "Stay connected without switching apps — chat, call, and coordinate right where the work happens.", new List<Feature>
+        {
+            new("bi-chat-square-text-fill", "Real-Time Messaging",
+                "Direct and group chat with reactions, replies, @mentions, file sharing, and instant notifications."),
+            new("bi-telephone-outbound-fill", "Voice Calls",
+                "Call any teammate browser-to-browser — no phone number needed."),
+            new("bi-calendar3", "Shared Calendar & Sticky Notes",
+                "Keep track of events and quick reminders without leaving the app."),
+        }),
+
+        new("bi-trophy-fill", "Recognition", "amber",
+            "Turn everyday work into weekly wins — the team that shows up, gets seen.", new List<Feature>
+        {
+            new("bi-bar-chart-line-fill", "Weekly Leaderboard",
+                "Every meaningful action — records created, documents moved, logins, and more — counts toward a weekly, tier-based ranking that resets every week so everyone gets a fresh shot at the top."),
+            new("bi-fire", "Streaks & Milestones",
+                "Stay active multiple days in a row to build a streak, and watch your tier badge level up in real time."),
+        }),
+
+        new("bi-shield-lock-fill", "Security & Access", "slate",
+            "Built for government work — every account sees exactly what it should, nothing more.", new List<Feature>
+        {
+            new("bi-person-badge-fill", "Role-Based Access",
+                "Every account — Viewer, PDO, Encoder, Finance, Admin, and more — sees exactly what their role needs, nothing more."),
+            new("bi-key-fill", "Two-Factor Authentication",
+                "Optional MFA and full session management, including the ability to log out other devices remotely."),
+        }),
+    };
+}

@@ -686,6 +686,15 @@ namespace EcaInformationSystem.Client.Services
                 room.LastMessagePreview = message.Content ?? "[Attachment]";
                 room.LastMessageAt = message.SentAt;
 
+                // The API's GetMyRoomsAsync already orders by LastMessageAt
+                // descending, but that only applies at load/reload time — a
+                // room already in the list otherwise just sat wherever it was
+                // until the widget was reopened, even though its preview text
+                // above just changed. Re-sort right here so "most recent chat"
+                // always means "top of the list," live.
+                if (Rooms.Count > 1 && !ReferenceEquals(Rooms[0], room))
+                    Rooms = Rooms.OrderByDescending(r => r.LastMessageAt ?? DateTime.MinValue).ToList();
+
                 // SignalR broadcasts a sent message back to the sender's own
                 // connection too — without this check, the sender would see
                 // their own message increment their unread badge, which never

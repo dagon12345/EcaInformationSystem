@@ -17,6 +17,11 @@ namespace EcaInformationSystem.Client.Services
         public event Action<ChatRoomDto>? OnNewDirectRoomStarted;
         public event Action? OnConnectionStateChanged;
         public event Action<ReactionUpdateBroadcastDto>? OnReactionUpdated;
+
+        // Fires ONLY for the message's original sender when someone else
+        // reacts to it — unlike OnReactionUpdated above (which is the room-wide
+        // pill-count refresh), this is the "so the user is always aware" alert.
+        public event Action<ChatReactionNotificationDto>? OnMessageReacted;
         public event Action<Guid, Guid>? OnSeenStatusChanged; // (roomId, userIdWhoJustRead)
         public event Action<Guid, bool>? OnUserPresenceChanged; // (userId, isOnline)
         public event Action<Guid, Guid, string>? OnUserTyping; // (roomId, userId, senderName)
@@ -61,6 +66,7 @@ namespace EcaInformationSystem.Client.Services
             _hubConnection.On<ChatMentionJumpDto>("YouWereMentioned", mention => OnMentioned?.Invoke(mention));
             _hubConnection.On<ChatRoomDto>("NewDirectRoomStarted", room => OnNewDirectRoomStarted?.Invoke(room));
             _hubConnection.On<ReactionUpdateBroadcastDto>("ReactionUpdated", update => OnReactionUpdated?.Invoke(update));
+            _hubConnection.On<ChatReactionNotificationDto>("ReactedToYourMessage", notification => OnMessageReacted?.Invoke(notification));
             _hubConnection.On<Guid, Guid>("SeenStatusChanged", (roomId, userId) =>
             {
                 OnSeenStatusChanged?.Invoke(roomId, userId);

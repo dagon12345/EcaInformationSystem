@@ -21,7 +21,8 @@
 }
 else
 {
-    <div class="auth-page-wrapper">
+    <div class="auth-page-wrapper public-glass-bg">
+        <GlassParticles />
 
         <div class="login-navbar">
             <div class="login-navbar-left">
@@ -36,6 +37,9 @@ else
                 <span class="login-navbar-left-divider"></span>
 
                 <div class="login-navbar-quicklinks">
+                    <a href="features" class="login-navbar-about-link">
+                        <i class="bi bi-stars"></i> <span>Features</span>
+                    </a>
                     <a href="about" class="login-navbar-about-link">
                         <i class="bi bi-info-circle"></i> <span>About</span>
                     </a>
@@ -66,6 +70,7 @@ else
                      About/Contact/Officials stay reachable and tappable without
                      getting buried below the login form. ── *@
                 <div class="login-navbar-menu-links">
+                    <a href="features" class="login-navbar-register-btn"><i class="bi bi-stars me-1"></i>Features</a>
                     <a href="about" class="login-navbar-register-btn"><i class="bi bi-info-circle me-1"></i>About</a>
                     <a href="regional-offices" class="login-navbar-register-btn"><i class="bi bi-telephone me-1"></i>Contact</a>
                     <a href="directory-officials" class="login-navbar-register-btn"><i class="bi bi-people me-1"></i>Officials</a>
@@ -154,6 +159,15 @@ else
                     </div>
                 </div>
             }
+
+            <div class="login-feed-hero">
+                <span class="login-feed-hero-badge"><i class="bi bi-broadcast"></i> LIVE FROM THE FIELD</span>
+                <h2 class="login-feed-hero-title">See what <span class="login-feed-hero-title-accent">ECA-InFORMS</span> teams are up to</h2>
+                <p class="login-feed-hero-lede">
+                    A public glimpse of the Feed — real posts, real progress, no account needed to look around.
+                    <a href="features">See everything the system can do →</a>
+                </p>
+            </div>
 
             <div class="login-feed-body">
                 <PostFeed />

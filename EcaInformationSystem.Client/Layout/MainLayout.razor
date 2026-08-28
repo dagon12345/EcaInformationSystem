@@ -3,6 +3,7 @@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.ApplicationTracking
 @using EcaInformationSystem.Shared.DTOs.DocumentTracking
+@using EcaInformationSystem.Shared.DTOs.Chat
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Net.Http.Json
 @inherits LayoutComponentBase
@@ -298,7 +299,31 @@
         ApplicationTrackingClientService.OnApplicationTagged += HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged += HandleDocumentTagged;
         ChatClientService.OnForceLogout += HandleForceLogout;
+        ChatClientService.OnMessageReacted += HandleMessageReacted;
         TierHub.TransactionRecorded += HandleTransactionRecordedForLevelUp;
+    }
+
+    // Someone reacted to one of MY messages — fires from anywhere in the app,
+    // not just while that chat room happens to be open, since the reaction
+    // pill on the message itself only helps if you're already looking at it.
+    private void HandleMessageReacted(ChatReactionNotificationDto notification)
+    {
+        var emoji = notification.ReactionType switch
+        {
+            "Like" => "👍",
+            "Heart" => "❤️",
+            "Haha" => "😂",
+            "Clap" => "👏",
+            "Wow" => "😮",
+            _ => "👍"
+        };
+
+        var message = string.IsNullOrWhiteSpace(notification.MessagePreview)
+            ? $"{notification.ReactorName} reacted {emoji} to your message."
+            : $"{notification.ReactorName} reacted {emoji} to \"{notification.MessagePreview}\"";
+
+        Toast.ShowSuccess(message, "Chat");
+        InvokeAsync(StateHasChanged);
     }
 
     // Fires globally (any page, not just Feed) the instant OUR OWN activity
@@ -700,6 +725,7 @@
         ApplicationTrackingClientService.OnApplicationTagged -= HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged -= HandleDocumentTagged;
         ChatClientService.OnForceLogout -= HandleForceLogout;
+        ChatClientService.OnMessageReacted -= HandleMessageReacted;
         TierHub.TransactionRecorded -= HandleTransactionRecordedForLevelUp;
         _levelUpCts?.Cancel();
     }

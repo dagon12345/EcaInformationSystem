@@ -100,6 +100,29 @@ namespace EcaInformationSystem.API.Hubs
             {
                 await Clients.Group($"room-{dto.RoomId}").SendAsync("ReactionUpdated", broadcast);
             }
+
+            // ✅ Targeted "someone reacted to YOUR message" push — the reaction
+            // pill on the message itself only tells you if you happen to have
+            // that exact message open right now, so this fires regardless of
+            // what page/room the sender is currently looking at. Only for an
+            // actual added reaction (dto.Type set — a cleared reaction isn't
+            // "someone reacted"), and never notifies you about your own reaction.
+            if (!string.IsNullOrWhiteSpace(dto.Type))
+            {
+                var summary = await _chatService.GetMessageSummaryAsync(dto.MessageId);
+                if (summary is not null && summary.Value.SenderId != userId)
+                {
+                    var reactorName = await _chatService.GetUserFullNameAsync(userId);
+                    await Clients.User(summary.Value.SenderId.ToString()).SendAsync("ReactedToYourMessage", new ChatReactionNotificationDto
+                    {
+                        MessageId = dto.MessageId,
+                        RoomId = dto.RoomId,
+                        ReactorName = reactorName,
+                        ReactionType = dto.Type,
+                        MessagePreview = summary.Value.Preview
+                    });
+                }
+            }
         }
         // ── Connection lifecycle ─────────────────────────────────────────
 

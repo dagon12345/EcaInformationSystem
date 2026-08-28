@@ -105,19 +105,55 @@
 
 /* ── Feed header ───────────────────────────────────────────────────── */
 .feed-header {
-    top: 60px; /* matches your navbar's actual rendered height — adjust if it doesn't line up exactly */
+    position: relative;
+    overflow: hidden;
     z-index: 150;
     display: flex;
     align-items: center;
     gap: 12px;
-    background: linear-gradient(135deg, #0C447C, #185FA5);
+    background: linear-gradient(120deg, #0C447C, #185FA5 45%, #378ADD 65%, #0C447C);
+    background-size: 250% auto;
+    animation: feed-header-shift 10s ease infinite;
     border-radius: 14px;
     padding: 16px 18px;
     margin-bottom: 14px;
     box-shadow: 0 4px 14px rgba(12,68,124,0.25);
 }
 
+@keyframes feed-header-shift {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+}
+
+/* Two soft blurred glows drifting behind the text/icon — same "alive"
+   language as the Features/Login hero glows, just small and quiet enough
+   to sit in a compact banner instead of a full-page hero. */
+.feed-header::before,
+.feed-header::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(30px);
+    opacity: 0.35;
+    pointer-events: none;
+}
+.feed-header::before {
+    width: 90px;
+    height: 90px;
+    background: #85B7EB;
+    top: -40px;
+    right: 10%;
+}
+.feed-header::after {
+    width: 70px;
+    height: 70px;
+    background: #f97316;
+    bottom: -35px;
+    left: 25%;
+}
+
 .feed-header-icon {
+    position: relative;
     width: 40px;
     height: 40px;
     border-radius: 50%;
@@ -128,15 +164,25 @@
     justify-content: center;
     font-size: 17px;
     flex-shrink: 0;
+    box-shadow: 0 0 0 rgba(255,255,255,0.4);
+    animation: feed-header-icon-pulse 2.6s ease-out infinite;
+}
+
+@keyframes feed-header-icon-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.35); }
+    70% { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
 }
 
 .feed-header-title {
+    position: relative;
     color: #fff;
     font-weight: 700;
     font-size: 16px;
 }
 
 .feed-header-subtitle {
+    position: relative;
     color: #cfe2f5;
     font-size: 11.5px;
 }

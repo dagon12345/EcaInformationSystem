@@ -40,6 +40,9 @@ namespace EcaInformationSystem.Application.Interfaces.Services
             Guid currentUserId, string currentUserRole, int? currentUserRegion, Guid roomId, Guid targetMessageId);
         // IChatService.cs
         Task<List<ChatReactionDto>> SetReactionAsync(Guid currentUserId, string currentUserRole, int? currentUserRegion, SetReactionDto dto);
+        // Who authored a message + a short preview of it — used by ChatHub.SetReaction
+        // to decide who to notify (never the reactor themselves) and what to show them.
+        Task<(Guid SenderId, string? Preview)?> GetMessageSummaryAsync(Guid messageId);
         Task<ChatSeenInfoDto?> GetSeenInfoAsync(Guid currentUserId, Guid roomId, Guid messageId, DateTime messageSentAt);
         Task<ChatUserPresenceDto> GetUserPresenceAsync(Guid userId, bool isOnline);
         Task UpdateLastSeenAsync(Guid userId, DateTime lastSeenAt);

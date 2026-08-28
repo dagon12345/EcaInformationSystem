@@ -201,6 +201,18 @@ namespace EcaInformationSystem.Application.Services
             return BuildReactionSummary(reactions, reactorNameLookup);
         }
 
+        public async Task<(Guid SenderId, string? Preview)?> GetMessageSummaryAsync(Guid messageId)
+        {
+            var message = await _repo.GetMessageByIdAsync(messageId);
+            if (message is null) return null;
+
+            var preview = string.IsNullOrWhiteSpace(message.Content)
+                ? (message.Attachments.Any() ? "[Attachment]" : null)
+                : (message.Content.Length > 80 ? message.Content[..80] + "…" : message.Content);
+
+            return (message.SenderId, preview);
+        }
+
         private List<ChatReactionDto> BuildReactionSummary(
     List<ChatMessageReaction> reactions, Dictionary<Guid, string>? nameLookup = null)
         {

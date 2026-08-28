@@ -25,22 +25,6 @@
         <span class="nav-icon nav-icon--blue"><i class="bi bi-calendar3"></i></span>
         <span class="nav-label">Calendar</span>
     </NavLink>
-    @* ── About — same NCSC blog-style page public visitors see from the login navbar ── *@
-    <NavLink class="nav-item" href="about" title="About">
-        <span class="nav-icon nav-icon--slate"><i class="bi bi-info-circle"></i></span>
-        <span class="nav-label">About</span>
-    </NavLink>
-    @* ── Regional Offices — contact directory, same public page as the login navbar's "Contact" link ── *@
-    <NavLink class="nav-item" href="regional-offices" title="Regional Offices">
-        <span class="nav-icon nav-icon--teal"><i class="bi bi-telephone"></i></span>
-        <span class="nav-label">Regional Offices</span>
-    </NavLink>
-    @* ── Directory of Officials — same public page as the login navbar's "Officials" link ── *@
-    <NavLink class="nav-item" href="directory-officials" title="Directory of Officials">
-        <span class="nav-icon nav-icon--cyan"><i class="bi bi-people"></i></span>
-        <span class="nav-label">Directory of Officials</span>
-    </NavLink>
-
     <div class="nav-section-label">Reports</div>
 
     @* ── Statistics — Admin + PDO + Viewer ── *@
@@ -202,6 +186,26 @@
         <span class="nav-icon nav-icon--green"><i class="bi bi-question-circle-fill"></i></span>
         <span class="nav-label">Help</span>
     </a>
+
+    @* ── Features / About / Regional Offices / Directory of Officials — same
+       public pages the login navbar links to; moved below Help per request,
+       out of the way of the day-to-day work items above them. ── *@
+    <NavLink class="nav-item" href="features" title="Features">
+        <span class="nav-icon nav-icon--amber"><i class="bi bi-stars"></i></span>
+        <span class="nav-label">Features</span>
+    </NavLink>
+    <NavLink class="nav-item" href="about" title="About">
+        <span class="nav-icon nav-icon--slate"><i class="bi bi-info-circle"></i></span>
+        <span class="nav-label">About</span>
+    </NavLink>
+    <NavLink class="nav-item" href="regional-offices" title="Regional Offices">
+        <span class="nav-icon nav-icon--teal"><i class="bi bi-telephone"></i></span>
+        <span class="nav-label">Regional Offices</span>
+    </NavLink>
+    <NavLink class="nav-item" href="directory-officials" title="Directory of Officials">
+        <span class="nav-icon nav-icon--cyan"><i class="bi bi-people"></i></span>
+        <span class="nav-label">Directory of Officials</span>
+    </NavLink>
 </nav>
 
 <div class="sidebar-footer">
