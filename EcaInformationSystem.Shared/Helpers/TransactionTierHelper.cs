@@ -10,24 +10,22 @@ namespace EcaInformationSystem.Shared.Helpers
         public record TierDefinition(int Level, string Name, int MinCount);
 
         // Rescaled for the weekly leaderboard reset (see LeaderboardSeasonService) —
-        // the count these thresholds measure against is now "since this week's
-        // season started", not an ever-growing all-time total, and average
-        // weekly activity per active encoder is ~5,000 transactions. God Tier
-        // is capped at that average, so hitting a full typical week's worth of
-        // activity is already the top of the ladder — the tiers below break
-        // that climb into achievable weekly milestones instead of everyone
-        // being stuck at Rookie under the old all-time-tuned numbers.
+        // the count these thresholds measure against is "since this week's season
+        // started", not an ever-growing all-time total. God Tier is capped at
+        // 1,000 (per request — the earlier 5,000 ceiling made the top of the
+        // ladder feel unreachable for weekly activity), with every tier below it
+        // scaled down proportionally so the climb still feels evenly paced.
         public static readonly List<TierDefinition> Tiers = new()
         {
             new(1, "Rookie",   0),
-            new(2, "Bronze",   50),
-            new(3, "Silver",   200),
-            new(4, "Gold",     500),
-            new(5, "Platinum", 1000),
-            new(6, "Diamond",  1600),
-            new(7, "Master",   2400),
-            new(8, "Legend",   3600),
-            new(9, "God Tier", 5000),
+            new(2, "Bronze",   10),
+            new(3, "Silver",   40),
+            new(4, "Gold",     100),
+            new(5, "Platinum", 200),
+            new(6, "Diamond",  320),
+            new(7, "Master",   480),
+            new(8, "Legend",   720),
+            new(9, "God Tier", 1000),
         };
 
         public static TierDefinition GetCurrentTier(int transactionCount) =>

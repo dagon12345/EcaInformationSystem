@@ -30,5 +30,32 @@ namespace EcaInformationSystem.Shared.DTOs
         // Server-generated nudge — what to do this week to climb the board
         // (correct/follow-up on grantee records, etc.), tailored to last week's result.
         public string MotivationMessage { get; set; } = string.Empty;
+
+        // ── Activity breakdown, all scoped to the CURRENT (weekly) season window,
+        // same as TransactionCount above — shown as a compact stat row on the
+        // profile page. Classified from the existing Log.Activity text (a Log row
+        // already starting with "Created"/"Added" counts as DataCreatedCount, one
+        // starting with "Updated"/"Edited" as DataEditedCount) rather than a new
+        // Log.Category, so this works retroactively on logs recorded before this
+        // feature existed too — see LogRepository.GetUserActivityStatsAsync. ─────
+        public int LoginCount { get; set; }
+        public int DataCreatedCount { get; set; }
+        public int DataEditedCount { get; set; }
+        public int DocumentsTrackedCount { get; set; }
+
+        // ── Streak — consecutive days (ending today) with at least one
+        // qualifying transaction. See StreakHelper. ────────────────────────────
+        public int CurrentStreakDays { get; set; }
+        public bool IsOnFire { get; set; }
+
+        // Transactions per elapsed day of the CURRENT season (capped at 7,
+        // since seasons are weekly) — a "pace" number, not a flat 7-day
+        // average, so it's meaningful from day one of a fresh week instead of
+        // looking artificially low. Compared against last week's daily pace
+        // (LastSeasonTransactionCount / 7) to produce TrendDirection.
+        public double WeeklyAverage { get; set; }
+        // "Up" | "Down" | "Flat" — null-safe default "Flat" when there's no
+        // last-season data yet to compare against.
+        public string TrendDirection { get; set; } = "Flat";
     }
 }

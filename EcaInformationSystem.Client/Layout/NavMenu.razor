@@ -16,42 +16,42 @@
 <nav class="sidebar-nav">
     <div class="nav-section-label">Main</div>
 
-    <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-        <span class="nav-icon"><i class="bi bi-grid"></i></span>
+    <NavLink class="nav-item" href="" Match="NavLinkMatch.All" title="Feed">
+        <span class="nav-icon nav-icon--indigo"><i class="bi bi-grid"></i></span>
         <span class="nav-label">Feed</span>
     </NavLink>
     @* ── Calendar — visible to all roles ── *@
-    <NavLink class="nav-item" href="calendar">
-        <span class="nav-icon"><i class="bi bi-calendar3"></i></span>
+    <NavLink class="nav-item" href="calendar" title="Calendar">
+        <span class="nav-icon nav-icon--blue"><i class="bi bi-calendar3"></i></span>
         <span class="nav-label">Calendar</span>
     </NavLink>
     @* ── About — same NCSC blog-style page public visitors see from the login navbar ── *@
-    <NavLink class="nav-item" href="about">
-        <span class="nav-icon"><i class="bi bi-info-circle"></i></span>
+    <NavLink class="nav-item" href="about" title="About">
+        <span class="nav-icon nav-icon--slate"><i class="bi bi-info-circle"></i></span>
         <span class="nav-label">About</span>
     </NavLink>
     @* ── Regional Offices — contact directory, same public page as the login navbar's "Contact" link ── *@
-    <NavLink class="nav-item" href="regional-offices">
-        <span class="nav-icon"><i class="bi bi-telephone"></i></span>
+    <NavLink class="nav-item" href="regional-offices" title="Regional Offices">
+        <span class="nav-icon nav-icon--teal"><i class="bi bi-telephone"></i></span>
         <span class="nav-label">Regional Offices</span>
     </NavLink>
     @* ── Directory of Officials — same public page as the login navbar's "Officials" link ── *@
-    <NavLink class="nav-item" href="directory-officials">
-        <span class="nav-icon"><i class="bi bi-people"></i></span>
+    <NavLink class="nav-item" href="directory-officials" title="Directory of Officials">
+        <span class="nav-icon nav-icon--cyan"><i class="bi bi-people"></i></span>
         <span class="nav-label">Directory of Officials</span>
     </NavLink>
 
     <div class="nav-section-label">Reports</div>
 
     @* ── Statistics — Admin + PDO + Viewer ── *@
-    <NavLink class="nav-item" href="statistics">
-        <span class="nav-icon"><i class="bi bi-pin-map-fill"></i></span>
+    <NavLink class="nav-item" href="statistics" title="Statistics & Region Map">
+        <span class="nav-icon nav-icon--orange"><i class="bi bi-pin-map-fill"></i></span>
         <span class="nav-label">Statistics &amp; Region Map</span>
     </NavLink>
 
     @* ── Applications & Validations — branch of Statistics, own filters (Date Added / Date Endorsed only) — Admin + PDO + Viewer ── *@
-    <NavLink class="nav-item" href="statistics/applications-validations">
-        <span class="nav-icon"><i class="bi bi-clipboard2-check-fill"></i></span>
+    <NavLink class="nav-item" href="statistics/applications-validations" title="Applications & Validations">
+        <span class="nav-icon nav-icon--amber"><i class="bi bi-clipboard2-check-fill"></i></span>
         <span class="nav-label">Applications & Validations</span>
     </NavLink>
 
@@ -60,20 +60,20 @@
     @* ── Create Record — Admin + PDO + Encoder ── *@
     @if (_isAdmin || _isPdo || _isEncoder)
     {
-        <NavLink class="nav-item" href="beneficiary-create">
-            <span class="nav-icon"><i class="bi bi-person-plus"></i></span>
+        <NavLink class="nav-item" href="beneficiary-create" title="Create Record">
+            <span class="nav-icon nav-icon--green"><i class="bi bi-person-plus"></i></span>
             <span class="nav-label">Create Record</span>
         </NavLink>
     }
 
-    <NavLink class="nav-item" href="beneficiary-records">
-        <span class="nav-icon"><i class="bi bi-file-text"></i></span>
+    <NavLink class="nav-item" href="beneficiary-records" title="Records">
+        <span class="nav-icon nav-icon--blue"><i class="bi bi-file-text"></i></span>
         <span class="nav-label">Records</span>
     </NavLink>
 
     @* ── Files (Forms Gateway) — visible to all roles; upload/edit/delete gated inside the page ── *@
-    <NavLink class="nav-item" href="forms-gateway">
-        <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
+    <NavLink class="nav-item" href="forms-gateway" title="Files">
+        <span class="nav-icon nav-icon--amber"><i class="bi bi-folder2-open"></i></span>
         <span class="nav-label">Files</span>
     </NavLink>
 
@@ -86,15 +86,15 @@
         <div class="nav-section-label">Financial</div>
         @if (_isAdmin)
         {
-            <NavLink class="nav-item" href="liquidation">
-                <span class="nav-icon"><i class="bi bi-plus-slash-minus"></i></span>
+            <NavLink class="nav-item" href="liquidation" title="Liquidation">
+                <span class="nav-icon nav-icon--red"><i class="bi bi-plus-slash-minus"></i></span>
                 <span class="nav-label">Liquidation</span>
             </NavLink>
         }
         @if (_isFinance || _isAdmin)
         {
-            <NavLink class="nav-item" href="wfp-eca">
-                <span class="nav-icon"><i class="bi bi-cash-stack"></i></span>
+            <NavLink class="nav-item" href="wfp-eca" title="WFP-ECA">
+                <span class="nav-icon nav-icon--emerald"><i class="bi bi-cash-stack"></i></span>
                 <span class="nav-label">WFP-ECA</span>
             </NavLink>
         }
@@ -106,24 +106,24 @@
          under one section here even though each has its own nav-item/route.
          Both are visible to everyone; actions are gated inside each page. ── *@
     <div class="nav-section-label">Tracking</div>
-    <NavLink class="nav-item" href="application-tracking">
-        <span class="nav-icon"><i class="bi bi-truck"></i></span>
+    <NavLink class="nav-item" href="application-tracking" title="Application Tracking">
+        <span class="nav-icon nav-icon--violet"><i class="bi bi-truck"></i></span>
         <span class="nav-label">Application Tracking</span>
     </NavLink>
-    <NavLink class="nav-item" href="document-tracking">
-        <span class="nav-icon"><i class="bi bi-send"></i></span>
+    <NavLink class="nav-item" href="document-tracking" title="Document Tracking">
+        <span class="nav-icon nav-icon--pink"><i class="bi bi-send"></i></span>
         <span class="nav-label">Document Tracking</span>
     </NavLink>
 
     @* ── Senior Citizens Directory — visible to everyone (view-only); Add/Edit/Delete are gated inside the page to PDO/Admin/SuperAdmin ── *@
     <div class="nav-section-label">Directory</div>
-    <NavLink class="nav-item" href="senior-citizen-directory">
-        <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+    <NavLink class="nav-item" href="senior-citizen-directory" title="Senior Citizens Directory">
+        <span class="nav-icon nav-icon--rose"><i class="bi bi-people-fill"></i></span>
         <span class="nav-label">Senior Citizens Directory</span>
     </NavLink>
     @* ── NCSC Team Directory — nationwide, visible to everyone (view-only); Add/Edit/Delete/Import are gated inside the page to Admin/SuperAdmin ── *@
-    <NavLink class="nav-item" href="ncsc-team-directory">
-        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+    <NavLink class="nav-item" href="ncsc-team-directory" title="NCSC Team Directory">
+        <span class="nav-icon nav-icon--indigo"><i class="bi bi-diagram-3-fill"></i></span>
         <span class="nav-label">NCSC Team Directory</span>
     </NavLink>
 
@@ -133,8 +133,8 @@
        they're an office-only Create/Edit/View role with no calling/directory need. ── *@
     @if (!_isEncoder)
     {
-        <NavLink class="nav-item" href="provincial-focals">
-            <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
+        <NavLink class="nav-item" href="provincial-focals" title="Provincial Focals">
+            <span class="nav-icon nav-icon--sky"><i class="bi bi-diagram-3-fill"></i></span>
             <span class="nav-label">Provincial Focals</span>
         </NavLink>
     }
@@ -143,8 +143,8 @@
        (enforced server-side too). Not shown to Finance/Viewer/Focal. ── *@
     @if (_isSuperAdmin || _isAdmin || _isPdo)
     {
-        <NavLink class="nav-item" href="call-logs">
-            <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
+        <NavLink class="nav-item" href="call-logs" title="Call Logs">
+            <span class="nav-icon nav-icon--orange"><i class="bi bi-clock-history"></i></span>
             <span class="nav-label">Call Logs</span>
         </NavLink>
     }
@@ -153,8 +153,8 @@
        biometric device and review all DTRs ── *@
     @if (_isSuperAdmin || _isFinance)
     {
-        <NavLink class="nav-item" href="attendance-management">
-            <span class="nav-icon"><i class="bi bi-fingerprint"></i></span>
+        <NavLink class="nav-item" href="attendance-management" title="Attendance Management">
+            <span class="nav-icon nav-icon--violet"><i class="bi bi-fingerprint"></i></span>
             <span class="nav-label">Attendance Management</span>
         </NavLink>
     }
@@ -166,19 +166,19 @@
         <div class="nav-section-label">Administration</div>
         @if (_isSuperAdmin || _isFinance)
         {
-            <NavLink class="nav-item" href="user-management">
-                <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
+            <NavLink class="nav-item" href="user-management" title="User Management">
+                <span class="nav-icon nav-icon--blue"><i class="bi bi-people-fill"></i></span>
                 <span class="nav-label">User Management</span>
             </NavLink>
         }
         @if (_isSuperAdmin)
         {
-            <NavLink class="nav-item" href="chat-oversight">
-                <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
+            <NavLink class="nav-item" href="chat-oversight" title="Conversation Oversight">
+                <span class="nav-icon nav-icon--red"><i class="bi bi-shield-lock-fill"></i></span>
                 <span class="nav-label">Conversation Oversight</span>
             </NavLink>
-            <NavLink class="nav-item" href="system-updates">
-                <span class="nav-icon"><i class="bi bi-arrow-repeat"></i></span>
+            <NavLink class="nav-item" href="system-updates" title="System Updates">
+                <span class="nav-icon nav-icon--cyan"><i class="bi bi-arrow-repeat"></i></span>
                 <span class="nav-label">System Updates</span>
             </NavLink>
         }
@@ -189,8 +189,8 @@
     @* ── Activity Logs — Admin only ── *@
     @if (_isAdmin)
     {
-        <NavLink class="nav-item" href="logs">
-            <span class="nav-icon"><i class="bi bi-clock-history"></i></span>
+        <NavLink class="nav-item" href="logs" title="Activity Logs">
+            <span class="nav-icon nav-icon--slate"><i class="bi bi-clock-history"></i></span>
             <span class="nav-label">Activity Logs</span>
         </NavLink>
     }
@@ -198,8 +198,8 @@
     @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
        so it opens in its own tab and never loses your place in the app. Sits
        last, out of the way of the actual work items above it. ── *@
-    <a class="nav-item" href="help.html" target="_blank" rel="noopener">
-        <span class="nav-icon"><i class="bi bi-question-circle-fill"></i></span>
+    <a class="nav-item" href="help.html" target="_blank" rel="noopener" title="Help">
+        <span class="nav-icon nav-icon--green"><i class="bi bi-question-circle-fill"></i></span>
         <span class="nav-label">Help</span>
     </a>
 </nav>

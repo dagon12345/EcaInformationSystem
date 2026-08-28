@@ -5145,7 +5145,7 @@
 }
 
 /* ── Unified notification bell — tab strip ───────────────────────────── */
-.notif-bell-dropdown { min-width: 420px; max-width: 460px; }
+.notif-bell-dropdown { min-width: 480px; max-width: 560px; }
 
 .notif-bell-tabs {
     display: flex;
@@ -8788,6 +8788,25 @@ body {
         justify-content: center;
     }
 
+    /* Per-item accent colors — each nav icon keeps its own color at rest
+       (not just on hover/active) so the sidebar reads as a set of distinct
+       features at a glance instead of one flat gray column. */
+    .nav-icon--indigo   { color: #6366f1; }
+    .nav-icon--blue     { color: #2563eb; }
+    .nav-icon--sky      { color: #0284c7; }
+    .nav-icon--cyan     { color: #0891b2; }
+    .nav-icon--teal     { color: #0d9488; }
+    .nav-icon--green    { color: #16a34a; }
+    .nav-icon--emerald  { color: #059669; }
+    .nav-icon--amber    { color: #d97706; }
+    .nav-icon--orange   { color: #ea580c; }
+    .nav-icon--red      { color: #dc2626; }
+    .nav-icon--rose     { color: #e11d48; }
+    .nav-icon--pink     { color: #db2777; }
+    .nav-icon--fuchsia  { color: #c026d3; }
+    .nav-icon--violet   { color: #7c3aed; }
+    .nav-icon--slate    { color: #475569; }
+
     .nav-label {
         transition: opacity 0.2s;
     }
@@ -9015,8 +9034,8 @@ body {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
-        padding: 14px 16px;
+        gap: 8px;
+        padding: 8px 12px;
         cursor: pointer;
         background: linear-gradient(120deg, #fde047, #f97316 55%, #f43f5e);
         color: #fff;
@@ -9025,11 +9044,11 @@ body {
     .tier-leaderboard-header-left {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         min-width: 0;
     }
     .tier-leaderboard-header-left > i {
-        font-size: 22px;
+        font-size: 17px;
         flex-shrink: 0;
         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
     }
@@ -9042,11 +9061,11 @@ body {
     .tier-leaderboard-title-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
     }
-    .tier-leaderboard-title { font-weight: 700; font-size: 14.5px; line-height: 1.2; }
-    .tier-leaderboard-subtitle { font-size: 11px; opacity: 0.9; margin-top: 2px; }
+    .tier-leaderboard-title { font-weight: 700; font-size: 12.5px; line-height: 1.15; }
+    .tier-leaderboard-subtitle { font-size: 9.5px; opacity: 0.9; margin-top: 1px; }
     .tier-leaderboard-header > i.bi-chevron-up,
     .tier-leaderboard-header > i.bi-chevron-down { flex-shrink: 0; }
 
@@ -9056,21 +9075,21 @@ body {
     .tier-season-badge {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 3px 9px;
+        gap: 3px;
+        padding: 2px 7px;
         border-radius: 999px;
         background: rgba(255,255,255,0.95);
         color: #b8460e;
         border: 1px solid rgba(255,255,255,0.6);
-        font-size: 10.5px;
+        font-size: 9px;
         font-weight: 800;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
         text-transform: uppercase;
         box-shadow: 0 1px 4px rgba(0,0,0,0.15);
         flex-shrink: 0;
     }
     .tier-season-badge i {
-        font-size: 9px;
+        font-size: 8px;
         color: #f59e0b;
     }
     .tier-reset-btn {
@@ -9078,13 +9097,13 @@ body {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 26px;
-        height: 26px;
+        width: 21px;
+        height: 21px;
         border-radius: 50%;
         border: none;
         background: rgba(255,255,255,0.22);
         color: #fff;
-        font-size: 13px;
+        font-size: 11px;
         cursor: pointer;
         transition: background 0.15s ease, transform 0.15s ease;
     }
@@ -9099,12 +9118,12 @@ body {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 26px;
-        height: 26px;
+        width: 21px;
+        height: 21px;
         border-radius: 50%;
         background: rgba(255,255,255,0.22);
         color: #fff;
-        font-size: 13px;
+        font-size: 11px;
         cursor: help;
         transition: background 0.15s ease;
     }
@@ -9237,8 +9256,8 @@ body {
         overflow: hidden; /* clips the sheen/particles to this row only */
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 9px 10px;
+        gap: 7px;
+        padding: 7px 8px;
         border-radius: 10px;
         transition: background 0.15s ease;
     }
@@ -9459,16 +9478,16 @@ body {
 
     .tier-leaderboard-rank {
         position: relative;
-        width: 28px;
+        width: 20px;
         flex-shrink: 0;
         text-align: center;
         font-weight: 700;
-        font-size: 12.5px;
+        font-size: 11.5px;
         color: #94a3b8;
     }
-    .tier-leaderboard-row--rank1 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #facc15; font-size: 18px; }
-    .tier-leaderboard-row--rank2 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #94a3b8; font-size: 18px; }
-    .tier-leaderboard-row--rank3 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #d97742; font-size: 18px; }
+    .tier-leaderboard-row--rank1 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #facc15; font-size: 16px; }
+    .tier-leaderboard-row--rank2 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #94a3b8; font-size: 16px; }
+    .tier-leaderboard-row--rank3 .tier-leaderboard-rank i:not(.tier-leaderboard-rank-arrow) { color: #d97742; font-size: 16px; }
 
     /* ── Overtake effect — plays when a SignalR push changes this row's rank,
        distinct from the plain count-pulse so "you passed someone" reads as a
@@ -9556,8 +9575,8 @@ body {
     }
 
     .tier-leaderboard-avatar {
-        width: 36px;
-        height: 36px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         object-fit: cover;
         flex-shrink: 0;
@@ -9576,8 +9595,8 @@ body {
 
     .tier-leaderboard-avatar-fx {
         position: relative;
-        width: 36px;
-        height: 36px;
+        width: 28px;
+        height: 28px;
         flex-shrink: 0;
         display: flex;
         align-items: center;
@@ -9585,13 +9604,16 @@ body {
     }
 
     .tier-leaderboard-info { flex: 1; min-width: 0; }
+    /* Wraps instead of truncating with an ellipsis — a long display name
+       now spills onto a second line rather than having letters clipped off
+       the end, at the cost of the row occasionally being 2 lines tall. */
     .tier-leaderboard-name {
         font-weight: 600;
-        font-size: 13.5px;
+        font-size: 12.5px;
         color: #1f2937;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.25;
     }
     .tier-leaderboard-you-tag {
         margin-left: 6px;
@@ -9615,10 +9637,328 @@ body {
 
     .tier-leaderboard-count {
         font-weight: 800;
-        font-size: 14.5px;
+        font-size: 13px;
         color: var(--tier-c2, #1f2937);
         flex-shrink: 0;
         text-shadow: 0 0 12px color-mix(in srgb, var(--tier-c2, transparent) 35%, transparent);
+    }
+
+    /* ── TierStatsStrip — one quiet line of numbers (Profile tier card +
+       leaderboard expand-on-click row). Plain text with thin dividers, no
+       per-stat pill backgrounds — deliberately low-contrast so it reads as
+       supporting detail, not a second row of badges competing with the tier
+       card above it. */
+    .tier-stats-mini {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0;
+        margin-top: 6px;
+        font-size: 10.5px;
+        color: #9ca3af;
+    }
+
+    .tier-stats-mini-item {
+        padding: 0 7px;
+        border-left: 1px solid #e5e7eb;
+        white-space: nowrap;
+        line-height: 1.6;
+    }
+
+        .tier-stats-mini-item:first-child {
+            padding-left: 0;
+            border-left: none;
+        }
+
+        .tier-stats-mini-item--fire {
+            color: #c2410c;
+            font-weight: 600;
+        }
+
+            .tier-stats-mini-item--fire i { font-size: 10px; margin-right: 2px; }
+
+    .tier-stat-trend {
+        font-size: 12px !important;
+        line-height: 1;
+        vertical-align: -1px;
+    }
+
+        .tier-stat-trend--up { color: #16a34a; }
+        .tier-stat-trend--down { color: #dc2626; }
+
+    /* ── Leaderboard row expand-on-click panel ──────────────────────────── */
+    .tier-leaderboard-expand {
+        padding: 8px 10px 10px 10px;
+        margin: -2px 4px 4px 4px;
+        background: #fafafa;
+        border-radius: 0 0 10px 10px;
+        border-top: 1px dashed #e5e7eb;
+    }
+
+        .tier-leaderboard-expand .tier-profile-nav-link {
+            font-size: 11px;
+            margin-top: 6px;
+            display: inline-flex;
+        }
+
+    /* ── LiveLeaderboardTicker — slim always-on strip above the top navbar
+       (MainLayout, desktop only). Dark, glowing, video-game-scoreboard look —
+       deliberately distinct from the light card styling everywhere else in
+       the app, since its whole job is to catch the eye for half a second and
+       then get out of the way. Centered, compact, single line. ──────────── */
+    .live-ticker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 5px 16px;
+        background: linear-gradient(90deg, #0f172a, #1e1b4b 45%, #1e1b4b 55%, #0f172a);
+        border-bottom: 1px solid #312e81;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .live-ticker-label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #facc15;
+        text-shadow: 0 0 8px rgba(250, 204, 21, 0.5);
+    }
+
+    .live-ticker-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 6px #4ade80;
+        animation: live-ticker-blink 1.6s ease-in-out infinite;
+    }
+
+    @keyframes live-ticker-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    .live-ticker-track {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .live-ticker-item {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #e2e8f0;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.15s;
+    }
+
+        .live-ticker-item:hover {
+            background: rgba(255, 255, 255, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .live-ticker-item--rank1 { border-color: rgba(250, 204, 21, 0.5); background: rgba(250, 204, 21, 0.12); }
+        .live-ticker-item--rank2 { border-color: rgba(203, 213, 225, 0.5); background: rgba(203, 213, 225, 0.1); }
+        .live-ticker-item--rank3 { border-color: rgba(217, 119, 66, 0.5); background: rgba(217, 119, 66, 0.12); }
+
+        .live-ticker-item--pulse {
+            animation: live-ticker-pulse 0.9s ease-out;
+        }
+
+        .live-ticker-item--up {
+            animation: live-ticker-pulse 0.9s ease-out, live-ticker-glow 1.4s ease-out;
+        }
+
+    @keyframes live-ticker-pulse {
+        0% { transform: scale(1); }
+        30% { transform: scale(1.12); }
+        100% { transform: scale(1); }
+    }
+
+    @keyframes live-ticker-glow {
+        0% { box-shadow: 0 0 0 rgba(74, 222, 128, 0); }
+        30% { box-shadow: 0 0 14px rgba(74, 222, 128, 0.9); }
+        100% { box-shadow: 0 0 0 rgba(74, 222, 128, 0); }
+    }
+
+    .live-ticker-rank { font-size: 12px; }
+
+    /* Tiny — this is a compact single-line strip, not a card, so the avatar
+       has to stay small enough that adding it doesn't grow the row. */
+    .live-ticker-avatar {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+    }
+    .live-ticker-avatar-fallback {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.15);
+        color: #e2e8f0;
+        font-size: 7px;
+        font-weight: 700;
+    }
+
+    .live-ticker-name { color: #f8fafc; }
+    .live-ticker-region {
+        font-size: 8.5px;
+        font-weight: 600;
+        color: #93c5fd;
+        background: rgba(147, 197, 253, 0.12);
+        border-radius: 8px;
+        padding: 1px 5px;
+        max-width: 70px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .live-ticker-fire { color: #fb923c; font-size: 10px; }
+    .live-ticker-count {
+        font-weight: 800;
+        color: #a5b4fc;
+        text-shadow: 0 0 8px rgba(165, 180, 252, 0.5);
+    }
+
+    .live-ticker-delta {
+        position: absolute;
+        top: -9px;
+        right: -4px;
+        font-size: 9px;
+        font-weight: 800;
+        color: #4ade80;
+        text-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
+        animation: live-ticker-float-up 1.4s ease-out forwards;
+        pointer-events: none;
+    }
+
+    @keyframes live-ticker-float-up {
+        0% { opacity: 0; transform: translateY(0); }
+        20% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-10px); }
+    }
+
+    .live-ticker-more {
+        flex-shrink: 0;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #94a3b8;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .live-ticker-more:hover { color: #e2e8f0; }
+
+    /* Desktop-only, per request — hidden entirely below 992px so it never
+       competes with the mobile navbar/hamburger for space. */
+    @media (max-width: 991px) {
+        .live-ticker { display: none; }
+    }
+
+    /* ── Tier level-up celebration (MainLayout, global) ─────────────────── */
+    .tier-levelup-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 14vh;
+        background: rgba(15, 23, 42, 0.35);
+        cursor: pointer;
+        animation: tier-levelup-fade-in 0.25s ease-out;
+    }
+
+    @keyframes tier-levelup-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    .tier-levelup-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 28px 46px;
+        border-radius: 20px;
+        background: linear-gradient(160deg, color-mix(in srgb, var(--tier-c1) 92%, white), color-mix(in srgb, var(--tier-c2) 80%, white));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier-c2) 60%, transparent), 0 20px 60px rgba(0, 0, 0, 0.35);
+        animation: tier-levelup-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+        cursor: default;
+    }
+
+    @keyframes tier-levelup-pop {
+        0% { transform: scale(0.4) translateY(20px); opacity: 0; }
+        70% { transform: scale(1.08) translateY(0); opacity: 1; }
+        100% { transform: scale(1); }
+    }
+
+    .tier-levelup-icon {
+        font-size: 44px;
+        color: var(--tier-c2, #fff);
+        text-shadow: 0 0 20px color-mix(in srgb, var(--tier-c2) 70%, transparent);
+        animation: tier-levelup-icon-spin 0.8s ease-out;
+    }
+
+    @keyframes tier-levelup-icon-spin {
+        0% { transform: rotate(-30deg) scale(0.5); opacity: 0; }
+        100% { transform: rotate(0) scale(1); opacity: 1; }
+    }
+
+    .tier-levelup-label {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: color-mix(in srgb, var(--tier-c2) 80%, black);
+        opacity: 0.85;
+    }
+
+    .tier-levelup-name {
+        font-size: 26px;
+        font-weight: 900;
+        color: color-mix(in srgb, var(--tier-c2) 85%, black);
+        text-shadow: 0 2px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .tier-levelup-confetti {
+        position: absolute;
+        font-size: 22px;
+        pointer-events: none;
+        animation: tier-levelup-confetti-fall 1.8s ease-in forwards;
+    }
+
+        .tier-levelup-confetti--1 { top: -10px; left: 12%; animation-delay: 0.05s; }
+        .tier-levelup-confetti--2 { top: -14px; left: 82%; animation-delay: 0.15s; }
+        .tier-levelup-confetti--3 { top: -8px; left: 45%; animation-delay: 0.3s; }
+        .tier-levelup-confetti--4 { top: -12px; left: 68%; animation-delay: 0.0s; }
+
+    @keyframes tier-levelup-confetti-fall {
+        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(160px) rotate(340deg); opacity: 0; }
+    }
+
+    @media (max-width: 576px) {
+        .tier-levelup-card { padding: 20px 30px; }
+        .tier-levelup-icon { font-size: 34px; }
+        .tier-levelup-name { font-size: 20px; }
     }
 
     /* ── Mobile ──────────────────────────────────────────────────────── */

@@ -1,0 +1,199 @@
+@* LiveLeaderboardTicker.razor — a slim, always-visible strip above the top
+   navbar (MainLayout) showing the top of the weekly Transaction Leaderboard,
+   live-updated the same way PostFeed's full leaderboard card is (same
+   TransactionTierHubClientService push). Exists so the leaderboard never
+   fully disappears from view just because the user isn't on the Feed page —
+   desktop only (hidden on mobile via CSS), deliberately tiny footprint. *@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
+@using EcaInformationSystem.Client.Services
+@implements IAsyncDisposable
+@inject TransactionTierClientService TierClient
+@inject TransactionTierHubClientService TierHub
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+@if (_entries.Count > 0)
+{
+    <div class="live-ticker">
+        <div class="live-ticker-label" title="Live — updates as transactions are recorded">
+            <span class="live-ticker-dot"></span>
+            <i class="bi bi-trophy-fill"></i>
+            <span>LIVE</span>
+        </div>
+        <div class="live-ticker-track">
+            @foreach (var entry in _entries)
+            {
+                var isLive = _recentlyUpdatedUserNames.Contains(entry.UserName);
+                var isRankedUp = _rankedUpUserNames.Contains(entry.UserName);
+                var delta = _deltaByUserName.TryGetValue(entry.UserName, out var d) ? d : 0;
+
+                <div @key="entry.UserName" class="live-ticker-item @RankClass(entry.Rank) @(isLive ? "live-ticker-item--pulse" : "") @(isRankedUp ? "live-ticker-item--up" : "")"
+                     @onclick="() => GoToProfile(entry.UserId)" title="@($"{entry.DisplayName}{(string.IsNullOrWhiteSpace(entry.RegionName) ? "" : $" — {entry.RegionName}")} — {entry.TierName} tier, {entry.TransactionCount:N0} this week")">
+                    @if (delta > 0)
+                    {
+                        <span class="live-ticker-delta">+@delta</span>
+                    }
+                    <span class="live-ticker-rank">@RankGlyph(entry.Rank)</span>
+                    @if (entry.UserId.HasValue)
+                    {
+                        <img src="@AvatarUrl(entry.UserId.Value)" crossorigin="anonymous" alt="" class="live-ticker-avatar avatar-img"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                        <span class="live-ticker-avatar live-ticker-avatar-fallback" style="display:none;">@GetInitials(entry.DisplayName)</span>
+                    }
+                    else
+                    {
+                        <span class="live-ticker-avatar live-ticker-avatar-fallback">@GetInitials(entry.DisplayName)</span>
+                    }
+                    <span class="live-ticker-name">@ShortName(entry.DisplayName)</span>
+                    @if (!string.IsNullOrWhiteSpace(entry.RegionName))
+                    {
+                        <span class="live-ticker-region">@ShortRegion(entry.RegionName)</span>
+                    }
+                    @if (entry.IsOnFire)
+                    {
+                        <i class="bi bi-fire live-ticker-fire" title="@(entry.CurrentStreakDays)-day streak"></i>
+                    }
+                    <span class="live-ticker-count">@entry.TransactionCount.ToString("N0")</span>
+                </div>
+            }
+        </div>
+        <a class="live-ticker-more" href="/">
+            View all <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+}
+
+@code {
+    private const int TopCount = 5;
+    private List<UserLeaderboardEntryDto> _entries = new();
+    private HashSet<string> _recentlyUpdatedUserNames = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _rankedUpUserNames = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, int> _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var full = await TierClient.GetLeaderboardAsync();
+        _entries = full.Take(TopCount).ToList();
+
+        TierHub.TransactionRecorded += OnTransactionRecorded;
+        TierHub.LeaderboardReset += OnLeaderboardReset;
+
+        // MainLayout may have already connected this same (scoped) hub
+        // connection for something else on this page — ConnectAsync no-ops
+        // if it's already connected, so this is always safe to call.
+        try
+        {
+            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+            var hubUrl = new Uri(new Uri(apiBase), "transactionTierHub").ToString();
+            await TierHub.ConnectAsync(hubUrl);
+        }
+        catch { /* non-fatal — ticker still shows the last fetched snapshot */ }
+    }
+
+    private void OnTransactionRecorded(string userName)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var previous = _entries;
+            var full = await TierClient.GetLeaderboardAsync(forceRefresh: true);
+            _entries = full.Take(TopCount).ToList();
+
+            var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var rankedUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var deltas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var entry in _entries)
+            {
+                var old = previous.FirstOrDefault(p => string.Equals(p.UserName, entry.UserName, StringComparison.OrdinalIgnoreCase));
+                if (old is null || old.TransactionCount != entry.TransactionCount)
+                {
+                    changed.Add(entry.UserName);
+                    var delta = entry.TransactionCount - (old?.TransactionCount ?? 0);
+                    if (delta > 0) deltas[entry.UserName] = delta;
+                }
+                if (old is not null && entry.Rank < old.Rank)
+                    rankedUp.Add(entry.UserName);
+            }
+
+            _recentlyUpdatedUserNames = changed;
+            _rankedUpUserNames = rankedUp;
+            _deltaByUserName = deltas;
+            StateHasChanged();
+
+            await Task.Delay(2800);
+            _recentlyUpdatedUserNames = new(StringComparer.OrdinalIgnoreCase);
+            _rankedUpUserNames = new(StringComparer.OrdinalIgnoreCase);
+            _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void OnLeaderboardReset(LeaderboardResetResultDto result)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var full = await TierClient.GetLeaderboardAsync(forceRefresh: true);
+            _entries = full.Take(TopCount).ToList();
+            StateHasChanged();
+        });
+    }
+
+    private void GoToProfile(Guid? userId)
+    {
+        if (userId.HasValue) Navigation.NavigateTo($"/profile/{userId.Value}");
+    }
+
+    private static string RankClass(int rank) => rank switch
+    {
+        1 => "live-ticker-item--rank1",
+        2 => "live-ticker-item--rank2",
+        3 => "live-ticker-item--rank3",
+        _ => ""
+    };
+
+    private static string RankGlyph(int rank) => rank switch
+    {
+        1 => "🥇",
+        2 => "🥈",
+        3 => "🥉",
+        _ => $"#{rank}"
+    };
+
+    // First name only + last initial — keeps every chip the same tight width
+    // regardless of how long someone's full display name is.
+    private static string ShortName(string displayName)
+    {
+        var parts = displayName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length <= 1) return displayName;
+        return $"{parts[0]} {parts[^1][0]}.";
+    }
+
+    // "Region XIII (Caraga)" → "Region XIII" — keeps the region tag from
+    // blowing out the chip width; the full name is still in the title tooltip.
+    private static string ShortRegion(string regionName)
+    {
+        var parenIndex = regionName.IndexOf('(');
+        return (parenIndex > 0 ? regionName[..parenIndex] : regionName).Trim();
+    }
+
+    // Absolute URL — API is on a different origin than the client (same
+    // reasoning as MainLayout/PostFeed's own AvatarUrl helpers).
+    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
+
+    private static string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        TierHub.TransactionRecorded -= OnTransactionRecorded;
+        TierHub.LeaderboardReset -= OnLeaderboardReset;
+        return ValueTask.CompletedTask;
+    }
+}

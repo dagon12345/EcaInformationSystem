@@ -197,6 +197,51 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             return grouped.Select(g => (g.UserName, g.Count)).ToList();
         }
+        // Classifies a Log row's free-text Activity as a create/edit — every
+        // create/edit site across the app (Beneficiary, WFP-ECA, Senior Citizens
+        // Directory, NCSC Team Directory, ...) already writes "Created "/"Added "
+        // for creates and "Updated "/"Edited " for edits (see CommonConstants and
+        // each service's AddLogAsync call), so this works retroactively on
+        // existing logs with no new Log.Category needed.
+        private static readonly string[] CreatedPrefixes = { "Created", "Added" };
+        private static readonly string[] EditedPrefixes = { "Updated", "Edited" };
+
+        public async Task<UserActivityStatsDto> GetUserActivityStatsAsync(string userName, string? fullName, DateTime seasonStartUtc)
+        {
+            // Log.UserName is free text, not a foreign key, and a few call sites
+            // (Application/Document Tracking) write the acting user's FullName
+            // into it instead of their login UserName — match either so this
+            // person's tracking activity isn't silently dropped from their own stats.
+            var names = string.IsNullOrWhiteSpace(fullName) || string.Equals(fullName, userName, StringComparison.OrdinalIgnoreCase)
+                ? new[] { userName }
+                : new[] { userName, fullName };
+
+            var rows = await TransactionLogsQuery(seasonStartUtc)
+                .Where(l => names.Contains(l.UserName))
+                .Select(l => new { l.Category, l.Activity, l.CreatedAt })
+                .ToListAsync();
+
+            return new UserActivityStatsDto
+            {
+                LoginCount = rows.Count(r => r.Category == "Login"),
+                DataCreatedCount = rows.Count(r => CreatedPrefixes.Any(p => r.Activity.StartsWith(p))),
+                DataEditedCount = rows.Count(r => EditedPrefixes.Any(p => r.Activity.StartsWith(p))),
+                DocumentsTrackedCount = rows.Count(r => r.Category == "ApplicationTracking" || r.Category == "DocumentTracking"),
+                ActiveDates = rows.Select(r => r.CreatedAt.Date).Distinct().ToList()
+            };
+        }
+
+        public async Task<List<(string UserName, DateTime Date)>> GetActiveDatesByUserAsync(DateTime seasonStartUtc)
+        {
+            var rows = await TransactionLogsQuery(seasonStartUtc)
+                .Where(l => !l.UserName.StartsWith("System"))
+                .Select(l => new { l.UserName, l.CreatedAt })
+                .Distinct()
+                .ToListAsync();
+
+            return rows.Select(r => (r.UserName, r.CreatedAt.Date)).Distinct().ToList();
+        }
+
         // Strips commas/periods and collapses whitespace so "ABAA, ASINDINA" and
         // "Abaa Asindina" both normalize to the same searchable form as the
         // space-joined LastName+FirstName+MiddleName concatenation used in the query.

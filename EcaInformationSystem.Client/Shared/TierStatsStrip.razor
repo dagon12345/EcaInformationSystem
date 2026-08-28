@@ -1,0 +1,41 @@
+@* TierStatsStrip.razor — a single quiet line of numbers (weekly pace + trend,
+   streak, created/edited/logins/documents), reused on the Profile tier card
+   and the leaderboard's click-to-expand row. Plain text, thin dividers, no
+   per-stat pill backgrounds — the tier card/leaderboard row around it is
+   already busy, this just needs to be legible, not another thing shouting
+   for attention. *@
+@using EcaInformationSystem.Shared.DTOs
+
+<div class="tier-stats-mini">
+    <span class="tier-stats-mini-item" title="Transactions per day this week, so far">
+        @Tier.WeeklyAverage.ToString("0.0")/day
+        @if (Tier.TrendDirection == "Up")
+        {
+            <i class="bi bi-arrow-up-short tier-stat-trend tier-stat-trend--up"></i>
+        }
+        else if (Tier.TrendDirection == "Down")
+        {
+            <i class="bi bi-arrow-down-short tier-stat-trend tier-stat-trend--down"></i>
+        }
+    </span>
+
+    @if (Tier.CurrentStreakDays > 0)
+    {
+        <span class="tier-stats-mini-item @(Tier.IsOnFire ? "tier-stats-mini-item--fire" : "")" title="Consecutive active days">
+            @if (Tier.IsOnFire)
+            {
+                <i class="bi bi-fire"></i>
+            }
+            @Tier.CurrentStreakDays-day streak
+        </span>
+    }
+
+    <span class="tier-stats-mini-item" title="Records created this week">@Tier.DataCreatedCount.ToString("N0") created</span>
+    <span class="tier-stats-mini-item" title="Records edited this week">@Tier.DataEditedCount.ToString("N0") edited</span>
+    <span class="tier-stats-mini-item" title="Documents tracked/relayed this week">@Tier.DocumentsTrackedCount.ToString("N0") docs</span>
+    <span class="tier-stats-mini-item" title="Logins this week">@Tier.LoginCount.ToString("N0") logins</span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public UserTransactionTierDto Tier { get; set; } = default!;
+}

@@ -104,6 +104,8 @@
                         }
                     </div>
 
+                    <TierStatsStrip Tier="_myTier" />
+
                     @* Last week's rank, win count, and motivation nudge now live on
                        your Profile page instead of here — click through to see them. ── *@
                     <a href="/profile" class="tier-profile-nav-link">
@@ -134,7 +136,7 @@
                             var isRankedDown = _rankedDownUserNames.Contains(entry.UserName);
                             var delta = _deltaByUserName.TryGetValue(entry.UserName, out var d) ? d : 0;
                             <div @key="entry.UserName" class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
-                                 @onclick="() => GoToProfile(entry.UserId)">
+                                 @onclick="() => ToggleExpandedStats(entry.UserId)">
                                 <span class="tier-row-sheen"></span>
                                 <span class="tier-row-particle tier-row-particle--1"></span>
                                 <span class="tier-row-particle tier-row-particle--2"></span>
@@ -193,6 +195,10 @@
                                         {
                                             <i class="bi bi-lightning-charge-fill tier-leaderboard-live-icon" title="Just updated"></i>
                                         }
+                                        @if (entry.IsOnFire)
+                                        {
+                                            <i class="bi bi-fire tier-leaderboard-live-icon" style="color:#ea580c;" title="@(entry.CurrentStreakDays)-day streak — on fire!"></i>
+                                        }
                                     </div>
                                     <div class="tier-leaderboard-tier">
                                         <i class="bi @v.Icon"></i>@entry.TierName
@@ -200,7 +206,33 @@
                                 </div>
 
                                 <div class="tier-leaderboard-count @(isLive ? "tier-leaderboard-count--live" : "")">@entry.TransactionCount.ToString("N0")</div>
+                                @if (entry.UserId.HasValue)
+                                {
+                                    <i class="bi bi-chevron-@(_expandedUserId == entry.UserId ? "up" : "down") ms-1" style="font-size:11px;color:#9ca3af;"></i>
+                                }
                             </div>
+
+                            @if (entry.UserId.HasValue && _expandedUserId == entry.UserId)
+                            {
+                                <div class="tier-leaderboard-expand">
+                                    @if (_isLoadingExpandedStats)
+                                    {
+                                        <div class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                                    }
+                                    else if (_expandedStats.TryGetValue(entry.UserId.Value, out var fullStats))
+                                    {
+                                        <TierStatsStrip Tier="fullStats" />
+                                        <a href="/profile/@entry.UserId" class="tier-profile-nav-link">
+                                            <i class="bi bi-person-badge me-1"></i>View full profile
+                                            <i class="bi bi-chevron-right ms-1"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted small">Couldn't load stats — try again.</div>
+                                    }
+                                </div>
+                            }
                         }
                     </div>
                 }
@@ -2253,6 +2285,40 @@
     private void GoToProfile(Guid? userId)
     {
         if (userId.HasValue) Navigation.NavigateTo($"/profile/{userId.Value}");
+    }
+
+    // Clicking a leaderboard card expands their full stat breakdown in place
+    // (per request — "amazed on how many transactions that user have")
+    // instead of navigating away to their profile. Lazily fetched and cached
+    // per userId for the rest of this page load, since scrolling through the
+    // whole board shouldn't mean re-fetching stats for someone re-expanded.
+    private Guid? _expandedUserId;
+    private bool _isLoadingExpandedStats;
+    private readonly Dictionary<Guid, UserTransactionTierDto> _expandedStats = new();
+
+    private async Task ToggleExpandedStats(Guid? userId)
+    {
+        if (!userId.HasValue) return;
+
+        if (_expandedUserId == userId)
+        {
+            _expandedUserId = null;
+            return;
+        }
+
+        _expandedUserId = userId;
+
+        if (!_expandedStats.ContainsKey(userId.Value))
+        {
+            _isLoadingExpandedStats = true;
+            StateHasChanged();
+
+            var stats = await TierClient.GetTierForUserAsync(userId.Value);
+            if (stats is not null)
+                _expandedStats[userId.Value] = stats;
+
+            _isLoadingExpandedStats = false;
+        }
     }
 
     private string GetCommentDraft(Guid postId)

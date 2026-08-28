@@ -1,5 +1,6 @@
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Repositories;
+using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
 using EcaInformationSystem.Shared.Helpers;
@@ -11,15 +12,18 @@ namespace EcaInformationSystem.Application.Services
         private readonly ILogRepository _logRepo;
         private readonly IPendingUserRegistrationRepository _userRepo;
         private readonly ILeaderboardSeasonService _seasonService;
+        private readonly IPsgcNameCache _psgcNameCache;
 
         public UserTransactionTierService(
             ILogRepository logRepo,
             IPendingUserRegistrationRepository userRepo,
-            ILeaderboardSeasonService seasonService)
+            ILeaderboardSeasonService seasonService,
+            IPsgcNameCache psgcNameCache)
         {
             _logRepo = logRepo;
             _userRepo = userRepo;
             _seasonService = seasonService;
+            _psgcNameCache = psgcNameCache;
         }
 
         public async Task<UserTransactionTierDto> GetTierAsync(string userName)
@@ -30,6 +34,8 @@ namespace EcaInformationSystem.Application.Services
             var next = TransactionTierHelper.GetNextTier(count);
 
             var user = await _userRepo.GetByUserNameAsync(userName);
+            var stats = await _logRepo.GetUserActivityStatsAsync(userName, user?.FullName, seasonStartUtc);
+            var streak = Shared.Helpers.StreakHelper.ComputeCurrentStreak(stats.ActiveDates);
 
             return new UserTransactionTierDto
             {
@@ -47,7 +53,15 @@ namespace EcaInformationSystem.Application.Services
                 LastSeasonNumber = user?.LastSeasonNumber,
                 LastSeasonRank = user?.LastSeasonRank,
                 LastSeasonTransactionCount = user?.LastSeasonTransactionCount,
-                MotivationMessage = BuildMotivationMessage(user?.LastSeasonRank, user?.LastSeasonTransactionCount)
+                MotivationMessage = BuildMotivationMessage(user?.LastSeasonRank, user?.LastSeasonTransactionCount),
+                LoginCount = stats.LoginCount,
+                DataCreatedCount = stats.DataCreatedCount,
+                DataEditedCount = stats.DataEditedCount,
+                DocumentsTrackedCount = stats.DocumentsTrackedCount,
+                CurrentStreakDays = streak,
+                IsOnFire = Shared.Helpers.StreakHelper.IsOnFire(streak),
+                WeeklyAverage = ComputeWeeklyAverage(count, seasonStartUtc),
+                TrendDirection = ComputeTrend(count, seasonStartUtc, user?.LastSeasonTransactionCount)
             };
         }
 
@@ -68,6 +82,9 @@ namespace EcaInformationSystem.Application.Services
             var current = TransactionTierHelper.GetCurrentTier(count);
             var next = TransactionTierHelper.GetNextTier(count);
 
+            var stats = await _logRepo.GetUserActivityStatsAsync(user.UserName, user.FullName, seasonStartUtc);
+            var streak = Shared.Helpers.StreakHelper.ComputeCurrentStreak(stats.ActiveDates);
+
             return new UserTransactionTierDto
             {
                 UserName = user.UserName,
@@ -85,8 +102,44 @@ namespace EcaInformationSystem.Application.Services
                 LastSeasonNumber = user.LastSeasonNumber,
                 LastSeasonRank = user.LastSeasonRank,
                 LastSeasonTransactionCount = user.LastSeasonTransactionCount,
-                MotivationMessage = BuildMotivationMessage(user.LastSeasonRank, user.LastSeasonTransactionCount)
+                MotivationMessage = BuildMotivationMessage(user.LastSeasonRank, user.LastSeasonTransactionCount),
+                LoginCount = stats.LoginCount,
+                DataCreatedCount = stats.DataCreatedCount,
+                DataEditedCount = stats.DataEditedCount,
+                DocumentsTrackedCount = stats.DocumentsTrackedCount,
+                CurrentStreakDays = streak,
+                IsOnFire = Shared.Helpers.StreakHelper.IsOnFire(streak),
+                WeeklyAverage = ComputeWeeklyAverage(count, seasonStartUtc),
+                TrendDirection = ComputeTrend(count, seasonStartUtc, user.LastSeasonTransactionCount)
             };
+        }
+
+        // Transactions-per-day PACE for the season so far, capped at a 7-day
+        // week — e.g. 24 transactions on day 3 of the season = 8.0/day, not
+        // 24/7 = 3.4 (which would understate someone who's only had 3 days to
+        // work with).
+        private static double ComputeWeeklyAverage(int count, DateTime seasonStartUtc)
+        {
+            var elapsedDays = Math.Clamp((DateTime.UtcNow.Date - seasonStartUtc.Date).Days + 1, 1, 7);
+            return Math.Round(count / (double)elapsedDays, 1);
+        }
+
+        // Compares this week's pace-so-far against LAST week's full-week pace
+        // (LastSeasonTransactionCount / 7) — comparing paces rather than raw
+        // totals so a Tuesday check-in isn't shown as "trending down" just
+        // because the week isn't over yet.
+        private static string ComputeTrend(int count, DateTime seasonStartUtc, int? lastSeasonTransactionCount)
+        {
+            if (lastSeasonTransactionCount is null or 0)
+                return "Flat";
+
+            var currentPace = ComputeWeeklyAverage(count, seasonStartUtc);
+            var lastWeekPace = lastSeasonTransactionCount.Value / 7.0;
+
+            // Small dead zone so a trivial fluctuation doesn't flip-flop the arrow.
+            if (currentPace > lastWeekPace * 1.05) return "Up";
+            if (currentPace < lastWeekPace * 0.95) return "Down";
+            return "Flat";
         }
 
         public async Task<List<UserLeaderboardEntryDto>> GetLeaderboardAsync(string requestingUserName, int top = 100)
@@ -101,6 +154,7 @@ namespace EcaInformationSystem.Application.Services
                 {
                     rank++;
                     var tier = TransactionTierHelper.GetCurrentTier(m.Count);
+                    var streak = Shared.Helpers.StreakHelper.ComputeCurrentStreak(m.ActiveDates);
 
                     return new UserLeaderboardEntryDto
                     {
@@ -109,10 +163,13 @@ namespace EcaInformationSystem.Application.Services
                         UserName = m.User.UserName,
                         DisplayName = string.IsNullOrWhiteSpace(m.User.FullName) ? m.User.UserName : m.User.FullName,
                         Position = m.User.Position,
+                        RegionName = m.User.Region.HasValue ? _psgcNameCache.GetRegionName(m.User.Region.Value) : null,
                         TransactionCount = m.Count,
                         TierLevel = tier.Level,
                         TierName = tier.Name,
-                        IsMe = string.Equals(m.User.UserName, requestingUserName, StringComparison.OrdinalIgnoreCase)
+                        IsMe = string.Equals(m.User.UserName, requestingUserName, StringComparison.OrdinalIgnoreCase),
+                        CurrentStreakDays = streak,
+                        IsOnFire = Shared.Helpers.StreakHelper.IsOnFire(streak)
                     };
                 })
                 .ToList();
@@ -158,9 +215,10 @@ namespace EcaInformationSystem.Application.Services
         // into each other) — and merges counts for the same account together.
         // Anything left unresolved belongs to no current account and is dropped
         // rather than shown as deleted-user noise.
-        private async Task<List<(PendingUserRegistration User, int Count)>> GetMergedRankedCountsAsync(DateTime seasonStartUtc)
+        private async Task<List<(PendingUserRegistration User, int Count, List<DateTime> ActiveDates)>> GetMergedRankedCountsAsync(DateTime seasonStartUtc)
         {
             var counts = await _logRepo.GetTransactionCountsByUserAsync(seasonStartUtc);
+            var activeDates = await _logRepo.GetActiveDatesByUserAsync(seasonStartUtc);
             // Focal contacts get view/comment/like/share-only feed access and
             // aren't internal staff — excluded from the leaderboard entirely,
             // same exclusion LeaderboardSeasonService.GetRankedAccountsAsync applies.
@@ -175,7 +233,7 @@ namespace EcaInformationSystem.Application.Services
                 .Where(g => g.Count() == 1)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-            var merged = new Dictionary<Guid, (PendingUserRegistration User, int Count)>();
+            var merged = new Dictionary<Guid, (PendingUserRegistration User, int Count, HashSet<DateTime> Dates)>();
 
             foreach (var c in counts)
             {
@@ -185,12 +243,31 @@ namespace EcaInformationSystem.Application.Services
                     continue; // no current account matches this raw name — dropped
                 }
 
-                merged[user.Id] = merged.TryGetValue(user.Id, out var existing)
-                    ? (user, existing.Count + c.Count)
-                    : (user, c.Count);
+                if (merged.TryGetValue(user.Id, out var existing))
+                    merged[user.Id] = (user, existing.Count + c.Count, existing.Dates);
+                else
+                    merged[user.Id] = (user, c.Count, new HashSet<DateTime>());
             }
 
-            return merged.Values.OrderByDescending(m => m.Count).ToList();
+            // Same raw-name resolution as the counts above, so a streak day
+            // recorded under a FullName-labeled log (e.g. Application Tracking)
+            // still lands on the right account.
+            foreach (var d in activeDates)
+            {
+                if (!byUserName.TryGetValue(d.UserName, out var user) &&
+                    !byFullName.TryGetValue(d.UserName, out user))
+                {
+                    continue;
+                }
+
+                if (merged.TryGetValue(user.Id, out var existing))
+                    existing.Dates.Add(d.Date);
+            }
+
+            return merged.Values
+                .Select(m => (m.User, m.Count, m.Dates.ToList()))
+                .OrderByDescending(m => m.Count)
+                .ToList();
         }
     }
 }

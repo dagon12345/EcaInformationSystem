@@ -20,6 +20,7 @@
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
 @inject TransactionTierClientService TierClient
+@inject TransactionTierHubClientService TierHub
 @inject ToastService Toast
 @inject IJSRuntime JS
 @implements IDisposable
@@ -34,6 +35,14 @@
                 <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" />
             </div>
             <div class="main-area">
+                @* ── Live leaderboard ticker — desktop only (hidden on mobile via
+                     CSS), sits above the navbar so the top-of-week ranking never
+                     fully disappears from view no matter what page you're on. Not
+                     shown to Focal accounts (they aren't ranked). ── *@
+                @if (_userRole != "Focal")
+                {
+                    <LiveLeaderboardTicker />
+                }
                 <div class="top-navbar">
                     <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
                         <i class="bi bi-list"></i>
@@ -183,6 +192,25 @@
             </div>
         </div>
 
+        @* ── Tier level-up celebration — fires globally (any page) the instant
+             your own activity pushes you into a new tier, not just on the Feed
+             page's leaderboard card. Auto-dismisses itself. ── *@
+        @if (_levelUpTier is not null)
+        {
+            var v = TierVisuals.For(_levelUpTier.TierLevel);
+            <div class="tier-levelup-overlay" @onclick="() => _levelUpTier = null">
+                <div class="tier-levelup-card @v.CssClass">
+                    <span class="tier-levelup-confetti tier-levelup-confetti--1">🎉</span>
+                    <span class="tier-levelup-confetti tier-levelup-confetti--2">✨</span>
+                    <span class="tier-levelup-confetti tier-levelup-confetti--3">🎊</span>
+                    <span class="tier-levelup-confetti tier-levelup-confetti--4">⭐</span>
+                    <div class="tier-levelup-icon"><i class="bi @v.Icon"></i></div>
+                    <div class="tier-levelup-label">Tier Up!</div>
+                    <div class="tier-levelup-name">@_levelUpTier.TierName</div>
+                </div>
+            </div>
+        }
+
         @* ── Logout confirmation — reached via the profile dropdown above ── *@
         @if (_showLogoutConfirm)
         {
@@ -238,6 +266,8 @@
     private bool? _mfaEnabled; // null = not checked yet
     private Guid? _currentUserId;
     private UserTransactionTierDto? _myTier;
+    private UserTransactionTierDto? _levelUpTier;
+    private System.Threading.CancellationTokenSource? _levelUpCts;
 
     public static MainLayout? Current { get; private set; }
 
@@ -268,6 +298,47 @@
         ApplicationTrackingClientService.OnApplicationTagged += HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged += HandleDocumentTagged;
         ChatClientService.OnForceLogout += HandleForceLogout;
+        TierHub.TransactionRecorded += HandleTransactionRecordedForLevelUp;
+    }
+
+    // Fires globally (any page, not just Feed) the instant OUR OWN activity
+    // pushes us into a new tier — the push only carries a raw userName, so
+    // this only reacts when it matches this account's own login username;
+    // everyone else's activity is the leaderboard/ticker's job, not this.
+    private void HandleTransactionRecordedForLevelUp(string updatedUserName)
+    {
+        if (!string.Equals(updatedUserName, userName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _ = InvokeAsync(async () =>
+        {
+            var previousLevel = _myTier?.TierLevel ?? 0;
+            _myTier = await TierClient.GetMyTierAsync(forceRefresh: true);
+
+            if (_myTier is not null && _myTier.TierLevel > previousLevel && previousLevel > 0)
+            {
+                _levelUpTier = _myTier;
+                StateHasChanged();
+
+                _levelUpCts?.Cancel();
+                _levelUpCts = new System.Threading.CancellationTokenSource();
+                var token = _levelUpCts.Token;
+                try
+                {
+                    await Task.Delay(4200, token);
+                    if (!token.IsCancellationRequested)
+                    {
+                        _levelUpTier = null;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                }
+                catch (TaskCanceledException) { }
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        });
     }
 
     // Another of this account's own devices logged out (which cascades a
@@ -407,6 +478,20 @@
                 catch
                 {
                     // Non-fatal — the update banner just won't show live this session
+                }
+            }
+
+            if (!TierHub.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "transactionTierHub").ToString();
+                    await TierHub.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — level-up celebration and the top ticker just won't live-update this session
                 }
             }
 
@@ -615,5 +700,7 @@
         ApplicationTrackingClientService.OnApplicationTagged -= HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged -= HandleDocumentTagged;
         ChatClientService.OnForceLogout -= HandleForceLogout;
+        TierHub.TransactionRecorded -= HandleTransactionRecordedForLevelUp;
+        _levelUpCts?.Cancel();
     }
 }

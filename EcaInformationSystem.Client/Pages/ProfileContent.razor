@@ -152,6 +152,8 @@
                                 </div>
                             }
 
+                            <TierStatsStrip Tier="_myTier" />
+
                             <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_myTier.TierLevel)">
                                 View full tier ladder
                                 <i class="bi bi-chevron-right ms-1"></i>
@@ -392,6 +394,8 @@
                                     }
                                 </div>
                             }
+
+                            <TierStatsStrip Tier="_viewedTier" />
 
                             <button class="btn btn-sm btn-link p-0 mt-2" @onclick="() => OpenTierLadderModal(_viewedTier.TierLevel)">
                                 View full tier ladder
