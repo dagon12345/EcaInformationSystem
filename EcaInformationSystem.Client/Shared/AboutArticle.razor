@@ -1,16 +1,22 @@
-<article class="about-article">
-    <div class="about-article-seal">
-        <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
-        <div class="about-article-seal-text">Republika ng Pilipinas</div>
+<article class="about-article-wrapper">
+    <div class="info-hero">
+        <div class="features-hero-glow features-hero-glow--1"></div>
+        <div class="features-hero-glow features-hero-glow--2"></div>
+
+        <div class="about-article-seal">
+            <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
+            <div class="about-article-seal-text">Republika ng Pilipinas</div>
+        </div>
+
+        <div class="about-article-kicker">About the Agency<PageViewBadge PageKey="about" /></div>
+        <h1 class="about-article-title">National Commission of Senior Citizens</h1>
+        <p class="about-article-lede">
+            ECA-InFORMS is built to support the mandate of the National Commission of Senior Citizens (NCSC)
+            in the Caraga Region. Here's a look at who NCSC is and what it stands for, nationally.
+        </p>
     </div>
 
-    <div class="about-article-kicker">About the Agency<PageViewBadge PageKey="about" /></div>
-    <h1 class="about-article-title">National Commission of Senior Citizens</h1>
-    <p class="about-article-lede">
-        ECA-InFORMS is built to support the mandate of the National Commission of Senior Citizens (NCSC)
-        in the Caraga Region. Here's a look at who NCSC is and what it stands for, nationally.
-    </p>
-
+    <div class="about-article">
     @foreach (var item in _sections)
     {
         <section class="about-section">
@@ -38,6 +44,7 @@
     <div class="about-article-source">
         <i class="bi bi-info-circle me-1"></i>
         Source: <a href="https://www.ncsc.gov.ph/about" target="_blank" rel="noopener noreferrer">ncsc.gov.ph/about</a>
+    </div>
     </div>
 </article>
 

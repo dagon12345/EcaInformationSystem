@@ -1,12 +1,27 @@
 @* PublicNavbar.razor — the full public-site navbar (brand + Features/About/
-   Contact/Officials/Developer quicklinks + a Sign In link), reused on EVERY
-   anonymous-visitor page (Login, Features, About, Regional Offices,
+   Contact/Officials/Live Feed/Developer quicklinks + Sign In), reused on
+   EVERY anonymous-visitor page (Login, Features, About, Regional Offices,
    Directory of Officials, Developer). Previously only Login.razor had the
    full quicklinks row — every other page only offered a single "Back to
    Login" link, so jumping from e.g. Features straight to About meant
    detouring back through the login page first. This fixes that: the same
    full navbar now persists everywhere, so any page is one click away from
-   any other. *@
+   any other.
+
+   Sign In (desktop) no longer just links to /login — it expands the same
+   inline Username/Password panel Login.razor's own navbar uses, so a
+   visitor can sign in without ever leaving the page they're reading.
+   Mobile keeps the old plain link, since this shared navbar has no
+   hamburger/dropdown to house the expanded fields the way Login.razor's
+   mobile menu does. *@
+@using EcaInformationSystem.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@implements IDisposable
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
 <div class="login-navbar">
     <div class="login-navbar-left">
         <a href="login" class="login-navbar-brand" style="text-decoration:none;">
@@ -24,7 +39,7 @@
                 <i class="bi bi-stars"></i> <span>Features</span>
             </a>
             <a href="about" class="login-navbar-about-link @(Current == "about" ? "login-navbar-about-link--active" : "")">
-                <i class="bi bi-info-circle"></i> <span>About</span>
+                <i class="bi bi-info-circle"></i> <span>About NCSC</span>
             </a>
             <a href="regional-offices" class="login-navbar-about-link @(Current == "contact" ? "login-navbar-about-link--active" : "")">
                 <i class="bi bi-telephone"></i> <span>Contact</span>
@@ -32,19 +47,258 @@
             <a href="directory-officials" class="login-navbar-about-link @(Current == "officials" ? "login-navbar-about-link--active" : "")">
                 <i class="bi bi-people"></i> <span>Officials</span>
             </a>
+            <a href="login" class="login-navbar-about-link">
+                <i class="bi bi-broadcast"></i> <span>Live Feed</span>
+            </a>
             <a href="developer" class="login-navbar-about-link @(Current == "developer" ? "login-navbar-about-link--active" : "")">
                 <i class="bi bi-code-slash"></i> <span>Developer</span>
             </a>
         </div>
     </div>
 
-    <a href="login" class="login-navbar-back-link"><i class="bi bi-box-arrow-in-right"></i> <span>Sign In</span></a>
+    <EditForm Model="model" OnValidSubmit="HandleLoginAsync" OnInvalidSubmit="HandleInvalidSubmit" class="login-navbar-form public-navbar-signin-form">
+        <DataAnnotationsValidator />
+
+        @if (!_desktopLoginExpanded)
+        {
+            <button type="button" class="login-navbar-signin-toggle" @onclick="() => _desktopLoginExpanded = true" title="Sign In">
+                <i class="bi bi-box-arrow-in-right"></i> <span>Sign In</span>
+            </button>
+        }
+
+        <div class="login-navbar-fields @(_desktopLoginExpanded ? "login-navbar-fields--open" : "")">
+            <InputText @bind-Value="model.UserName" placeholder="Username" class="login-navbar-input" />
+            <InputText type="password" @bind-Value="model.Password" placeholder="Password" class="login-navbar-input" />
+            <button type="submit" class="login-navbar-btn" disabled="@(IsLoading || SecondsLeft.HasValue)">
+                @(SecondsLeft.HasValue ? $"Locked ({SecondsLeft}s)" : (IsLoading ? "Signing in..." : "Sign in"))
+            </button>
+            <a href="register" class="login-navbar-register-btn">Register</a>
+            <a href="forgot-password" class="login-navbar-register-btn">Forgot?</a>
+            <button type="button" class="login-navbar-signin-close" @onclick="() => _desktopLoginExpanded = false" title="Close">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </EditForm>
+
+    <a href="login" class="login-navbar-back-link public-navbar-signin-mobile-link"><i class="bi bi-box-arrow-in-right"></i> <span>Sign In</span></a>
 </div>
 
 <PublicLiveTicker />
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    var bgColor = IsLockedOut ? "#fef2f2" : (AttemptsRemaining <= 2 ? "#fff7ed" : "#fef2f2");
+    var borderColor = IsLockedOut ? "#fca5a5" : (AttemptsRemaining <= 2 ? "#fdba74" : "#fca5a5");
+    var textColor = IsLockedOut ? "#991b1b" : (AttemptsRemaining <= 2 ? "#9a3412" : "#991b1b");
+
+    <div class="login-status-banner">
+        <div style="background:@bgColor;border:0.5px solid @borderColor;color:@textColor;padding:10px 14px;border-radius:8px;font-size:13px;">
+            <div style="font-weight:600;">@ErrorMessage</div>
+
+            @if (SecondsLeft.HasValue)
+            {
+                var mins = SecondsLeft.Value / 60;
+                var secs = SecondsLeft.Value % 60;
+                <div style="font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums;">
+                    ⏱ Try again in @mins:@secs.ToString("00")
+                </div>
+            }
+            else if (AttemptsRemaining.HasValue && !IsLockedOut && AttemptsRemaining <= 3)
+            {
+                <div style="display:flex;gap:4px;margin-top:6px;">
+                    @for (int i = 0; i < 5; i++)
+                    {
+                        var filled = i < (5 - AttemptsRemaining.Value);
+                        <div style="width:20px;height:6px;border-radius:3px;background:@(filled ? "#dc2626" : "#e5e7eb");">
+                        </div>
+                    }
+                </div>
+                <div style="font-size:11px;margin-top:4px;opacity:0.8;">
+                    @AttemptsRemaining.Value of 5 attempts remaining
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (_mfaStep)
+{
+    <div class="mfa-modal-backdrop">
+        <div class="mfa-modal-card">
+            <p style="font-size:11px;letter-spacing:2px;color:#378ADD;text-transform:uppercase;font-weight:600;margin-bottom:6px;">
+                Verification required</p>
+                <h2 style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">Enter your code</h2>
+                <p style="font-size:13px;color:#6b7280;margin-bottom:20px;">
+                    Open your authenticator app and enter the 6-digit code for ECA-InFORMS.
+                </p>
+
+                @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                {
+                    <div style="background:#fef2f2;border:0.5px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;">
+                        @ErrorMessage
+                    </div>
+                }
+
+                <input @bind="_mfaCode" @bind:event="oninput" maxlength="6" placeholder="000000"
+                       style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:18px;letter-spacing:6px;text-align:center;margin-bottom:14px;" />
+
+                <button @onclick="HandleVerifyMfaAsync" disabled="@(_mfaCode.Length != 6 || IsLoading)"
+                        style="width:100%;padding:11px;background:#0C447C;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:@(_mfaCode.Length != 6 || IsLoading ? "0.6" : "1");">
+                    @(IsLoading ? "Verifying..." : "Verify")
+                </button>
+
+                <p style="text-align:center;margin-top:14px;">
+                    <a href="#" @onclick="BackToLogin" @onclick:preventDefault="true" style="color:#185FA5;font-size:13px;">← Back to login</a>
+                </p>
+        </div>
+    </div>
+}
 
 @code {
     // "features" | "about" | "contact" | "officials" | "developer" | null —
     // lights up that page's quicklink so a visitor always knows where they are.
     [Parameter] public string? Current { get; set; }
+
+    private LoginModel model = new();
+    private string? ErrorMessage;
+    private int? AttemptsRemaining;
+    private bool IsLockedOut;
+    private int? SecondsLeft;
+    private System.Threading.Timer? _countdownTimer;
+    private bool IsLoading;
+
+    private bool _mfaStep;
+    private string _mfaUserId = string.Empty;
+    private string _mfaCode = string.Empty;
+
+    // Desktop only — the Username/Password/Sign in row stays collapsed
+    // behind a single icon until clicked (see auth-shared.css's .login-navbar-fields).
+    private bool _desktopLoginExpanded;
+
+    private void HandleInvalidSubmit()
+    {
+        ErrorMessage = "Please enter both username and password.";
+        AttemptsRemaining = null;
+        IsLockedOut = false;
+        StateHasChanged();
+    }
+
+    private void BackToLogin()
+    {
+        _mfaStep = false;
+        _mfaCode = string.Empty;
+        ErrorMessage = null;
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        AttemptsRemaining = null;
+        IsLockedOut = false;
+        StopCountdown();
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var outcome = await AuthService.LoginAsync(model.UserName, model.Password, cts.Token);
+
+            if (outcome.IsSuccess)
+            {
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+                Navigation.NavigateTo("/", true);
+            }
+            else if (outcome.MfaRequired)
+            {
+                _mfaStep = true;
+                _mfaUserId = outcome.MfaUserId!;
+            }
+            else
+            {
+                ErrorMessage = outcome.Message;
+                AttemptsRemaining = outcome.AttemptsRemaining;
+                IsLockedOut = outcome.IsLockedOut;
+
+                if (outcome.RetryAfterSeconds is > 0)
+                {
+                    StartCountdown(outcome.RetryAfterSeconds.Value);
+                }
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleVerifyMfaAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var outcome = await AuthService.VerifyMfaAsync(_mfaUserId, _mfaCode, cts.Token);
+
+            if (outcome.IsSuccess)
+            {
+                ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+                Navigation.NavigateTo("/", true);
+            }
+            else
+            {
+                ErrorMessage = outcome.Message;
+                _mfaCode = string.Empty;
+            }
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StartCountdown(int seconds)
+    {
+        SecondsLeft = seconds;
+        _countdownTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (SecondsLeft is > 0) SecondsLeft--;
+
+                if (SecondsLeft <= 0)
+                {
+                    StopCountdown();
+                    ErrorMessage = null;
+                    IsLockedOut = false;
+                    AttemptsRemaining = null;
+                }
+
+                StateHasChanged();
+            });
+        }, null, 1000, 1000);
+    }
+
+    private void StopCountdown()
+    {
+        _countdownTimer?.Dispose();
+        _countdownTimer = null;
+        SecondsLeft = null;
+    }
+
+    public void Dispose() => StopCountdown();
+
+    public class LoginModel
+    {
+        [Required(ErrorMessage = "Username is required.")]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+    }
 }

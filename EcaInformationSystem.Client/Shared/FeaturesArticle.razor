@@ -2,12 +2,15 @@
    louder than About/Regional Offices/Officials (which are calm, document-style
    pages) — this one exists to make a stranger stop scrolling, so it gets its
    own hero banner, a color per category, and hover/entrance motion. *@
+@using EcaInformationSystem.Shared.DTOs
+@inject HttpClient Http
 
 <div class="features-hero">
     <div class="features-hero-glow features-hero-glow--1"></div>
     <div class="features-hero-glow features-hero-glow--2"></div>
     <div class="features-hero-glow features-hero-glow--3"></div>
 
+    <div class="features-hero-welcome">👋 Welcome to ECA-InFORMS</div>
     <div class="features-hero-badge"><i class="bi bi-stars"></i> WHAT ECA-InFORMS CAN DO</div>
     <PageViewBadge PageKey="features" />
     <h1 class="features-hero-title">
@@ -32,7 +35,48 @@
     <a href="login" class="features-hero-cta">
         <i class="bi bi-box-arrow-in-right me-1"></i>Sign in to explore
     </a>
+
+    @* Quick nav row, visible at every width — PublicNavbar's own quicklinks
+       row is hidden below 760px with no hamburger/dropdown to replace it on
+       this shared component (Login.razor has its own separate mobile menu,
+       but Features/About/Regional Offices/Developer don't), so a phone
+       visitor had no way to reach the other public pages at all. These
+       mirror the same set (minus "Features" itself) and stay visible on
+       desktop too so it's a permanent shortcut, not just a mobile patch —
+       see .features-hero-nav-links in auth-shared.css. *@
+    <div class="features-hero-nav-links">
+        <a href="about" class="features-hero-nav-link"><i class="bi bi-info-circle"></i> About NCSC</a>
+        <a href="regional-offices" class="features-hero-nav-link"><i class="bi bi-telephone"></i> Contact</a>
+        <a href="directory-officials" class="features-hero-nav-link"><i class="bi bi-people"></i> Officials</a>
+        <a href="login" class="features-hero-nav-link"><i class="bi bi-broadcast"></i> Live Feed</a>
+        <a href="developer" class="features-hero-nav-link"><i class="bi bi-code-slash"></i> Developer</a>
+    </div>
 </div>
+
+@* Live headline numbers, straight from the database — proof this isn't a
+   mockup. Sits as a "bridge" card straddling the hero/body seam, the way a
+   SaaS landing page shows off real usage numbers. Counts animate up from 0
+   on load for a bit of polish; if the fetch fails, the panel just doesn't
+   render (same non-fatal pattern as PageViewBadge). *@
+@if (_stats2 is not null)
+{
+    <div class="features-scale-panel">
+        <div class="features-scale-inner">
+            <div class="features-scale-item">
+                <div class="features-scale-icon"><i class="bi bi-person-vcard-fill"></i></div>
+                <div class="features-scale-value">@_granteeCountDisplay.ToString("N0")</div>
+                <div class="features-scale-label">Grantee Records Managed</div>
+            </div>
+            <div class="features-scale-divider"></div>
+            <div class="features-scale-item">
+                <div class="features-scale-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+                <div class="features-scale-value">@_transactionCountDisplay.ToString("N0")</div>
+                <div class="features-scale-label">Transactions Logged</div>
+            </div>
+        </div>
+        <div class="features-scale-caption"><span class="features-scale-live-dot"></span>Live counts from the database — real numbers, growing every day.</div>
+    </div>
+}
 
 <div class="features-body">
     @{ var delayIndex = 0; }
@@ -76,6 +120,45 @@
         new("24/7", "Live Updates"),
         new("100%", "Paperless Trail"),
     };
+
+    private PublicSystemStatsDto? _stats2;
+    private int _granteeCountDisplay;
+    private int _transactionCountDisplay;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _stats2 = await Http.GetFromJsonAsync<PublicSystemStatsDto>("api/public-system-stats");
+            if (_stats2 is not null)
+            {
+                _ = AnimateCountUpAsync();
+            }
+        }
+        catch
+        {
+            // Non-fatal — the panel just doesn't render if this fails.
+        }
+    }
+
+    private async Task AnimateCountUpAsync()
+    {
+        const int steps = 30;
+        const int stepDelayMs = 25;
+
+        for (int i = 1; i <= steps; i++)
+        {
+            var progress = (double)i / steps;
+            _granteeCountDisplay = (int)Math.Round(_stats2!.GranteeCount * progress);
+            _transactionCountDisplay = (int)Math.Round(_stats2!.TransactionCount * progress);
+            StateHasChanged();
+            await Task.Delay(stepDelayMs);
+        }
+
+        _granteeCountDisplay = _stats2!.GranteeCount;
+        _transactionCountDisplay = _stats2!.TransactionCount;
+        StateHasChanged();
+    }
 
     private readonly List<FeatureCategory> _categories = new()
     {

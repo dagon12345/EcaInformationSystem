@@ -1,177 +1,321 @@
-<article class="about-article">
-    <div class="dev-hero">
+@* DeveloperArticle.razor — portfolio/resume-style "About the Developer" page.
+   Wider and louder than the plain About/Regional Offices/Officials blog
+   shell (see .dev-page-body/.dev-hero-banner/.dev-content-card in
+   auth-shared.css) because this page has a different job: it's the one a
+   recruiter or hiring manager might actually land on, so it leads with
+   impact numbers and a resume-style download/contact CTA up top instead of
+   burying them at the bottom. *@
+@inject IJSRuntime JS
+
+<article class="dev-article">
+    <div class="dev-hero-banner">
+        <div class="dev-hero-glow dev-hero-glow--1"></div>
+        <div class="dev-hero-glow dev-hero-glow--2"></div>
+
+        <div class="dev-hero-kicker">Full Stack .NET Developer<PageViewBadge PageKey="developer" /></div>
+
         <img src="images/developer/profile.jpg" alt="Lance Andrei Espina" class="dev-hero-photo" />
-    </div>
 
-    <div class="about-article-kicker">About the Developer<PageViewBadge PageKey="developer" /></div>
-    <h1 class="about-article-title">Lance Andrei Espina</h1>
-    <div class="dev-hero-role">Full Stack .NET Developer</div>
-    <p class="about-article-lede">
-        ECA-InFORMS was designed and built by Lance Andrei Espina, a full-stack .NET developer with
-        7+ years of experience. He most recently served as a Software Engineer / Backend Developer at
-        <strong>Accenture</strong> on <strong><a href="https://www.iras.gov.sg/" target="_blank" rel="noopener noreferrer">IRAS</a> (Inland Revenue Authority of Singapore)</strong>, and is currently working
-        full-time as an <strong>independent freelance developer and NCSC Project Development Officer III</strong>.
-    </p>
-
-    <section class="about-section">
-        <h2 class="about-section-title">Background</h2>
-        <p class="about-section-body">
-            From October 2024, Lance worked as a Software Engineer / Backend Developer at Accenture,
-            delivering backend services for <a href="https://www.iras.gov.sg/" target="_blank" rel="noopener noreferrer">IRAS</a>
-            (the Inland Revenue Authority of Singapore) — using Azure, Docker, Kafka,
-            Azure Repositories, C#.NET, Angular, and MSSQL, while adhering to SOLID principles and
-            writing comprehensive unit tests before every deployment. Since then, he has continued as
-            an independent freelance full-stack developer and NCSC Project Development Officer III,
-            building end-to-end systems with Blazor WebAssembly, ASP.NET Core, and Clean Architecture — to date.
+        <h1 class="dev-hero-name">Lance Andrei Espina</h1>
+        <p class="dev-hero-tagline">
+            7+ years building government and enterprise systems end-to-end — from
+            <strong>Accenture / IRAS (Singapore)</strong> backend engineering to designing and shipping
+            full-stack platforms like <strong>ECA-InFORMS</strong> solo, on Clean Architecture with
+            Blazor WebAssembly, ASP.NET Core, and SQL Server.
         </p>
-        <p class="about-section-body" style="margin-top:12px;">
-            Earlier in his career, Lance built government information systems for the Department of
-            Social Welfare and Development in the Caraga Region — including a Social Pension
-            Information System processing over 300,000 records and 6 million+ payrolls — plus systems
-            for local government units, shipping companies, and hospitality businesses.
-        </p>
-    </section>
 
-    <section class="about-section">
-        <h2 class="about-section-title">Technical Expertise</h2>
-        <div class="dev-skills-chips">
-            <span class="dev-skill-chip">ASP.NET Core</span>
-            <span class="dev-skill-chip">Blazor WebAssembly</span>
-            <span class="dev-skill-chip">Angular 22</span>
-            <span class="dev-skill-chip">Entity Framework Core</span>
-            <span class="dev-skill-chip">Microsoft SQL Server</span>
-            <span class="dev-skill-chip">Clean Architecture</span>
-            <span class="dev-skill-chip">MediatR / CQRS</span>
-            <span class="dev-skill-chip">JWT &amp; Two-Factor Auth</span>
-            <span class="dev-skill-chip">SignalR</span>
-            <span class="dev-skill-chip">Docker</span>
-            <span class="dev-skill-chip">Azure</span>
-            <span class="dev-skill-chip">Graphic Design</span>
+        <div class="dev-hero-stats">
+            @for (int i = 0; i < _heroStats.Count; i++)
+            {
+                var idx = i;
+                <div class="dev-hero-stat">
+                    <div class="dev-hero-stat-value">@_heroStatDisplay[idx]@_heroStats[idx].Suffix</div>
+                    <div class="dev-hero-stat-label">@_heroStats[idx].Label</div>
+                </div>
+            }
         </div>
-    </section>
 
-    <section class="about-section">
-        <h2 class="about-section-title">Systems &amp; Innovations Built</h2>
-        <ul class="dev-projects-list">
-            <li class="dev-project-item dev-project-item--current">
-                <div class="dev-project-title">ECA-InFORMS <span class="dev-project-badge">Current</span></div>
-                <div class="dev-project-desc">National Commission of Senior Citizens (NCSC), Caraga Region — this very system. Blazor WebAssembly + ASP.NET Core Web API on Clean Architecture (CQRS/MediatR), JWT + two-factor authentication, SignalR, Docker, and MSSQL.</div>
-            </li>
-            <li class="dev-project-item dev-project-item--current">
-                <div class="dev-project-title">Vendo POS <span class="dev-project-badge">Current</span></div>
-                <div class="dev-project-desc">A multi-store point-of-sale platform in active development for retail stores, coffee shops, pharmacies, and more. Built with Angular 22 and an ASP.NET Core Web API on the same Clean Architecture pattern as ECA-InFORMS, with Docker and MSSQL.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Social Pension Information System</div>
-                <div class="dev-project-desc">DSWD Caraga Region — manages 300,000+ beneficiary records and 6 million+ processed payrolls.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Beneficiary Records &amp; Queuing System</div>
-                <div class="dev-project-desc">DSWD Caraga Region — C# Windows Application plus an ASP.NET Razor web portal with Syncfusion UI, and a queuing system for organized, efficient transactions.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Biometric Daily Time Record System (RFID)</div>
-                <div class="dev-project-desc">CTP Shipping Lines Corporation — RFID-based employee time tracking as part of a broader digital transformation of the company's operations.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Warehouse &amp; Point-of-Sale (POS) Platform</div>
-                <div class="dev-project-desc">Inventory, sales, and warehouse management system built end-to-end in C#.NET.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">College Enrollment &amp; Scheduling System</div>
-                <div class="dev-project-desc">Class scheduling and enrollment management for an academic institution.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Dating Application</div>
-                <div class="dev-project-desc">Angular/Tailwind CSS frontend with a secured .NET backend, including password hashing.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Arduino Water-Level Sensor</div>
-                <div class="dev-project-desc">IoT sensor build with SMS notifications for real-time water-level alerts.</div>
-            </li>
-            <li class="dev-project-item">
-                <div class="dev-project-title">Accounting &amp; Payroll System</div>
-                <div class="dev-project-desc">Strategic Network Inc. — built during his IT internship under a professional development team.</div>
-            </li>
-        </ul>
-    </section>
-
-    <section class="about-section">
-        <h2 class="about-section-title">Experience Timeline</h2>
-        <div class="dev-timeline">
-            <div class="dev-timeline-item dev-timeline-item--current">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Oct 2025 – Present <span class="dev-project-badge">Current</span></div>
-                <div class="dev-timeline-role">Freelance Software Developer / NCSC Project Development Officer III</div>
-                <div class="dev-timeline-company">Independent Contractor / Contract of Service</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Oct 2024 – Oct 2025</div>
-                <div class="dev-timeline-role">Software Engineer / Backend Developer</div>
-                <div class="dev-timeline-company">Accenture — IRAS (Inland Revenue Authority of Singapore)</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Jan 2024 – Oct 2024</div>
-                <div class="dev-timeline-role">Information Technology Officer I</div>
-                <div class="dev-timeline-company">Department of Social Welfare and Development</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">May 2023 – Jan 2024</div>
-                <div class="dev-timeline-role">Computer Programmer II</div>
-                <div class="dev-timeline-company">Department of Social Welfare and Development</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Sep 2021 – May 2023</div>
-                <div class="dev-timeline-role">I.T. Programmer</div>
-                <div class="dev-timeline-company">Local Government Unit Carrascal</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Jun 2020 – Sep 2021</div>
-                <div class="dev-timeline-role">I.T. Technician / Programmer</div>
-                <div class="dev-timeline-company">CTP Shipping Lines Corporation</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">May 2019 – May 2020</div>
-                <div class="dev-timeline-role">I.T. Specialist</div>
-                <div class="dev-timeline-company">South-pole Central Hotel</div>
-            </div>
-            <div class="dev-timeline-item">
-                <div class="dev-timeline-dot"></div>
-                <div class="dev-timeline-date">Oct 2018 – Jan 2019</div>
-                <div class="dev-timeline-role">I.T. Software Developer Intern</div>
-                <div class="dev-timeline-company">Strategic Network Inc.</div>
-            </div>
-        </div>
-    </section>
-
-    <section class="about-section">
-        <h2 class="about-section-title">Contact</h2>
-        <div class="dev-contact-info">
-            <div class="dev-contact-info-row"><i class="bi bi-telephone"></i> 0976 614 0473</div>
-            <div class="dev-contact-info-row"><i class="bi bi-envelope"></i> lanceespina478@gmail.com</div>
-            <div class="dev-contact-info-row"><i class="bi bi-envelope"></i> lanceespina@icloud.com</div>
-        </div>
-        <div class="dev-contact-links">
-            <a href="https://www.linkedin.com/in/lance-andrei-espina-6a5a99273/" target="_blank" rel="noopener noreferrer" class="dev-contact-link">
+        <div class="dev-hero-cta-row">
+            <a href="files/Lance_Andrei_Espina_Resume.pdf" download class="dev-hero-cta dev-hero-cta--primary">
+                <i class="bi bi-file-earmark-arrow-down-fill"></i> Download Resume
+            </a>
+            <a href="https://www.linkedin.com/in/lance-andrei-espina-6a5a99273/" target="_blank" rel="noopener noreferrer" class="dev-hero-cta">
                 <i class="bi bi-linkedin"></i> LinkedIn
             </a>
-            <a href="files/Lance_Andrei_Espina_Resume.pdf" download class="dev-contact-link">
-                <i class="bi bi-file-earmark-pdf"></i> Resume (PDF)
+            <a href="https://github.com/dagon12345" target="_blank" rel="noopener noreferrer" class="dev-hero-cta">
+                <i class="bi bi-github"></i> GitHub
             </a>
-            <a href="files/Lance_Andrei_Espina_Resume.docx" download class="dev-contact-link">
-                <i class="bi bi-file-earmark-word"></i> Resume (Word)
+            <a href="javascript:void(0)" class="dev-hero-cta" @onclick="HighlightEmailAsync" @onclick:preventDefault>
+                <i class="bi bi-envelope-fill"></i> Email Me
             </a>
         </div>
-    </section>
+    </div>
 
-    <div class="about-article-source">
-        <i class="bi bi-code-slash me-1"></i>
-        System designed and developed by Lance Andrei Espina
+    <div class="dev-content-card">
+        <section class="about-section dev-section--first">
+            <h2 class="about-section-title">Background</h2>
+            <p class="about-section-body">
+                From October 2024, Lance worked as a Software Engineer / Backend Developer at Accenture,
+                delivering backend services for <a href="https://www.iras.gov.sg/" target="_blank" rel="noopener noreferrer">IRAS</a>
+                (the Inland Revenue Authority of Singapore) — using Azure, Docker, Kafka,
+                Azure Repositories, C#.NET, Angular, and MSSQL, while adhering to SOLID principles and
+                writing comprehensive unit tests before every deployment. Since then, he has continued as
+                an independent freelance full-stack developer and NCSC Project Development Officer III,
+                building end-to-end systems with Blazor WebAssembly, ASP.NET Core, and Clean Architecture — to date.
+            </p>
+            <p class="about-section-body" style="margin-top:12px;">
+                Earlier in his career, Lance built government information systems for the Department of
+                Social Welfare and Development in the Caraga Region — including a Social Pension
+                Information System processing over 300,000 records and 6 million+ payrolls — plus systems
+                for local government units, shipping companies, and hospitality businesses.
+            </p>
+        </section>
+
+        <section class="about-section">
+            <h2 class="about-section-title">Technical Expertise</h2>
+
+            <div class="dev-skill-group">
+                <div class="dev-skill-group-title"><i class="bi bi-hdd-stack-fill"></i>Backend &amp; Architecture</div>
+                <div class="dev-skills-chips">
+                    <span class="dev-skill-chip">ASP.NET Core</span>
+                    <span class="dev-skill-chip">Clean Architecture</span>
+                    <span class="dev-skill-chip">MediatR / CQRS</span>
+                    <span class="dev-skill-chip">JWT &amp; Two-Factor Auth</span>
+                    <span class="dev-skill-chip">SignalR</span>
+                </div>
+            </div>
+
+            <div class="dev-skill-group">
+                <div class="dev-skill-group-title"><i class="bi bi-window-stack"></i>Frontend</div>
+                <div class="dev-skills-chips">
+                    <span class="dev-skill-chip">Blazor WebAssembly</span>
+                    <span class="dev-skill-chip">Angular 22</span>
+                    <span class="dev-skill-chip">Graphic Design</span>
+                </div>
+            </div>
+
+            <div class="dev-skill-group">
+                <div class="dev-skill-group-title"><i class="bi bi-database-fill"></i>Data &amp; Infrastructure</div>
+                <div class="dev-skills-chips">
+                    <span class="dev-skill-chip">Entity Framework Core</span>
+                    <span class="dev-skill-chip">Microsoft SQL Server</span>
+                    <span class="dev-skill-chip">Docker</span>
+                    <span class="dev-skill-chip">Azure</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="about-section">
+            <h2 class="about-section-title">Systems &amp; Innovations Built</h2>
+            <div class="dev-project-grid">
+                <div class="dev-project-card dev-project-card--current">
+                    <div class="dev-project-card-icon"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+                    <div class="dev-project-card-title">ECA-InFORMS <span class="dev-project-badge">Current</span></div>
+                    <div class="dev-project-card-desc">National Commission of Senior Citizens (NCSC), Caraga Region — this very system. Blazor WebAssembly + ASP.NET Core Web API on Clean Architecture (CQRS/MediatR), JWT + two-factor authentication, SignalR, Docker, and MSSQL.</div>
+                </div>
+                <div class="dev-project-card dev-project-card--current">
+                    <div class="dev-project-card-icon"><i class="bi bi-cash-coin"></i></div>
+                    <div class="dev-project-card-title">Vendo POS <span class="dev-project-badge">Current</span></div>
+                    <div class="dev-project-card-desc">A multi-store point-of-sale platform in active development for retail stores, coffee shops, pharmacies, and more. Built with Angular 22 and an ASP.NET Core Web API on the same Clean Architecture pattern as ECA-InFORMS, with Docker and MSSQL.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-piggy-bank-fill"></i></div>
+                    <div class="dev-project-card-title">Social Pension Information System</div>
+                    <div class="dev-project-card-desc">DSWD Caraga Region — manages 300,000+ beneficiary records and 6 million+ processed payrolls.</div>
+                </div>
+                <div class="dev-project-card dev-project-card--award">
+                    <div class="dev-project-card-icon"><i class="bi bi-people-fill"></i></div>
+                    <div class="dev-project-card-title">Beneficiary Records &amp; Queuing System <span class="dev-project-badge dev-project-badge--award"><i class="bi bi-award-fill"></i> Awarded</span></div>
+                    <div class="dev-project-card-desc">DSWD Caraga Region — C# Windows Application plus an ASP.NET Razor web portal with Syncfusion UI, and a queuing system for organized, efficient transactions. Earned a PRAISE Award and an ARTA Red Tape Award.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-fingerprint"></i></div>
+                    <div class="dev-project-card-title">Biometric Daily Time Record System (RFID)</div>
+                    <div class="dev-project-card-desc">CTP Shipping Lines Corporation — RFID-based employee time tracking as part of a broader digital transformation of the company's operations.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-shop"></i></div>
+                    <div class="dev-project-card-title">Warehouse &amp; Point-of-Sale (POS) Platform</div>
+                    <div class="dev-project-card-desc">Inventory, sales, and warehouse management system built end-to-end in C#.NET.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-mortarboard-fill"></i></div>
+                    <div class="dev-project-card-title">College Enrollment &amp; Scheduling System</div>
+                    <div class="dev-project-card-desc">Class scheduling and enrollment management for an academic institution.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-heart-fill"></i></div>
+                    <div class="dev-project-card-title">Dating Application</div>
+                    <div class="dev-project-card-desc">Angular/Tailwind CSS frontend with a secured .NET backend, including password hashing.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-droplet-fill"></i></div>
+                    <div class="dev-project-card-title">Arduino Water-Level Sensor</div>
+                    <div class="dev-project-card-desc">IoT sensor build with SMS notifications for real-time water-level alerts.</div>
+                </div>
+                <div class="dev-project-card">
+                    <div class="dev-project-card-icon"><i class="bi bi-calculator-fill"></i></div>
+                    <div class="dev-project-card-title">Accounting &amp; Payroll System</div>
+                    <div class="dev-project-card-desc">Strategic Network Inc. — built during his IT internship under a professional development team.</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="about-section">
+            <h2 class="about-section-title">Experience Timeline</h2>
+            <div class="dev-timeline">
+                <div class="dev-timeline-item dev-timeline-item--current">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">Oct 2025 – Present <span class="dev-timeline-duration">11 mos</span> <span class="dev-project-badge">Current</span></div>
+                    <div class="dev-timeline-role">Freelance Software Developer / NCSC Project Development Officer III</div>
+                    <div class="dev-timeline-company">Independent Contractor / Contract of Service</div>
+                    <div class="dev-timeline-highlight">Designing and building ECA-InFORMS and Vendo POS end-to-end, solo full-stack.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">Oct 2024 – Oct 2025 <span class="dev-timeline-duration">1 yr</span></div>
+                    <div class="dev-timeline-role">Software Engineer / Backend Developer</div>
+                    <div class="dev-timeline-company">Accenture — IRAS (Inland Revenue Authority of Singapore)</div>
+                    <div class="dev-timeline-highlight">Backend services for Singapore's tax authority — Azure, Docker, Kafka, C#.NET, Angular, MSSQL.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">May 2023 – Oct 2024 <span class="dev-timeline-duration">1 yr 5 mos</span></div>
+                    <div class="dev-timeline-company">Department of Social Welfare and Development</div>
+                    <div class="dev-timeline-role-steps">
+                        <div class="dev-timeline-role-step">
+                            <span class="dev-timeline-role-title">Information Technology Officer I</span>
+                            <span class="dev-timeline-role-period">Jan 2024 – Oct 2024</span>
+                        </div>
+                        <div class="dev-timeline-promotion-arrow"><i class="bi bi-arrow-up-short"></i>Promoted</div>
+                        <div class="dev-timeline-role-step">
+                            <span class="dev-timeline-role-title">Computer Programmer II</span>
+                            <span class="dev-timeline-role-period">May 2023 – Jan 2024</span>
+                        </div>
+                    </div>
+                    <div class="dev-timeline-highlight">Built and maintained the Social Pension Information System — 300,000+ records, 6 million+ payrolls — plus the Beneficiary Records &amp; Queuing System, which earned a PRAISE Award and an ARTA Red Tape Award. Earned a promotion from Computer Programmer II to IT Officer I.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">Sep 2021 – May 2023 <span class="dev-timeline-duration">1 yr 8 mos</span></div>
+                    <div class="dev-timeline-role">I.T. Programmer</div>
+                    <div class="dev-timeline-company">Local Government Unit Carrascal</div>
+                    <div class="dev-timeline-highlight">Delivered IT systems and support for the local government unit.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">Jun 2020 – Sep 2021 <span class="dev-timeline-duration">1 yr 3 mos</span></div>
+                    <div class="dev-timeline-role">I.T. Technician / Programmer</div>
+                    <div class="dev-timeline-company">CTP Shipping Lines Corporation</div>
+                    <div class="dev-timeline-highlight">Built a biometric RFID Daily Time Record system as part of a broader digital transformation.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-briefcase-fill"></i></div>
+                    <div class="dev-timeline-date">May 2019 – May 2020 <span class="dev-timeline-duration">1 yr</span></div>
+                    <div class="dev-timeline-role">I.T. Specialist</div>
+                    <div class="dev-timeline-company">South-pole Central Hotel</div>
+                    <div class="dev-timeline-highlight">Handled IT systems and support for hotel operations.</div>
+                </div>
+                <div class="dev-timeline-item">
+                    <div class="dev-timeline-dot"><i class="bi bi-mortarboard-fill"></i></div>
+                    <div class="dev-timeline-date">Oct 2018 – Jan 2019 <span class="dev-timeline-duration">3 mos</span></div>
+                    <div class="dev-timeline-role">I.T. Software Developer Intern</div>
+                    <div class="dev-timeline-company">Strategic Network Inc.</div>
+                    <div class="dev-timeline-highlight">Contributed to an Accounting &amp; Payroll System under a professional dev team.</div>
+                </div>
+            </div>
+        </section>
+
+        <div class="dev-footer-cta">
+            <div class="dev-contact-info">
+                <div class="dev-contact-info-row"><i class="bi bi-telephone"></i> 0976 614 0473</div>
+                <div id="dev-contact-email-gmail" class="dev-contact-info-row @(_emailHighlighted ? "dev-contact-info-row--highlight" : "")"><i class="bi bi-google"></i> lanceespina478@gmail.com</div>
+                <div id="dev-contact-email-icloud" class="dev-contact-info-row @(_emailHighlighted ? "dev-contact-info-row--highlight" : "")"><i class="bi bi-apple"></i> lanceespina@icloud.com</div>
+            </div>
+            <div class="dev-contact-links">
+                <a href="https://www.linkedin.com/in/lance-andrei-espina-6a5a99273/" target="_blank" rel="noopener noreferrer" class="dev-contact-link">
+                    <i class="bi bi-linkedin"></i> LinkedIn
+                </a>
+                <a href="https://github.com/dagon12345" target="_blank" rel="noopener noreferrer" class="dev-contact-link">
+                    <i class="bi bi-github"></i> GitHub
+                </a>
+                <a href="files/Lance_Andrei_Espina_Resume.pdf" download class="dev-contact-link">
+                    <i class="bi bi-file-earmark-pdf"></i> Resume (PDF)
+                </a>
+                <a href="files/Lance_Andrei_Espina_Resume.docx" download class="dev-contact-link">
+                    <i class="bi bi-file-earmark-word"></i> Resume (Word)
+                </a>
+            </div>
+        </div>
+
+        <div class="about-article-source">
+            <i class="bi bi-code-slash me-1"></i>
+            System designed and developed by Lance Andrei Espina
+        </div>
     </div>
 </article>
+
+@code {
+    // Same count-up treatment as Features' live stats panel (FeaturesArticle's
+    // AnimateCountUpAsync) — these numbers are static, not fetched, so the
+    // animation is purely cosmetic, but it's the same "hook the reader" trick
+    // and keeps the two public pages feeling consistent.
+    private record HeroStat(int Target, string Suffix, string Label);
+    private readonly List<HeroStat> _heroStats = new()
+    {
+        new(7, "+", "Years Experience"),
+        new(300, "K+", "Records Managed"),
+        new(6, "M+", "Payrolls Processed"),
+        new(10, "", "Systems Shipped"),
+        new(5, "", "Point of Sales Sold"),
+    };
+    private int[] _heroStatDisplay = new int[5];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _heroStatDisplay = new int[_heroStats.Count];
+        await AnimateHeroStatsAsync();
+    }
+
+    private async Task AnimateHeroStatsAsync()
+    {
+        const int steps = 30;
+        const int stepDelayMs = 25;
+
+        for (int i = 1; i <= steps; i++)
+        {
+            var progress = (double)i / steps;
+            for (int s = 0; s < _heroStats.Count; s++)
+            {
+                _heroStatDisplay[s] = (int)Math.Round(_heroStats[s].Target * progress);
+            }
+            StateHasChanged();
+            await Task.Delay(stepDelayMs);
+        }
+
+        for (int s = 0; s < _heroStats.Count; s++)
+        {
+            _heroStatDisplay[s] = _heroStats[s].Target;
+        }
+        StateHasChanged();
+    }
+
+    private bool _emailHighlighted;
+
+    // "Email Me" no longer opens the visitor's mail client (mailto: is
+    // unreliable when no desktop mail app is configured) — it scrolls down
+    // to the actual address in the Contact block and flashes it instead, so
+    // the visitor can read/copy it directly.
+    private async Task HighlightEmailAsync()
+    {
+        await JS.InvokeVoidAsync("scrollInterop.scrollToElement", "dev-contact-email-gmail");
+
+        _emailHighlighted = true;
+        StateHasChanged();
+
+        await Task.Delay(2000);
+
+        _emailHighlighted = false;
+        StateHasChanged();
+    }
+}

@@ -19,7 +19,7 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated != true)
         {
-            Navigation.NavigateTo("/login", true);
+            Navigation.NavigateTo("/features", true);
             return;
         }
 

@@ -10,6 +10,7 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task AddRangeAsync(IEnumerable<Log> logs);
         Task<IEnumerable<LogSummaryResultDto>> GetLogSummaryAsync(Guid beneficiaryId);
         Task<(List<LogEntryDto> Items, int TotalCount)> GetAllLogsAsync(LogFilterDto filter);
+        Task<int> CountAllAsync();
         Task SaveChangesAsync(); // ✅ NEW
         Task<int> CountUserTransactionsAsync(string userName, DateTime seasonStartUtc);
         Task<List<(string UserName, int Count)>> GetTransactionCountsByUserAsync(DateTime seasonStartUtc);

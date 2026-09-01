@@ -321,6 +321,8 @@
                 @if (post.PostType == 2)
                 {
                     <div class="birthday-banner">
+                        <div class="birthday-banner-glow birthday-banner-glow--1"></div>
+                        <div class="birthday-banner-glow birthday-banner-glow--2"></div>
                         <div class="podium-banner-actions">
                             <button class="podium-banner-action-btn" title="Copy link to this post" @onclick="() => CopyPostLinkAsync(post.Id)">
                                 <i class="bi bi-link-45deg"></i>
@@ -382,6 +384,8 @@
                 else if (post.PostType == 1)
                 {
                     <div class="podium-banner">
+                        <div class="podium-banner-glow podium-banner-glow--1"></div>
+                        <div class="podium-banner-glow podium-banner-glow--2"></div>
                         <div class="podium-banner-actions">
                             <button class="podium-banner-action-btn" title="Copy link to this post" @onclick="() => CopyPostLinkAsync(post.Id)">
                                 <i class="bi bi-link-45deg"></i>
@@ -397,9 +401,11 @@
                         {
                             <div class="feed-link-copied-toast podium-banner-link-copied-toast">Link copied!</div>
                         }
-                        <div class="podium-banner-confetti">🎉 🏆 🎉</div>
-                        <div class="podium-banner-title">Season @post.SeasonNumber Champions!</div>
-                        <div class="podium-banner-subtitle">Most transactions this week — congratulate them below 👇</div>
+                        <div class="podium-banner-glass">
+                            <div class="podium-banner-confetti">🎉 🏆 🎉</div>
+                            <div class="podium-banner-title">Season @post.SeasonNumber Champions!</div>
+                            <div class="podium-banner-subtitle">Most transactions this week — congratulate them below 👇</div>
+                        </div>
                     </div>
 
                     <div class="podium-stage">

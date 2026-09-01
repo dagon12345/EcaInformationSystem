@@ -367,31 +367,71 @@
     box-shadow: 0 4px 18px -6px rgba(249, 115, 22, 0.45);
 }
 
+/* ── Champions banner — glassmorphism, matching the frosted-panel language
+   established on the public marketing pages (.features-scale-panel, .info-
+   hero) instead of the old flat saturated gradient: a soft pastel-gold
+   backdrop with two drifting blurred glow blobs behind a translucent,
+   blurred content chip. Gold/amber is this card's whole identity — the
+   birthday banner below uses the exact same structure (glow blobs + glass
+   chip) in pink/violet instead, so the two feel like one family with a
+   distinct accent each, not two unrelated designs. ─────────────────────── */
 .podium-banner {
     position: relative;
-    padding: 18px 16px 14px;
+    padding: 20px 16px 16px;
     text-align: center;
-    background: linear-gradient(120deg, #fde047, #f97316 55%, #f43f5e);
-    color: #fff;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7 45%, #fed7aa 100%);
     overflow: hidden;
+}
+.podium-banner-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.5;
+    pointer-events: none;
+    animation: reward-banner-drift 12s ease-in-out infinite;
+}
+.podium-banner-glow--1 { width: 160px; height: 160px; background: #f59e0b; top: -50px; left: -30px; }
+.podium-banner-glow--2 { width: 130px; height: 130px; background: #f43f5e; bottom: -50px; right: -20px; animation-delay: -5s; }
+
+@keyframes reward-banner-drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(14px, -10px) scale(1.12); }
+}
+
+.podium-banner-glass {
+    position: relative;
+    z-index: 2;
+    display: inline-block;
+    margin: 0 auto;
+    padding: 12px 24px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.45);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 8px 24px rgba(180,83,9,0.15);
 }
 .podium-banner-confetti {
     font-size: 15px;
     letter-spacing: 4px;
-    opacity: 0.9;
     margin-bottom: 2px;
+    animation: podium-confetti-bounce 2.4s ease-in-out infinite;
+}
+@keyframes podium-confetti-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
 }
 .podium-banner-title {
     font-size: 19px;
     font-weight: 800;
     letter-spacing: 0.2px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    color: #7c2d12;
 }
 .podium-banner-subtitle {
     font-size: 12.5px;
-    opacity: 0.95;
     margin-top: 2px;
     font-weight: 500;
+    color: #9a5b1f;
 }
 
 .podium-banner-actions {
@@ -400,7 +440,7 @@
     right: 8px;
     display: flex;
     gap: 4px;
-    z-index: 1;
+    z-index: 3;
 }
 .podium-banner-action-btn {
     display: inline-flex;
@@ -409,14 +449,15 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    border: none;
-    background: rgba(255,255,255,0.22);
-    color: #fff;
+    border: 1px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.35);
+    backdrop-filter: blur(6px);
+    color: rgba(0,0,0,0.55);
     font-size: 13px;
     cursor: pointer;
     transition: background 0.15s ease;
 }
-.podium-banner-action-btn:hover { background: rgba(255,255,255,0.4); }
+.podium-banner-action-btn:hover { background: rgba(255,255,255,0.6); }
 .podium-banner-link-copied-toast {
     position: absolute;
     top: 38px;
@@ -436,7 +477,7 @@
     justify-content: center;
     gap: 14px;
     padding: 22px 16px 4px;
-    background: linear-gradient(180deg, #fffbeb, #fff);
+    background: linear-gradient(180deg, #fed7aa, #fff);
 }
 
 .podium-place {
@@ -461,7 +502,11 @@
 }
 .podium-avatar-ring--1 {
     background: linear-gradient(135deg, #fde047, #f59e0b);
-    box-shadow: 0 0 0 3px #fff, 0 4px 16px -2px rgba(245, 158, 11, 0.7);
+    animation: podium-rank1-pulse 2.2s ease-in-out infinite;
+}
+@keyframes podium-rank1-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px #fff, 0 4px 16px -2px rgba(245, 158, 11, 0.7); }
+    50% { box-shadow: 0 0 0 3px #fff, 0 4px 22px 0px rgba(245, 158, 11, 0.95); }
 }
 .podium-avatar-ring--2 {
     background: linear-gradient(135deg, #e2e8f0, #94a3b8);
@@ -557,20 +602,34 @@
     box-shadow: 0 4px 18px -6px rgba(217, 70, 239, 0.35);
 }
 
+/* ── Birthday banner — same glass-card family as .podium-banner above
+   (pastel backdrop + two drifting blurred glow blobs + a translucent,
+   blurred content chip), just in pink/violet instead of gold/amber so the
+   two "system announcement" cards read as siblings, not lookalikes. */
 .birthday-banner {
     position: relative;
-    padding: 20px 16px 18px;
+    padding: 22px 16px 20px;
     text-align: center;
-    background: linear-gradient(120deg, #f0abfc, #d946ef 55%, #7c3aed);
-    color: #fff;
+    background: linear-gradient(135deg, #fdf4ff, #fae8ff 45%, #ede9fe 100%);
     overflow: hidden;
 }
+.birthday-banner-glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.5;
+    pointer-events: none;
+    animation: reward-banner-drift 12s ease-in-out infinite;
+}
+.birthday-banner-glow--1 { width: 170px; height: 170px; background: #d946ef; top: -55px; left: -30px; }
+.birthday-banner-glow--2 { width: 140px; height: 140px; background: #7c3aed; bottom: -50px; right: -20px; animation-delay: -6s; }
 
 /* Greeting/avatar/subtitle/date stack in a flex column with an explicit
    gap — guaranteed spacing regardless of avatar size or name length,
    instead of the previous margin-based layout where the avatar's own glow
    could crowd into the text above/below it. Sits above the balloons+
-   confetti layer via z-index. */
+   confetti layer via z-index, itself styled as the same frosted glass chip
+   .podium-banner-glass uses — the balloons/confetti drift blurred behind it. */
 .birthday-banner-content {
     position: relative;
     z-index: 2;
@@ -578,23 +637,30 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
+    padding: 16px 20px 14px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.45);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 8px 24px rgba(124,58,237,0.15);
 }
 
 .birthday-banner-title {
     font-size: 20px;
     font-weight: 800;
     letter-spacing: 0.2px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    color: #6b21a8;
 }
 .birthday-banner-subtitle {
     font-size: 12.5px;
-    opacity: 0.95;
     font-weight: 500;
+    color: #9333ea;
 }
 .birthday-banner-date {
     font-size: 11px;
-    opacity: 0.8;
     font-weight: 500;
+    color: #a78bfa;
 }
 
 .birthday-avatar-link {
@@ -626,7 +692,11 @@
 .birthday-avatar--big {
     width: 100px;
     height: 100px;
-    box-shadow: 0 0 0 4px #fff, 0 6px 18px -4px rgba(124, 58, 237, 0.65);
+    animation: birthday-avatar-pulse 2.4s ease-in-out infinite;
+}
+@keyframes birthday-avatar-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px #fff, 0 6px 18px -4px rgba(124, 58, 237, 0.65); }
+    50% { box-shadow: 0 0 0 4px #fff, 0 6px 24px 0px rgba(124, 58, 237, 0.9); }
 }
 .birthday-avatar-fallback.birthday-avatar--big {
     font-size: 32px;
@@ -9838,6 +9908,8 @@ body {
         position: relative;
         display: flex;
         align-items: center;
+        flex-shrink: 0;
+        white-space: nowrap;
         gap: 4px;
         padding: 3px 8px;
         border-radius: 20px;
@@ -9900,7 +9972,11 @@ body {
         font-weight: 700;
     }
 
-    .live-ticker-name { color: #f8fafc; }
+    .live-ticker-name {
+        color: #f8fafc;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
     .live-ticker-region {
         font-size: 8.5px;
         font-weight: 600;
@@ -9911,6 +9987,7 @@ body {
         max-width: 70px;
         overflow: hidden;
         text-overflow: ellipsis;
+        flex-shrink: 0;
     }
     .live-ticker-fire { color: #fb923c; font-size: 10px; }
     .live-ticker-count {
@@ -9948,10 +10025,27 @@ body {
 
         .live-ticker-more:hover { color: #e2e8f0; }
 
-    /* Desktop-only, per request — hidden entirely below 992px so it never
-       competes with the mobile navbar/hamburger for space. */
+    /* Stays visible at every width, including mobile — the ranking should
+       never fully disappear. Below 991px it drops its horizontal padding a
+       touch so it doesn't crowd the hamburger/breadcrumb row beneath it;
+       the existing 560px rule (hides the "LIVE RANKING" label text) and the
+       ticker's own overflow-x:auto keep it usable down to phone widths. */
     @media (max-width: 991px) {
-        .live-ticker { display: none; }
+        .live-ticker {
+            padding: 4px 10px;
+        }
+    }
+
+    /* Phone widths — the region badge is the least essential thing in each
+       chip (full region is still in the item's title tooltip), so it's the
+       first thing to go. Every other piece (rank, avatar, name, count) keeps
+       flex-shrink:0 above, so the name is never the part that gets squeezed
+       out; the chip just gets narrower and, if it still doesn't fit, the
+       ticker's own overflow-x:auto lets it scroll instead of clipping text. */
+    @media (max-width: 480px) {
+        .live-ticker-region {
+            display: none;
+        }
     }
 
     /* ── Tier level-up celebration (MainLayout, global) ─────────────────── */

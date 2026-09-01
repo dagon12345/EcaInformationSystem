@@ -1,16 +1,22 @@
-<article class="about-article">
-    <div class="about-article-seal">
-        <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
-        <div class="about-article-seal-text">Republika ng Pilipinas</div>
+<article class="about-article-wrapper">
+    <div class="info-hero">
+        <div class="features-hero-glow features-hero-glow--1"></div>
+        <div class="features-hero-glow features-hero-glow--2"></div>
+
+        <div class="about-article-seal">
+            <img src="images/ncsc-coat-of-arms.png" alt="Coat of Arms of the Republic of the Philippines" />
+            <div class="about-article-seal-text">Republika ng Pilipinas</div>
+        </div>
+
+        <div class="about-article-kicker">Who's Who<PageViewBadge PageKey="officials" /></div>
+        <h1 class="about-article-title">NCSC Directory of Officials</h1>
+        <p class="about-article-lede">
+            The Commissioners and officials leading the National Commission of Senior Citizens, nationally and
+            across every region — the Caraga entry is the one this system serves.
+        </p>
     </div>
 
-    <div class="about-article-kicker">Who's Who<PageViewBadge PageKey="officials" /></div>
-    <h1 class="about-article-title">NCSC Directory of Officials</h1>
-    <p class="about-article-lede">
-        The Commissioners and officials leading the National Commission of Senior Citizens, nationally and
-        across every region — the Caraga entry is the one this system serves.
-    </p>
-
+    <div class="about-article">
     @foreach (var group in _groups)
     {
         <section class="about-section">
@@ -55,6 +61,7 @@
     <div class="about-article-source">
         <i class="bi bi-info-circle me-1"></i>
         Source: <a href="https://www.ncsc.gov.ph/directory-officials" target="_blank" rel="noopener noreferrer">ncsc.gov.ph/directory-officials</a>
+    </div>
     </div>
 </article>
 

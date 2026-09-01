@@ -44,6 +44,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             await _context.Logs.AddRangeAsync(logs);
         }
 
+        public async Task<int> CountAllAsync()
+        {
+            return await _context.Logs.AsNoTracking().CountAsync();
+        }
+
         public async Task<(List<LogEntryDto> Items, int TotalCount)> GetAllLogsAsync(LogFilterDto filter)
         {
             var query = _context.Logs.AsNoTracking().AsQueryable();

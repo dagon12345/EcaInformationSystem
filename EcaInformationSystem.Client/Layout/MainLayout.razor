@@ -36,10 +36,10 @@
                 <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" />
             </div>
             <div class="main-area">
-                @* ── Live leaderboard ticker — desktop only (hidden on mobile via
-                     CSS), sits above the navbar so the top-of-week ranking never
-                     fully disappears from view no matter what page you're on. Not
-                     shown to Focal accounts (they aren't ranked). ── *@
+                @* ── Live leaderboard ticker — visible at every width, including
+                     mobile/collapsed, sits above the navbar so the top-of-week
+                     ranking never fully disappears from view no matter what page
+                     you're on. Not shown to Focal accounts (they aren't ranked). ── *@
                 @if (_userRole != "Focal")
                 {
                     <LiveLeaderboardTicker />

@@ -66,23 +66,74 @@
             min-height: 14px;
         }
 
+        /* Same gradient + drifting-blob language as the public Features hero
+           (see .features-hero/.features-hero-glow in auth-shared.css) —
+           this is the very first thing anyone sees, so it should already
+           look like the rest of the app instead of a plain flat splash. */
         #blazor-loading {
             position: fixed;
             inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #042C53;
+            overflow: hidden;
+            background: radial-gradient(circle at 20% 20%, #0C447C, #042C53 60%);
             z-index: 9999;
             font-family: sans-serif;
             transition: opacity 0.4s ease;
         }
 
+        .loading-glow {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(70px);
+            opacity: 0.5;
+            pointer-events: none;
+            animation: loading-drift 14s ease-in-out infinite;
+        }
+        .loading-glow--1 { width: 320px; height: 320px; background: #378ADD; top: -100px; left: -60px; }
+        .loading-glow--2 { width: 260px; height: 260px; background: #f97316; bottom: -80px; right: -40px; animation-delay: -4s; }
+        .loading-glow--3 { width: 220px; height: 220px; background: #a855f7; top: 55%; left: 65%; animation-delay: -8s; }
+
+        @keyframes loading-drift {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(20px, -20px) scale(1.15); }
+        }
+
         .loader-box {
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
             animation: fadeUp 0.6s ease both;
+        }
+
+        .loader-kicker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 22px;
+            padding: 4px 14px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.22);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: #cfe3f9;
+        }
+        .loader-kicker-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 6px #4ade80;
+            animation: pulse-dot 1.6s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         .logo-ring {
@@ -115,14 +166,20 @@
             font-weight: 700;
             color: #fff;
             letter-spacing: 0.5px;
+            animation: logo-glow 2.6s ease-in-out infinite;
+        }
+        @keyframes logo-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(133,183,235,0.35); }
+            50% { box-shadow: 0 0 0 10px rgba(133,183,235,0); }
         }
 
         .app-name {
-            font-size: 22px;
-            font-weight: 700;
+            font-size: 24px;
+            font-weight: 800;
             color: #fff;
             letter-spacing: 1px;
             margin-bottom: 4px;
+            text-shadow: 0 0 20px rgba(133, 183, 235, 0.5);
         }
 
         .app-sub {
@@ -134,19 +191,26 @@
         }
 
         .progress-track {
-            width: 180px;
-            height: 2px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 2px;
+            position: relative;
+            width: 200px;
+            height: 4px;
+            background: rgba(255,255,255,0.12);
+            border-radius: 999px;
             overflow: hidden;
             margin-bottom: 16px;
         }
 
         .progress-bar {
+            position: relative;
             height: 100%;
-            background: linear-gradient(90deg, #185FA5, #85B7EB);
-            border-radius: 2px;
-            animation: barLoad 2.2s ease-in-out infinite alternate;
+            background: linear-gradient(90deg, #185FA5, #85B7EB, #185FA5);
+            background-size: 200% auto;
+            border-radius: 999px;
+            animation: barLoad 2.2s ease-in-out infinite alternate, shimmer-move 2.5s linear infinite;
+            box-shadow: 0 0 10px rgba(133, 183, 235, 0.6);
+        }
+        @keyframes shimmer-move {
+            to { background-position: -200% center; }
         }
 
         .loading-text {
@@ -207,6 +271,55 @@
                 width: 100%
             }
         }
+
+        .loading-tip-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 300px;
+            margin-top: 30px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            backdrop-filter: blur(4px);
+        }
+        .loading-tip-icon {
+            flex-shrink: 0;
+            font-size: 20px;
+        }
+        .loading-tip-body {
+            min-width: 0;
+        }
+        .loading-tip-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #85B7EB;
+            margin-bottom: 2px;
+        }
+        .loading-tip-text {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #dce8f6;
+        }
+        /* Re-triggered on every rotation by the JS below (remove + reflow +
+           re-add), rather than a plain CSS transition, so each new tip fades
+           in fresh instead of only animating once on first paint. */
+        .loading-tip-icon.tip-enter,
+        .loading-tip-text.tip-enter {
+            animation: tip-fade-in 0.4s ease;
+        }
+        @keyframes tip-fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 420px) {
+            .loading-tip-card {
+                max-width: 240px;
+            }
+        }
     </style>
 </head>
 
@@ -214,7 +327,11 @@
     <div id="app">
         <!-- Loading splash — hidden once Blazor is ready -->
         <div id="blazor-loading">
+            <div class="loading-glow loading-glow--1"></div>
+            <div class="loading-glow loading-glow--2"></div>
+            <div class="loading-glow loading-glow--3"></div>
             <div class="loader-box">
+                <div class="loader-kicker"><span class="loader-kicker-dot"></span>National Commission of Senior Citizens</div>
                 <div class="logo-ring">
                     <svg class="spin-ring" width="80" height="80" viewBox="0 0 80 80">
                         <circle cx="40" cy="40" r="36" fill="none"
@@ -238,6 +355,18 @@
 
                 <div class="loading-text" id="loading-pct">Loading 0%</div>
                 <div class="loading-resource" id="loading-resource">Starting up...</div>
+
+                <!-- Rotating "did you know" tips — the whole point of this card is to
+                     give first-time visitors (whose WASM download can take a while on
+                     a slow connection) something worth reading instead of a bare
+                     spinner, and to sneak in a bit of product-tour along the way. -->
+                <div class="loading-tip-card">
+                    <div class="loading-tip-icon" id="loading-tip-icon">💡</div>
+                    <div class="loading-tip-body">
+                        <div class="loading-tip-label">Did you know?</div>
+                        <div class="loading-tip-text" id="loading-tip-text">Bulk import hundreds of grantee records from Excel in seconds.</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -398,6 +527,63 @@
             const pctText = document.getElementById('loading-pct');
             const resourceText = document.getElementById('loading-resource');
 
+            // Rotating "did you know" tips — first-time visitors are stuck
+            // watching this screen for however long the WASM payload takes
+            // on their connection, so give them something worth reading
+            // (and a quick product tour) instead of a bare spinner.
+            const tips = [
+                { icon: '📥', text: 'Bulk import hundreds of grantee records from Excel in seconds.' },
+                { icon: '🔍', text: 'Every new record is auto-checked for duplicates — name, birth date, OSCA ID, RRN.' },
+                { icon: '🎂', text: 'Grantees turning 80 are automatically flagged as newly eligible.' },
+                { icon: '📄', text: 'Generate CDRs, payrolls, and Certificates of Eligibility straight from validated records.' },
+                { icon: '🔔', text: 'Get instant alerts the moment a document is handed off to you.' },
+                { icon: '💬', text: 'Chat, call, and collaborate with your team — right inside the system.' },
+                { icon: '🏆', text: 'A weekly leaderboard turns everyday work into friendly competition.' },
+                { icon: '🔒', text: 'Two-factor authentication keeps every account secure.' },
+                { icon: '📊', text: 'See grantee counts and progress visualized across the whole region.' },
+                { icon: '⚡', text: 'Every hand-off, edit, and payment is logged — nothing slips through unnoticed.' },
+                { icon: '👥', text: 'Crossmatch an entire grantee list before importing — nothing saves until you say so.' },
+                { icon: '🗺️', text: 'A searchable directory covers senior citizen population and welfare data by municipality.' },
+                { icon: '🖐️', text: 'Biometric Daily Time Records are generated automatically from fingerprint punches.' },
+                { icon: '📌', text: 'Flag a record with a finding or compliance remark, with a full note history attached.' },
+                { icon: '📅', text: 'A shared calendar and sticky notes keep the whole team on the same page.' }
+            ];
+            const tipIcon = document.getElementById('loading-tip-icon');
+            const tipText = document.getElementById('loading-tip-text');
+            let lastTipIndex = -1;
+            let tipTimer = null;
+
+            function nextRandomTipIndex() {
+                if (tips.length <= 1) return 0;
+                let index;
+                do {
+                    index = Math.floor(Math.random() * tips.length);
+                } while (index === lastTipIndex);
+                return index;
+            }
+
+            function showRandomTip() {
+                if (!tipIcon || !tipText) return;
+                lastTipIndex = nextRandomTipIndex();
+                const tip = tips[lastTipIndex];
+                tipIcon.textContent = tip.icon;
+                tipText.textContent = tip.text;
+
+                // Restart the fade-in animation on every rotation (a class
+                // already present doesn't re-fire its animation, so drop it,
+                // force a reflow, then re-add it).
+                tipIcon.classList.remove('tip-enter');
+                tipText.classList.remove('tip-enter');
+                void tipIcon.offsetWidth;
+                tipIcon.classList.add('tip-enter');
+                tipText.classList.add('tip-enter');
+            }
+
+            if (tipIcon && tipText) {
+                showRandomTip();
+                tipTimer = setInterval(showRandomTip, 3500);
+            }
+
             function shortName(url) {
                 // Strip query string and path, keep just the filename
                 const clean = url.split('?')[0];
@@ -465,6 +651,7 @@
                 }
             }).then(function () {
                 if (resourceText) resourceText.textContent = 'Ready!';
+                if (tipTimer) clearInterval(tipTimer);
                 const splash = document.getElementById('blazor-loading');
                 if (splash) {
                     splash.style.opacity = '0';
