@@ -108,7 +108,8 @@
                     </div>
                     <div class="col-sm-3">
                         <label class="form-label small fw-bold">Prepared By (Position)</label>
-                        <input class="form-control form-control-sm" @bind="_editing.PreparedByPosition" />
+                        <input class="form-control form-control-sm" style="text-transform:uppercase;"
+                               @bind="_editing.PreparedByPosition" @bind:after="UppercasePreparedByPosition" />
                     </div>
                     <div class="col-sm-3">
                         <label class="form-label small fw-bold">Noted By (Name)</label>
@@ -313,15 +314,28 @@
         _editing = new DarReportUpsertDto
         {
             PreparedByName = profile?.FullName ?? string.Empty,
-            PreparedByPosition = profile?.Position ?? string.Empty,
+            PreparedByPosition = profile?.Position?.ToUpperInvariant() ?? string.Empty,
             NotedByName = previous?.NotedByName ?? string.Empty,
             NotedByPosition = previous?.NotedByPosition ?? string.Empty,
             UseSharedEssentialFunctions = previous?.UseSharedEssentialFunctions ?? true,
             SharedEssentialFunctions = previous?.SharedEssentialFunctions
         };
 
-        _periodStart = DateTime.Today;
-        _periodEnd = DateTime.Today.AddDays(14);
+        // DateTime.Today is Kind=Local — left as-is, System.Text.Json would
+        // serialize it WITH the browser's UTC offset (e.g. "+08:00"), and the
+        // server's default deserializer converts any offset-carrying date to
+        // UTC on the way in. For a UTC+8 user who never touches the date
+        // pickers (accepting these defaults as typed), that silently shifted
+        // both PeriodStart/PeriodEnd — and every entry date RegenerateEntries
+        // below derives from them — back one calendar day before the server
+        // ever saw them, which is exactly what caused a same-day-adjacent
+        // report (e.g. an Aug 16-31 report) to look like it overlapped a
+        // "Sept 1-15" period that was actually transmitted as Aug 31-Sept 14.
+        // SpecifyKind just relabels it Unspecified (same calendar date, no
+        // value change) so it round-trips as plain "yyyy-MM-dd..." with no
+        // offset, matching how a user-edited date picker value already behaves.
+        _periodStart = DateTime.SpecifyKind(DateTime.Today, DateTimeKind.Unspecified);
+        _periodEnd = DateTime.SpecifyKind(DateTime.Today.AddDays(14), DateTimeKind.Unspecified);
         RegenerateEntries();
     }
 
@@ -338,7 +352,7 @@
         {
             Id = report.Id,
             PreparedByName = report.PreparedByName,
-            PreparedByPosition = report.PreparedByPosition,
+            PreparedByPosition = report.PreparedByPosition?.ToUpperInvariant() ?? string.Empty,
             NotedByName = report.NotedByName,
             NotedByPosition = report.NotedByPosition,
             UseSharedEssentialFunctions = report.UseSharedEssentialFunctions,
@@ -399,6 +413,19 @@
     }
 
     private void CancelEditRow() => _editingRow = null;
+
+    // Prepared By (Position) is always uppercase — matches the printed DAR's
+    // convention (see DarPrintDocument.razor) and the resume/CS Form style
+    // used elsewhere in the system. Normalizes whatever the user typed (not
+    // just what auto-fills from the profile) so it stays uppercase however
+    // the value got there.
+    private void UppercasePreparedByPosition()
+    {
+        if (_editing is null) return;
+        var upper = (_editing.PreparedByPosition ?? string.Empty).ToUpperInvariant();
+        if (_editing.PreparedByPosition != upper)
+            _editing.PreparedByPosition = upper;
+    }
 
     // Applies the draft onto the row, then persists the WHOLE report (header
     // fields + every entry) — same pattern as WfpEca's per-row Save, which
