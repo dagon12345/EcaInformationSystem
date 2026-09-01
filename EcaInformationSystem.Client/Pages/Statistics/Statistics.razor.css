@@ -172,6 +172,20 @@
     }
 }
 
+/* ── Page header + Filters header — swaps the shared flat navy for a
+   gradient, scoped to just this page via Blazor's CSS isolation (the
+   compiled selector only matches elements Statistics.razor itself renders,
+   so .page-header-bar/.sf-header keep their plain look on every other page
+   that uses those same classes). Both are already dark navy with white
+   text in the shared styles — only the background itself changes here. ── */
+.page-header-bar {
+    background: linear-gradient(120deg, #0C447C, #042C53);
+}
+
+.sf-header {
+    background: linear-gradient(120deg, #0C447C, #042C53);
+}
+
 /* ── Progress-style bars animate their width growing in ─────────────── */
 .milestone-year-bar,
 .milestone-bar,

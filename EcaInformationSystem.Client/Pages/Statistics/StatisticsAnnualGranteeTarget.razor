@@ -1,0 +1,31 @@
+@* StatisticsAnnualGranteeTarget.razor — "Annual Grantee Target", split out of
+   Statistics.razor into its own page, same pattern as
+   StatisticsApplicationsValidations.razor: still a branch of Statistics
+   (same nav group, same audience), but its own page so Statistics.razor can
+   stay focused purely on filtering and retrieving the statistics report
+   instead of also carrying the per-region/fiscal-year target comparison.
+   The actual ring/legend/table/editor markup and all its logic already
+   lived entirely inside StatisticsAnnualTargetSection.razor — this page
+   just gives it its own header/route, nothing about the component itself
+   changed. *@
+@page "/statistics/annual-target"
+@using Microsoft.AspNetCore.Authorization
+@using EcaInformationSystem.Client.Pages.Statistics.StatisticsChildComponents
+@attribute [Authorize]
+
+<PageTitle>Annual Grantee Target</PageTitle>
+
+<div class="content-area">
+    @* ── Page Header ───────────────────────────────────────────────── *@
+    <div class="page-header-bar mb-3">
+        <div class="page-header-icon">
+            <i class="bi bi-bullseye"></i>
+        </div>
+        <div>
+            <div class="page-header-title">Annual Grantee Target</div>
+            <div class="page-header-sub">Target vs. actual-paid, by region and fiscal year</div>
+        </div>
+    </div>
+
+    <StatisticsAnnualTargetSection />
+</div>

@@ -3921,25 +3921,54 @@
 }
 
 .dash-stat-card {
+    position: relative;
+    overflow: hidden;
     border-radius: 12px;
     padding: 16px 18px;
     color: white;
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    box-shadow: 0 4px 14px rgba(0,0,0,.12);
+}
+
+/* Diagonal sheen across the top of every stat card — a static gradient
+   already reads as "premium dashboard tile" without needing motion, matching
+   the glass/gradient language used across the rest of the redesigned app. */
+.dash-stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0) 55%);
+    pointer-events: none;
+}
+
+/* Fades + rises into place, staggered per card via nth-child so a whole row
+   doesn't just pop in at once on report load — purely presentational, no
+   effect on layout since it settles at the card's normal position. */
+.dash-stat-card--anim {
+    animation: dash-stat-card-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-stat-card--anim:nth-child(1) { animation-delay: 0s; }
+.dash-stat-card--anim:nth-child(2) { animation-delay: 0.06s; }
+.dash-stat-card--anim:nth-child(3) { animation-delay: 0.12s; }
+.dash-stat-card--anim:nth-child(4) { animation-delay: 0.18s; }
+.dash-stat-card--anim:nth-child(5) { animation-delay: 0.24s; }
+@keyframes dash-stat-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .dash-stat-card--clickable {
     position: relative;
     cursor: pointer;
-    transition: transform .12s ease, box-shadow .12s ease;
+    transition: transform .15s ease, box-shadow .15s ease;
 }
 
     .dash-stat-card--clickable:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0,0,0,.18);
+        transform: translateY(-4px);
+        box-shadow: 0 10px 24px rgba(0,0,0,.22);
     }
 
     .dash-stat-card--clickable:active {
-        transform: translateY(0);
+        transform: translateY(-1px);
     }
 
 /* Small corner affordance so a clickable stat card doesn't look identical
@@ -3966,19 +3995,39 @@
 }
 
 .dash-stat-card--navy {
-    background: var(--navy);
+    background: linear-gradient(135deg, #0C447C, #042C53);
 }
 
 .dash-stat-card--green {
-    background: #15803d;
+    background: linear-gradient(135deg, #16a34a, #15803d);
 }
 
 .dash-stat-card--red {
-    background: #b91c1c;
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
 }
 
 .dash-stat-card--amber {
-    background: #b45309;
+    background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.dash-stat-card--gray {
+    background: linear-gradient(135deg, #64748b, #475569);
+}
+
+.dash-stat-card--cyan {
+    background: linear-gradient(135deg, #22d3ee, #0891b2);
+}
+
+.dash-stat-card--purple {
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+}
+
+.dash-stat-card--pink {
+    background: linear-gradient(135deg, #ec4899, #d63384);
+}
+
+.dash-stat-card--teal {
+    background: linear-gradient(135deg, #2dd4bf, #0d9488);
 }
 
 .dash-stat-icon {
@@ -3999,6 +4048,97 @@
     margin-top: 2px;
 }
 
+/* Secondary line under a stat value — a derived share/average, so a viewer
+   isn't left doing mental math against the "Total" card to make sense of
+   each status count. */
+.dash-stat-sub {
+    position: relative;
+    font-size: 11px;
+    opacity: .8;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+/* Section label above each stat-card group ("Grantee & Payment Status",
+   "Financial & Demographics") — gives the two groups of tiles a name
+   instead of one undifferentiated wall of color. */
+.dash-section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 4px 0 8px;
+}
+.dash-section-label i {
+    color: #378ADD;
+}
+
+.dash-stat-grid--cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+/* ── Gender Split card — one combined card (two-color ratio bar + a
+   clickable legend for each half) in place of three separate Male/Female/
+   %Female tiles, so the ratio reads visually instead of as three numbers
+   the viewer has to compare themselves. ─────────────────────────────── */
+.dash-stat-card--gender {
+    background: linear-gradient(135deg, #6d28d9, #831843);
+}
+.gender-split-bar-track {
+    display: flex;
+    width: 100%;
+    height: 14px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.15);
+    margin-bottom: 10px;
+}
+.gender-split-bar-male {
+    background: #60a5fa;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+    min-width: 4px;
+}
+.gender-split-bar-female {
+    background: #f472b6;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+    min-width: 4px;
+}
+.gender-split-bar-male:hover,
+.gender-split-bar-female:hover {
+    filter: brightness(1.15);
+}
+.gender-split-legend {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+}
+.gender-split-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.gender-split-legend-item--clickable {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px 6px;
+    margin: -2px -6px;
+    transition: background 0.15s ease;
+}
+.gender-split-legend-item--clickable:hover {
+    background: rgba(255,255,255,0.14);
+}
+.gender-split-legend-pct {
+    opacity: .75;
+}
+
 .dash-row {
     display: grid;
     grid-template-columns: 2fr 1fr;
@@ -4011,10 +4151,14 @@
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 1px 8px rgba(0,0,0,.06);
+    transition: box-shadow 0.2s ease;
+}
+.dash-card:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,.1);
 }
 
 .dash-card-header {
-    background: var(--navy);
+    background: linear-gradient(120deg, #0C447C, #042C53);
     color: white;
     font-size: 12px;
     font-weight: 700;
@@ -4184,11 +4328,13 @@
     border-radius: 8px;
     padding: 14px 16px;
     border: 1px solid #e9ecef;
-    transition: box-shadow 0.15s;
+    border-left: 3px solid #0d6efd;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
     .milestone-year-card:hover {
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.1);
     }
 
 .milestone-year-header {
@@ -4204,10 +4350,37 @@
     color: #212529;
 }
 
+.milestone-year-total-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
 .milestone-year-total {
     font-weight: 700;
     font-size: 18px;
     color: #0d6efd;
+}
+
+/* Year-over-year delta — derived from the same milestone-year data the
+   card already renders (see YoYDelta in Statistics.razor), so a viewer
+   sees "growing/shrinking vs last year" without hunting through the table
+   below to compare two rows themselves. */
+.milestone-year-yoy {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+.milestone-year-yoy--up {
+    color: #15803d;
+    background: #dcfce7;
+}
+.milestone-year-yoy--down {
+    color: #b91c1c;
+    background: #fee2e2;
 }
 
 .milestone-year-bar-track {
@@ -4247,11 +4420,26 @@
     flex-wrap: wrap;
 }
 
-    .milestone-year-breakdown .badge {
-        font-size: 10px;
-        font-weight: 500;
-        padding: 3px 7px;
-    }
+/* Age chips — replaces the old plain Bootstrap .badge pills with a
+   softer, tinted design that matches the rest of the redesigned page
+   (light fill + colored text/number, not a solid block of color). */
+.milestone-age-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+}
+.milestone-age-chip strong {
+    font-weight: 800;
+}
+.milestone-age-chip--80 { color: #1d4ed8; background: #dbeafe; }
+.milestone-age-chip--85 { color: #15803d; background: #dcfce7; }
+.milestone-age-chip--90 { color: #92400e; background: #fef3c7; }
+.milestone-age-chip--95 { color: #c2410c; background: #ffedd5; }
+.milestone-age-chip--100 { color: #b91c1c; background: #fee2e2; }
 
 /* ── Milestone Age Chart ────────────────────────────────────────── */
 .milestone-chart {
@@ -4367,9 +4555,14 @@
 }
 
 .age-cell-total {
+    display: inline-block;
     font-weight: 700;
     font-size: 13px;
     line-height: 1.2;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #eef6ff;
+    color: #0C447C;
 }
 
 .age-cell-split {
@@ -4395,7 +4588,10 @@
     color: #d63384;
 }
 
-/* ── Stat Table ────────────────────────────────────────────────── */
+/* ── Stat Table — Statistics-family tables (Province/Municipality/Payroll
+   Quarter breakdowns) get their own polish here: a gradient header instead
+   of flat Bootstrap table-dark, a hover accent per row, and a bolder TOTAL
+   row, all scoped to .stat-table so nothing outside Statistics is touched. */
 .stat-table {
     font-size: 13px;
 }
@@ -4413,8 +4609,23 @@
         vertical-align: middle;
     }
 
+    .stat-table thead.table-dark th {
+        background: linear-gradient(120deg, #0C447C, #042C53);
+        border-color: #042C53;
+    }
+
+    .stat-table tbody tr {
+        transition: background-color 0.12s ease;
+    }
+    .stat-table tbody tr:hover {
+        background-color: #eef6ff;
+    }
+
     .stat-table tfoot td {
-        background: #f8f9fa;
+        background: linear-gradient(120deg, #eef6ff, #e0edfb);
+        border-top: 2px solid #85B7EB;
+        font-weight: 800;
+        color: #042C53;
     }
 
 /* ── LGU Statistical Report — visually separate Endorsed/Validated/Variance

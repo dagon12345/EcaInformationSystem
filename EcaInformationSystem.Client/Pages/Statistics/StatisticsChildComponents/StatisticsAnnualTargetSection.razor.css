@@ -16,36 +16,70 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
 }
 
-.target-ring-goal i {
-    color: var(--navy, #0C447C);
-    font-size: 18px;
-    margin-bottom: 2px;
+.target-ring-goal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #0C447C;
+    background: linear-gradient(120deg, #eef6ff, #e0edfb);
+    border: 1px solid #cfe3f9;
+    border-radius: 999px;
+    padding: 4px 14px;
 }
 
 .target-ring-goal-value {
-    font-size: 28px;
+    font-size: 34px;
     font-weight: 800;
-    color: var(--navy, #0C447C);
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
-}
-
-.target-ring-goal-label {
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted, #6c757d);
+    background: linear-gradient(135deg, #042C53, #1d4ed8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .target-ring-goal-exceeded {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     margin-top: 2px;
     font-size: 11.5px;
-    font-weight: 600;
+    font-weight: 700;
     color: #15803d;
+    background: #dcfce7;
+    border-radius: 999px;
+    padding: 3px 10px;
+}
+
+/* Soft blurred backdrop glow behind the ring — pure depth/premium touch,
+   purely decorative (no data), gently pulsing so the ring doesn't just sit
+   static on the page. */
+.target-ring-glow-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.target-ring-glow {
+    position: absolute;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(55,138,221,0.22), transparent 70%);
+    filter: blur(8px);
+    animation: target-ring-glow-pulse 3.2s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes target-ring-glow-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.06); }
 }
 
 .target-ring {
@@ -60,6 +94,7 @@
     width: 260px;
     height: 260px;
     margin: 6px 0;
+    filter: drop-shadow(0 8px 20px rgba(4, 44, 83, 0.18));
 }
 
 .target-ring svg {
@@ -99,8 +134,8 @@
 }
 
 .target-ring-center-value {
-    font-size: 40px;
-    font-weight: 700;
+    font-size: 44px;
+    font-weight: 800;
     color: var(--text-main, #1a1a1a);
     line-height: 1.1;
     font-variant-numeric: tabular-nums;
@@ -124,25 +159,61 @@
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 22px;
+    gap: 12px;
     min-width: 0;
     margin-top: 4px;
 }
 
-.target-ring-legend-row {
+/* Legend rows redesigned as small tinted cards (matching the chip/card
+   language used across the rest of the redesigned Statistics page) instead
+   of plain dot + text rows — each color gets its own soft background so the
+   3-way split reads as clearly as the ring itself. */
+.target-ring-legend-card {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 10px;
     text-align: left;
+    padding: 10px 16px;
+    border-radius: 14px;
+    min-width: 190px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.target-ring-legend-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+.target-ring-legend-card--paid {
+    background: #f0faf4;
+    border: 1px solid #d3f0dd;
+}
+.target-ring-legend-card--behind {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+.target-ring-legend-card--notdue {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
 }
 
-.target-ring-dot {
-    width: 10px;
-    height: 10px;
+.target-ring-legend-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    margin-top: 4px;
+    font-size: 15px;
     flex-shrink: 0;
-    box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+    color: #fff;
+}
+.target-ring-legend-card--paid .target-ring-legend-icon {
+    background: linear-gradient(135deg, #22c55e, #15803d);
+}
+.target-ring-legend-card--behind .target-ring-legend-icon {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+.target-ring-legend-card--notdue .target-ring-legend-icon {
+    background: linear-gradient(135deg, #94a3b8, #64748b);
 }
 
 .target-ring-legend-text {
@@ -192,3 +263,57 @@
         text-align: left;
     }
 }
+
+/* Pace-projection + last-year-trend chips — extra context beyond the ring
+   itself, sitting between the ring and the "Set by ..." attribution line. */
+.target-info-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+.target-info-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--text-main, #1a1a1a);
+    background: #f8fafc;
+    border: 1px solid #e9ecef;
+    border-radius: 999px;
+    padding: 6px 14px;
+}
+.target-info-chip i {
+    color: var(--navy, #0C447C);
+}
+.target-info-chip-sub {
+    color: var(--text-muted, #6c757d);
+    font-size: 11.5px;
+}
+.target-info-chip-delta {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    margin-left: 4px;
+}
+.target-info-chip-delta--up { color: #15803d; }
+.target-info-chip-delta--down { color: #b91c1c; }
+
+/* Gradient header, scoped to just this component (not the shared
+   .sys-card-header used across the rest of the app) — matches the navy
+   gradient language used on the redesigned dash-stat-card/dash-card-header
+   tiles above, instead of a flat color that reads as an older, unrelated
+   section of the page. */
+.annual-target-header {
+    background: linear-gradient(120deg, #0C447C, #042C53) !important;
+}
+
+/* Left accent per quarter row so "on pace" vs "behind" reads at a glance
+   down the table, not just from the badge in the last column. Applied to
+   the first cell rather than the <tr> itself — a border on a table row
+   doesn't reliably render with border-collapse across browsers, a cell's
+   border does. */
+.quarter-row--met td:first-child { border-left: 3px solid #15803d; }
+.quarter-row--behind td:first-child { border-left: 3px solid #b91c1c; }
+.quarter-row--none td:first-child { border-left: 3px solid #adb5bd; }

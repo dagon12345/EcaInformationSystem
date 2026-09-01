@@ -37,13 +37,6 @@
         Counts reflect data exactly as encoded. Incomplete or uncleansed records can skew these figures — please verify and cleanse data for accurate statistics.
     </div>
 
-    @* Annual Grantee Target — set per-region by Admin/SuperAdmin, compares
-       monthly targets against actual grantees paid (PaymentHistory.PaymentDate).
-       Full width now that the map has moved down next to the filters. *@
-    <div class="mb-3">
-        <StatisticsAnnualTargetSection />
-    </div>
-
     @* ── Error banner — a small persistent alert instead of swapping out the
          whole page, so filters/cards stay mounted (and thus stand still)
          even when a load fails. ── *@
@@ -251,8 +244,14 @@
              so a refresh/re-apply reads as "updating" rather than the whole
              page vanishing and rebuilding. ── *@
         <div class="stats-report-content @(_isLoading ? "stats-report-content--loading" : "")">
-        @* ── Summary Cards — click a count to audit exactly who's included ── *@
+        @* ── Summary Cards — click a count to audit exactly who's included ──
+             Reorganized into two purpose-labeled groups (payment status vs.
+             financial/demographic) instead of one undifferentiated wall of
+             tiles, and each status tile now shows its share of the total
+             right under the count — all derived from the same _report
+             values already bound above, nothing new fetched. ── *@
         <div id="stats-countup-root">
+        <div class="dash-section-label"><i class="bi bi-clipboard2-data"></i> Grantee &amp; Payment Status</div>
         <div class="dash-stat-grid dash-stat-grid--cols-5 mb-3">
             <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("all", "Total Grantees")' title="Click to view the grantees in this count">
@@ -260,6 +259,7 @@
                 <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.TotalBeneficiaries">0</div>
                 <div class="dash-stat-label">Total Grantees</div>
+                <div class="dash-stat-sub">All records matching filters</div>
             </div>
             <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("paid", "Paid Grantees")' title="Click to view the grantees in this count">
@@ -267,6 +267,7 @@
                 <div class="dash-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.PaidCount">0</div>
                 <div class="dash-stat-label">Paid</div>
+                <div class="dash-stat-sub">@SharePct(_report.PaidCount)% of total</div>
             </div>
             <div class="dash-stat-card dash-stat-card--red dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("unpaid", "Unpaid Grantees")' title="Click to view the grantees in this count">
@@ -274,6 +275,7 @@
                 <div class="dash-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.UnpaidCount">0</div>
                 <div class="dash-stat-label">Unpaid</div>
+                <div class="dash-stat-sub">@SharePct(_report.UnpaidCount)% of total</div>
             </div>
             <div class="dash-stat-card dash-stat-card--amber dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("pending", "Pending Grantees")' title="Click to view the grantees in this count">
@@ -281,42 +283,59 @@
                 <div class="dash-stat-icon"><i class="bi bi-clock-fill"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.PendingCount">0</div>
                 <div class="dash-stat-label">Pending</div>
+                <div class="dash-stat-sub">@SharePct(_report.PendingCount)% of total</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#6c757d;"
+            <div class="dash-stat-card dash-stat-card--gray dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("notapplicable", "N/A Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-dash-circle-fill"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.NotApplicableCount">0</div>
                 <div class="dash-stat-label">N/A</div>
+                <div class="dash-stat-sub">@SharePct(_report.NotApplicableCount)% of total</div>
             </div>
         </div>
 
-        <div class="dash-stat-grid mb-3">
-            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#0dcaf0;"
+        <div class="dash-section-label"><i class="bi bi-cash-coin"></i> Financial &amp; Demographics</div>
+        <div class="dash-stat-grid dash-stat-grid--cols-2 mb-3">
+            <div class="dash-stat-card dash-stat-card--cyan dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("paid", "Grantees Included in Total Disbursed")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
                 <div class="dash-stat-icon"><i class="bi bi-cash-stack"></i></div>
                 <div class="dash-stat-value" data-countup="@_report.TotalDisbursement.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-countup-prefix="₱">₱0</div>
                 <div class="dash-stat-label">Total Disbursed</div>
+                <div class="dash-stat-sub">@(_report.PaidCount > 0 ? $"₱{(_report.TotalDisbursement / _report.PaidCount):N0} avg. per paid grantee" : "No paid grantees yet")</div>
             </div>
-            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#6f42c1;"
-                 @onclick='() => OpenMembersModalAsync("male", "Male Grantees")' title="Click to view the grantees in this count">
-                <i class="bi bi-search dash-stat-card-hint"></i>
-                <div class="dash-stat-icon"><i class="bi bi-gender-male"></i></div>
-                <div class="dash-stat-value" data-countup="@_report.TotalMale">0</div>
-                <div class="dash-stat-label">Male</div>
-            </div>
-            <div class="dash-stat-card dash-stat-card--clickable dash-stat-card--anim" style="background:#d63384;"
-                 @onclick='() => OpenMembersModalAsync("female", "Female Grantees")' title="Click to view the grantees in this count">
-                <i class="bi bi-search dash-stat-card-hint"></i>
-                <div class="dash-stat-icon"><i class="bi bi-gender-female"></i></div>
-                <div class="dash-stat-value" data-countup="@_report.TotalFemale">0</div>
-                <div class="dash-stat-label">Female</div>
-            </div>
-            <div class="dash-stat-card dash-stat-card--anim" style="background:#20c997;">
-                <div class="dash-stat-icon"><i class="bi bi-people"></i></div>
-                <div class="dash-stat-value" data-countup="@((_report.TotalMale + _report.TotalFemale) > 0 ? Math.Round((double)_report.TotalFemale / (_report.TotalMale + _report.TotalFemale) * 100) : 0)" data-countup-suffix="%">0%</div>
-                <div class="dash-stat-label">% Female</div>
+
+            @* ── Gender Split — one card in place of the old separate Male/
+                 Female/%Female tiles, with a two-color bar so the ratio reads
+                 at a glance instead of three numbers the viewer has to do
+                 the math on themselves. Each half stays clickable, same
+                 drill-down as before. ── *@
+            <div class="dash-stat-card dash-stat-card--gender dash-stat-card--anim">
+                <div class="dash-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="dash-stat-label mb-2">Gender Split</div>
+                <div class="gender-split-bar-track">
+                    <div class="gender-split-bar-male" style="width:@(GenderPct(_report.TotalMale))%;"
+                         @onclick='() => OpenMembersModalAsync("male", "Male Grantees")' title="Male — click to view">
+                    </div>
+                    <div class="gender-split-bar-female" style="width:@(GenderPct(_report.TotalFemale))%;"
+                         @onclick='() => OpenMembersModalAsync("female", "Female Grantees")' title="Female — click to view">
+                    </div>
+                </div>
+                <div class="gender-split-legend">
+                    <span class="gender-split-legend-item gender-split-legend-item--clickable"
+                          @onclick='() => OpenMembersModalAsync("male", "Male Grantees")'>
+                        <i class="bi bi-gender-male"></i> Male
+                        <strong data-countup="@_report.TotalMale">0</strong>
+                        <span class="gender-split-legend-pct">(@GenderPct(_report.TotalMale)%)</span>
+                    </span>
+                    <span class="gender-split-legend-item gender-split-legend-item--clickable"
+                          @onclick='() => OpenMembersModalAsync("female", "Female Grantees")'>
+                        <i class="bi bi-gender-female"></i> Female
+                        <strong data-countup="@_report.TotalFemale">0</strong>
+                        <span class="gender-split-legend-pct">(@GenderPct(_report.TotalFemale)%)</span>
+                    </span>
+                </div>
             </div>
         </div>
         </div>
@@ -330,6 +349,9 @@
                     Milestone Year Summary
                 </div>
                 <div class="sys-card-body">
+                    <div style="position:relative; height:220px; margin-bottom:18px;">
+                        <canvas id="milestone-year-chart"></canvas>
+                    </div>
                     <div class="milestone-year-grid">
                         @foreach (var year in _report.MilestoneYearSummary.OrderByDescending(x => x.Year))
                         {
@@ -340,10 +362,21 @@
                                 ? (double)year.TotalCount / maxYearCount * 100
                                 : 0;
 
+                            var yoy = YoYDelta(year.Year);
+
                             <div class="milestone-year-card">
                                 <div class="milestone-year-header">
                                     <span class="milestone-year-label">@year.Year</span>
-                                    <span class="milestone-year-total">@year.TotalCount.ToString("N0")</span>
+                                    <span class="milestone-year-total-wrap">
+                                        <span class="milestone-year-total">@year.TotalCount.ToString("N0")</span>
+                                        @if (yoy.HasValue)
+                                        {
+                                            <span class="milestone-year-yoy @(yoy.Value >= 0 ? "milestone-year-yoy--up" : "milestone-year-yoy--down")">
+                                                <i class="bi @(yoy.Value >= 0 ? "bi-arrow-up-short" : "bi-arrow-down-short")"></i>
+                                                @Math.Abs(yoy.Value)% vs @(year.Year - 1)
+                                            </span>
+                                        }
+                                    </span>
                                 </div>
                                 <div class="milestone-year-bar-track">
                                     <div class="milestone-year-bar milestone-year-bar--@GetYearColor(year.Year)"
@@ -351,11 +384,11 @@
                                     </div>
                                 </div>
                                 <div class="milestone-year-breakdown">
-                                    <span class="badge" style="background:#0d6efd;">80: @year.Age80Count</span>
-                                    <span class="badge" style="background:#198754;">85: @year.Age85Count</span>
-                                    <span class="badge" style="background:#ffc107;color:#000;">90: @year.Age90Count</span>
-                                    <span class="badge" style="background:#fd7e14;">95: @year.Age95Count</span>
-                                    <span class="badge" style="background:#dc3545;">100: @year.Age100Count</span>
+                                    <span class="milestone-age-chip milestone-age-chip--80">80 <strong>@year.Age80Count</strong></span>
+                                    <span class="milestone-age-chip milestone-age-chip--85">85 <strong>@year.Age85Count</strong></span>
+                                    <span class="milestone-age-chip milestone-age-chip--90">90 <strong>@year.Age90Count</strong></span>
+                                    <span class="milestone-age-chip milestone-age-chip--95">95 <strong>@year.Age95Count</strong></span>
+                                    <span class="milestone-age-chip milestone-age-chip--100">100 <strong>@year.Age100Count</strong></span>
                                 </div>
                             </div>
                         }
@@ -369,6 +402,15 @@
                 <div class="sys-card-header">
                     <i class="bi bi-calendar3-range me-2"></i>
                     Payroll Quarter Breakdown
+                </div>
+                @* ── Suggested addition: this data had a table but no chart —
+                     a quick bar of disbursement per quarter/fiscal-year makes
+                     "which quarter cost the most" readable at a glance instead
+                     of scanning the ₱ column row by row. ── *@
+                <div class="sys-card-body pb-0">
+                    <div style="position:relative; height:200px;">
+                        <canvas id="quarter-disbursement-chart"></canvas>
+                    </div>
                 </div>
                 <div class="sys-card-body p-0">
                     <table class="table table-sm mb-0 stat-table">
@@ -407,23 +449,8 @@
                     Distribution by Milestone Age
                 </div>
                 <div class="dash-card-body">
-                    <div class="milestone-chart">
-                        @foreach (var item in _report.AgeDistribution)
-                        {
-                            var pct = _report.TotalBeneficiaries > 0
-                                ? (double)item.Count / _report.TotalBeneficiaries * 100
-                                : 0;
-                            <div class="milestone-bar-wrap">
-                                <span class="milestone-bar-label">@item.Age</span>
-                                <div class="milestone-bar-track">
-                                    <div class="milestone-bar milestone-bar--@GetAgeColor(item.Age)"
-                                         style="width:@Math.Max(4, pct)%;">
-                                        <span class="milestone-bar-count">@item.Count</span>
-                                    </div>
-                                </div>
-                                <span class="milestone-bar-pct">@pct.ToString("F1")%</span>
-                            </div>
-                        }
+                    <div style="position:relative; height:260px;">
+                        <canvas id="age-distribution-chart"></canvas>
                     </div>
                 </div>
             </div>
@@ -435,38 +462,8 @@
                     Payment Status Breakdown
                 </div>
                 <div class="dash-card-body dash-card-body--center">
-                    <div class="dash-chart">
-                        @{
-                            var maxPayment = Math.Max(1, new[] { _report.PaidCount, _report.UnpaidCount, _report.PendingCount, _report.NotApplicableCount }.Max());
-                        }
-                        <div class="dash-chart-bar-wrap">
-                            <span class="dash-chart-bar-value">@_report.PaidCount.ToString("N0")</span>
-                            <div class="dash-chart-bar dash-chart-bar--green"
-                                 style="height:@(GetBarHeight(_report.PaidCount, maxPayment))%;">
-                            </div>
-                            <span class="dash-chart-bar-label">Paid</span>
-                        </div>
-                        <div class="dash-chart-bar-wrap">
-                            <span class="dash-chart-bar-value">@_report.UnpaidCount.ToString("N0")</span>
-                            <div class="dash-chart-bar dash-chart-bar--red"
-                                 style="height:@(GetBarHeight(_report.UnpaidCount, maxPayment))%;">
-                            </div>
-                            <span class="dash-chart-bar-label">Unpaid</span>
-                        </div>
-                        <div class="dash-chart-bar-wrap">
-                            <span class="dash-chart-bar-value">@_report.PendingCount.ToString("N0")</span>
-                            <div class="dash-chart-bar dash-chart-bar--amber"
-                                 style="height:@(GetBarHeight(_report.PendingCount, maxPayment))%;">
-                            </div>
-                            <span class="dash-chart-bar-label">Pending</span>
-                        </div>
-                        <div class="dash-chart-bar-wrap">
-                            <span class="dash-chart-bar-value">@_report.NotApplicableCount.ToString("N0")</span>
-                            <div class="dash-chart-bar dash-chart-bar--gray"
-                                 style="height:@(GetBarHeight(_report.NotApplicableCount, maxPayment))%;">
-                            </div>
-                            <span class="dash-chart-bar-label">N/A</span>
-                        </div>
+                    <div style="position:relative; width:100%; height:260px;">
+                        <canvas id="payment-status-chart"></canvas>
                     </div>
                 </div>
             </div>
@@ -845,6 +842,58 @@
         _shouldAnimateCounters = false;
         try { await JS.InvokeVoidAsync("statsCountUp.run", "stats-countup-root"); }
         catch (Exception ex) { Console.WriteLine($"statsCountUp.run failed: {ex.Message}"); }
+
+        await RenderChartsAsync();
+    }
+
+    // Real Chart.js charts instead of the old CSS-bar approximations —
+    // fired on the same trigger as the count-up animation (right after a
+    // successful report load), so the charts and numbers refresh together.
+    private async Task RenderChartsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("statsCharts.renderPaymentStatus", "payment-status-chart", new
+            {
+                paid = _report.PaidCount,
+                unpaid = _report.UnpaidCount,
+                pending = _report.PendingCount,
+                notApplicable = _report.NotApplicableCount
+            });
+
+            await JS.InvokeVoidAsync("statsCharts.renderAgeDistribution", "age-distribution-chart",
+                _report.AgeDistribution.Select(a => new { age = a.Age, count = a.Count }).ToList());
+
+            if (_report.MilestoneYearSummary.Any())
+            {
+                await JS.InvokeVoidAsync("statsCharts.renderMilestoneYears", "milestone-year-chart",
+                    _report.MilestoneYearSummary.OrderBy(y => y.Year).Select(y => new
+                    {
+                        year = y.Year,
+                        age80 = y.Age80Count,
+                        age85 = y.Age85Count,
+                        age90 = y.Age90Count,
+                        age95 = y.Age95Count,
+                        age100 = y.Age100Count
+                    }).ToList());
+            }
+
+            if (_report.PayrollQuarterBreakdown.Any())
+            {
+                await JS.InvokeVoidAsync("statsCharts.renderQuarterDisbursement", "quarter-disbursement-chart",
+                    _report.PayrollQuarterBreakdown
+                        .OrderBy(q => q.FiscalYear).ThenBy(q => q.Quarter)
+                        .Select(q => new
+                        {
+                            label = $"FY{q.FiscalYear} Q{q.Quarter}",
+                            disbursed = q.TotalDisbursement
+                        }).ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"RenderChartsAsync failed: {ex.Message}");
+        }
     }
 
     private async Task LoadRegionsAsync()
@@ -1146,8 +1195,6 @@
 
     private void ToggleMunicipalityTable() => _showMunicipalityTable = !_showMunicipalityTable;
 
-    private static int GetBarHeight(int value, int max) =>
-        max == 0 ? 0 : Math.Max(4, (int)Math.Round((double)value / max * 100));
 
     // Renders a milestone-age table cell as the bracket's total count plus a
     // small Male/Female split beneath it, e.g. "12" over "M 7 · F 5" — keeps
@@ -1173,16 +1220,6 @@
         builder.CloseElement();
     };
 
-    private static string GetAgeColor(int age) => age switch
-    {
-        80 => "80",
-        85 => "85",
-        90 => "90",
-        95 => "95",
-        100 => "100",
-        _ => "80"
-    };
-
     private static string GetYearColor(int year) => year switch
     {
         2024 => "2024",
@@ -1190,6 +1227,33 @@
         2026 => "2026",
         _ => "default"
     };
+
+    // ── Presentation-only derived percentages ──────────────────────────
+    // Same values already bound on the cards above — just expressed as a
+    // share of the total so a viewer isn't left doing the division
+    // themselves. No new data, no change to what's fetched or counted.
+    private int SharePct(int count) =>
+        _report.TotalBeneficiaries > 0 ? (int)Math.Round((double)count / _report.TotalBeneficiaries * 100) : 0;
+
+    private int GenderPct(int count)
+    {
+        var totalGendered = _report.TotalMale + _report.TotalFemale;
+        return totalGendered > 0 ? (int)Math.Round((double)count / totalGendered * 100) : 0;
+    }
+
+    // Year-over-year % change for the Milestone Year Summary cards — purely
+    // derived by comparing adjacent years already present in the same
+    // MilestoneYearSummary list the cards already render from (no new
+    // fetch). Null when there's no prior year in the loaded set, or the
+    // prior year had zero grantees (percentage change would be undefined).
+    private int? YoYDelta(int year)
+    {
+        var current = _report.MilestoneYearSummary.FirstOrDefault(y => y.Year == year);
+        var previous = _report.MilestoneYearSummary.FirstOrDefault(y => y.Year == year - 1);
+        if (current is null || previous is null || previous.TotalCount == 0) return null;
+
+        return (int)Math.Round((double)(current.TotalCount - previous.TotalCount) / previous.TotalCount * 100);
+    }
 
     // ── DTOs ──────────────────────────────────────────────────────────
     public class RegionLookupDto

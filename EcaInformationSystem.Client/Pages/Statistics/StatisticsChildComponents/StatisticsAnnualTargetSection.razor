@@ -12,7 +12,7 @@
 @inject ToastService Toast
 
 <div class="sys-card mb-3">
-    <div class="sys-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="sys-card-header annual-target-header d-flex align-items-center justify-content-between flex-wrap gap-2">
         <span><i class="bi bi-bullseye me-2"></i>Annual Grantee Target@(_comparison?.RegionName is { } rn ? $" — {rn}" : "")</span>
         <div class="d-flex align-items-center gap-2">
             <select class="form-select form-select-sm" style="width:auto;" @bind="SelectedFiscalYear">
@@ -70,56 +70,115 @@
                    this component mounts, i.e. every time the user navigates here. *@
                 <div class="target-ring-wrap mb-2">
                     <div class="target-ring-goal">
-                        <i class="bi bi-flag-fill"></i>
+                        <span class="target-ring-goal-badge"><i class="bi bi-flag-fill"></i> Full-Year Target</span>
                         <span class="target-ring-goal-value">@_comparison.AnnualTarget.ToString("N0")</span>
-                        <span class="target-ring-goal-label">Full-Year Target</span>
                         @if (_comparison.TotalPaidYtd > _comparison.AnnualTarget)
                         {
                             <span class="target-ring-goal-exceeded">
-                                Exceeded by @((_comparison.TotalPaidYtd - _comparison.AnnualTarget).ToString("N0"))
+                                <i class="bi bi-trophy-fill"></i> Exceeded by @((_comparison.TotalPaidYtd - _comparison.AnnualTarget).ToString("N0"))
                             </span>
                         }
                     </div>
 
-                    <div class="target-ring target-ring--merged">
-                        <svg viewBox="0 0 200 200">
-                            <circle class="target-ring-track" cx="100" cy="100" r="@RingRadius"></circle>
-                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
-                                    style="stroke:#15803d; stroke-dasharray:@SegDashArray(PaidCapped); stroke-dashoffset:0;"></circle>
-                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
-                                    style="stroke:#b91c1c; stroke-dasharray:@SegDashArray(DueUnpaid); stroke-dashoffset:@SegDashOffset(PaidCapped);"></circle>
-                            <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
-                                    style="stroke:#cbd2dc; stroke-dasharray:@SegDashArray(NotYetDue); stroke-dashoffset:@SegDashOffset(PaidCapped + DueUnpaid);"></circle>
-                        </svg>
-                        <div class="target-ring-center">
-                            <div class="target-ring-center-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
-                            <div class="target-ring-center-sub">@FormatPercent(PaidPercent) of @_comparison.AnnualTarget.ToString("N0")</div>
+                    <div class="target-ring-glow-wrap">
+                        <div class="target-ring-glow"></div>
+                        <div class="target-ring target-ring--merged">
+                            <svg viewBox="0 0 200 200">
+                                <defs>
+                                    <linearGradient id="target-grad-paid" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#22c55e" />
+                                        <stop offset="100%" stop-color="#15803d" />
+                                    </linearGradient>
+                                    <linearGradient id="target-grad-behind" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#ef4444" />
+                                        <stop offset="100%" stop-color="#b91c1c" />
+                                    </linearGradient>
+                                    <linearGradient id="target-grad-notdue" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#e2e8f0" />
+                                        <stop offset="100%" stop-color="#b6c2d1" />
+                                    </linearGradient>
+                                </defs>
+                                <circle class="target-ring-track" cx="100" cy="100" r="@RingRadius"></circle>
+                                <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                        style="stroke:url(#target-grad-paid); stroke-dasharray:@SegDashArray(PaidCapped); stroke-dashoffset:0;"></circle>
+                                <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                        style="stroke:url(#target-grad-behind); stroke-dasharray:@SegDashArray(DueUnpaid); stroke-dashoffset:@SegDashOffset(PaidCapped);"></circle>
+                                <circle class="target-ring-fill" cx="100" cy="100" r="@RingRadius"
+                                        style="stroke:url(#target-grad-notdue); stroke-dasharray:@SegDashArray(NotYetDue); stroke-dashoffset:@SegDashOffset(PaidCapped + DueUnpaid);"></circle>
+                            </svg>
+                            <div class="target-ring-center">
+                                <div class="target-ring-center-value">@_comparison.TotalPaidYtd.ToString("N0")</div>
+                                <div class="target-ring-center-sub">@FormatPercent(PaidPercent) of @_comparison.AnnualTarget.ToString("N0")</div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="target-ring-legend target-ring-legend--row">
-                        <div class="target-ring-legend-row target-ring-legend-row--anim">
-                            <span class="target-ring-dot" style="background:#15803d;"></span>
+                        <div class="target-ring-legend-card target-ring-legend-card--paid target-ring-legend-row--anim">
+                            <div class="target-ring-legend-icon"><i class="bi bi-check-circle-fill"></i></div>
                             <span class="target-ring-legend-text">
                                 <strong>@_comparison.TotalPaidYtd.ToString("N0")</strong> Paid
                                 <span class="target-ring-legend-sub">Through @ThroughQuarterLabel</span>
                             </span>
                         </div>
-                        <div class="target-ring-legend-row target-ring-legend-row--anim">
-                            <span class="target-ring-dot" style="background:#b91c1c;"></span>
+                        <div class="target-ring-legend-card target-ring-legend-card--behind target-ring-legend-row--anim">
+                            <div class="target-ring-legend-icon"><i class="bi @(DueUnpaid > 0 ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill")"></i></div>
                             <span class="target-ring-legend-text">
                                 <strong>@DueUnpaid.ToString("N0")</strong> @(DueUnpaid > 0 ? "Behind Pace" : "On Pace")
                                 <span class="target-ring-legend-sub">Due through @ThroughQuarterLabel, not yet paid</span>
                             </span>
                         </div>
-                        <div class="target-ring-legend-row target-ring-legend-row--anim">
-                            <span class="target-ring-dot" style="background:#cbd2dc;"></span>
+                        <div class="target-ring-legend-card target-ring-legend-card--notdue target-ring-legend-row--anim">
+                            <div class="target-ring-legend-icon"><i class="bi bi-hourglass-split"></i></div>
                             <span class="target-ring-legend-text">
                                 <strong>@NotYetDue.ToString("N0")</strong> Not Yet Due
                                 <span class="target-ring-legend-sub">Remaining quarters this fiscal year</span>
                             </span>
                         </div>
                     </div>
+                </div>
+
+                @* ── Extra context beyond the ring itself: a pace projection
+                     (pure math on numbers already in _comparison — no new
+                     fetch) and a same-endpoint lookup of last fiscal year's
+                     comparison for a trend chip. Both best-effort — if last
+                     year has no target on file, that chip just doesn't
+                     render instead of showing a misleading comparison. ── *@
+                <div class="target-info-chips">
+                    @if (ThroughQuarter > 0 && ProjectedYearEnd is { } projected)
+                    {
+                        <div class="target-info-chip">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <span>
+                                At this pace, projected to reach <strong>@projected.ToString("N0")</strong> by year-end
+                                <span class="target-info-chip-sub">(@FormatPercent(_comparison.AnnualTarget > 0 ? (double)projected / _comparison.AnnualTarget * 100 : 0) of target)</span>
+                            </span>
+                        </div>
+                    }
+                    @if (_previousYearComparison is { HasTarget: true } prev)
+                    {
+                        @* Same-quarter-cutoff comparison, not prior year's full-year
+                           total — sums only the prior year's quarters up through
+                           the same ThroughQuarter this year is being measured
+                           against, so it's an honest apples-to-apples "at this
+                           point in the year" comparison rather than partial vs whole. *@
+                        var prevThroughSamePoint = prev.Quarterly.Where(q => q.Quarter <= ThroughQuarter).Sum(q => q.PaidCount);
+                        var delta = prevThroughSamePoint > 0
+                            ? (int)Math.Round((double)(_comparison.TotalPaidYtd - prevThroughSamePoint) / prevThroughSamePoint * 100)
+                            : (int?)null;
+                        <div class="target-info-chip">
+                            <i class="bi bi-calendar2-week"></i>
+                            <span>
+                                FY@(SelectedFiscalYear - 1) through @ThroughQuarterLabel: <strong>@prevThroughSamePoint.ToString("N0")</strong> paid
+                                @if (delta.HasValue)
+                                {
+                                    <span class="target-info-chip-delta @(delta.Value >= 0 ? "target-info-chip-delta--up" : "target-info-chip-delta--down")">
+                                        <i class="bi @(delta.Value >= 0 ? "bi-arrow-up-short" : "bi-arrow-down-short")"></i>@Math.Abs(delta.Value)%
+                                    </span>
+                                }
+                            </span>
+                        </div>
+                    }
                 </div>
 
                 @if (_comparison.DateSet is not null)
@@ -156,7 +215,8 @@
                             @foreach (var q in _comparison.Quarterly)
                             {
                                 var variance = q.PaidCount - q.Target;
-                                <tr>
+                                var rowAccent = q.Target == 0 ? "quarter-row--none" : q.PaidCount >= q.Target ? "quarter-row--met" : "quarter-row--behind";
+                                <tr class="@rowAccent">
                                     <td class="fw-semibold">@q.QuarterLabel <span class="text-muted small">(@QuarterMonthRange(q.Quarter - 1))</span></td>
                                     <td class="text-end">@q.Target.ToString("N0")</td>
                                     <td class="text-end">@q.PaidCount.ToString("N0")</td>
@@ -304,6 +364,12 @@
     private string _pendingActionMessage = string.Empty;
 
     private AnnualTargetComparisonDto? _comparison;
+    // Best-effort lookup of the prior fiscal year's comparison, via the same
+    // existing api/AnnualGranteeTarget/{fiscalYear} endpoint already used
+    // above — just called again with fiscalYear-1, purely to power the
+    // "vs last year" trend chip. Null (and the chip just doesn't render) if
+    // the prior year has no target on file or the call fails.
+    private AnnualTargetComparisonDto? _previousYearComparison;
 
     private int SelectedFiscalYear
     {
@@ -348,6 +414,15 @@
 
     private double NotYetDue => _comparison is null ? 0
         : Math.Max(0, _comparison.AnnualTarget - PaidCapped - DueUnpaid);
+
+    // Simple run-rate projection: (paid so far ÷ quarters elapsed) × 4 —
+    // pure math on _comparison's own numbers, no new data. Null before Q1
+    // has even started (ThroughQuarter == 0) or once the year's fully
+    // elapsed (the actual total is already the real number, no need to
+    // project it).
+    private int? ProjectedYearEnd => _comparison is null || ThroughQuarter is 0 or 4
+        ? null
+        : (int)Math.Round((double)_comparison.TotalPaidYtd / ThroughQuarter * 4);
 
     // The ring's <svg>/<circle> elements are written as literal markup above
     // (not via MarkupString/RenderFragment) so Blazor's CSS-isolation
@@ -407,6 +482,7 @@
     {
         _isLoading = true;
         _loadError = null;
+        _previousYearComparison = null;
         try
         {
             _comparison = await Http.GetFromJsonAsync<AnnualTargetComparisonDto>($"api/AnnualGranteeTarget/{_fiscalYear}");
@@ -420,6 +496,20 @@
             _isLoading = false;
             StateHasChanged();
             _ = AnimateRingsInAsync();
+        }
+
+        // Best-effort, same endpoint, previous year — powers the "vs last
+        // year" trend chip only. Never blocks or fails the main load above;
+        // if the region simply has no target on file for that year (or the
+        // call errors), the chip just doesn't render.
+        try
+        {
+            _previousYearComparison = await Http.GetFromJsonAsync<AnnualTargetComparisonDto>($"api/AnnualGranteeTarget/{_fiscalYear - 1}");
+            StateHasChanged();
+        }
+        catch
+        {
+            _previousYearComparison = null;
         }
     }
 
