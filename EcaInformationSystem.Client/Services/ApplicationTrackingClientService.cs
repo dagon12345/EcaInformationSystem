@@ -26,6 +26,7 @@ namespace EcaInformationSystem.Client.Services
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
         public int PendingForMeCount { get; private set; }
+        public List<ApplicationBatchDto> PendingForMeItems { get; private set; } = new();
 
         public ApplicationTrackingClientService(HttpClient http, IJSRuntime js)
         {
@@ -92,6 +93,7 @@ namespace EcaInformationSystem.Client.Services
 
             _currentUserId = null;
             PendingForMeCount = 0;
+            PendingForMeItems = new();
             OnChange?.Invoke();
         }
 
@@ -105,10 +107,11 @@ namespace EcaInformationSystem.Client.Services
             try
             {
                 var batches = await _http.GetFromJsonAsync<List<ApplicationBatchDto>>("api/application-tracking") ?? new();
-                PendingForMeCount = batches.Count(b =>
+                PendingForMeItems = batches.Where(b =>
                     b.CurrentHolderUserId == _currentUserId &&
                     !b.CurrentLegAcceptedAt.HasValue &&
-                    b.CurrentStatus != 6);
+                    b.CurrentStatus != 6).ToList();
+                PendingForMeCount = PendingForMeItems.Count;
             }
             catch
             {

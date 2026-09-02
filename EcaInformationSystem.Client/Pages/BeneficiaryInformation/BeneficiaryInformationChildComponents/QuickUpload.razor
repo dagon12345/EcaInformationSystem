@@ -5,14 +5,14 @@
 @using Microsoft.AspNetCore.Components.Forms
 
 <div class="quick-upload-wrap position-relative d-inline-block">
-    <button class="btn-details" @onclick="TogglePopover" title="Quick Upload">
+    <button id="@_uploadButtonId" class="btn-details" @onclick="TogglePopover" title="Quick Upload">
         <i class="bi bi-camera-fill"></i> Upload
     </button>
 
     @if (_showPopover)
     {
         <div class="quick-upload-backdrop" @onclick="ClosePopover"></div>
-        <div class="quick-upload-popover">
+        <div id="@_popoverId" class="quick-upload-popover" style="visibility:hidden;">
             <div class="quick-upload-popover-header">
                 <span>Add Document</span>
                 <button class="btn-close btn-close-sm" @onclick="ClosePopover"></button>
@@ -45,7 +45,7 @@
     }
 </div>
 
-<HxModal @ref="_webcamModal" Size="ModalSize.Large">
+<HxModal @ref="_webcamModal" Size="ModalSize.Large" CssClass="@_webcamModalClass" OnShown="RelocateWebcamModalAsync">
     <HeaderTemplate><h5 class="modal-title">Take Photo — Webcam</h5></HeaderTemplate>
     <BodyTemplate>
         <div class="webcam-wrap">
@@ -74,7 +74,7 @@
     </FooterTemplate>
 </HxModal>
 
-<HxModal @ref="_namingModal">
+<HxModal @ref="_namingModal" CssClass="@_namingModalClass" OnShown="RelocateNamingModalAsync">
     <HeaderTemplate><h5 class="modal-title">Name This Document</h5></HeaderTemplate>
     <BodyTemplate>
         <div class="ff mb-2">
@@ -82,6 +82,22 @@
             <input class="ff-input" placeholder="e.g. Application Form, Payout Captured, OSCA ID"
                    @bind="_pendingLabel" @bind:event="oninput" />
         </div>
+        @if (_pendingIsCameraJob)
+        {
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="stamp-date-check" @bind="_stampDateOnPhoto" />
+                <label class="form-check-label small" for="stamp-date-check">
+                    Stamp a date &amp; time onto the photo (optional — use this when the photo itself has no timestamp, e.g. a liveness check photo)
+                </label>
+            </div>
+            @if (_stampDateOnPhoto)
+            {
+                <div class="ff mb-2">
+                    <label class="ff-label">Date &amp; Time to Stamp</label>
+                    <input class="ff-input" type="datetime-local" @bind="_stampDateTimeLocal" />
+                </div>
+            }
+        }
         <div class="alert alert-light border small mb-0">
             <i class="bi bi-file-earmark-pdf text-danger me-1"></i>
             Will be saved as: <strong>@BuildPreviewFileName()</strong>

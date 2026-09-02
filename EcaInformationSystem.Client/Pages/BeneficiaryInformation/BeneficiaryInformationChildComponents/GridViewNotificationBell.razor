@@ -1,0 +1,598 @@
+@using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Client.Services
+@inject BeneficiaryStateService State
+@inject DocumentUploadQueueService UploadQueue
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+@* Grid-specific notifications — crossmatch/duplicate scan results and the
+   camera/PDF upload queue both originate from actions taken on THIS page
+   (Beneficiary Records), so they live here instead of the app-wide bell. *@
+@if (_showDropdown)
+{
+    <div class="notif-bell-backdrop" @onclick="CloseDropdown"></div>
+}
+
+<div class="position-relative me-2" @onclick:stopPropagation="true">
+    <button class="icon-btn position-relative" @onclick="ToggleDropdown" title="Grid Notifications">
+        <i class="bi bi-bell"></i>
+        @if (TotalBadgeCount > 0)
+        {
+            <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle"
+                  style="font-size:9px;">
+                @TotalBadgeCount
+            </span>
+        }
+        @if (State.TotalPendingScans > 0)
+        {
+            <span class="badge rounded-pill bg-warning position-absolute top-0 start-100 translate-middle"
+                  style="font-size:9px; margin-left: 10px;">
+                <span class="spinner-border spinner-border-sm" style="width:8px;height:8px;"></span>
+            </span>
+        }
+    </button>
+
+    @if (_showDropdown)
+    {
+        <div class="duplicate-dropdown notif-bell-dropdown" @onclick:stopPropagation="true">
+            <div class="notif-bell-tabs">
+                <button class="notif-bell-tab @(_activeTab == GridTab.Duplicates ? "notif-bell-tab--active" : "")"
+                        title="Duplicates" @onclick="() => _activeTab = GridTab.Duplicates">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Duplicates</span>
+                    @if (DuplicatesBadge > 0) { <span class="notif-bell-tab-badge">@DuplicatesBadge</span> }
+                </button>
+                <button class="notif-bell-tab @(_activeTab == GridTab.Uploads ? "notif-bell-tab--active" : "")"
+                        title="Uploads" @onclick="() => _activeTab = GridTab.Uploads">
+                    <i class="bi bi-cloud-upload"></i>
+                    <span>Uploads</span>
+                    @if (_uploadActiveCount > 0) { <span class="notif-bell-tab-badge">@_uploadActiveCount</span> }
+                </button>
+            </div>
+
+            @if (_activeTab == GridTab.Duplicates)
+            {
+                <div class="duplicate-dropdown-header">
+                    <span class="fw-bold">Duplicate Scans</span>
+                    @if (State.DuplicateScanNotifications.Any())
+                    {
+                        <button class="btn btn-sm btn-outline-danger" @onclick="ConfirmClearAll" @onclick:stopPropagation="true"
+                                title="Clear all notifications">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    }
+                </div>
+
+                <div class="duplicate-dropdown-scroll">
+                    @if (!State.DuplicateScanNotifications.Any())
+                    {
+                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                            <i class="bi bi-info-circle me-2"></i>
+                            No duplicate scans yet
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var notification in State.DuplicateScanNotifications)
+                        {
+                            var unresolvedCount = UnresolvedCount(notification);
+
+                            <div class="duplicate-dropdown-item @(notification.IsLoading ? "duplicate-dropdown-loading" :
+                                                                    notification.HasError ? "duplicate-dropdown-error" :
+                                                                    unresolvedCount > 0 ? "duplicate-dropdown-has-matches" :
+                                                                    notification.TotalPairs > 0 ? "duplicate-dropdown-all-resolved" : "")">
+
+                                <div class="d-flex justify-content-between align-items-start w-100">
+                                    <div class="flex-grow-1" @onclick:stopPropagation="true">
+                                        @if (notification.IsLoading)
+                                        {
+                                            <div>
+                                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                                <span class="text-muted">Scanning...</span>
+                                            </div>
+                                        }
+                                        else if (notification.HasError)
+                                        {
+                                            <div>
+                                                <i class="bi bi-exclamation-circle text-danger me-1"></i>
+                                                <span class="text-danger">Error: @notification.ErrorMessage</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div style="cursor:pointer;" @onclick="() => OpenReviewModal(notification)">
+                                                @if (notification.TotalPairs > 0)
+                                                {
+                                                    <span>
+                                                        @if (unresolvedCount > 0)
+                                                        {
+                                                            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                                                            <strong>@unresolvedCount</strong> @($"possible duplicate {MatchWord(unresolvedCount)}")
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="bi bi-check-circle-fill text-success me-1"></i>
+                                                            <span class="text-success">@($"All {notification.TotalPairs} {MatchWord(notification.TotalPairs)} resolved")</span>
+                                                        }
+                                                        @if (unresolvedCount != notification.TotalPairs)
+                                                        {
+                                                            <span class="text-muted small ms-1">(@notification.TotalPairs total)</span>
+                                                        }
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                                    <span class="text-success">No duplicates</span>
+                                                }
+                                            </div>
+                                        }
+
+                                        <div class="duplicate-dropdown-filter">
+                                            @notification.FilterDescription
+                                        </div>
+
+                                        <div class="duplicate-dropdown-time">
+                                            <i class="bi bi-clock me-1"></i>
+                                            @notification.ScannedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-center flex-shrink-0">
+                                        @if (!notification.IsLoading && !notification.HasError && notification.TotalPairs > 0)
+                                        {
+                                            <button class="duplicate-dropdown-expand-btn" @onclick="() => OpenReviewModal(notification)"
+                                                    @onclick:stopPropagation="true" title="Review matches">
+                                                <i class="bi bi-arrows-fullscreen"></i>
+                                            </button>
+                                        }
+                                        @if (!notification.IsLoading)
+                                        {
+                                            <button class="duplicate-dropdown-delete-btn" @onclick="() => DeleteNotification(notification.Id)"
+                                                    @onclick:stopPropagation="true" title="Remove notification">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="duplicate-dropdown-footer">
+                    @if (State.DuplicateScanNotifications.Count >= 50)
+                    {
+                        <button class="duplicate-scan-btn-small" @onclick="ClearOld">
+                            <i class="bi bi-archive me-1"></i>
+                            Clear Old (keep 50)
+                        </button>
+                    }
+                </div>
+            }
+            else if (_activeTab == GridTab.Uploads)
+            {
+                <div class="duplicate-dropdown-header">
+                    <span class="fw-bold">Upload Queue</span>
+                    <span class="text-muted small">@_uploadJobs.Count job(s)</span>
+                </div>
+
+                <div class="duplicate-dropdown-scroll">
+                    @if (!_uploadJobs.Any())
+                    {
+                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                            <i class="bi bi-check-circle me-2"></i>
+                            No pending uploads
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var job in _uploadJobs)
+                        {
+                            <div class="duplicate-dropdown-item @GetUploadItemClass(job.Status)">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center gap-2">
+                                        @GetUploadStatusIcon(job.Status)
+                                        <span class="small fw-semibold text-truncate"
+                                              style="max-width:180px;" title="@job.FileName">
+                                            @job.FileName
+                                        </span>
+                                    </div>
+                                    <div class="duplicate-dropdown-filter mt-1">
+                                        @GetUploadStatusText(job)
+                                    </div>
+                                </div>
+                                @if (job.Status is UploadJobStatus.Done or UploadJobStatus.Failed)
+                                {
+                                    <button class="duplicate-dropdown-delete-btn"
+                                            @onclick="() => DismissUploadAsync(job.JobId)"
+                                            title="Dismiss">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Large review modal — one notification's full pair list, roomy layout ── *@
+@if (_reviewNotification is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show" style="display:block;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-1">
+                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Possible Duplicate Matches
+                        </h5>
+                        <div class="text-muted small">@_reviewNotification.FilterDescription</div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseReviewModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6">
+                            @UnresolvedCount(_reviewNotification) of @_reviewNotification.TotalPairs still need review
+                        </span>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenFullComparison(_reviewNotification)">
+                            <i class="bi bi-columns-gap me-1"></i>Open Full Side-by-Side Comparison
+                        </button>
+                    </div>
+
+                    @if (_reviewNotification.Result?.Pairs is { Count: > 0 } pairs)
+                    {
+                        <div class="duplicate-pair-grid">
+                            @foreach (var pair in pairs)
+                            {
+                                var pairKey = PairKey(pair);
+                                var isBusy = _busyPairKeys.Contains(pairKey);
+                                var isRemarksOpen = _activeRemarksPairKey == pairKey;
+
+                                <div class="duplicate-pair-card @(pair.IsResolved ? "duplicate-pair-card--resolved" : "")">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                            @((pair.MatchScore * 100).ToString("F0"))% match
+                                        </span>
+                                        @if (pair.IsResolved)
+                                        {
+                                            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
+                                                <i class="bi bi-check-circle-fill me-1"></i>Resolved
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">Unresolved</span>
+                                        }
+                                    </div>
+
+                                    <div class="duplicate-pair-compare">
+                                        <div class="duplicate-pair-record">
+                                            <div class="fw-semibold">@pair.Record1FullName</div>
+                                            <div class="text-muted small">@pair.Record1BirthDate</div>
+                                            <div class="text-muted small">
+                                                @pair.Record1Municipality
+                                                @if (!string.IsNullOrWhiteSpace(pair.Record1Barangay))
+                                                {
+                                                    <span> — @pair.Record1Barangay</span>
+                                                }
+                                            </div>
+                                            @if (pair.Record1PaymentStatus == 2)
+                                            {
+                                                <span class="badge bg-success mt-1" style="font-size:9px;">Paid</span>
+                                            }
+                                        </div>
+                                        <div class="duplicate-pair-vs">
+                                            <i class="bi bi-arrow-left-right"></i>
+                                        </div>
+                                        <div class="duplicate-pair-record">
+                                            <div class="fw-semibold">@pair.Record2FullName</div>
+                                            <div class="text-muted small">@pair.Record2BirthDate</div>
+                                            <div class="text-muted small">
+                                                @pair.Record2Municipality
+                                                @if (!string.IsNullOrWhiteSpace(pair.Record2Barangay))
+                                                {
+                                                    <span> — @pair.Record2Barangay</span>
+                                                }
+                                            </div>
+                                            @if (pair.Record2PaymentStatus == 2)
+                                            {
+                                                <span class="badge bg-success mt-1" style="font-size:9px;">Paid</span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="duplicate-pair-reason">
+                                        <i class="bi bi-info-circle me-1"></i>@pair.MatchReason
+                                    </div>
+
+                                    @if (pair.IsResolved && !string.IsNullOrWhiteSpace(pair.Remarks))
+                                    {
+                                        <div class="duplicate-pair-remarks-readonly">
+                                            <i class="bi bi-chat-left-text me-1"></i>@pair.Remarks
+                                            @if (!string.IsNullOrWhiteSpace(pair.ResolvedBy))
+                                            {
+                                                <span class="text-muted"> — @pair.ResolvedBy@(pair.ResolvedAt.HasValue ? $", {pair.ResolvedAt.Value.ToLocalTime():MMM dd, HH:mm}" : "")</span>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (isRemarksOpen)
+                                    {
+                                        <div class="duplicate-pair-remarks-form">
+                                            <textarea class="form-control form-control-sm" rows="2"
+                                                      placeholder="Optional remarks (e.g. confirmed not a duplicate)..."
+                                                      @bind="_remarksDraft" @bind:event="oninput"></textarea>
+                                            <div class="d-flex justify-content-end gap-2 mt-1">
+                                                <button class="btn btn-sm btn-light" @onclick="CloseRemarksBox" disabled="@isBusy">Cancel</button>
+                                                <button class="btn btn-sm btn-success" @onclick="() => ResolvePairAsync(pair)" disabled="@isBusy">
+                                                    @if (isBusy)
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm"></span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Confirm Resolve</span>
+                                                    }
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex justify-content-end mt-2">
+                                            @if (pair.IsResolved)
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary" disabled="@isBusy" @onclick="() => UnresolvePairAsync(pair)">
+                                                    @if (isBusy)
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm"></span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span><i class="bi bi-arrow-counterclockwise me-1"></i>Undo</span>
+                                                    }
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-outline-success" disabled="@isBusy" @onclick="() => OpenRemarksBox(pair)">
+                                                    <i class="bi bi-check-lg me-1"></i>Resolve
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle-fill me-2"></i>No possible duplicates found.
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseReviewModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Clear All Confirmation Modal ── *@
+@if (_showClearAllModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show" style="display:block;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Clear All Notifications</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showClearAllModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to clear all duplicate scan notifications?</p>
+                    <p class="text-muted small">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showClearAllModal = false">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ClearAllNotifications">Clear All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum GridTab { Duplicates, Uploads }
+    private GridTab _activeTab = GridTab.Duplicates;
+    private bool _showDropdown;
+
+    // ── Duplicates (BeneficiaryStateService-backed) ─────────────────────────
+    private bool _showClearAllModal;
+    private DuplicateScanNotificationDto? _reviewNotification;
+    private string? _activeRemarksPairKey;
+    private string _remarksDraft = string.Empty;
+    private readonly HashSet<string> _busyPairKeys = new();
+
+    private int DuplicatesBadge => State.DuplicateScanNotifications
+        .Where(n => !n.IsLoading && !n.HasError)
+        .Sum(UnresolvedCount);
+
+    // ── Uploads (DocumentUploadQueueService-backed) ─────────────────────────
+    private List<DocumentUploadJobDto> _uploadJobs = new();
+    private int _uploadActiveCount;
+
+    private int TotalBadgeCount => DuplicatesBadge + _uploadActiveCount;
+
+    protected override void OnInitialized()
+    {
+        State.OnChange += HandleDuplicatesChange;
+        State.OnDuplicateNotificationsChanged += HandleDuplicatesChange;
+
+        UploadQueue.OnChanged += OnUploadQueueChanged;
+        RefreshUploadState();
+    }
+
+    private void HandleDuplicatesChange() => InvokeAsync(StateHasChanged);
+
+    private void ToggleDropdown()
+    {
+        _showDropdown = !_showDropdown;
+        if (_showDropdown)
+        {
+            State.ClearOldDuplicateNotifications(100);
+        }
+    }
+
+    public void CloseDropdown() => _showDropdown = false;
+
+    #region Duplicates
+    private static int UnresolvedCount(DuplicateScanNotificationDto notification) =>
+        notification.Result?.Pairs.Count(p => !p.IsResolved) ?? notification.TotalPairs;
+
+    private static string PairKey(PossibleDuplicatePairDto pair) => $"{pair.Record1Id}_{pair.Record2Id}";
+    private static string MatchWord(int count) => count == 1 ? "match" : "matches";
+
+    private void OpenReviewModal(DuplicateScanNotificationDto notification)
+    {
+        if (notification.TotalPairs == 0) return;
+        _reviewNotification = notification;
+        _showDropdown = false;
+        _activeRemarksPairKey = null;
+    }
+
+    private void CloseReviewModal()
+    {
+        _reviewNotification = null;
+        _activeRemarksPairKey = null;
+    }
+
+    private void OpenFullComparison(DuplicateScanNotificationDto notification)
+    {
+        State.GlobalDuplicateSummary = notification.Result;
+        State.RequestDuplicateModalOpen();
+        CloseReviewModal();
+
+        var currentPath = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
+        if (!currentPath.Equals("/beneficiary-records", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/beneficiary-records");
+        }
+    }
+
+    private void OpenRemarksBox(PossibleDuplicatePairDto pair)
+    {
+        _activeRemarksPairKey = PairKey(pair);
+        _remarksDraft = string.Empty;
+    }
+
+    private void CloseRemarksBox()
+    {
+        _activeRemarksPairKey = null;
+        _remarksDraft = string.Empty;
+    }
+
+    private async Task ResolvePairAsync(PossibleDuplicatePairDto pair)
+    {
+        var key = PairKey(pair);
+        _busyPairKeys.Add(key);
+        StateHasChanged();
+
+        try { await State.ResolveDuplicatePairAsync(pair, _remarksDraft); }
+        finally
+        {
+            _busyPairKeys.Remove(key);
+            _activeRemarksPairKey = null;
+            _remarksDraft = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UnresolvePairAsync(PossibleDuplicatePairDto pair)
+    {
+        var key = PairKey(pair);
+        _busyPairKeys.Add(key);
+        StateHasChanged();
+
+        try { await State.UnresolveDuplicatePairAsync(pair); }
+        finally
+        {
+            _busyPairKeys.Remove(key);
+            StateHasChanged();
+        }
+    }
+
+    private void DeleteNotification(Guid id) => State.ClearDuplicateNotification(id);
+    private void ConfirmClearAll() => _showClearAllModal = true;
+
+    private void ClearAllNotifications()
+    {
+        State.ClearAllDuplicateNotifications();
+        _showClearAllModal = false;
+    }
+
+    private void ClearOld() => State.ClearOldDuplicateNotifications(50);
+    #endregion
+
+    #region Uploads
+    private void OnUploadQueueChanged()
+    {
+        RefreshUploadState();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshUploadState()
+    {
+        _uploadJobs = UploadQueue.Jobs.ToList();
+        _uploadActiveCount = UploadQueue.ActiveCount;
+    }
+
+    private async Task DismissUploadAsync(Guid jobId) => await UploadQueue.DismissCompletedAsync(jobId);
+
+    private static string GetUploadItemClass(UploadJobStatus status) => status switch
+    {
+        UploadJobStatus.Done => "duplicate-dropdown-has-matches",
+        UploadJobStatus.Failed => "duplicate-dropdown-error",
+        UploadJobStatus.Uploading or UploadJobStatus.Retrying => "duplicate-dropdown-loading",
+        _ => string.Empty
+    };
+
+    private static RenderFragment GetUploadStatusIcon(UploadJobStatus status) => status switch
+    {
+        UploadJobStatus.Done => @<i class="bi bi-check-circle-fill text-success"></i>,
+        UploadJobStatus.Failed => @<i class="bi bi-x-circle-fill text-danger"></i>,
+        UploadJobStatus.Uploading => @<span class="spinner-border spinner-border-sm text-primary"
+                                        style="width:14px;height:14px;border-width:2px;"></span>,
+        UploadJobStatus.Retrying => @<i class="bi bi-arrow-repeat text-warning"></i>,
+        _ => @<i class="bi bi-clock text-muted"></i>
+    };
+
+    private static string GetUploadStatusText(DocumentUploadJobDto job) => job.Status switch
+    {
+        UploadJobStatus.Done => "Uploaded successfully",
+        UploadJobStatus.Failed => job.ErrorMessage ?? "Permanently failed",
+        UploadJobStatus.Uploading => $"Uploading... (attempt {job.AttemptCount})",
+        UploadJobStatus.Retrying => job.ErrorMessage ?? "Retrying...",
+        UploadJobStatus.Queued => "Waiting...",
+        _ => string.Empty
+    };
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        State.OnChange -= HandleDuplicatesChange;
+        State.OnDuplicateNotificationsChanged -= HandleDuplicatesChange;
+
+        UploadQueue.OnChanged -= OnUploadQueueChanged;
+
+        await Task.CompletedTask;
+    }
+}

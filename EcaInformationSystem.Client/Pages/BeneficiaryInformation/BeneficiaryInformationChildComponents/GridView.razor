@@ -27,9 +27,15 @@
                         </div>
                     }
 
-                    <small class="opacity-75 d-block mb-1">
-                        Select the checkbox to <strong class="text-primary">Bulk Update</strong> payment status or <strong class="text-primary">Create Payroll</strong>.
-                    </small>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <small class="opacity-75 d-block mb-0">
+                            Select the checkbox to <strong class="text-primary">Bulk Update</strong> payment status or <strong class="text-primary">Create Payroll</strong>.
+                        </small>
+
+                        @* Duplicate-scan + upload-queue notifications — specific to this
+                           page's own actions, so they live here rather than the global bell. *@
+                        <GridViewNotificationBell />
+                    </div>
 
                     @* ── BULK BAR — all tabs always visible ── *@
                     <div class="bulk-bar">
@@ -513,13 +519,17 @@
                                                 <td style="min-width:140px; white-space:nowrap;">
                                                     @* Was two separate green badges (heart-pulse + bank icon) sitting
                                                        inline before the name — collapsed into one hoverable icon so the
-                                                       column reads cleanly; hovering it shows both statuses at once. *@
-                                                    @if (item.IsLivenessVerified == true || item.IsReadyForEft == true)
-                                                    {
-                                                        <span class="tbl-badge-lv-eft me-1" title="@LivenessEftTooltip(item)">
-                                                            <i class="bi bi-patch-check-fill"></i>
-                                                        </span>
-                                                    }
+                                                       column reads cleanly; hovering it shows both statuses at once.
+                                                       Always rendered (not just when verified) and clickable so it also
+                                                       doubles as a one-click shortcut into the Liveness section of the
+                                                       details offcanvas, instead of only being a status indicator. *@
+                                                    <span class="tbl-badge-lv-eft me-1 @(item.IsLivenessVerified == true || item.IsReadyForEft == true ? "" : "tbl-badge-lv-eft--pending")"
+                                                          style="cursor:pointer;"
+                                                          @onclick="() => OpenDetailsPanelAndFocusLiveness(item)"
+                                                          @onclick:stopPropagation="true"
+                                                          title="@LivenessEftTooltip(item)">
+                                                        <i class="bi @(item.IsLivenessVerified == true || item.IsReadyForEft == true ? "bi-patch-check-fill" : "bi-camera-fill")"></i>
+                                                    </span>
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
                                                     @if (item.HasDuplicateHistory)
                                                     {
@@ -1412,10 +1422,24 @@
     </div>
 }
 
-<h6 class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
+<h6 id="liveness-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-person-check-fill me-1"></i>Liveness Verification &amp; EFT Readiness</span>
+    @if (_isAdmin)
+    {
+        <button class="btn btn-sm btn-primary" disabled="@_isGeneratingLivenessLink" @onclick="() => GenerateLivenessLinkAsync(selectedDetails!.Id)">
+            @if (_isGeneratingLivenessLink)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-link-45deg me-1"></i>
+            }
+            Generate Liveness Link
+        </button>
+    }
 </h6>
-<div class="row g-2 mb-4">
+<div class="row g-2 mb-3">
     <div class="col-6">
         <small class="text-muted d-block">Liveness Verified?</small>
         <span class="tbl-badge @(selectedDetails.IsLivenessVerified == true ? "yes-g" : selectedDetails.IsLivenessVerified == false ? "no-g" : "pending")">
@@ -1443,6 +1467,73 @@
         </span>
     </div>
 </div>
+
+@if (_generatedLivenessUrl is not null)
+{
+    <div class="input-group input-group-sm mb-3">
+        <input type="text" class="form-control" readonly value="@_generatedLivenessUrl" />
+        <button class="btn btn-outline-secondary" type="button" @onclick="() => CopyLivenessLinkAsync(null)">
+            <i class="bi bi-clipboard me-1"></i>Copy
+        </button>
+    </div>
+    <p class="text-muted small mt-n2 mb-3">This link is still pending — share/copy it as many times as needed instead of generating a new one.</p>
+}
+
+@if (_isLoadingLivenessHistory)
+{
+    <p class="text-muted small">Loading liveness attempt history...</p>
+}
+else if (_livenessHistory is { Count: > 0 })
+{
+    <div class="table-responsive mb-4">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Generated</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _livenessHistory)
+                {
+                    <tr>
+                        <td class="small">@item.GeneratedDate.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</td>
+                        <td>
+                            <span class="tbl-badge @(item.Status switch { "Verified" => "yes-g", "Rejected" => "no-g", "Submitted" => "pending", _ => "pending" })">@item.Status</span>
+                        </td>
+                        <td class="small">@(item.SubmittedDate?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "—")</td>
+                        <td class="text-end">
+                            @if (item.HasPhoto)
+                            {
+                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OpenLivenessPhotoModal(item)">
+                                    <i class="bi bi-image me-1"></i>View
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(item.Url))
+                            {
+                                <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => CopyLivenessLinkAsync(item.Url)">
+                                    <i class="bi bi-clipboard me-1"></i>Copy
+                                </button>
+                            }
+                            @if (_isSuperAdmin)
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteLivenessLinkAsync(item)">
+                                    <i class="bi bi-trash me-1"></i>Delete
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <p class="text-muted small mb-4">No liveness link has been generated yet.</p>
+}
 
  <h6 id="payment-history-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-clock-history me-1"></i>Payment History</span>
@@ -1832,6 +1923,7 @@ else
                                                                                                                 }
                                                                                                             </h6>
                                                                                                                   <BeneficiaryDocumentUpload EditId="@selectedDetails!.Id" PsgcCodeMunicipality="@selectedDetails.PsgcCodeMunicipality"
+                                                                                                                                       LastName="@selectedDetails.LastName" FirstName="@selectedDetails.FirstName"
                                                                                                                                        OnDeleteComplete="@(() => detailsOffcanvas.ShowAsync())" />
 
             </div>
@@ -1892,6 +1984,36 @@ else
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => _livenessModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Liveness photo review modal — shows the grantee's submitted selfie for
+     PDO approval/rejection, opened from the liveness attempt history above. ── *@
+<HxModal @ref="_livenessPhotoModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">Liveness Photo Review</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_selectedLivenessPhotoUrl is not null)
+        {
+            <div class="text-center mb-2">
+                <img src="@_selectedLivenessPhotoUrl" alt="Liveness submission" style="max-width:100%;border-radius:8px;" />
+            </div>
+        }
+        @if (_selectedLivenessItem is not null)
+        {
+            <p class="text-muted small mb-0">
+                Submitted @(_selectedLivenessItem.SubmittedDate?.ToLocalTime().ToString("MMMM d, yyyy h:mm tt") ?? "—")
+            </p>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        @if (_selectedLivenessItem?.Status == "Submitted")
+        {
+            <HxButton Color="ThemeColor.Danger" Enabled="@(!_isReviewingLiveness)" @onclick="RejectLivenessAsync">Reject</HxButton>
+            <HxButton Color="ThemeColor.Success" Enabled="@(!_isReviewingLiveness)" @onclick="VerifyLivenessAsync">Verify</HxButton>
+        }
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _livenessPhotoModal.HideAsync()">Close</HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -2890,6 +3012,7 @@ else
     private PaymentHistoryDto? _pendingDeletePaymentHistory;
     private readonly List<int> _availableMilestoneYears = new() { 2024, 2025, 2026, 2027, 2028, 2029, 2030 };
     private bool _isAdmin;
+    private bool _isSuperAdmin;
     private HxModal editPaymentHistoryModal = default!;
     private EditPaymentHistoryRequestDto _editPayment = new();
     private HxModal addPaymentHistoryModal = default!;
@@ -3160,6 +3283,12 @@ protected override void OnInitialized()
             OpenGlobalDuplicateModal();
         }
 
+        if (State.PendingLivenessReviewBeneficiaryId is { } pendingLivenessId)
+        {
+            State.ClearLivenessReviewRequest();
+            _ = OpenDetailsPanelAndFocusLiveness(new BeneficiaryListItemDto { Id = pendingLivenessId });
+        }
+
         // A cleared/changed filter can leave stale row IDs checked even though
         // the grid they belonged to is now empty (or a different result set).
         if (!State.Beneficiaries.Any() && checkedIds.Count > 0)
@@ -3290,6 +3419,12 @@ private async Task OpenDetailsPanelAndFocusDuplicateHistory(BeneficiaryListItemD
     await OpenDetailsPanel(item);
     await Task.Delay(150); // let the offcanvas + duplicate-history fetch finish before scrolling
     await JS.InvokeVoidAsync("scrollToElement", "duplicate-history-anchor");
+}
+private async Task OpenDetailsPanelAndFocusLiveness(BeneficiaryListItemDto item)
+{
+    await OpenDetailsPanel(item);
+    await Task.Delay(150); // let the offcanvas + liveness history fetch finish before scrolling
+    await JS.InvokeVoidAsync("scrollToElement", "liveness-anchor");
 }
 
 // Same jump, but for the header badge inside an ALREADY-open offcanvas —
@@ -3643,7 +3778,8 @@ private int OtherWarningCount =>
     
         await AuthService.InitAsync();
         _isAdmin = AuthService.IsAdmin();
-    
+        _isSuperAdmin = AuthService.IsSuperAdmin();
+
         activeBulkTab = "payment";
     
         if (State.HasActiveFilter && State.IsStale())
@@ -4203,11 +4339,14 @@ public void Dispose()
 
         selectedDetails = fullDetails;
         _duplicateHistory = new(); // clear stale data from a previously-viewed record
+        _generatedLivenessUrl = null;
+        _livenessHistory = new();
         StateHasChanged();
         await detailsOffcanvas.ShowAsync();
 
         await LoadPaymentHistoryAsync(item.Id);
         await LoadDuplicateHistoryAsync(item.Id);
+        await LoadLivenessHistoryAsync(item.Id);
     }
     catch (Exception ex)
     {
@@ -4252,6 +4391,181 @@ private async Task LoadDuplicateHistoryAsync(Guid beneficiaryId)
     finally
     {
         _isLoadingDuplicateHistory = false;
+        StateHasChanged();
+    }
+}
+
+// ── Liveness check (public link + camera capture review) ──────────────────
+
+private bool _isGeneratingLivenessLink;
+private string? _generatedLivenessUrl;
+private bool _isLoadingLivenessHistory;
+private List<LivenessCheckHistoryItemDto> _livenessHistory = new();
+private HxModal _livenessPhotoModal = default!;
+private LivenessCheckHistoryItemDto? _selectedLivenessItem;
+private string? _selectedLivenessPhotoUrl;
+private bool _isReviewingLiveness;
+
+private async Task GenerateLivenessLinkAsync(Guid beneficiaryId)
+{
+    try
+    {
+        _isGeneratingLivenessLink = true;
+        StateHasChanged();
+
+        var result = await Http.PostAsync($"api/liveness-check/generate/{beneficiaryId}", null);
+        if (!result.IsSuccessStatusCode)
+        {
+            toast.ShowError($"Failed to generate liveness link: {await result.Content.ReadAsStringAsync()}");
+            return;
+        }
+
+        await LoadLivenessHistoryAsync(beneficiaryId);
+        toast.ShowSuccess("Liveness link generated. Share it with the grantee.");
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to generate liveness link: {ex.Message}");
+    }
+    finally
+    {
+        _isGeneratingLivenessLink = false;
+        StateHasChanged();
+    }
+}
+
+private async Task CopyLivenessLinkAsync(string? url = null)
+{
+    url ??= _generatedLivenessUrl;
+    if (url is null) return;
+    await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+    toast.ShowSuccess("Link copied to clipboard.");
+}
+
+private async Task LoadLivenessHistoryAsync(Guid beneficiaryId)
+{
+    try
+    {
+        _isLoadingLivenessHistory = true;
+        StateHasChanged();
+        _livenessHistory = await Http.GetFromJsonAsync<List<LivenessCheckHistoryItemDto>>(
+            $"api/liveness-check/history/{beneficiaryId}") ?? new();
+
+        // Surface the still-pending link (if any) so it stays viewable/copyable
+        // without the PDO needing to hit "Generate" again — which would
+        // invalidate the one already sent to the grantee.
+        _generatedLivenessUrl = _livenessHistory
+            .FirstOrDefault(i => i.IsActive && i.Status == "Pending")?.Url;
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to load liveness history: {ex.Message}");
+    }
+    finally
+    {
+        _isLoadingLivenessHistory = false;
+        StateHasChanged();
+    }
+}
+
+private async Task DeleteLivenessLinkAsync(LivenessCheckHistoryItemDto item)
+{
+    if (selectedDetails is null) return;
+    try
+    {
+        var result = await Http.DeleteAsync($"api/liveness-check/{item.Id}");
+        if (!result.IsSuccessStatusCode)
+        {
+            toast.ShowError($"Failed to delete link: {await result.Content.ReadAsStringAsync()}");
+            return;
+        }
+
+        await LoadLivenessHistoryAsync(selectedDetails.Id);
+        toast.ShowSuccess("Liveness link deleted.");
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to delete link: {ex.Message}");
+    }
+}
+
+private async Task OpenLivenessPhotoModal(LivenessCheckHistoryItemDto item)
+{
+    try
+    {
+        if (_selectedLivenessPhotoUrl is not null)
+            await JS.InvokeVoidAsync("revokeBlobUrl", _selectedLivenessPhotoUrl);
+
+        _selectedLivenessItem = item;
+        var bytes = await Http.GetByteArrayAsync($"api/liveness-check/{item.Id}/photo");
+        var base64 = Convert.ToBase64String(bytes);
+        _selectedLivenessPhotoUrl = await JS.InvokeAsync<string>("createImageBlobUrl", base64, "image/jpeg");
+        await _livenessPhotoModal.ShowAsync();
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to load photo: {ex.Message}");
+    }
+}
+
+private async Task VerifyLivenessAsync()
+{
+    if (_selectedLivenessItem is null || selectedDetails is null) return;
+    try
+    {
+        _isReviewingLiveness = true;
+        StateHasChanged();
+
+        var result = await Http.PostAsJsonAsync($"api/liveness-check/{_selectedLivenessItem.Id}/verify", new LivenessReviewRequestDto());
+        if (!result.IsSuccessStatusCode)
+        {
+            toast.ShowError($"Failed to verify: {await result.Content.ReadAsStringAsync()}");
+            return;
+        }
+
+        selectedDetails.IsLivenessVerified = true;
+        selectedDetails.DateOfLiveness = DateTime.UtcNow;
+        await LoadLivenessHistoryAsync(selectedDetails.Id);
+        await _livenessPhotoModal.HideAsync();
+        toast.ShowSuccess("Liveness verified.");
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to verify: {ex.Message}");
+    }
+    finally
+    {
+        _isReviewingLiveness = false;
+        StateHasChanged();
+    }
+}
+
+private async Task RejectLivenessAsync()
+{
+    if (_selectedLivenessItem is null || selectedDetails is null) return;
+    try
+    {
+        _isReviewingLiveness = true;
+        StateHasChanged();
+
+        var result = await Http.PostAsJsonAsync($"api/liveness-check/{_selectedLivenessItem.Id}/reject", new LivenessReviewRequestDto());
+        if (!result.IsSuccessStatusCode)
+        {
+            toast.ShowError($"Failed to reject: {await result.Content.ReadAsStringAsync()}");
+            return;
+        }
+
+        await LoadLivenessHistoryAsync(selectedDetails.Id);
+        await _livenessPhotoModal.HideAsync();
+        toast.ShowWarning("Photo rejected. Generate a new link for the grantee to retake it.");
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to reject: {ex.Message}");
+    }
+    finally
+    {
+        _isReviewingLiveness = false;
         StateHasChanged();
     }
 }
@@ -4842,6 +5156,11 @@ private int IncompleteDetailsCount =>
         {
             parts.Add("Ready for Electronic Fund Transfer (EFT)");
         }
+        if (parts.Count == 0)
+        {
+            parts.Add("Liveness not yet checked");
+        }
+        parts.Add("Click to manage liveness check");
         return string.Join(" • ", parts);
     }
 

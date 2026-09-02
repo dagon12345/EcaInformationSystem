@@ -77,6 +77,7 @@ builder.Services.AddScoped<PostsClientService>();
 builder.Services.AddScoped<ActivityClientService>();
 builder.Services.AddScoped<ApplicationTrackingClientService>();
 builder.Services.AddScoped<DocumentTrackingClientService>();
+builder.Services.AddScoped<LivenessNotificationClientService>();
 builder.Services.AddScoped<SystemUpdateClientService>();
 builder.Services.AddScoped<BiometricStatusClientService>();
 builder.Services.AddScoped<DarReportClientService>();

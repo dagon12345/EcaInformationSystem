@@ -1,6 +1,9 @@
 ﻿@using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.DTOs.Activity
 @inject AuthService AuthService
+@inject ActivityClientService ActivityClient
+@implements IDisposable
 
 <div class="sidebar-brand">
     <NavLink href="" Match="NavLinkMatch.All">
@@ -24,6 +27,10 @@
     <NavLink class="nav-item" href="calendar" title="Calendar">
         <span class="nav-icon nav-icon--blue"><i class="bi bi-calendar3"></i></span>
         <span class="nav-label">Calendar</span>
+        @if (_todayActivityCount > 0)
+        {
+            <span class="nav-badge nav-badge--danger">@_todayActivityCount</span>
+        }
     </NavLink>
     <div class="nav-section-label">Reports</div>
 
@@ -234,6 +241,14 @@
     private bool _isFinance;
     private bool _isEncoder;
 
+    // ── Calendar badge — today's activity count, moved here from the old
+    // "Calendar" tab in the unified notification bell. Always shows the true
+    // count regardless of whether the Calendar page has been visited, so
+    // it keeps users aware of what's scheduled today rather than going
+    // quiet just because it was looked at once. ──
+    private int? _myRegionCode;
+    private int _todayActivityCount;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -247,6 +262,42 @@
         _isFinance = AuthService.IsFinance();
         _isEncoder = AuthService.IsEncoder();
 
+        _myRegionCode = AuthService.GetRegionCode();
+        await RefreshTodayActivityCountAsync();
+
+        ActivityClient.ActivityStarting += OnActivityEvent;
+        ActivityClient.ActivityChanged += OnActivityEvent;
+        ActivityClient.ActivityDeleted += OnActivityDeletedEvent;
+
         StateHasChanged();
+    }
+
+    private void OnActivityEvent(ActivityDto activity)
+    {
+        if (activity.StartDate.Date != DateTime.Today) return;
+        if (_myRegionCode.HasValue && activity.PsgcCodeRegion.HasValue && activity.PsgcCodeRegion != _myRegionCode) return;
+
+        InvokeAsync(RefreshTodayActivityCountAsync);
+    }
+
+    private void OnActivityDeletedEvent(int id) => InvokeAsync(RefreshTodayActivityCountAsync);
+
+    private async Task RefreshTodayActivityCountAsync()
+    {
+        try
+        {
+            var activities = await ActivityClient.GetDayMyRegionAsync(DateTime.Today);
+            _todayActivityCount = activities.Count;
+        }
+        catch { /* non-fatal — badge just won't update this cycle */ }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        ActivityClient.ActivityStarting -= OnActivityEvent;
+        ActivityClient.ActivityChanged -= OnActivityEvent;
+        ActivityClient.ActivityDeleted -= OnActivityDeletedEvent;
     }
 }

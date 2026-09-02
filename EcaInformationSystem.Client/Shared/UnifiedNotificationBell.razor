@@ -1,14 +1,15 @@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.Activity
 @using EcaInformationSystem.Shared.DTOs.SystemUpdate
-@using EcaInformationSystem.Common.Enums
+@using EcaInformationSystem.Shared.DTOs.ApplicationTracking
+@using EcaInformationSystem.Shared.DTOs.DocumentTracking
 @using EcaInformationSystem.Client.Services
 @using System.Net.Http.Json
 @inject BeneficiaryStateService State
 @inject ActivityClientService ActivityClient
-@inject DocumentUploadQueueService UploadQueue
 @inject ApplicationTrackingClientService AppTracking
 @inject DocumentTrackingClientService DocTracking
+@inject LivenessNotificationClientService LivenessNotification
 @inject SystemUpdateClientService SystemUpdateClient
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -26,23 +27,22 @@
     <div class="notif-bell-backdrop" @onclick="CloseDropdown"></div>
 }
 
-@* ── Single bell — replaces the old separate Duplicate / Calendar / Upload icons.
-     One trigger, one dropdown, tabs inside instead of three icons in the navbar. ── *@
+@* ── Single bell, single merged feed — Application Tracking, Document
+     Tracking, Liveness submissions, and System Updates all in one
+     chronological list (newest first) instead of separate tabs. Duplicates
+     and Uploads live in their own bell on the Beneficiary Records grid (see
+     GridViewNotificationBell) since they're specific to actions taken
+     there; Calendar's "today" count moved to a badge on the sidebar's
+     Calendar link (see NavMenu) since it's a standing daily count, not a
+     one-off notification. ── *@
 <div class="position-relative me-2" @onclick:stopPropagation="true">
     <button class="icon-btn position-relative" @onclick="ToggleDropdown" title="Notifications">
         <i class="bi bi-bell"></i>
-        @if (TotalBadgeCount > 0)
+        @if (UnseenBadgeCount > 0)
         {
             <span class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle"
                   style="font-size:9px;">
-                @TotalBadgeCount
-            </span>
-        }
-        @if (State.TotalPendingScans > 0)
-        {
-            <span class="badge rounded-pill bg-warning position-absolute top-0 start-100 translate-middle"
-                  style="font-size:9px; margin-left: 10px;">
-                <span class="spinner-border spinner-border-sm" style="width:8px;height:8px;"></span>
+                @UnseenBadgeCount
             </span>
         }
     </button>
@@ -50,584 +50,63 @@
     @if (_showDropdown)
     {
         <div class="duplicate-dropdown notif-bell-dropdown" @onclick:stopPropagation="true">
-            <div class="notif-bell-tabs">
-                <button class="notif-bell-tab @(_activeTab == NotifTab.Duplicates ? "notif-bell-tab--active" : "")"
-                        title="Duplicates" @onclick="() => _activeTab = NotifTab.Duplicates">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <span>Duplicates</span>
-                    @if (DuplicatesBadge > 0) { <span class="notif-bell-tab-badge">@DuplicatesBadge</span> }
-                </button>
-                <button class="notif-bell-tab @(_activeTab == NotifTab.Calendar ? "notif-bell-tab--active" : "")"
-                        title="Calendar" @onclick="() => _activeTab = NotifTab.Calendar">
-                    <i class="bi bi-calendar-event"></i>
-                    <span>Calendar</span>
-                    @if (_todayActivities.Count > 0) { <span class="notif-bell-tab-badge">@_todayActivities.Count</span> }
-                </button>
-                <button class="notif-bell-tab @(_activeTab == NotifTab.Uploads ? "notif-bell-tab--active" : "")"
-                        title="Uploads" @onclick="() => _activeTab = NotifTab.Uploads">
-                    <i class="bi bi-cloud-upload"></i>
-                    <span>Uploads</span>
-                    @if (_uploadActiveCount > 0) { <span class="notif-bell-tab-badge">@_uploadActiveCount</span> }
-                </button>
-                <button class="notif-bell-tab @(_activeTab == NotifTab.Documents ? "notif-bell-tab--active" : "")"
-                        title="Documents" @onclick="() => _activeTab = NotifTab.Documents">
-                    <i class="bi bi-truck"></i>
-                    <span>Documents</span>
-                    @if (AppTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@AppTracking.PendingForMeCount</span> }
-                </button>
-                <button class="notif-bell-tab @(_activeTab == NotifTab.TrackedDocuments ? "notif-bell-tab--active" : "")"
-                        title="Document Tracking" @onclick="() => _activeTab = NotifTab.TrackedDocuments">
-                    <i class="bi bi-send"></i>
-                    <span>Tracking</span>
-                    @if (DocTracking.PendingForMeCount > 0) { <span class="notif-bell-tab-badge">@DocTracking.PendingForMeCount</span> }
-                </button>
-                <button class="notif-bell-tab @(_activeTab == NotifTab.Updates ? "notif-bell-tab--active" : "")"
-                        title="Updates" @onclick="() => _activeTab = NotifTab.Updates">
-                    <i class="bi bi-arrow-repeat"></i>
-                    <span>Updates</span>
-                    @if (_hasUnseenUpdate) { <span class="notif-bell-tab-badge">1</span> }
-                </button>
+            <div class="duplicate-dropdown-header">
+                <span class="fw-bold">Notifications</span>
+                <span class="text-muted small">@Feed.Count total</span>
             </div>
 
-            @if (_activeTab == NotifTab.Duplicates)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">Duplicate Scans</span>
-                    @if (State.DuplicateScanNotifications.Any())
+            <div class="duplicate-dropdown-scroll">
+                @if (Feed.Count == 0)
+                {
+                    <div class="duplicate-dropdown-item duplicate-dropdown-empty">
+                        <i class="bi bi-check-circle me-2"></i>
+                        You're all caught up
+                    </div>
+                }
+                else
+                {
+                    @foreach (var item in Feed)
                     {
-                        <button class="btn btn-sm btn-outline-danger" @onclick="ConfirmClearAll" @onclick:stopPropagation="true"
-                                title="Clear all notifications">
-                            <i class="bi bi-trash3"></i>
-                        </button>
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (!State.DuplicateScanNotifications.Any())
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-info-circle me-2"></i>
-                            No duplicate scans yet
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var notification in State.DuplicateScanNotifications)
-                        {
-                            var unresolvedCount = UnresolvedCount(notification);
-
-                            <div class="duplicate-dropdown-item @(notification.IsLoading ? "duplicate-dropdown-loading" :
-                                                                    notification.HasError ? "duplicate-dropdown-error" :
-                                                                    unresolvedCount > 0 ? "duplicate-dropdown-has-matches" :
-                                                                    notification.TotalPairs > 0 ? "duplicate-dropdown-all-resolved" : "")">
-
-                                <div class="d-flex justify-content-between align-items-start w-100">
-                                    <div class="flex-grow-1" @onclick:stopPropagation="true">
-                                        @if (notification.IsLoading)
-                                        {
-                                            <div>
-                                                <span class="spinner-border spinner-border-sm me-2"></span>
-                                                <span class="text-muted">Scanning...</span>
-                                            </div>
-                                        }
-                                        else if (notification.HasError)
-                                        {
-                                            <div>
-                                                <i class="bi bi-exclamation-circle text-danger me-1"></i>
-                                                <span class="text-danger">Error: @notification.ErrorMessage</span>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <div style="cursor:pointer;" @onclick="() => OpenReviewModal(notification)">
-                                                @if (notification.TotalPairs > 0)
-                                                {
-                                                    <span>
-                                                        @if (unresolvedCount > 0)
-                                                        {
-                                                            <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
-                                                            <strong>@unresolvedCount</strong> @($"possible duplicate {MatchWord(unresolvedCount)}")
-                                                        }
-                                                        else
-                                                        {
-                                                            <i class="bi bi-check-circle-fill text-success me-1"></i>
-                                                            <span class="text-success">@($"All {notification.TotalPairs} {MatchWord(notification.TotalPairs)} resolved")</span>
-                                                        }
-                                                        @if (unresolvedCount != notification.TotalPairs)
-                                                        {
-                                                            <span class="text-muted small ms-1">(@notification.TotalPairs total)</span>
-                                                        }
-                                                    </span>
-                                                }
-                                                else
-                                                {
-                                                    <i class="bi bi-check-circle text-success me-1"></i>
-                                                    <span class="text-success">No duplicates</span>
-                                                }
-                                            </div>
-                                        }
-
-                                        <div class="duplicate-dropdown-filter">
-                                            @notification.FilterDescription
-                                        </div>
-
-                                        <div class="duplicate-dropdown-time">
-                                            <i class="bi bi-clock me-1"></i>
-                                            @notification.ScannedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                                        </div>
+                        <div class="notif-feed-item notif-feed-item--@item.AccentKey" style="cursor:@(item.OnClick is null ? "default" : "pointer");"
+                             @onclick="() => HandleFeedItemClick(item)">
+                            <div class="d-flex align-items-start gap-2">
+                                <span class="notif-feed-icon notif-feed-icon--@item.AccentKey"><i class="bi @item.Icon"></i></span>
+                                <div class="flex-grow-1" style="min-width:0;">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span class="notif-feed-category notif-feed-category--@item.AccentKey">@item.Category</span>
                                     </div>
-
-                                    <div class="d-flex align-items-center flex-shrink-0">
-                                        @if (!notification.IsLoading && !notification.HasError && notification.TotalPairs > 0)
-                                        {
-                                            <button class="duplicate-dropdown-expand-btn" @onclick="() => OpenReviewModal(notification)"
-                                                    @onclick:stopPropagation="true" title="Review matches">
-                                                <i class="bi bi-arrows-fullscreen"></i>
-                                            </button>
-                                        }
-                                        @if (!notification.IsLoading)
-                                        {
-                                            <button class="duplicate-dropdown-delete-btn" @onclick="() => DeleteNotification(notification.Id)"
-                                                    @onclick:stopPropagation="true" title="Remove notification">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-footer">
-                    @if (State.DuplicateScanNotifications.Count >= 50)
-                    {
-                        <button class="duplicate-scan-btn-small" @onclick="ClearOld">
-                            <i class="bi bi-archive me-1"></i>
-                            Clear Old (keep 50)
-                        </button>
-                    }
-                </div>
-            }
-            else if (_activeTab == NotifTab.Calendar)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">Today's Schedule</span>
-                    <span class="text-muted" style="font-size:11px;">@DateTime.Today.ToString("MMM dd, yyyy")</span>
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (_loadingActivities)
-                    {
-                        <div class="duplicate-dropdown-item text-center">
-                            <span class="spinner-border spinner-border-sm"></span>
-                        </div>
-                    }
-                    else if (!_todayActivities.Any())
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-check-circle me-2"></i>
-                            No activities scheduled today
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var a in _todayActivities)
-                        {
-                            <div class="duplicate-dropdown-item duplicate-dropdown-has-matches" style="cursor:pointer;"
-                                 @onclick="GoToCalendar">
-                                <div class="d-flex align-items-start gap-2">
-                                    <span class="calendar-dot @PriorityCss(a.Priority)" style="margin-top:4px;"></span>
-                                    <div class="flex-grow-1">
-                                        <div class="fw-semibold" style="font-size:13px;">@a.Title</div>
-                                        <div class="duplicate-dropdown-filter">
-                                            @(a.IsAllDay ? "All day" : a.StartDate.ToString("h:mm tt"))
-                                            @(!string.IsNullOrWhiteSpace(a.Location) ? $" • {a.Location}" : "")
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-footer">
-                    <button class="duplicate-scan-btn-small" @onclick="GoToCalendar">
-                        <i class="bi bi-calendar3 me-1"></i>
-                        View full calendar
-                    </button>
-                </div>
-            }
-            else if (_activeTab == NotifTab.Uploads)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">Upload Queue</span>
-                    <span class="text-muted small">@_uploadJobs.Count job(s)</span>
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (!_uploadJobs.Any())
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-check-circle me-2"></i>
-                            No pending uploads
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var job in _uploadJobs)
-                        {
-                            <div class="duplicate-dropdown-item @GetUploadItemClass(job.Status)">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex align-items-center gap-2">
-                                        @GetUploadStatusIcon(job.Status)
-                                        <span class="small fw-semibold text-truncate"
-                                              style="max-width:180px;" title="@job.FileName">
-                                            @job.FileName
-                                        </span>
-                                    </div>
-                                    <div class="duplicate-dropdown-filter mt-1">
-                                        @GetUploadStatusText(job)
-                                    </div>
-                                </div>
-                                @if (job.Status is UploadJobStatus.Done or UploadJobStatus.Failed)
-                                {
-                                    <button class="duplicate-dropdown-delete-btn"
-                                            @onclick="() => DismissUploadAsync(job.JobId)"
-                                            title="Dismiss">
-                                        <i class="bi bi-x"></i>
-                                    </button>
-                                }
-                            </div>
-                        }
-                    }
-                </div>
-            }
-            else if (_activeTab == NotifTab.Documents)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">Application Tracking</span>
-                    <span class="text-muted small">@AppTracking.PendingForMeCount waiting on you</span>
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (AppTracking.PendingForMeCount == 0)
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-check-circle me-2"></i>
-                            Nothing tagged to you right now
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="duplicate-dropdown-item" style="cursor:pointer;" @onclick="GoToApplicationTracking">
-                            <i class="bi bi-truck me-2 text-primary"></i>
-                            <span>
-                                You have <strong>@AppTracking.PendingForMeCount</strong>
-                                application@(AppTracking.PendingForMeCount == 1 ? "" : "s") to accept
-                            </span>
-                        </div>
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-footer">
-                    <button class="duplicate-scan-btn-small" @onclick="GoToApplicationTracking">
-                        <i class="bi bi-arrow-right me-1"></i>
-                        Open Application Tracking
-                    </button>
-                </div>
-            }
-            else if (_activeTab == NotifTab.TrackedDocuments)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">Document Tracking</span>
-                    <span class="text-muted small">@DocTracking.PendingForMeCount waiting on you</span>
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (DocTracking.PendingForMeCount == 0)
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-check-circle me-2"></i>
-                            Nothing tagged to you right now
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="duplicate-dropdown-item" style="cursor:pointer;" @onclick="GoToDocumentTracking">
-                            <i class="bi bi-send me-2 text-primary"></i>
-                            <span>
-                                You have <strong>@DocTracking.PendingForMeCount</strong>
-                                document@(DocTracking.PendingForMeCount == 1 ? "" : "s") to accept
-                            </span>
-                        </div>
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-footer">
-                    <button class="duplicate-scan-btn-small" @onclick="GoToDocumentTracking">
-                        <i class="bi bi-arrow-right me-1"></i>
-                        Open Document Tracking
-                    </button>
-                </div>
-            }
-            else if (_activeTab == NotifTab.Updates)
-            {
-                <div class="duplicate-dropdown-header">
-                    <span class="fw-bold">System Updates</span>
-                    @if (_hasUnseenUpdate)
-                    {
-                        <span class="badge bg-danger">New</span>
-                    }
-                </div>
-
-                <div class="duplicate-dropdown-scroll">
-                    @if (_loadingUpdates)
-                    {
-                        <div class="duplicate-dropdown-item text-center">
-                            <span class="spinner-border spinner-border-sm"></span>
-                        </div>
-                    }
-                    else if (!_updateNotices.Any())
-                    {
-                        <div class="duplicate-dropdown-item duplicate-dropdown-empty">
-                            <i class="bi bi-info-circle me-2"></i>
-                            No updates published yet
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var notice in _updateNotices)
-                        {
-                            var isUnseen = _hasUnseenUpdate && notice == _updateNotices.First();
-
-                            <div class="duplicate-dropdown-item @(isUnseen ? "duplicate-dropdown-has-matches" : "")">
-                                <div class="flex-grow-1">
-                                    <div class="d-flex justify-content-between align-items-start w-100">
-                                        <span class="fw-semibold" style="font-size:13px;">@notice.Title</span>
-                                        <span class="text-muted small ms-1">v@(notice.Version)</span>
-                                    </div>
-                                    @foreach (var line in notice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                    <div class="fw-semibold text-truncate" style="font-size:13px;">@item.Title</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.Subtitle))
                                     {
-                                        <div class="duplicate-dropdown-filter">• @line</div>
+                                        <div class="duplicate-dropdown-filter">@item.Subtitle</div>
                                     }
                                     <div class="duplicate-dropdown-time">
                                         <i class="bi bi-clock me-1"></i>
-                                        @notice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                                        · @notice.PublishedByName
+                                        @item.Timestamp.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
                                     </div>
                                 </div>
                             </div>
-                        }
+                        </div>
                     }
-                </div>
-
-                @if (_hasUnseenUpdate)
-                {
-                    <div class="duplicate-dropdown-footer">
-                        <button class="duplicate-scan-btn-small" disabled="@_refreshingFromBell" @onclick="RefreshForLatestUpdate">
-                            <i class="bi bi-arrow-clockwise me-1 @(_refreshingFromBell ? "spin" : "")"></i>
-                            @(_refreshingFromBell ? "Refreshing..." : "Refresh Now to Apply")
-                        </button>
-                    </div>
                 }
+            </div>
+
+            @if (_hasUnseenUpdate)
+            {
+                <div class="duplicate-dropdown-footer">
+                    <button class="duplicate-scan-btn-small" disabled="@_refreshingFromBell" @onclick="RefreshForLatestUpdate">
+                        <i class="bi bi-arrow-clockwise me-1 @(_refreshingFromBell ? "spin" : "")"></i>
+                        @(_refreshingFromBell ? "Refreshing..." : "Refresh Now to Apply Update")
+                    </button>
+                </div>
             }
         </div>
     }
 </div>
 
-@* ── Large review modal — one notification's full pair list, roomy layout ── *@
-@if (_reviewNotification is not null)
-{
-    <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show" style="display:block;" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div>
-                        <h5 class="modal-title mb-1">
-                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Possible Duplicate Matches
-                        </h5>
-                        <div class="text-muted small">@_reviewNotification.FilterDescription</div>
-                    </div>
-                    <button type="button" class="btn-close" @onclick="CloseReviewModal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-6">
-                            @UnresolvedCount(_reviewNotification) of @_reviewNotification.TotalPairs still need review
-                        </span>
-                        <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenFullComparison(_reviewNotification)">
-                            <i class="bi bi-columns-gap me-1"></i>Open Full Side-by-Side Comparison
-                        </button>
-                    </div>
-
-                    @if (_reviewNotification.Result?.Pairs is { Count: > 0 } pairs)
-                    {
-                        <div class="duplicate-pair-grid">
-                            @foreach (var pair in pairs)
-                            {
-                                var pairKey = PairKey(pair);
-                                var isBusy = _busyPairKeys.Contains(pairKey);
-                                var isRemarksOpen = _activeRemarksPairKey == pairKey;
-
-                                <div class="duplicate-pair-card @(pair.IsResolved ? "duplicate-pair-card--resolved" : "")">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
-                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
-                                            @((pair.MatchScore * 100).ToString("F0"))% match
-                                        </span>
-                                        @if (pair.IsResolved)
-                                        {
-                                            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
-                                                <i class="bi bi-check-circle-fill me-1"></i>Resolved
-                                            </span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">Unresolved</span>
-                                        }
-                                    </div>
-
-                                    <div class="duplicate-pair-compare">
-                                        <div class="duplicate-pair-record">
-                                            <div class="fw-semibold">@pair.Record1FullName</div>
-                                            <div class="text-muted small">@pair.Record1BirthDate</div>
-                                            <div class="text-muted small">
-                                                @pair.Record1Municipality
-                                                @if (!string.IsNullOrWhiteSpace(pair.Record1Barangay))
-                                                {
-                                                    <span> — @pair.Record1Barangay</span>
-                                                }
-                                            </div>
-                                            @if (pair.Record1PaymentStatus == 2)
-                                            {
-                                                <span class="badge bg-success mt-1" style="font-size:9px;">Paid</span>
-                                            }
-                                        </div>
-                                        <div class="duplicate-pair-vs">
-                                            <i class="bi bi-arrow-left-right"></i>
-                                        </div>
-                                        <div class="duplicate-pair-record">
-                                            <div class="fw-semibold">@pair.Record2FullName</div>
-                                            <div class="text-muted small">@pair.Record2BirthDate</div>
-                                            <div class="text-muted small">
-                                                @pair.Record2Municipality
-                                                @if (!string.IsNullOrWhiteSpace(pair.Record2Barangay))
-                                                {
-                                                    <span> — @pair.Record2Barangay</span>
-                                                }
-                                            </div>
-                                            @if (pair.Record2PaymentStatus == 2)
-                                            {
-                                                <span class="badge bg-success mt-1" style="font-size:9px;">Paid</span>
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <div class="duplicate-pair-reason">
-                                        <i class="bi bi-info-circle me-1"></i>@pair.MatchReason
-                                    </div>
-
-                                    @if (pair.IsResolved && !string.IsNullOrWhiteSpace(pair.Remarks))
-                                    {
-                                        <div class="duplicate-pair-remarks-readonly">
-                                            <i class="bi bi-chat-left-text me-1"></i>@pair.Remarks
-                                            @if (!string.IsNullOrWhiteSpace(pair.ResolvedBy))
-                                            {
-                                                <span class="text-muted"> — @pair.ResolvedBy@(pair.ResolvedAt.HasValue ? $", {pair.ResolvedAt.Value.ToLocalTime():MMM dd, HH:mm}" : "")</span>
-                                            }
-                                        </div>
-                                    }
-
-                                    @if (isRemarksOpen)
-                                    {
-                                        <div class="duplicate-pair-remarks-form">
-                                            <textarea class="form-control form-control-sm" rows="2"
-                                                      placeholder="Optional remarks (e.g. confirmed not a duplicate)..."
-                                                      @bind="_remarksDraft" @bind:event="oninput"></textarea>
-                                            <div class="d-flex justify-content-end gap-2 mt-1">
-                                                <button class="btn btn-sm btn-light" @onclick="CloseRemarksBox" disabled="@isBusy">Cancel</button>
-                                                <button class="btn btn-sm btn-success" @onclick="() => ResolvePairAsync(pair)" disabled="@isBusy">
-                                                    @if (isBusy)
-                                                    {
-                                                        <span class="spinner-border spinner-border-sm"></span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>Confirm Resolve</span>
-                                                    }
-                                                </button>
-                                            </div>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="d-flex justify-content-end mt-2">
-                                            @if (pair.IsResolved)
-                                            {
-                                                <button class="btn btn-sm btn-outline-secondary" disabled="@isBusy" @onclick="() => UnresolvePairAsync(pair)">
-                                                    @if (isBusy)
-                                                    {
-                                                        <span class="spinner-border spinner-border-sm"></span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span><i class="bi bi-arrow-counterclockwise me-1"></i>Undo</span>
-                                                    }
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="btn btn-sm btn-outline-success" disabled="@isBusy" @onclick="() => OpenRemarksBox(pair)">
-                                                    <i class="bi bi-check-lg me-1"></i>Resolve
-                                                </button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="alert alert-success mb-0">
-                            <i class="bi bi-check-circle-fill me-2"></i>No possible duplicates found.
-                        </div>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseReviewModal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-@* ── Clear All Confirmation Modal ── *@
-@if (_showClearAllModal)
-{
-    <div class="modal-backdrop fade show"></div>
-    <div class="modal fade show" style="display:block;" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Clear All Notifications</h5>
-                    <button type="button" class="btn-close" @onclick="() => _showClearAllModal = false"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to clear all duplicate scan notifications?</p>
-                    <p class="text-muted small">This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => _showClearAllModal = false">Cancel</button>
-                    <button class="btn btn-danger" @onclick="ClearAllNotifications">Clear All</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-@* ── Full-screen "activity starting now / scheduled today" interrupt ── *@
+@* ── Full-screen "activity starting now / scheduled today" interrupt —
+     independent of the feed above; still fires the instant a calendar
+     activity starts, regardless of whether the bell dropdown is open. ── *@
 @if (_modalActivity is not null)
 {
     <div class="activity-reminder-backdrop">
@@ -680,71 +159,161 @@
 }
 
 @code {
-    private enum NotifTab { Duplicates, Calendar, Uploads, Documents, TrackedDocuments, Updates }
-    private NotifTab _activeTab = NotifTab.Duplicates;
     private bool _showDropdown;
 
-    // ── Duplicates (BeneficiaryStateService-backed) ─────────────────────────
-    private bool _showClearAllModal;
-    private DuplicateScanNotificationDto? _reviewNotification;
-    private string? _activeRemarksPairKey;
-    private string _remarksDraft = string.Empty;
-    private readonly HashSet<string> _busyPairKeys = new();
+    private class FeedItem
+    {
+        public DateTime Timestamp { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string AccentKey { get; set; } = string.Empty; // maps to notif-feed-item--{key} CSS
+        public string Icon { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Subtitle { get; set; }
+        public Func<Task>? OnClick { get; set; }
+    }
 
-    private int DuplicatesBadge => State.DuplicateScanNotifications
-        .Where(n => !n.IsLoading && !n.HasError)
-        .Sum(UnresolvedCount);
+    private List<FeedItem> Feed => BuildFeed();
 
-    // ── Calendar (ActivityClientService-backed) ─────────────────────────────
-    private int? _myRegionCode;
-    private bool _loadingActivities = true;
-    private List<ActivityDto> _todayActivities = new();
-    private ActivityDto? _modalActivity;
-    private readonly Queue<ActivityDto> _modalQueue = new();
+    private List<FeedItem> BuildFeed()
+    {
+        var items = new List<FeedItem>();
 
-    // ── Uploads (DocumentUploadQueueService-backed) ─────────────────────────
-    private List<DocumentUploadJobDto> _uploadJobs = new();
-    private int _uploadActiveCount;
+        foreach (var b in AppTracking.PendingForMeItems)
+        {
+            items.Add(new FeedItem
+            {
+                Timestamp = b.CreatedAt,
+                Category = "Application Tracking",
+                AccentKey = "application",
+                Icon = "bi-truck",
+                Title = $"{b.MunicipalityName} — MY{b.MilestoneYear}",
+                Subtitle = $"{b.CurrentStatusLabel} • from {b.CreatedByName}",
+                OnClick = () => { GoToApplicationTracking(); return Task.CompletedTask; }
+            });
+        }
 
-    // ── System Updates (SystemUpdateClientService-backed) ───────────────────
-    private List<SystemUpdateNoticeDto> _updateNotices = new();
-    private bool _loadingUpdates = true;
-    private bool _hasUnseenUpdate;
-    private bool _refreshingFromBell;
+        foreach (var d in DocTracking.PendingForMeItems)
+        {
+            items.Add(new FeedItem
+            {
+                Timestamp = d.CreatedAt,
+                Category = "Document Tracking",
+                AccentKey = "document",
+                Icon = "bi-send",
+                Title = $"{d.Title} ({d.SerialNumber})",
+                Subtitle = $"{d.StatusLabel} • from {d.CreatedByName}",
+                OnClick = () => { GoToDocumentTracking(); return Task.CompletedTask; }
+            });
+        }
 
-    private int TotalBadgeCount => DuplicatesBadge + _todayActivities.Count + _uploadActiveCount +
-        AppTracking.PendingForMeCount + DocTracking.PendingForMeCount + (_hasUnseenUpdate ? 1 : 0);
+        foreach (var l in LivenessNotification.PendingItems)
+        {
+            items.Add(new FeedItem
+            {
+                Timestamp = l.SubmittedDate,
+                Category = "Liveness Check",
+                AccentKey = "liveness",
+                Icon = "bi-camera-fill",
+                Title = l.FullName,
+                Subtitle = l.MunicipalityName,
+                OnClick = () => { GoToLivenessReview(l); return Task.CompletedTask; }
+            });
+        }
+
+        foreach (var u in _updateNotices)
+        {
+            var isLatestUnseen = _hasUnseenUpdate && u == _updateNotices.First();
+            items.Add(new FeedItem
+            {
+                Timestamp = u.PublishedAt,
+                Category = "System Update",
+                AccentKey = "update",
+                Icon = "bi-arrow-repeat",
+                Title = $"{u.Title} (v{u.Version})",
+                Subtitle = u.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault(),
+                OnClick = isLatestUnseen ? () => RefreshForLatestUpdate() : null
+            });
+        }
+
+        return items.OrderByDescending(i => i.Timestamp).ToList();
+    }
+
+    private async Task HandleFeedItemClick(FeedItem item)
+    {
+        if (item.OnClick is not null)
+            await item.OnClick();
+    }
+
+    // ── Unseen-since-last-opened badge ───────────────────────────────────────
+    // Opening the dropdown acknowledges everything currently in the feed — the
+    // count then only climbs again for items that arrive AFTER that, instead
+    // of nagging with the same still-pending total every time. Keyed off a
+    // TIMESTAMP (not a raw count) and persisted to localStorage, so it
+    // survives a page reload instead of resetting to "everything unseen"
+    // every time this component remounts (a plain in-memory count would also
+    // have been wrong the moment the feed's contents changed underneath it,
+    // even within the same session).
+    private const string LastSeenStorageKey = "eca-notif-bell-last-seen";
+    private DateTime _lastAcknowledgedAt = DateTime.MinValue;
+    private int UnseenBadgeCount => Feed.Count(i => i.Timestamp > _lastAcknowledgedAt);
 
     protected override async Task OnInitializedAsync()
     {
-        State.OnChange += HandleDuplicatesChange;
-        State.OnDuplicateNotificationsChanged += HandleDuplicatesChange;
+        await LoadLastAcknowledgedAsync();
 
         await AuthService.InitAsync();
         _myRegionCode = AuthService.GetRegionCode();
 
-        await LoadTodayActivitiesAsync();
         await ShowAllDayRemindersOnLoad();
         await ConnectRealtimeAsync();
 
         ActivityClient.ActivityStarting += OnActivityStarting;
-        ActivityClient.ActivityChanged += OnActivityChanged;
-        ActivityClient.ActivityDeleted += OnActivityDeleted;
 
-        UploadQueue.OnChanged += OnUploadQueueChanged;
-        RefreshUploadState();
-
-        AppTracking.OnChange += HandleAppTrackingChange;
+        AppTracking.OnChange += HandleFeedSourceChange;
         await AppTracking.RefreshPendingCountAsync();
 
-        DocTracking.OnChange += HandleDocTrackingChange;
+        DocTracking.OnChange += HandleFeedSourceChange;
         await DocTracking.RefreshPendingCountAsync();
+
+        LivenessNotification.OnChange += HandleFeedSourceChange;
 
         SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
         await LoadUpdateNoticesAsync();
     }
 
-    private void HandleAppTrackingChange() => InvokeAsync(StateHasChanged);
+    private void HandleFeedSourceChange() => InvokeAsync(StateHasChanged);
+
+    private void ToggleDropdown()
+    {
+        _showDropdown = !_showDropdown;
+        if (_showDropdown)
+        {
+            _ = AcknowledgeFeedAsync();
+        }
+    }
+
+    public void CloseDropdown() => _showDropdown = false;
+
+    private async Task AcknowledgeFeedAsync()
+    {
+        _lastAcknowledgedAt = DateTime.UtcNow;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", LastSeenStorageKey, _lastAcknowledgedAt.ToString("o")); }
+        catch { /* non-fatal — worst case the badge re-shows these on next reload */ }
+    }
+
+    private async Task LoadLastAcknowledgedAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", LastSeenStorageKey);
+            if (!string.IsNullOrEmpty(stored) && DateTime.TryParse(stored, null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+            {
+                _lastAcknowledgedAt = parsed;
+            }
+        }
+        catch { /* non-fatal — defaults to "everything unseen" */ }
+    }
 
     private void GoToApplicationTracking()
     {
@@ -752,53 +321,16 @@
         Navigation.NavigateTo("/application-tracking");
     }
 
-    private void HandleDocTrackingChange() => InvokeAsync(StateHasChanged);
-
     private void GoToDocumentTracking()
     {
         _showDropdown = false;
         Navigation.NavigateTo("/document-tracking");
     }
 
-    private void HandleDuplicatesChange() => InvokeAsync(StateHasChanged);
-
-    private void ToggleDropdown()
+    private void GoToLivenessReview(LivenessPendingReviewItemDto item)
     {
-        _showDropdown = !_showDropdown;
-        if (_showDropdown)
-        {
-            State.ClearOldDuplicateNotifications(100);
-        }
-    }
-
-    public void CloseDropdown() => _showDropdown = false;
-
-    #region Duplicates
-    private static int UnresolvedCount(DuplicateScanNotificationDto notification) =>
-        notification.Result?.Pairs.Count(p => !p.IsResolved) ?? notification.TotalPairs;
-
-    private static string PairKey(PossibleDuplicatePairDto pair) => $"{pair.Record1Id}_{pair.Record2Id}";
-    private static string MatchWord(int count) => count == 1 ? "match" : "matches";
-
-    private void OpenReviewModal(DuplicateScanNotificationDto notification)
-    {
-        if (notification.TotalPairs == 0) return;
-        _reviewNotification = notification;
         _showDropdown = false;
-        _activeRemarksPairKey = null;
-    }
-
-    private void CloseReviewModal()
-    {
-        _reviewNotification = null;
-        _activeRemarksPairKey = null;
-    }
-
-    private void OpenFullComparison(DuplicateScanNotificationDto notification)
-    {
-        State.GlobalDuplicateSummary = notification.Result;
-        State.RequestDuplicateModalOpen();
-        CloseReviewModal();
+        State.RequestOpenLivenessReview(item.BeneficiaryId);
 
         var currentPath = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
         if (!currentPath.Equals("/beneficiary-records", StringComparison.OrdinalIgnoreCase))
@@ -807,61 +339,12 @@
         }
     }
 
-    private void OpenRemarksBox(PossibleDuplicatePairDto pair)
-    {
-        _activeRemarksPairKey = PairKey(pair);
-        _remarksDraft = string.Empty;
-    }
+    #region Calendar (activity-start interrupt only — the "today" list moved to NavMenu's badge)
+    private int? _myRegionCode;
+    private ActivityDto? _modalActivity;
+    private readonly Queue<ActivityDto> _modalQueue = new();
+    private bool _dontShowModalAgain;
 
-    private void CloseRemarksBox()
-    {
-        _activeRemarksPairKey = null;
-        _remarksDraft = string.Empty;
-    }
-
-    private async Task ResolvePairAsync(PossibleDuplicatePairDto pair)
-    {
-        var key = PairKey(pair);
-        _busyPairKeys.Add(key);
-        StateHasChanged();
-
-        try { await State.ResolveDuplicatePairAsync(pair, _remarksDraft); }
-        finally
-        {
-            _busyPairKeys.Remove(key);
-            _activeRemarksPairKey = null;
-            _remarksDraft = string.Empty;
-            StateHasChanged();
-        }
-    }
-
-    private async Task UnresolvePairAsync(PossibleDuplicatePairDto pair)
-    {
-        var key = PairKey(pair);
-        _busyPairKeys.Add(key);
-        StateHasChanged();
-
-        try { await State.UnresolveDuplicatePairAsync(pair); }
-        finally
-        {
-            _busyPairKeys.Remove(key);
-            StateHasChanged();
-        }
-    }
-
-    private void DeleteNotification(Guid id) => State.ClearDuplicateNotification(id);
-    private void ConfirmClearAll() => _showClearAllModal = true;
-
-    private void ClearAllNotifications()
-    {
-        State.ClearAllDuplicateNotifications();
-        _showClearAllModal = false;
-    }
-
-    private void ClearOld() => State.ClearOldDuplicateNotifications(50);
-    #endregion
-
-    #region Calendar
     private async Task ConnectRealtimeAsync()
     {
         if (!ActivityClient.IsConnected)
@@ -885,9 +368,6 @@
 
         InvokeAsync(async () =>
         {
-            if (!_todayActivities.Any(a => a.Id == activity.Id))
-                _todayActivities.Add(activity);
-
             if (!await IsModalDismissedAsync(activity.Id))
                 EnqueueModal(activity);
 
@@ -902,11 +382,6 @@
         else
             _modalQueue.Enqueue(activity);
     }
-
-    // ✅ "Don't show this again" — persisted per activity/day in localStorage
-    // (survives a full page reload, unlike the static in-memory dedup below
-    // which only survives component remounts within the same WASM session).
-    private bool _dontShowModalAgain;
 
     private static string DismissedModalKey(int activityId) =>
         $"eca-dismissed-activity-modal-{activityId}-{DateTime.Today:yyyyMMdd}";
@@ -927,12 +402,6 @@
         catch { /* non-fatal — worst case it just pops again next reload */ }
     }
 
-    private void OnActivityChanged(ActivityDto activity) =>
-        InvokeAsync(async () => { await LoadTodayActivitiesAsync(); StateHasChanged(); });
-
-    private void OnActivityDeleted(int id) =>
-        InvokeAsync(async () => { await LoadTodayActivitiesAsync(); StateHasChanged(); });
-
     private async Task DismissModal()
     {
         if (_dontShowModalAgain && _modalActivity is not null)
@@ -950,7 +419,8 @@
         _dontShowModalAgain = false;
         _modalActivity = null;
         _modalQueue.Clear();
-        GoToCalendar();
+        _showDropdown = false;
+        Navigation.NavigateTo("/calendar");
     }
 
     // ✅ static — deliberately survives this component being disposed and
@@ -969,7 +439,11 @@
             _shownAllDayActivityIds.Clear();
         }
 
-        foreach (var activity in _todayActivities.Where(a => a.IsAllDay))
+        List<ActivityDto> todayActivities;
+        try { todayActivities = await ActivityClient.GetDayMyRegionAsync(DateTime.Today); }
+        catch { todayActivities = new(); }
+
+        foreach (var activity in todayActivities.Where(a => a.IsAllDay))
         {
             if (!_shownAllDayActivityIds.Add(activity.Id)) continue;
             if (await IsModalDismissedAsync(activity.Id)) continue;
@@ -977,77 +451,15 @@
             EnqueueModal(activity);
         }
     }
-
-    private async Task LoadTodayActivitiesAsync()
-    {
-        _loadingActivities = true;
-        try { _todayActivities = await ActivityClient.GetDayMyRegionAsync(DateTime.Today); }
-        catch { _todayActivities = new(); }
-        finally { _loadingActivities = false; }
-    }
-
-    private void GoToCalendar()
-    {
-        _showDropdown = false;
-        Navigation.NavigateTo("/calendar");
-    }
-
-    private static string PriorityCss(ActivityPriority p) => p switch
-    {
-        ActivityPriority.Urgent => "dot-red",
-        ActivityPriority.HeadsUp => "dot-amber",
-        _ => "dot-green"
-    };
-    #endregion
-
-    #region Uploads
-    private void OnUploadQueueChanged()
-    {
-        RefreshUploadState();
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void RefreshUploadState()
-    {
-        _uploadJobs = UploadQueue.Jobs.ToList();
-        _uploadActiveCount = UploadQueue.ActiveCount;
-    }
-
-    private async Task DismissUploadAsync(Guid jobId) => await UploadQueue.DismissCompletedAsync(jobId);
-
-    private static string GetUploadItemClass(UploadJobStatus status) => status switch
-    {
-        UploadJobStatus.Done => "duplicate-dropdown-has-matches",
-        UploadJobStatus.Failed => "duplicate-dropdown-error",
-        UploadJobStatus.Uploading or UploadJobStatus.Retrying => "duplicate-dropdown-loading",
-        _ => string.Empty
-    };
-
-    private static RenderFragment GetUploadStatusIcon(UploadJobStatus status) => status switch
-    {
-        UploadJobStatus.Done => @<i class="bi bi-check-circle-fill text-success"></i>,
-        UploadJobStatus.Failed => @<i class="bi bi-x-circle-fill text-danger"></i>,
-        UploadJobStatus.Uploading => @<span class="spinner-border spinner-border-sm text-primary"
-                                        style="width:14px;height:14px;border-width:2px;"></span>,
-        UploadJobStatus.Retrying => @<i class="bi bi-arrow-repeat text-warning"></i>,
-        _ => @<i class="bi bi-clock text-muted"></i>
-    };
-
-    private static string GetUploadStatusText(DocumentUploadJobDto job) => job.Status switch
-    {
-        UploadJobStatus.Done => "Uploaded successfully",
-        UploadJobStatus.Failed => job.ErrorMessage ?? "Permanently failed",
-        UploadJobStatus.Uploading => $"Uploading... (attempt {job.AttemptCount})",
-        UploadJobStatus.Retrying => job.ErrorMessage ?? "Retrying...",
-        UploadJobStatus.Queued => "Waiting...",
-        _ => string.Empty
-    };
     #endregion
 
     #region System Updates
+    private List<SystemUpdateNoticeDto> _updateNotices = new();
+    private bool _hasUnseenUpdate;
+    private bool _refreshingFromBell;
+
     private async Task LoadUpdateNoticesAsync()
     {
-        _loadingUpdates = true;
         try
         {
             _updateNotices = await Http.GetFromJsonAsync<List<SystemUpdateNoticeDto>>("api/system-updates") ?? new();
@@ -1055,10 +467,6 @@
         catch
         {
             _updateNotices = new();
-        }
-        finally
-        {
-            _loadingUpdates = false;
         }
 
         // Also settles _hasUnseenUpdate on first load (e.g. a notice was
@@ -1097,17 +505,11 @@
 
     public async ValueTask DisposeAsync()
     {
-        State.OnChange -= HandleDuplicatesChange;
-        State.OnDuplicateNotificationsChanged -= HandleDuplicatesChange;
-
         ActivityClient.ActivityStarting -= OnActivityStarting;
-        ActivityClient.ActivityChanged -= OnActivityChanged;
-        ActivityClient.ActivityDeleted -= OnActivityDeleted;
 
-        UploadQueue.OnChanged -= OnUploadQueueChanged;
-
-        AppTracking.OnChange -= HandleAppTrackingChange;
-        DocTracking.OnChange -= HandleDocTrackingChange;
+        AppTracking.OnChange -= HandleFeedSourceChange;
+        DocTracking.OnChange -= HandleFeedSourceChange;
+        LivenessNotification.OnChange -= HandleFeedSourceChange;
 
         SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
 

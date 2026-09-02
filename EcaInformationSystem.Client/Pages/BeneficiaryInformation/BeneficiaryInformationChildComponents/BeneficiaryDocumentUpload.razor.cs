@@ -24,10 +24,11 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     [Parameter] public EventCallback OnDeleteComplete { get; set; }
     [Parameter] public EventCallback OnRequestHideOffcanvas { get; set; }
     [Parameter] public int PsgcCodeMunicipality { get; set; }
+    [Parameter] public string? LastName { get; set; }
+    [Parameter] public string? FirstName { get; set; }
 
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
-    private HxInputFileDropZone _dropZone = default!;
     private bool _isDeleting;
     private BeneficiaryDocumentDto? _docToRename;
     private string _renameValue = string.Empty;
@@ -36,33 +37,19 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     private List<BeneficiaryDocumentDto> _documents = new();
     private BeneficiaryDocumentDto? _selectedDoc;
     private BeneficiaryDocumentDto? _docToDelete;
-    private List<IBrowserFile> _pendingFiles = new();
     private bool _isLoading;
     private string? _blobUrl;
-    private string? _fileValidationError;
     private int _zoomPercent = 100;
     private string ViewerSrc => $"{_blobUrl}#zoom={_zoomPercent}";
-    // ── Per-component upload tracking (fed from the queue service) ────────────
-    // True while ANY job for THIS beneficiary is queued/uploading/retrying.
-    private bool _isCameraJobActive;
-    private bool _isPdfJobActive;
-    // Tracks the most recent queued job IDs for this component instance
-    // so we can tell the queue to notify us specifically when they finish.
-    private Guid? _lastCameraJobId;
-    private Guid? _lastPdfJobId;
 
     private string ApiBase =>
         (Http.BaseAddress?.ToString() ?? Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080")
         .TrimEnd('/');
 
-    private string UploadButtonText => _isPdfJobActive
-        ? "Uploading in background..."
-        : $"Upload {_pendingFiles.Count} File(s)";
-
     protected override async Task OnInitializedAsync()
     {
-        // Subscribe to queue changes so we can update local state + refresh list
-        UploadQueue.OnChanged += OnQueueChanged;
+        // All uploads now go through the shared QuickUpload component — this
+        // panel only needs to know when one finishes, to refresh the list.
         UploadQueue.OnJobCompleted += OnJobCompleted;
         await LoadDocumentsAsync();
     }
@@ -82,18 +69,6 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     {
         _zoomPercent = 100;
         StateHasChanged();
-    }
-    // ── Called whenever queue state changes ───────────────────────────────────
-    private void OnQueueChanged()
-    {
-        // Update local "is uploading" flags based on jobs for this beneficiary
-        _isCameraJobActive = _lastCameraJobId.HasValue &&
-            UploadQueue.IsJobActive(_lastCameraJobId.Value);
-
-        _isPdfJobActive = _lastPdfJobId.HasValue &&
-            UploadQueue.IsJobActive(_lastPdfJobId.Value);
-
-        InvokeAsync(StateHasChanged);
     }
 
     // ── Called by queue service when a job for THIS beneficiary succeeds ──────
@@ -276,65 +251,6 @@ public partial class BeneficiaryDocumentUpload : IDisposable
         }
     }
 
-    private async Task OnFilesChanged(InputFileChangeEventArgs e)
-    {
-        _fileValidationError = null;
-        var invalidFiles = new List<string>();
-
-        foreach (var file in e.GetMultipleFiles(10))
-        {
-            var isValidMime = file.ContentType == "application/pdf";
-            var isValidExt = Path.GetExtension(file.Name)
-                .Equals(".pdf", StringComparison.OrdinalIgnoreCase);
-
-            if (!isValidMime || !isValidExt)
-            {
-                invalidFiles.Add(file.Name);
-                continue;
-            }
-            _pendingFiles.Add(file);
-        }
-
-        if (invalidFiles.Any())
-            _fileValidationError = $"Only PDF files are allowed. " +
-                $"The following file(s) were rejected: {string.Join(", ", invalidFiles)}";
-
-        StateHasChanged();
-    }
-
-    private void RemovePending(IBrowserFile file)
-    {
-        _pendingFiles.Remove(file);
-        StateHasChanged();
-    }
-
-    private async Task UploadPendingAsync()
-    {
-        if (!_pendingFiles.Any()) return;
-        _fileValidationError = null;
-
-        var payloads = new List<UploadFilePayload>();
-        foreach (var file in _pendingFiles)
-        {
-            using var ms = new MemoryStream();
-            await file.OpenReadStream(209_715_200).CopyToAsync(ms);
-            payloads.Add(new UploadFilePayload
-            {
-                Bytes = ms.ToArray(),
-                FileName = file.Name,
-                ContentType = "application/pdf"
-            });
-        }
-
-        var jobId = await UploadQueue.EnqueuePdfUploadAsync(EditId, payloads);
-        _lastPdfJobId = jobId;
-        _isPdfJobActive = true;
-
-        _pendingFiles.Clear();
-        Messenger.AddInformation("File(s) queued — uploading in background.");
-        StateHasChanged();
-    }
-
     private void SelectDocument(BeneficiaryDocumentDto doc)
     {
         _selectedDoc = _selectedDoc?.Id == doc.Id ? null : doc;
@@ -374,81 +290,8 @@ public partial class BeneficiaryDocumentUpload : IDisposable
     private string GetStreamUrl(Guid documentId)
         => $"{ApiBase}/api/beneficiary-documents/stream/{documentId}?t={DateTime.UtcNow.Ticks}";
 
-    private static string FormatSize(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1048576 => $"{bytes / 1024.0:F1} KB",
-        _ => $"{bytes / 1048576.0:F1} MB"
-    };
-
-    // ── Camera capture ────────────────────────────────────────────────────────
-    private class CapturedPhoto
-    {
-        public byte[] Bytes { get; set; } = Array.Empty<byte>();
-        public string FileName { get; set; } = string.Empty;
-        public string ContentType { get; set; } = string.Empty;
-        public string PreviewUrl { get; set; } = string.Empty;
-    }
-
-    private List<CapturedPhoto> _capturedPhotos = new();
-
-    private async Task OnCameraPhotosChanged(InputFileChangeEventArgs e)
-    {
-        foreach (var file in e.GetMultipleFiles(10))
-        {
-            try
-            {
-                using var ms = new MemoryStream();
-                await file.OpenReadStream(20_000_000).CopyToAsync(ms);
-                var bytes = ms.ToArray();
-                var base64 = Convert.ToBase64String(bytes);
-                var previewUrl = $"data:{file.ContentType};base64,{base64}";
-
-                _capturedPhotos.Add(new CapturedPhoto
-                {
-                    Bytes = bytes,
-                    FileName = file.Name,
-                    ContentType = file.ContentType,
-                    PreviewUrl = previewUrl
-                });
-            }
-            catch (Exception ex)
-            {
-                Messenger.AddError($"Failed to load photo '{file.Name}': {ex.Message}");
-            }
-        }
-        StateHasChanged();
-    }
-
-    private void RemoveCapturedPhoto(CapturedPhoto photo)
-    {
-        _capturedPhotos.Remove(photo);
-        StateHasChanged();
-    }
-
-    private async Task ConfirmCameraUploadAsync()
-    {
-        if (!_capturedPhotos.Any()) return;
-
-        var payloads = _capturedPhotos.Select(p => new UploadFilePayload
-        {
-            Bytes = p.Bytes,
-            FileName = p.FileName,
-            ContentType = p.ContentType
-        }).ToList();
-
-        var jobId = await UploadQueue.EnqueueCameraUploadAsync(EditId, payloads);
-        _lastCameraJobId = jobId;
-        _isCameraJobActive = true;
-
-        _capturedPhotos.Clear();
-        Messenger.AddInformation("Photo(s) queued — uploading in background.");
-        StateHasChanged();
-    }
-
     public void Dispose()
     {
-        UploadQueue.OnChanged -= OnQueueChanged;
         UploadQueue.OnJobCompleted -= OnJobCompleted;
     }
 }

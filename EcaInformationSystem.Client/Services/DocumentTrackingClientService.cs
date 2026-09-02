@@ -27,6 +27,7 @@ namespace EcaInformationSystem.Client.Services
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
         public int PendingForMeCount { get; private set; }
+        public List<TrackedDocumentListItemDto> PendingForMeItems { get; private set; } = new();
 
         public DocumentTrackingClientService(HttpClient http, IJSRuntime js)
         {
@@ -90,6 +91,7 @@ namespace EcaInformationSystem.Client.Services
 
             _currentUserId = null;
             PendingForMeCount = 0;
+            PendingForMeItems = new();
             OnChange?.Invoke();
         }
 
@@ -105,10 +107,11 @@ namespace EcaInformationSystem.Client.Services
             {
                 var page = await _http.GetFromJsonAsync<PagedResultDto<TrackedDocumentListItemDto>>(
                     "api/document-tracking?page=1&pageSize=200");
-                PendingForMeCount = page?.Items.Count(d =>
+                PendingForMeItems = page?.Items.Where(d =>
                     d.CurrentHolderUserId == _currentUserId &&
                     !d.CurrentLegAcceptedAt.HasValue &&
-                    d.Status != 1) ?? 0;
+                    d.Status != 1).ToList() ?? new();
+                PendingForMeCount = PendingForMeItems.Count;
             }
             catch
             {

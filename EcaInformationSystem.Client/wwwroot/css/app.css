@@ -3834,19 +3834,30 @@
 .quick-upload-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 40;
+    /* Just enough to clear Bootstrap's offcanvas (1045) — deliberately NOT
+       pushed further, since Bootstrap's modal layer starts at 1055+; sitting
+       inside that range risks this (normally-transparent, click-catching)
+       backdrop briefly overlapping a modal opened right after it (e.g. the
+       naming modal), which is what caused the "blacked out" modal glitch. */
+    z-index: 1046;
 }
 
+/* position:fixed + top/left are set by JS (positionFloatingPopover, see
+   index.html) once the popover has rendered and its real size is known —
+   this is what lets it escape clipping from a scrollable ancestor (e.g. the
+   offcanvas body) that a plain CSS `position: absolute` popover can't
+   escape no matter how high its z-index is. The starting top/left below are
+   just a harmless default before JS repositions it (briefly hidden via the
+   inline `visibility:hidden` in the markup, so it's never seen unpositioned). */
 .quick-upload-popover {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
+    position: fixed;
+    top: 0;
+    left: 0;
     background: white;
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,.15);
-    z-index: 50;
+    z-index: 1047; /* above the offcanvas (1045) and its own backdrop (1046), still below Bootstrap's modal layer (1055+) */
     min-width: 210px;
     overflow: hidden;
 }
@@ -5703,6 +5714,68 @@
         background: #f8d7da;
         color: #dc3545;
     }
+
+/* ── Unified notification feed — one merged, time-sorted list (Application
+   Tracking, Document Tracking, Liveness, Updates). Each source keeps a soft,
+   easy-on-the-eyes accent (left border + icon chip + a small category label)
+   instead of separate tabs, so the type is still identifiable at a glance. */
+.notif-feed-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    border-left: 4px solid transparent;
+    background: none;
+    transition: background 0.15s ease;
+    font-size: 13px;
+}
+
+    .notif-feed-item:last-child {
+        border-bottom: none;
+    }
+
+    .notif-feed-item:hover {
+        background: #f8f9fa;
+    }
+
+.notif-feed-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.notif-feed-category {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+/* Application Tracking — soft indigo */
+.notif-feed-item--application { border-left-color: #6366f1; }
+.notif-feed-icon--application { background: #eef2ff; color: #4f46e5; }
+.notif-feed-category--application { color: #4f46e5; }
+
+/* Document Tracking — soft teal */
+.notif-feed-item--document { border-left-color: #14b8a6; }
+.notif-feed-icon--document { background: #ecfeff; color: #0d9488; }
+.notif-feed-category--document { color: #0d9488; }
+
+/* Liveness Check — soft amber (needs review) */
+.notif-feed-item--liveness { border-left-color: #f59e0b; }
+.notif-feed-icon--liveness { background: #fffbeb; color: #b45309; }
+.notif-feed-category--liveness { color: #b45309; }
+
+/* System Update — soft slate */
+.notif-feed-item--update { border-left-color: #94a3b8; }
+.notif-feed-icon--update { background: #f1f5f9; color: #475569; }
+.notif-feed-category--update { color: #475569; }
 
 .duplicate-dropdown-all-resolved {
     border-left: 4px solid #198754;
@@ -8385,6 +8458,13 @@
             flex-shrink: 0;
         }
 
+        /* Not yet verified/ready — same shortcut-into-Liveness-section icon,
+           but muted/outline so it doesn't read as an already-satisfied status. */
+        .tbl-badge-lv-eft--pending {
+            background: #f1f3f5;
+            color: #9aa5b1;
+        }
+
         /* Known Duplicate — a 100%-exact match that was deliberately kept
            instead of blocked (see BeneficiaryDuplicateHistory). Sits right
            before the Last Name, same compact circular treatment as
@@ -9169,6 +9249,13 @@ body {
         padding: 2px 6px;
         border-radius: 20px;
         transition: opacity 0.2s;
+    }
+
+    /* Today's activity count on the Calendar nav item — red so a live count
+       of things happening TODAY reads as more time-sensitive than the
+       default indigo badge used elsewhere in the sidebar. */
+    .nav-badge--danger {
+        background: #dc3545;
     }
     /* Footer */
     .sidebar-footer {

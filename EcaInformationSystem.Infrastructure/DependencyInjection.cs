@@ -54,6 +54,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IBeneficiaryFindingRepository, BeneficiaryFindingRepository>();
             services.AddScoped<IAddressSearchRepository, AddressSearchRepository>();
             services.AddScoped<IBeneficiaryDocumentRepository, BeneficiaryDocumentRepository>();
+            services.AddScoped<ILivenessCheckRepository, LivenessCheckRepository>();
 
             // ✅ Payroll background processing — singletons, must outlive any single HTTP request scope
             services.AddSingleton<IPayrollJobTracker, PayrollJobTracker>();
@@ -96,6 +97,7 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IBiometricDeviceSettingRepository, BiometricDeviceSettingRepository>();
             services.AddScoped<IDtrDayMarkRepository, DtrDayMarkRepository>();
             services.AddScoped<ITransactionTierBroadcaster, NoOpTransactionTierBroadcaster>();
+            services.AddScoped<ILivenessNotificationBroadcaster, NoOpLivenessNotificationBroadcaster>();
             return services;
         }
     }

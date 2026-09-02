@@ -24,6 +24,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<BiometricDeviceSetting> BiometricDeviceSettings => Set<BiometricDeviceSetting>();
             public DbSet<BeneficiaryFinding> BeneficiaryFindings => Set<BeneficiaryFinding>();
             public DbSet<BeneficiaryDocument> BeneficiaryDocuments => Set<BeneficiaryDocument>();
+            public DbSet<LivenessCheckRecord> LivenessCheckRecords => Set<LivenessCheckRecord>();
             public DbSet<PdoJurisdiction> PdoJurisdictions => Set<PdoJurisdiction>();
             public DbSet<LeaderboardSeason> LeaderboardSeasons => Set<LeaderboardSeason>();
             public DbSet<UserSession> UserSessions => Set<UserSession>();
@@ -323,6 +324,26 @@ namespace EcaInformationSystem.Infrastructure.Persistence
 
                         entity.HasIndex(e => e.BeneficiaryInformationId);
                         entity.HasIndex(e => e.IsDeleted);
+                  });
+                  modelBuilder.Entity<LivenessCheckRecord>(entity =>
+                  {
+                        entity.HasKey(e => e.Id);
+
+                        entity.Property(e => e.Token).IsRequired().HasMaxLength(64);
+                        entity.Property(e => e.GeneratedByUserId).IsRequired().HasMaxLength(256);
+                        entity.Property(e => e.ReviewedByUserId).HasMaxLength(256);
+                        entity.Property(e => e.PhotoContentType).HasMaxLength(100);
+                        entity.Property(e => e.PhotoData).HasColumnType("varbinary(max)");
+
+                        entity.HasOne(e => e.BeneficiaryInformation)
+                              .WithMany()
+                              .HasForeignKey(e => e.BeneficiaryInformationId)
+                              .OnDelete(DeleteBehavior.Cascade);
+
+                        entity.HasIndex(e => e.Token).IsUnique();
+                        // Only one liveness check record ever exists per beneficiary —
+                        // regenerating a link updates this same row instead of adding another.
+                        entity.HasIndex(e => e.BeneficiaryInformationId).IsUnique();
                   });
                   modelBuilder.Entity<PdoJurisdiction>(entity =>
                   {

@@ -346,6 +346,24 @@ public class BeneficiaryStateService
         ShouldAutoOpenDuplicateModal = false;
     }
 
+    // Set by the notification bell when a "Liveness" tab item is clicked —
+    // GridView picks this up (via its existing State.OnChange subscription,
+    // same as ShouldAutoOpenDuplicateModal above) to open that specific
+    // grantee's details offcanvas and scroll straight to the Liveness
+    // section, without the PDO/Admin needing to search for them manually.
+    public Guid? PendingLivenessReviewBeneficiaryId { get; private set; }
+
+    public void RequestOpenLivenessReview(Guid beneficiaryId)
+    {
+        PendingLivenessReviewBeneficiaryId = beneficiaryId;
+        NotifyStateChanged();
+    }
+
+    public void ClearLivenessReviewRequest()
+    {
+        PendingLivenessReviewBeneficiaryId = null;
+    }
+
     // WHY THIS IS SEPARATE: tracks "has a mutation happened that the
     // CURRENTLY LOADED grid page might not reflect" — independent of
     // duplicates entirely.

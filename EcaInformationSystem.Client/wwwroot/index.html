@@ -415,6 +415,19 @@
             return URL.createObjectURL(blob);
         };
 
+        // ✅ Creates a blob URL from base64 image data — used so an <img> tag
+        // can display a photo fetched via an authenticated HttpClient call
+        // (an <img src> alone can't carry an Authorization header).
+        window.createImageBlobUrl = function (base64, contentType) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: contentType || "image/jpeg" });
+            return URL.createObjectURL(blob);
+        };
+
         // Faster path for PreviewAsync — takes a .NET stream reference instead of
         // a base64 string, so the bytes arrive as a binary ArrayBuffer directly
         // (Blazor's built-in stream interop) rather than paying for a
@@ -462,6 +475,182 @@
         // ✅ Revokes blob URL to free memory when viewer is closed
         window.revokeBlobUrl = function (url) {
             URL.revokeObjectURL(url);
+        };
+    </script>
+
+    <script>
+        // Moves a Bootstrap modal's dialog element to be a direct child of
+        // <body>. Needed when the modal is declared inside a component nested
+        // deep inside an ancestor that establishes its own CSS stacking
+        // context (e.g. the beneficiary details offcanvas: position:fixed +
+        // z-index) — Bootstrap's native modal JS already appends the
+        // *backdrop* straight to <body> (the root stacking context), but the
+        // dialog itself stays wherever Blazor rendered it. Left nested inside
+        // that offcanvas, the dialog's higher CSS z-index only applies WITHIN
+        // the offcanvas's own stacking context, so from the page's overall
+        // paint order it still sits below the backdrop — visually washed out
+        // and unable to receive clicks (they land on the backdrop instead).
+        // Moving the dialog to <body> puts it in the same root context as its
+        // backdrop, restoring normal stacking. Safe to call every time the
+        // modal is shown — a no-op once it's already there.
+        window.relocateModalToBody = function (modalClass) {
+            const el = document.querySelector('.' + modalClass);
+            if (el && el.parentElement !== document.body) {
+                document.body.appendChild(el);
+            }
+        };
+    </script>
+
+    <script>
+        // Positions a popover as a viewport-fixed overlay anchored to a button,
+        // flipping/clamping to stay on-screen. Used by QuickUpload's "Add
+        // Document" popover so it isn't clipped when the button sits inside a
+        // scrollable container (e.g. the beneficiary details offcanvas) — a
+        // `position: absolute` popover would get cut off by that container's
+        // own scroll bounds no matter its z-index, but `position: fixed`
+        // measured/placed here escapes that entirely.
+        window.positionFloatingPopover = function (anchorId, popoverId) {
+            const anchor = document.getElementById(anchorId);
+            const popover = document.getElementById(popoverId);
+            if (!anchor || !popover) return;
+
+            const anchorRect = anchor.getBoundingClientRect();
+            const popRect = popover.getBoundingClientRect();
+            const margin = 8;
+
+            let top = anchorRect.bottom + 6;
+            let left = anchorRect.right - popRect.width;
+
+            // Not enough room below — open upward instead.
+            if (top + popRect.height > window.innerHeight - margin) {
+                top = anchorRect.top - popRect.height - 6;
+            }
+            // Clamp horizontally so it never runs off either edge of the screen.
+            if (left < margin) left = anchorRect.left;
+            if (left + popRect.width > window.innerWidth - margin) {
+                left = window.innerWidth - popRect.width - margin;
+            }
+            if (left < margin) left = margin;
+            if (top < margin) top = margin;
+
+            popover.style.top = `${top}px`;
+            popover.style.left = `${left}px`;
+            popover.style.visibility = "visible";
+        };
+    </script>
+
+    <script>
+        // Burns a caption bar with a user-chosen date/time onto an already-
+        // captured/selected photo — used by the general "Add Document" upload
+        // flow (QuickUpload) when a photo (e.g. a liveness check taken outside
+        // the dedicated liveness link) has no timestamp of its own and the PDO
+        // wants to record one before it's converted to a PDF.
+        window.stampImageWithDate = function (base64, contentType, timestampText) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = function () {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0);
+
+                    const pad = Math.max(6, Math.round(canvas.height * 0.012));
+                    const fontSize = Math.max(14, Math.round(canvas.height * 0.032));
+                    ctx.font = `${fontSize}px monospace`;
+                    const textW = ctx.measureText(timestampText).width;
+                    ctx.fillStyle = "rgba(0,0,0,0.55)";
+                    ctx.fillRect(0, canvas.height - (pad * 2 + fontSize), textW + pad * 2, pad * 2 + fontSize);
+                    ctx.fillStyle = "#FFD400";
+                    ctx.textBaseline = "bottom";
+                    ctx.fillText(timestampText, pad, canvas.height - pad);
+
+                    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+                    resolve(dataUrl.substring(dataUrl.indexOf(",") + 1));
+                };
+                img.onerror = () => reject("Failed to load image for stamping.");
+                img.src = `data:${contentType};base64,${base64}`;
+            });
+        };
+    </script>
+
+    <script>
+        // Liveness-check selfie capture — deliberately separate from
+        // webcamInterop above: front camera only, burns a visible timestamp
+        // into the pixels (so an old screenshot can't be passed off as
+        // today's photo), and aggressively shrinks the result so it uploads
+        // fast on poor rural connections. No file-picker path exists here —
+        // capture() is the only way to produce a photo for this flow.
+        window.livenessCamera = {
+            stream: null,
+            async start(videoElementId) {
+                const video = document.getElementById(videoElementId);
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "user" },
+                        audio: false
+                    });
+                    video.srcObject = this.stream;
+                    await video.play();
+                    return true;
+                } catch (err) {
+                    console.error("Liveness camera access denied or unavailable:", err);
+                    return false;
+                }
+            },
+            capture(videoElementId, canvasElementId, timestampText) {
+                const video = document.getElementById(videoElementId);
+                const canvas = document.getElementById(canvasElementId);
+
+                // Shrink to a small long-edge first — a face is still fully
+                // recognizable at this size, and it keeps every later JPEG
+                // encode pass cheap.
+                const maxEdge = 480;
+                const srcW = video.videoWidth, srcH = video.videoHeight;
+                const scale = Math.min(1, maxEdge / Math.max(srcW, srcH));
+                canvas.width = Math.round(srcW * scale);
+                canvas.height = Math.round(srcH * scale);
+
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Burn the timestamp into the image itself, old-camera-style.
+                const pad = 6;
+                ctx.font = `${Math.max(12, Math.round(canvas.height * 0.045))}px monospace`;
+                const textW = ctx.measureText(timestampText).width;
+                ctx.fillStyle = "rgba(0,0,0,0.55)";
+                ctx.fillRect(0, canvas.height - (pad * 2 + 16), textW + pad * 2, pad * 2 + 16);
+                ctx.fillStyle = "#FFD400";
+                ctx.textBaseline = "bottom";
+                ctx.fillText(timestampText, pad, canvas.height - pad);
+
+                // Step quality/size down until it lands in the KB-sized target.
+                const targetBytes = 100 * 1024;
+                let quality = 0.7;
+                let dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+                const approxBytes = (url) => Math.round((url.length - url.indexOf(",") - 1) * 0.75);
+
+                const qualitySteps = [0.7, 0.5, 0.35];
+                for (const q of qualitySteps) {
+                    dataUrl = canvas.toDataURL("image/jpeg", q);
+                    if (approxBytes(dataUrl) <= targetBytes) return dataUrl;
+                }
+
+                // Still too big — shrink dimensions further and retry once.
+                const smallerCanvas = document.createElement("canvas");
+                smallerCanvas.width = Math.round(canvas.width * 0.7);
+                smallerCanvas.height = Math.round(canvas.height * 0.7);
+                smallerCanvas.getContext("2d").drawImage(canvas, 0, 0, smallerCanvas.width, smallerCanvas.height);
+                dataUrl = smallerCanvas.toDataURL("image/jpeg", 0.5);
+                return dataUrl;
+            },
+            stop() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(t => t.stop());
+                    this.stream = null;
+                }
+            }
         };
     </script>
 

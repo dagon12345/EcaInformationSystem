@@ -1,0 +1,184 @@
+@page "/liveness/{Token}"
+@attribute [AllowAnonymous]
+@layout EcaInformationSystem.Client.Shared.AuthLayout
+@using EcaInformationSystem.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@implements IAsyncDisposable
+
+<PageTitle>Liveness Check</PageTitle>
+
+<div class="liveness-public-page">
+    <div class="liveness-public-card">
+        <div class="text-center mb-3">
+            <img src="images/ncsc-seal.png" alt="NCSC Seal" style="height:48px;" onerror="this.style.display='none'" />
+            <h5 class="mt-2 mb-0">Liveness Verification</h5>
+            <small class="text-muted">National Commission of Senior Citizens</small>
+        </div>
+
+        @if (_state == State.Loading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">Loading your record...</p>
+            </div>
+        }
+        else if (_state == State.InvalidLink)
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                @_invalidMessage
+            </div>
+            <p class="text-muted small">Please contact your PDO to request a new link.</p>
+        }
+        else if (_state == State.Submitted)
+        {
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                Thank you! Your photo has been submitted and is now awaiting review by your PDO.
+            </div>
+        }
+        else if (_view is not null)
+        {
+            <div class="liveness-summary mb-3">
+                <p class="mb-1"><strong>@_view.FullName</strong></p>
+                <p class="mb-1 text-muted small">Birthdate: @_view.BirthDate.ToString("MMMM dd, yyyy")</p>
+                @if (!string.IsNullOrWhiteSpace(_view.OscaIdNumber))
+                {
+                    <p class="mb-1 text-muted small">OSCA ID: @_view.OscaIdNumber</p>
+                }
+                <p class="mb-0 text-muted small">
+                    @string.Join(", ", new[] { _view.BarangayName, _view.MunicipalityName, _view.ProvinceName }
+                        .Where(p => !string.IsNullOrWhiteSpace(p)))
+                </p>
+            </div>
+
+            <p class="small">Please confirm this is your record, then take a live photo of yourself to prove you are still able to receive your grant. The photo must be taken now — uploading an existing picture is not allowed.</p>
+
+            <LivenessCameraCapture @ref="_camera" OnCaptured="OnCapturedAsync" />
+
+            @if (_submitError is not null)
+            {
+                <div class="alert alert-danger py-2 mt-2">@_submitError</div>
+            }
+
+            <div class="d-grid mt-3">
+                <button type="button" class="btn btn-primary" disabled="@(!_hasPhoto || _isSubmitting)" @onclick="SubmitAsync">
+                    @if (_isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Submitting...</span>
+                    }
+                    else
+                    {
+                        <span>Submit Photo</span>
+                    }
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .liveness-public-page { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 16px; background:#f3f6fa; }
+    .liveness-public-card { width:100%; max-width: 420px; background:#fff; border-radius:12px; padding:20px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .liveness-camera-video-wrap video { width:100%; border-radius:8px; background:#000; }
+    .liveness-camera-preview { width:100%; border-radius:8px; }
+</style>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private enum State { Loading, Ready, InvalidLink, Submitted }
+
+    private State _state = State.Loading;
+    private string? _invalidMessage;
+    private LivenessPublicViewDto? _view;
+    private LivenessCameraCapture? _camera;
+    private string? _capturedPhotoBase64;
+    private bool _hasPhoto => !string.IsNullOrEmpty(_capturedPhotoBase64);
+    private bool _isSubmitting;
+    private string? _submitError;
+
+    private HttpClient PublicHttp => HttpClientFactory.CreateClient("PublicClient");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await PublicHttp.GetAsync($"api/liveness-check/{Uri.EscapeDataString(Token)}");
+            if (!response.IsSuccessStatusCode)
+            {
+                _invalidMessage = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(_invalidMessage))
+                    _invalidMessage = "This link is no longer valid.";
+                _state = State.InvalidLink;
+                return;
+            }
+
+            _view = await response.Content.ReadFromJsonAsync<LivenessPublicViewDto>();
+            _state = State.Ready;
+        }
+        catch
+        {
+            _invalidMessage = "Could not load this link. Please check your internet connection and reload the page.";
+            _state = State.InvalidLink;
+        }
+    }
+
+    private Task OnCapturedAsync(string? base64)
+    {
+        _capturedPhotoBase64 = base64;
+        _submitError = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!_hasPhoto) return;
+
+        _isSubmitting = true;
+        _submitError = null;
+        StateHasChanged();
+
+        var dto = new LivenessSubmitRequestDto { PhotoBase64 = _capturedPhotoBase64!, ContentType = "image/jpeg" };
+
+        // A few retries with backoff — grantee areas often have slow/flaky
+        // connections, so a single failed attempt shouldn't force a full retake.
+        var delays = new[] { 0, 2000, 5000 };
+        for (var attempt = 0; attempt < delays.Length; attempt++)
+        {
+            if (attempt > 0) await Task.Delay(delays[attempt]);
+            try
+            {
+                var response = await PublicHttp.PostAsJsonAsync($"api/liveness-check/{Uri.EscapeDataString(Token)}/submit", dto);
+                if (response.IsSuccessStatusCode)
+                {
+                    _state = State.Submitted;
+                    _isSubmitting = false;
+                    StateHasChanged();
+                    return;
+                }
+
+                _submitError = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(_submitError))
+                    _submitError = "Submission failed. Please try again.";
+            }
+            catch
+            {
+                _submitError = "Network error — check your connection.";
+            }
+        }
+
+        _isSubmitting = false;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_camera is not null)
+            await _camera.DisposeCameraAsync();
+    }
+}

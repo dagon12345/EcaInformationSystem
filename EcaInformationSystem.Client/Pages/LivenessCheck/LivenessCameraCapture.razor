@@ -1,0 +1,124 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div class="liveness-camera">
+    @if (_capturedDataUrl is null)
+    {
+        <div class="liveness-camera-video-wrap">
+            <video id="@_videoElementId" autoplay playsinline muted></video>
+        </div>
+        <canvas id="@_canvasElementId" style="display:none;"></canvas>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2 my-2">@_error</div>
+        }
+
+        <div class="d-grid gap-2 mt-2">
+            @if (!_isStarted)
+            {
+                <button type="button" class="btn btn-primary" @onclick="StartCameraAsync" disabled="@_isBusy">
+                    <i class="bi bi-camera-fill me-1"></i> Open Camera
+                </button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-success" @onclick="CaptureAsync" disabled="@_isBusy">
+                    <i class="bi bi-camera-fill me-1"></i> Take Photo
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <img src="@_capturedDataUrl" alt="Captured liveness photo" class="liveness-camera-preview" />
+        <div class="d-grid gap-2 mt-2">
+            <button type="button" class="btn btn-outline-secondary" @onclick="RetakeAsync" disabled="@_isBusy">
+                <i class="bi bi-arrow-repeat me-1"></i> Retake Photo
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback<string?> OnCaptured { get; set; }
+
+    private readonly string _videoElementId = $"liveness-video-{Guid.NewGuid():N}";
+    private readonly string _canvasElementId = $"liveness-canvas-{Guid.NewGuid():N}";
+
+    private bool _isStarted;
+    private bool _isBusy;
+    private string? _error;
+    private string? _capturedDataUrl;
+
+    public bool HasPhoto => _capturedDataUrl is not null;
+
+    public string? GetCapturedBase64()
+    {
+        if (_capturedDataUrl is null) return null;
+        var commaIndex = _capturedDataUrl.IndexOf(',');
+        return commaIndex < 0 ? null : _capturedDataUrl[(commaIndex + 1)..];
+    }
+
+    private async Task StartCameraAsync()
+    {
+        _error = null;
+        _isBusy = true;
+        StateHasChanged();
+        try
+        {
+            var started = await JS.InvokeAsync<bool>("livenessCamera.start", _videoElementId);
+            if (!started)
+            {
+                _error = "Could not access your camera. Please allow camera permission for this page and try again.";
+                return;
+            }
+            _isStarted = true;
+        }
+        finally
+        {
+            _isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CaptureAsync()
+    {
+        _isBusy = true;
+        StateHasChanged();
+        try
+        {
+            var timestamp = DateTime.Now.ToString("MMM d, yyyy h:mm tt");
+            var dataUrl = await JS.InvokeAsync<string>("livenessCamera.capture", _videoElementId, _canvasElementId, timestamp);
+            if (string.IsNullOrEmpty(dataUrl))
+            {
+                _error = "Capture failed — please try again.";
+                return;
+            }
+
+            await JS.InvokeVoidAsync("livenessCamera.stop");
+            _isStarted = false;
+            _capturedDataUrl = dataUrl;
+            await OnCaptured.InvokeAsync(GetCapturedBase64());
+        }
+        finally
+        {
+            _isBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RetakeAsync()
+    {
+        _capturedDataUrl = null;
+        _error = null;
+        await OnCaptured.InvokeAsync(null);
+        await StartCameraAsync();
+    }
+
+    public async ValueTask DisposeCameraAsync()
+    {
+        try { await JS.InvokeVoidAsync("livenessCamera.stop"); }
+        catch { /* page may already be tearing down */ }
+    }
+}

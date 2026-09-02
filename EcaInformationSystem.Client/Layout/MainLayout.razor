@@ -18,6 +18,7 @@
 @inject VoiceCallStateService VoiceCallState
 @inject ApplicationTrackingClientService ApplicationTrackingClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
+@inject LivenessNotificationClientService LivenessNotificationClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
 @inject TransactionTierClientService TierClient
@@ -298,6 +299,7 @@
 
         ApplicationTrackingClientService.OnApplicationTagged += HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged += HandleDocumentTagged;
+        LivenessNotificationClientService.OnLivenessSubmitted += HandleLivenessSubmitted;
         ChatClientService.OnForceLogout += HandleForceLogout;
         ChatClientService.OnMessageReacted += HandleMessageReacted;
         TierHub.TransactionRecorded += HandleTransactionRecordedForLevelUp;
@@ -404,6 +406,16 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void HandleLivenessSubmitted(LivenessSubmittedNotificationDto notification)
+    {
+        Toast.ShowSuccess(
+            $"{notification.FullName} just submitted their liveness photo" +
+            (string.IsNullOrWhiteSpace(notification.MunicipalityName) ? "." : $" ({notification.MunicipalityName}).") +
+            " Review it when ready.",
+            "Liveness Check");
+        InvokeAsync(StateHasChanged);
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -489,6 +501,20 @@
                 catch
                 {
                     // Non-fatal — "tagged you" toasts/badge just won't live-update this session
+                }
+            }
+
+            if (!LivenessNotificationClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "livenessNotificationHub").ToString();
+                    await LivenessNotificationClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — "liveness submitted" toasts/badge just won't live-update this session
                 }
             }
 
@@ -724,6 +750,7 @@
         Navigation.LocationChanged -= OnLocationChanged;
         ApplicationTrackingClientService.OnApplicationTagged -= HandleApplicationTagged;
         DocumentTrackingClientService.OnDocumentTagged -= HandleDocumentTagged;
+        LivenessNotificationClientService.OnLivenessSubmitted -= HandleLivenessSubmitted;
         ChatClientService.OnForceLogout -= HandleForceLogout;
         ChatClientService.OnMessageReacted -= HandleMessageReacted;
         TierHub.TransactionRecorded -= HandleTransactionRecordedForLevelUp;
