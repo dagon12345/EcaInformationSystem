@@ -35,7 +35,17 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                 Remarks        = "Default super admin — change password immediately."
             };
 
-            admin.PasswordHash = hasher.HashPassword(admin, "REDACTED_DEFAULT_PASSWORD");
+            // No hardcoded default: read from env (set alongside the other MONSTERASP_*
+            // deploy secrets) or fall back to a random one-time password printed to the
+            // server's own console log — never committed to source control.
+            var seedPassword = Environment.GetEnvironmentVariable("SUPERADMIN_SEED_PASSWORD");
+            if (string.IsNullOrWhiteSpace(seedPassword))
+            {
+                seedPassword = $"{Guid.NewGuid():N}!Aa1";
+                Console.WriteLine(
+                    $"[SuperAdminSeeder] SUPERADMIN_SEED_PASSWORD not set — generated one-time password: {seedPassword}. Log in and change it immediately.");
+            }
+            admin.PasswordHash = hasher.HashPassword(admin, seedPassword);
 
             await context.PendingUserRegistrations.AddAsync(admin);
             await context.SaveChangesAsync();
