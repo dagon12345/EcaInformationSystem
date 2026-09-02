@@ -5,6 +5,9 @@ built around the Philippines' senior citizen pension program (OSCA/NCSC). It rep
 spreadsheet-based tracking with a single system for beneficiary records, field verification,
 payroll, and internal team coordination.
 
+**My role**: sole developer — architecture, backend, frontend, deployment, and ongoing maintenance,
+end to end.
+
 ## What it does
 
 - **Beneficiary lifecycle management** — application intake, batching, transfers between
@@ -53,6 +56,51 @@ point during development.
 | Frontend | Blazor WebAssembly, Havit Blazor (Bootstrap) component library |
 | Documents | QuestPDF, itext7, PDFsharp, ClosedXML, DocumentFormat.OpenXml, QRCoder, ImageSharp |
 | Ops | PowerShell deploy scripts (build + SFTP publish), Docker Compose for local SQL Server |
+
+## Code highlights
+
+**TOTP two-factor authentication** (`EcaInformationSystem.Application/Services/AuthService.cs`) —
+secret generation, QR enrollment, and a constrained verification window on login:
+
+```csharp
+public async Task<MfaSetupResult> GenerateMfaSecretAsync(Guid userId)
+{
+    var user = await _pendingUserRegistrationRepository.GetByIdAsync(userId)
+        ?? throw new KeyNotFoundException("User not found.");
+
+    var secretKey = KeyGeneration.GenerateRandomKey(20); // 160-bit, standard for TOTP
+    var base32Secret = Base32Encoding.ToString(secretKey);
+
+    // Encrypt before persisting — plain secret only ever leaves this method in the response
+    user.MfaSecret = _mfaProtector.Protect(base32Secret);
+    user.MfaSetupComplete = false;
+    await _pendingUserRegistrationRepository.SaveChangesAsync();
+
+    var otpauthUri = $"otpauth://totp/ECA-InFORMS:{user.UserName}?secret={base32Secret}&issuer=ECA-InFORMS&digits=6&period=30";
+    using var qrGenerator = new QRCodeGenerator();
+    var qrCode = new PngByteQRCode(qrGenerator.CreateQrCode(otpauthUri, QRCodeGenerator.ECCLevel.Q));
+
+    return new MfaSetupResult
+    {
+        Secret = base32Secret, // shown once, for manual entry / QR fallback
+        QrCodeImageBase64 = Convert.ToBase64String(qrCode.GetGraphic(10))
+    };
+}
+
+public async Task<AuthResult> VerifyMfaAndIssueTokenAsync(string userId, string code, string ipAddress, string userAgent)
+{
+    var user = await _pendingUserRegistrationRepository.GetByIdAsync(Guid.Parse(userId));
+    var plainSecret = _mfaProtector.Unprotect(user.MfaSecret);
+    var totp = new Totp(Base32Encoding.ToBytes(plainSecret));
+    var isValid = totp.VerifyTotp(code, out _, new VerificationWindow(previous: 1, future: 1));
+
+    if (!isValid) return AuthResult.Failed("Invalid or expired code.");
+    // ...issue JWT
+}
+```
+
+The MFA secret is never stored in plaintext (`IDataProtector`-encrypted at rest), and the plain
+value is only ever returned once, at enrollment, for the QR/manual-entry step.
 
 ## Running locally
 
