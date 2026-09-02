@@ -721,8 +721,12 @@
             </div>
             <div class="ff">
                 <label class="ff-label">Date of Liveness</label>
-                <UniformDateInput Value="@model.DateOfLiveness" ValueChanged="@(v => model.DateOfLiveness = v)"
-                                  MaxDate="@DateTime.Today" />
+                <div class="d-flex gap-2">
+                    <UniformDateInput Value="@_livenessDateLocal" ValueChanged="@OnLivenessDateChanged"
+                                      MaxDate="@DateTime.Today" />
+                    <input type="time" class="ff-input" style="max-width:120px;"
+                           value="@_livenessTimeLocal" @onchange="OnLivenessTimeChanged" />
+                </div>
             </div>
             <div class="ff">
                 <label class="ff-label">Ready for Electronic Fund Transfer?</label>
@@ -1917,12 +1921,69 @@
             await LoadFindingAsync(id);
             await LoadPaymentHistoryAsync(id);
             await IsDeceasedLoaded.InvokeAsync(model.IsDeceased);
+            SyncLivenessLocalFields();
         }
         finally { _isLoadingRecord = false; IsLoading = false; StateHasChanged(); }
     }
     #endregion
 
     #region Logic
+    // ── Date of Liveness — date + time ──────────────────────────────────────
+    // model.DateOfLiveness is stored/compared as UTC everywhere else (the
+    // liveness-check link workflow sets it via DateTime.UtcNow), so a manual
+    // edit here must go through the same UTC round-trip — otherwise this path
+    // would silently disagree with the automated one. UniformDateInput only
+    // captures a date, so without a paired time field any manually-set value
+    // collapsed to midnight; these two local fields default to "right now"
+    // instead, and get combined into UTC before being written to the model.
+    private DateTime? _livenessDateLocal;
+    private string _livenessTimeLocal = DateTime.Now.ToString("HH:mm");
+
+    private void SyncLivenessLocalFields()
+    {
+        if (model.DateOfLiveness.HasValue)
+        {
+            var utc = DateTime.SpecifyKind(model.DateOfLiveness.Value, DateTimeKind.Utc);
+            var local = utc.ToLocalTime();
+            _livenessDateLocal = local.Date;
+            _livenessTimeLocal = local.ToString("HH:mm");
+        }
+        else
+        {
+            _livenessDateLocal = null;
+            _livenessTimeLocal = DateTime.Now.ToString("HH:mm");
+        }
+    }
+
+    private void OnLivenessDateChanged(DateTime? newDate)
+    {
+        _livenessDateLocal = newDate;
+        ApplyLivenessDateTime();
+    }
+
+    private void OnLivenessTimeChanged(ChangeEventArgs e)
+    {
+        _livenessTimeLocal = string.IsNullOrWhiteSpace(e.Value?.ToString()) ? "00:00" : e.Value!.ToString()!;
+        ApplyLivenessDateTime();
+    }
+
+    private void ApplyLivenessDateTime()
+    {
+        if (!_livenessDateLocal.HasValue)
+        {
+            model.DateOfLiveness = null;
+            return;
+        }
+
+        var parts = _livenessTimeLocal.Split(':');
+        var hour = parts.Length > 0 && int.TryParse(parts[0], out var h) ? h : 0;
+        var minute = parts.Length > 1 && int.TryParse(parts[1], out var m) ? m : 0;
+
+        var local = DateTime.SpecifyKind(_livenessDateLocal.Value.Date.AddHours(hour).AddMinutes(minute), DateTimeKind.Local);
+        model.DateOfLiveness = local.ToUniversalTime();
+        StateHasChanged();
+    }
+
     private async Task CloseConfirmationModal() => await confirmModal.HideAsync();
 
     // ✅ NEW — a grantee who missed the ECA program's start-date cutoff

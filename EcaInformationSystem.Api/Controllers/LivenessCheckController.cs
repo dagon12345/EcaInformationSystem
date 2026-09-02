@@ -128,7 +128,8 @@ namespace EcaInformationSystem.Api.Controllers
         {
             try
             {
-                await _service.DeleteLinkAsync(recordId);
+                var userName = User.Identity?.Name ?? "System";
+                await _service.DeleteLinkAsync(recordId, userName);
                 return NoContent();
             }
             catch (InvalidOperationException ex) { return NotFound(ex.Message); }

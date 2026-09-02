@@ -1453,7 +1453,7 @@
     </div>
     <div class="col-6">
         <small class="text-muted d-block">Date of Liveness</small>
-        <span>@(selectedDetails.DateOfLiveness?.ToString("MMMM dd, yyyy") ?? "—")</span>
+        <span>@(selectedDetails.DateOfLiveness?.ToLocalTime().ToString("MMMM dd, yyyy") ?? "—")</span>
     </div>
     <div class="col-6">
         <small class="text-muted d-block">Ready for Electronic Fund Transfer?</small>
@@ -5149,7 +5149,7 @@ private int IncompleteDetailsCount =>
         if (item.IsLivenessVerified == true)
         {
             parts.Add(item.DateOfLiveness.HasValue
-                ? $"Liveness verified on {item.DateOfLiveness:MMM dd, yyyy}"
+                ? $"Liveness verified on {item.DateOfLiveness.Value.ToLocalTime():MMM dd, yyyy}"
                 : "Liveness verified");
         }
         if (item.IsReadyForEft == true)

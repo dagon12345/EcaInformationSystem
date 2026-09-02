@@ -124,7 +124,7 @@
         <tr>
             <td>
                 <span class="annexa-doc-field-label d-block">Date and Time Conducted:</span>
-                <span class="annexa-doc-field-value">@(Beneficiary.DateOfLiveness?.ToString("MMMM dd, yyyy h:mm tt") ?? "")</span>
+                <span class="annexa-doc-field-value">@(Beneficiary.DateOfLiveness?.ToLocalTime().ToString("MMMM dd, yyyy h:mm tt") ?? "")</span>
             </td>
             <td></td>
         </tr>
@@ -227,7 +227,7 @@
         <tr>
             <td>
                 <div class="annexa-doc-signoff-block">
-                    <div class="annexa-doc-underline-value">@(Beneficiary.Validator ?? "") &nbsp;&nbsp; @(Beneficiary.DateOfLiveness?.ToString("MMMM dd, yyyy h:mm tt") ?? "")</div>
+                    <div class="annexa-doc-underline-value">@(Beneficiary.Validator ?? "") &nbsp;&nbsp; @(Beneficiary.DateOfLiveness?.ToLocalTime().ToString("MMMM dd, yyyy h:mm tt") ?? "")</div>
                     <div class="text-muted fst-italic liveness-doc-signoff-caption">Signature over printed name of NCSC staff and Date</div>
                 </div>
             </td>

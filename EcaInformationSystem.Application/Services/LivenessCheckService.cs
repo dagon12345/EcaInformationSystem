@@ -22,17 +22,20 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPsgcNameCache _psgcNameCache;
         private readonly IPendingUserRegistrationRepository _userRepo;
         private readonly ILivenessNotificationBroadcaster _broadcaster;
+        private readonly ILogRepository _logRepository;
 
         public LivenessCheckService(
             ILivenessCheckRepository repo,
             IPsgcNameCache psgcNameCache,
             IPendingUserRegistrationRepository userRepo,
-            ILivenessNotificationBroadcaster broadcaster)
+            ILivenessNotificationBroadcaster broadcaster,
+            ILogRepository logRepository)
         {
             _repo = repo;
             _psgcNameCache = psgcNameCache;
             _userRepo = userRepo;
             _broadcaster = broadcaster;
+            _logRepository = logRepository;
         }
 
         public async Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string baseUrl)
@@ -97,7 +100,7 @@ namespace EcaInformationSystem.Application.Services
             }).ToList();
         }
 
-        public async Task DeleteLinkAsync(Guid recordId)
+        public async Task DeleteLinkAsync(Guid recordId, string deletedByUserName)
         {
             var record = await _repo.GetByIdAsync(recordId)
                 ?? throw new InvalidOperationException("Liveness check record not found.");
@@ -112,7 +115,20 @@ namespace EcaInformationSystem.Application.Services
                 beneficiary.DateOfLiveness = null;
             }
 
+            var previousStatus = record.Status;
             await _repo.DeleteAsync(record);
+
+            await _logRepository.AddAsync(new Log
+            {
+                Id = Guid.NewGuid(),
+                BeneficiaryInformationId = record.BeneficiaryInformationId,
+                Activity = $"Liveness check link/photo deleted (was {previousStatus})" +
+                    (previousStatus == LivenessCheckStatus.Verified ? " — liveness verification reset to Not Yet Checked" : ""),
+                UserName = deletedByUserName,
+                CreatedAt = DateTime.UtcNow,
+                Category = "Liveness"
+            });
+
             await _repo.SaveChangesAsync();
         }
 

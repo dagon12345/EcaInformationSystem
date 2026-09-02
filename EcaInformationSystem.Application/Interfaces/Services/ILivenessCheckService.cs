@@ -9,7 +9,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<(byte[] Bytes, string ContentType)> GetPhotoAsync(Guid recordId);
         Task VerifyAsync(Guid recordId, string reviewedByUserId, string? notes);
         Task RejectAsync(Guid recordId, string reviewedByUserId, string? notes);
-        Task DeleteLinkAsync(Guid recordId);
+        Task DeleteLinkAsync(Guid recordId, string deletedByUserName);
 
         Task<LivenessPublicViewDto?> GetPublicViewAsync(string token);
         Task SubmitPhotoAsync(string token, LivenessSubmitRequestDto request);
