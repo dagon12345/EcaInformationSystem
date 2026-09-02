@@ -102,6 +102,37 @@
         </section>
     }
 
+    <section class="features-howto" style="--fx-delay:@(delayIndex++ * 0.05)s;">
+        <h2 class="features-category-title">
+            <span class="features-category-icon"><i class="bi bi-camera-fill"></i></span>
+            How the Liveness Verification Link Works
+        </h2>
+        <p class="features-category-tagline">A quick proof-of-life check the grantee completes on their own phone — no office visit needed.</p>
+
+        <div class="features-howto-steps">
+            <div class="features-howto-step">
+                <div class="features-howto-step-num">1</div>
+                <div class="features-howto-step-title">PDO generates the link</div>
+                <div class="features-howto-step-body">From a grantee's record, click <strong>Generate Liveness Link</strong> and copy/share it with the grantee (chat, SMS, etc.). Only one link exists per grantee at a time.</div>
+            </div>
+            <div class="features-howto-step">
+                <div class="features-howto-step-num">2</div>
+                <div class="features-howto-step-title">Grantee opens it and confirms</div>
+                <div class="features-howto-step-body">The link opens a simple page showing the grantee's name, birthdate, and address so they can confirm it's their own record — no login required.</div>
+            </div>
+            <div class="features-howto-step">
+                <div class="features-howto-step-num">3</div>
+                <div class="features-howto-step-title">Live photo only, timestamped</div>
+                <div class="features-howto-step-body">The grantee takes a photo using their camera right there — uploading an existing picture isn't allowed. The photo is compressed automatically and the date/time is stamped directly onto it.</div>
+            </div>
+            <div class="features-howto-step">
+                <div class="features-howto-step-num">4</div>
+                <div class="features-howto-step-title">PDO reviews and verifies</div>
+                <div class="features-howto-step-body">Once submitted, the PDO (or Admin) opens the photo from the grantee's record and either <strong>Verifies</strong> it — marking the grantee's liveness as confirmed — or <strong>Rejects</strong> it and generates a fresh link for a retake.</div>
+            </div>
+        </div>
+    </section>
+
     <div class="features-article-cta">
         <div class="features-article-cta-glow"></div>
         <p>Ready to see it in action?</p>
@@ -183,6 +214,8 @@
                 "Flag a record with a finding or compliance remark, with a full note history for anyone reviewing it later."),
             new("bi-table", "Powerful Records Grid",
                 "Search, filter by province/municipality/status, sort, and export the full grantee list to Excel in one click."),
+            new("bi-camera-fill", "Liveness Verification Link",
+                "Generate a one-time link a grantee opens on their own phone to confirm their record and take a live, timestamped photo as proof they're still able to receive their grant — no gallery uploads allowed, so it can't be faked."),
         }),
 
         new("bi-truck", "Document Workflow", "violet",
