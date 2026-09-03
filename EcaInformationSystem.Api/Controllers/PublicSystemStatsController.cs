@@ -28,11 +28,17 @@ namespace EcaInformationSystem.Api.Controllers
         {
             var granteeCount = await _beneficiaryService.GetMatchingCountAsync(new BeneficiaryFilterDto());
             var transactionCount = await _logRepository.CountAllAsync();
+            var livenessVerifiedCount = await _beneficiaryService.GetMatchingCountAsync(
+                new BeneficiaryFilterDto { IsLivenessVerified = true });
+            var readyForEftCount = await _beneficiaryService.GetMatchingCountAsync(
+                new BeneficiaryFilterDto { IsReadyForEft = true });
 
             return Ok(new PublicSystemStatsDto
             {
                 GranteeCount = granteeCount,
-                TransactionCount = transactionCount
+                TransactionCount = transactionCount,
+                LivenessVerifiedCount = livenessVerifiedCount,
+                ReadyForEftCount = readyForEftCount
             });
         }
     }

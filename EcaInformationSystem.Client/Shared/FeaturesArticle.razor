@@ -73,6 +73,18 @@
                 <div class="features-scale-value">@_transactionCountDisplay.ToString("N0")</div>
                 <div class="features-scale-label">Transactions Logged</div>
             </div>
+            <div class="features-scale-divider"></div>
+            <div class="features-scale-item">
+                <div class="features-scale-icon"><i class="bi bi-camera-fill"></i></div>
+                <div class="features-scale-value">@_livenessCountDisplay.ToString("N0")</div>
+                <div class="features-scale-label">Liveness Verified</div>
+            </div>
+            <div class="features-scale-divider"></div>
+            <div class="features-scale-item">
+                <div class="features-scale-icon"><i class="bi bi-bank2"></i></div>
+                <div class="features-scale-value">@_eftCountDisplay.ToString("N0")</div>
+                <div class="features-scale-label">Ready for EFT</div>
+            </div>
         </div>
         <div class="features-scale-caption"><span class="features-scale-live-dot"></span>Live counts from the database — real numbers, growing every day.</div>
     </div>
@@ -155,6 +167,8 @@
     private PublicSystemStatsDto? _stats2;
     private int _granteeCountDisplay;
     private int _transactionCountDisplay;
+    private int _livenessCountDisplay;
+    private int _eftCountDisplay;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,12 +196,16 @@
             var progress = (double)i / steps;
             _granteeCountDisplay = (int)Math.Round(_stats2!.GranteeCount * progress);
             _transactionCountDisplay = (int)Math.Round(_stats2!.TransactionCount * progress);
+            _livenessCountDisplay = (int)Math.Round(_stats2!.LivenessVerifiedCount * progress);
+            _eftCountDisplay = (int)Math.Round(_stats2!.ReadyForEftCount * progress);
             StateHasChanged();
             await Task.Delay(stepDelayMs);
         }
 
         _granteeCountDisplay = _stats2!.GranteeCount;
         _transactionCountDisplay = _stats2!.TransactionCount;
+        _livenessCountDisplay = _stats2!.LivenessVerifiedCount;
+        _eftCountDisplay = _stats2!.ReadyForEftCount;
         StateHasChanged();
     }
 
