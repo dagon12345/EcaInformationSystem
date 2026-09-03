@@ -68,6 +68,10 @@
         public int? FilterModeOfPayment { get; set; }
         public string? DataQualityIssue { get; set; } // "location" | "headsup" | "incomplete"
 
+        // Nullable — null means "no filter", matching IsCompliant/IsEligible above
+        public bool? IsLivenessVerified { get; set; }
+        public bool? IsReadyForEft { get; set; }
+
         // Default false — records that are the newer/duplicate side of a
         // Known Duplicate pair (see BeneficiaryDuplicateHistory) are excluded
         // from results and counts unless this is explicitly set true. Keeps

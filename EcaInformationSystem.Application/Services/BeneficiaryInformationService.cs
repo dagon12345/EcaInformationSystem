@@ -708,6 +708,8 @@ namespace EcaInformationSystem.Application.Services
                 N(f.FindingStatus),
                 N(f.Sex),
                 N(f.FilterModeOfPayment),
+                N(f.IsLivenessVerified),
+                N(f.IsReadyForEft),
                 // ── Age / Birthday ────────────────────────────────────────────
                 N(f.SpecificAge),
                 N(f.MilestoneYear),
@@ -5609,6 +5611,10 @@ namespace EcaInformationSystem.Application.Services
                 parts.Add($"Findings: {GetFindingStatusLabelForDescription(filter.FindingStatus.Value)}");
             if (filter.FilterModeOfPayment.HasValue)
                 parts.Add($"Mode of Payment: {GetModeOfPaymentLabelForDescription(filter.FilterModeOfPayment.Value)}");
+            if (filter.IsLivenessVerified.HasValue)
+                parts.Add($"Liveness: {(filter.IsLivenessVerified.Value ? "Verified" : "Not Verified")}");
+            if (filter.IsReadyForEft.HasValue)
+                parts.Add($"EFT: {(filter.IsReadyForEft.Value ? "Ready" : "Not Ready")}");
 
             if (filter.SpecificAge.HasValue)
                 parts.Add($"Age: {filter.SpecificAge}");
@@ -5811,6 +5817,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
+                filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
+                filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateEndorsedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
@@ -5997,6 +6005,8 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterRefYear?.ToString() ?? CommonConstants.Null,
                 filter.FilterRegionRoman ?? CommonConstants.Null,
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
+                filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
+                filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
                 filter.Validator ?? string.Empty,                             // ✅ ADDED
                 filter.BatchCode ?? string.Empty,                             // ✅ ADDED
                 filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one

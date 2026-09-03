@@ -1420,6 +1420,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 FindingStatus = filter.FindingStatus,
                 Sex = filter.Sex,
                 FilterModeOfPayment = filter.FilterModeOfPayment,
+                IsLivenessVerified = filter.IsLivenessVerified, // ✅ new — same gap as ReplacementStatus/FilterFiscalYear above
+                IsReadyForEft = filter.IsReadyForEft,           // ✅ new
                 SpecificAge = filter.SpecificAge,
                 MilestoneYear = filter.MilestoneYear,
                 SpecificBirthday = filter.SpecificBirthday,
@@ -3032,6 +3034,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(x =>
                     x.Beneficiary.ModeOfPayment == filter.FilterModeOfPayment.Value);
 
+            // ── Liveness / EFT ────────────────────────────────────────────────────
+            if (filter.IsLivenessVerified.HasValue)
+                query = query.Where(x => x.Beneficiary.IsLivenessVerified == filter.IsLivenessVerified.Value);
+
+            if (filter.IsReadyForEft.HasValue)
+                query = query.Where(x => x.Beneficiary.IsReadyForEft == filter.IsReadyForEft.Value);
+
             // ── Payment Date (exact) ──────────────────────────────────────────────
             if (filter.PaymentDate.HasValue)
             {
@@ -3669,6 +3678,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.FilterModeOfPayment.HasValue && filter.FilterModeOfPayment.Value > 0)
                 query = query.Where(b => b.ModeOfPayment == filter.FilterModeOfPayment.Value);
+
+            if (filter.IsLivenessVerified.HasValue)
+                query = query.Where(b => b.IsLivenessVerified == filter.IsLivenessVerified.Value);
+
+            if (filter.IsReadyForEft.HasValue)
+                query = query.Where(b => b.IsReadyForEft == filter.IsReadyForEft.Value);
 
             // Statuses other than Paid (2) typically have no meaningful payment date
             // (Unpaid/Pending/N-A records are often never given one). If the user's

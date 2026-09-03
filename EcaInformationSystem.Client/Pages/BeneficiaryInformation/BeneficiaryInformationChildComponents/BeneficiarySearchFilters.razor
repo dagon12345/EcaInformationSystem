@@ -609,6 +609,22 @@
                                 <option value="withfindings">Eligible w/ Findings</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Liveness</label>
+                            <select value="@_livenessValue" @onchange="OnLivenessChanged" disabled="@IsLoading">
+                                <option value="">Select Liveness</option>
+                                <option value="verified">Verified</option>
+                                <option value="notverified">Not Verified</option>
+                            </select>
+                        </div>
+                        <div class="sf-field">
+                            <label>EFT</label>
+                            <select value="@_eftValue" @onchange="OnEftChanged" disabled="@IsLoading">
+                                <option value="">Select EFT</option>
+                                <option value="ready">Ready</option>
+                                <option value="notready">Not Ready</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -746,6 +762,8 @@
             await ApplyFiltersFromModalAsync();
     }
     private string _eligibilityValue = string.Empty;
+    private string _livenessValue = string.Empty;
+    private string _eftValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
     private string _modeOfPaymentValue = string.Empty;
     private string _dataQualityValue = string.Empty;
@@ -798,6 +816,30 @@
                 break;
         }
     }
+    private void OnLivenessChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _livenessValue = val ?? string.Empty;
+        State.Filter.IsLivenessVerified = val switch
+        {
+            "verified" => true,
+            "notverified" => false,
+            _ => null
+        };
+    }
+
+    private void OnEftChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _eftValue = val ?? string.Empty;
+        State.Filter.IsReadyForEft = val switch
+        {
+            "ready" => true,
+            "notready" => false,
+            _ => null
+        };
+    }
+
     private void OnRefQuarterChanged(ChangeEventArgs e)
     {
         var val = e.Value?.ToString();
@@ -1168,6 +1210,10 @@
         State.Filter.IsEligible = null;
         State.Filter.EligibilityMode = null;
         _eligibilityValue = string.Empty;
+        State.Filter.IsLivenessVerified = null;
+        _livenessValue = string.Empty;
+        State.Filter.IsReadyForEft = null;
+        _eftValue = string.Empty;
         State.Filter.GeneralSearch = null;
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
@@ -1236,6 +1282,8 @@
     string.IsNullOrWhiteSpace(f.ComplianceMode) && // ✅ add this
     f.IsEligible == null &&
       string.IsNullOrWhiteSpace(f.EligibilityMode) &&
+    f.IsLivenessVerified == null &&
+    f.IsReadyForEft == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
@@ -1403,6 +1451,10 @@
             chips.Add("Compliance");
         if (!string.IsNullOrWhiteSpace(f.EligibilityMode))
             chips.Add("Eligibility");
+        if (f.IsLivenessVerified.HasValue)
+            chips.Add(f.IsLivenessVerified.Value ? "Liveness: Verified" : "Liveness: Not Verified");
+        if (f.IsReadyForEft.HasValue)
+            chips.Add(f.IsReadyForEft.Value ? "EFT: Ready" : "EFT: Not Ready");
 
         return chips;
     }
