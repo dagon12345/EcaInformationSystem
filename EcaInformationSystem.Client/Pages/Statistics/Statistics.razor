@@ -356,9 +356,11 @@
                 </div>
             </div>
         </div>
-        </div>
 
-        @* ── Liveness & EFT ───────────────────────────────────────── *@
+        @* ── Liveness & EFT ─── stays INSIDE #stats-countup-root (closes below)
+             so statsCountUp.run — which only queries [data-countup] within that
+             root element — actually finds and animates these two cards' numbers
+             instead of leaving them stuck at their static "0" markup. ── *@
         <div class="dash-section-label"><i class="bi bi-camera-fill"></i> Liveness &amp; EFT Readiness</div>
         <div class="dash-stat-grid dash-stat-grid--cols-2 mb-3">
             <div class="dash-stat-card dash-stat-card--cyan dash-stat-card--clickable dash-stat-card--anim"
@@ -377,6 +379,7 @@
                 <div class="dash-stat-label">Ready for EFT</div>
                 <div class="dash-stat-sub">@SharePct(_report.ReadyForEftCount)% of total</div>
             </div>
+        </div>
         </div>
 
         <div class="sys-card mb-3">

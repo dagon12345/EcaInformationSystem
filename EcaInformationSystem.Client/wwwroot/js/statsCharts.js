@@ -179,6 +179,16 @@ window.statsCharts = {
         if (!canvas || typeof Chart === "undefined") return;
         this._destroy(canvasId);
 
+        // Plotted as a 100%-stacked bar (percent of total, not raw count) —
+        // early in rollout, "verified" counts are a tiny fraction of a large
+        // filtered population (e.g. 2 of 3,299), which on a raw-count axis
+        // renders as a sliver a few pixels wide next to the "No / Not Set"
+        // bar and reads as an empty/broken chart. Percent-of-total always
+        // fills the same 0-100 scale regardless of population size; the
+        // tooltip still surfaces the real counts.
+        const livenessPct = data.total > 0 ? (data.livenessVerified / data.total) * 100 : 0;
+        const eftPct = data.total > 0 ? (data.readyForEft / data.total) * 100 : 0;
+
         this._instances[canvasId] = new Chart(canvas, {
             type: "bar",
             data: {
@@ -186,14 +196,16 @@ window.statsCharts = {
                 datasets: [
                     {
                         label: "Yes",
-                        data: [data.livenessVerified, data.readyForEft],
+                        data: [livenessPct, eftPct],
+                        counts: [data.livenessVerified, data.readyForEft],
                         backgroundColor: "#22c55e",
                         borderRadius: 6,
                         maxBarThickness: 48
                     },
                     {
                         label: "No / Not Set",
-                        data: [data.total - data.livenessVerified, data.total - data.readyForEft],
+                        data: [100 - livenessPct, 100 - eftPct],
+                        counts: [data.total - data.livenessVerified, data.total - data.readyForEft],
                         backgroundColor: "#e2e8f0",
                         borderRadius: 6,
                         maxBarThickness: 48
@@ -210,14 +222,18 @@ window.statsCharts = {
                     tooltip: {
                         callbacks: {
                             label(ctx) {
-                                const pct = data.total > 0 ? Math.round((ctx.parsed.x / data.total) * 100) : 0;
-                                return `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString("en-US")} (${pct}%)`;
+                                const count = ctx.dataset.counts[ctx.dataIndex];
+                                return `${ctx.dataset.label}: ${count.toLocaleString("en-US")} (${Math.round(ctx.parsed.x)}%)`;
                             }
                         }
                     }
                 },
                 scales: {
-                    x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f7" } },
+                    x: {
+                        stacked: true, beginAtZero: true, max: 100,
+                        ticks: { callback: (v) => v + "%" },
+                        grid: { color: "#eef2f7" }
+                    },
                     y: { stacked: true, grid: { display: false } }
                 }
             }

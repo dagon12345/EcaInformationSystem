@@ -5,6 +5,7 @@ using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Domain.Common.Enum;
 using EcaInformationSystem.Domain.Entities;
 using EcaInformationSystem.Shared.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EcaInformationSystem.Application.Services
 {
@@ -23,19 +24,40 @@ namespace EcaInformationSystem.Application.Services
         private readonly IPendingUserRegistrationRepository _userRepo;
         private readonly ILivenessNotificationBroadcaster _broadcaster;
         private readonly ILogRepository _logRepository;
+        private readonly IStatisticsService _statisticsService;
+        private readonly IMemoryCache _memoryCache;
 
         public LivenessCheckService(
             ILivenessCheckRepository repo,
             IPsgcNameCache psgcNameCache,
             IPendingUserRegistrationRepository userRepo,
             ILivenessNotificationBroadcaster broadcaster,
-            ILogRepository logRepository)
+            ILogRepository logRepository,
+            IStatisticsService statisticsService,
+            IMemoryCache memoryCache)
         {
             _repo = repo;
             _psgcNameCache = psgcNameCache;
             _userRepo = userRepo;
             _broadcaster = broadcaster;
             _logRepository = logRepository;
+            _statisticsService = statisticsService;
+            _memoryCache = memoryCache;
+        }
+
+        // beneficiary.IsLivenessVerified changing (Verify / reset-on-delete) makes
+        // every cached "who matches this filter" result stale — the Statistics
+        // report cache, and the grid/summary caches keyed off SummaryCacheVersionKey
+        // (BeneficiaryInformationService.InvalidateSummaryCache does the same thing
+        // for every OTHER beneficiary mutation; this service never went through
+        // that path, which is what let a just-verified grantee still be missing
+        // from an already-cached "Province X, no Liveness filter" report until the
+        // cache's own 10-minute expiry caught up).
+        private async Task InvalidateBeneficiaryCachesAsync()
+        {
+            _memoryCache.Set(CommonConstants.SummaryCacheVersionKey, Guid.NewGuid().ToString());
+            _memoryCache.Set(CommonConstants.DuplicateScanCacheVersionKey, Guid.NewGuid().ToString());
+            await _statisticsService.InvalidateStatisticsCacheAsync();
         }
 
         public async Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string baseUrl)
@@ -130,6 +152,7 @@ namespace EcaInformationSystem.Application.Services
             });
 
             await _repo.SaveChangesAsync();
+            await InvalidateBeneficiaryCachesAsync();
         }
 
         public async Task<(byte[] Bytes, string ContentType)> GetPhotoAsync(Guid recordId)
@@ -163,6 +186,7 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.DateOfLiveness = record.SubmittedDate ?? DateTime.UtcNow;
 
             await _repo.SaveChangesAsync();
+            await InvalidateBeneficiaryCachesAsync();
         }
 
         public async Task RejectAsync(Guid recordId, string reviewedByUserId, string? notes)
