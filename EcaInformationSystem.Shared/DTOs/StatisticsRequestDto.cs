@@ -17,6 +17,9 @@
         public DateTime? DateEndorsedTo { get; set; }
         public DateTime? DateAddedFrom { get; set; }
         public DateTime? DateAddedTo { get; set; }
+        // ✅ new — nullable, same "null = no filter" convention as everything above
+        public bool? IsLivenessVerified { get; set; }
+        public bool? IsReadyForEft { get; set; }
     }
 
     // ✅ NEW — powers the Statistics page's "audit this count" modal: same

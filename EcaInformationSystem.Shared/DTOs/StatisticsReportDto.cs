@@ -10,6 +10,9 @@
         public int PendingCount { get; set; }
         public int NotApplicableCount { get; set; }
         public decimal TotalDisbursement { get; set; }
+        // ✅ new
+        public int LivenessVerifiedCount { get; set; }
+        public int ReadyForEftCount { get; set; }
 
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }

@@ -757,6 +757,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.Municipality.HasValue && request.Municipality.Value > 0)
                 query = query.Where(b => b.Municipality == request.Municipality.Value);
 
+            // ── Liveness / EFT ────────────────────────────────────────────────────
+            if (request.IsLivenessVerified.HasValue)
+                query = query.Where(b => b.IsLivenessVerified == request.IsLivenessVerified.Value);
+            if (request.IsReadyForEft.HasValue)
+                query = query.Where(b => b.IsReadyForEft == request.IsReadyForEft.Value);
+
             // ── Date Endorsed Range ───────────────────────────────────────────────
             if (request.DateEndorsedFrom.HasValue)
                 query = query.Where(b => b.DateEndorsed >= request.DateEndorsedFrom.Value.Date);
@@ -976,6 +982,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 UnpaidCount = allData.Count(b => EffectiveStatus(b) == 1),
                 PendingCount = allData.Count(b => EffectiveStatus(b) == 3),
                 NotApplicableCount = allData.Count(b => EffectiveStatus(b) == 0),
+                LivenessVerifiedCount = allData.Count(b => b.IsLivenessVerified == true),
+                ReadyForEftCount = allData.Count(b => b.IsReadyForEft == true),
                 TotalDisbursement = allData
                     .Where(b => EffectiveStatus(b) == 2)
                     .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate))),
@@ -1311,6 +1319,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "notapplicable" => allData.Where(b => EffectiveStatus(b) == 0),
                 "male" => allData.Where(b => b.Sex == 1),
                 "female" => allData.Where(b => b.Sex == 2),
+                "liveness" => allData.Where(b => b.IsLivenessVerified == true),
+                "noliveness" => allData.Where(b => b.IsLivenessVerified != true),
+                "eft" => allData.Where(b => b.IsReadyForEft == true),
+                "noeft" => allData.Where(b => b.IsReadyForEft != true),
                 _ => allData
             };
 

@@ -181,6 +181,24 @@
                                     }
                                 </select>
                             </div>
+                            @* ── Liveness ───────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Liveness</label>
+                                <select @bind="_selectedLiveness" class="ff-input">
+                                    <option value="">All</option>
+                                    <option value="verified">Verified</option>
+                                    <option value="notverified">Not Verified</option>
+                                </select>
+                            </div>
+                            @* ── EFT ────────────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>EFT</label>
+                                <select @bind="_selectedEft" class="ff-input">
+                                    <option value="">All</option>
+                                    <option value="ready">Ready</option>
+                                    <option value="notready">Not Ready</option>
+                                </select>
+                            </div>
                         </div>
 
                         @* ── Date Ranges ──────────────────────────────────── *@
@@ -338,6 +356,39 @@
                 </div>
             </div>
         </div>
+        </div>
+
+        @* ── Liveness & EFT ───────────────────────────────────────── *@
+        <div class="dash-section-label"><i class="bi bi-camera-fill"></i> Liveness &amp; EFT Readiness</div>
+        <div class="dash-stat-grid dash-stat-grid--cols-2 mb-3">
+            <div class="dash-stat-card dash-stat-card--cyan dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("liveness", "Liveness Verified Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-camera-fill"></i></div>
+                <div class="dash-stat-value" data-countup="@_report.LivenessVerifiedCount">0</div>
+                <div class="dash-stat-label">Liveness Verified</div>
+                <div class="dash-stat-sub">@SharePct(_report.LivenessVerifiedCount)% of total</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("eft", "Ready for EFT Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-bank2"></i></div>
+                <div class="dash-stat-value" data-countup="@_report.ReadyForEftCount">0</div>
+                <div class="dash-stat-label">Ready for EFT</div>
+                <div class="dash-stat-sub">@SharePct(_report.ReadyForEftCount)% of total</div>
+            </div>
+        </div>
+
+        <div class="sys-card mb-3">
+            <div class="sys-card-header">
+                <i class="bi bi-bar-chart-line-fill me-2"></i>
+                Liveness &amp; EFT Readiness Chart
+            </div>
+            <div class="sys-card-body">
+                <div style="position:relative; height:180px;">
+                    <canvas id="liveness-eft-chart"></canvas>
+                </div>
+            </div>
         </div>
 
         @* ── Milestone Year Summary ───────────────────────────────── *@
@@ -754,6 +805,9 @@
     private DateTime? _dateEndorsedTo;
     private DateTime? _dateAddedFrom;
     private DateTime? _dateAddedTo;
+    // ✅ new — tri-state, empty string = no filter, same pattern as other selects here
+    private string _selectedLiveness = string.Empty;
+    private string _selectedEft = string.Empty;
 
     private bool _isLoadingProvinces;
     private bool _isLoadingMunicipalities;
@@ -863,6 +917,13 @@
 
             await JS.InvokeVoidAsync("statsCharts.renderAgeDistribution", "age-distribution-chart",
                 _report.AgeDistribution.Select(a => new { age = a.Age, count = a.Count }).ToList());
+
+            await JS.InvokeVoidAsync("statsCharts.renderLivenessEft", "liveness-eft-chart", new
+            {
+                total = _report.TotalBeneficiaries,
+                livenessVerified = _report.LivenessVerifiedCount,
+                readyForEft = _report.ReadyForEftCount
+            });
 
             if (_report.MilestoneYearSummary.Any())
             {
@@ -980,7 +1041,9 @@
         _dateAddedFrom.HasValue ||
         _dateAddedTo.HasValue ||
         _dateEndorsedFrom.HasValue ||
-        _dateEndorsedTo.HasValue;
+        _dateEndorsedTo.HasValue ||
+        !string.IsNullOrEmpty(_selectedLiveness) ||
+        !string.IsNullOrEmpty(_selectedEft);
 
     private async Task LoadStatisticsAsync()
     {
@@ -1061,6 +1124,8 @@
         _municipalitiesForProvince = new();
         _selectedPayrollQuarter = 0;
         _selectedFiscalYear = 0; // ✅ new
+        _selectedLiveness = string.Empty;
+        _selectedEft = string.Empty;
         _dateEndorsedFrom = null;
         _dateEndorsedTo = null;
         _dateAddedFrom = null;
@@ -1111,7 +1176,19 @@
         DateEndorsedFrom = _dateEndorsedFrom,
         DateEndorsedTo = _dateEndorsedTo,
         DateAddedFrom = _dateAddedFrom,
-        DateAddedTo = _dateAddedTo
+        DateAddedTo = _dateAddedTo,
+        IsLivenessVerified = _selectedLiveness switch
+        {
+            "verified" => true,
+            "notverified" => false,
+            _ => null
+        },
+        IsReadyForEft = _selectedEft switch
+        {
+            "ready" => true,
+            "notready" => false,
+            _ => null
+        }
     };
 
     private async Task OpenMembersModalAsync(string bucket, string title)
@@ -1284,6 +1361,11 @@
         public int PendingCount { get; set; }
         public int NotApplicableCount { get; set; }
         public decimal TotalDisbursement { get; set; }
+        // ✅ new — must match SharedDtos.StatisticsReportDto's field names exactly,
+        // since this local class (not the shared one) is what the JSON response
+        // actually deserializes into here.
+        public int LivenessVerifiedCount { get; set; }
+        public int ReadyForEftCount { get; set; }
 
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }

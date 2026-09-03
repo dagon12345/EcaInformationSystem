@@ -167,5 +167,60 @@ window.statsCharts = {
                 }
             }
         });
+    },
+
+    // Liveness Verified vs Ready for EFT, side by side as two 2-slice
+    // doughnuts sharing one chart (grouped bar so both fit one canvas) —
+    // same visual language as renderPaymentStatus (doughnut, same easing/
+    // tooltip pattern), just as a horizontal bar since a single doughnut
+    // can't cleanly show two independent yes/no metrics at once.
+    renderLivenessEft(canvasId, data) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || typeof Chart === "undefined") return;
+        this._destroy(canvasId);
+
+        this._instances[canvasId] = new Chart(canvas, {
+            type: "bar",
+            data: {
+                labels: ["Liveness Verified", "Ready for EFT"],
+                datasets: [
+                    {
+                        label: "Yes",
+                        data: [data.livenessVerified, data.readyForEft],
+                        backgroundColor: "#22c55e",
+                        borderRadius: 6,
+                        maxBarThickness: 48
+                    },
+                    {
+                        label: "No / Not Set",
+                        data: [data.total - data.livenessVerified, data.total - data.readyForEft],
+                        backgroundColor: "#e2e8f0",
+                        borderRadius: 6,
+                        maxBarThickness: 48
+                    }
+                ]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 800, easing: "easeOutCubic" },
+                plugins: {
+                    legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const pct = data.total > 0 ? Math.round((ctx.parsed.x / data.total) * 100) : 0;
+                                return `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString("en-US")} (${pct}%)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: "#eef2f7" } },
+                    y: { stacked: true, grid: { display: false } }
+                }
+            }
+        });
     }
 };

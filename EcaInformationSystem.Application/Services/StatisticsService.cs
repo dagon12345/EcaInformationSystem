@@ -73,7 +73,9 @@ namespace EcaInformationSystem.Application.Services
                 request.DateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",
                 request.DateEndorsedTo?.ToString("yyyyMMdd") ?? "null",
                 request.DateAddedFrom?.ToString("yyyyMMdd") ?? "null",
-                request.DateAddedTo?.ToString("yyyyMMdd") ?? "null");
+                request.DateAddedTo?.ToString("yyyyMMdd") ?? "null",
+                request.IsLivenessVerified?.ToString() ?? "null",
+                request.IsReadyForEft?.ToString() ?? "null");
         }
         private string GetCurrentCacheVersion()
         {
