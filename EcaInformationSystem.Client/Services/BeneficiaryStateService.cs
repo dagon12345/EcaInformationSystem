@@ -503,6 +503,8 @@ public class BeneficiaryStateService
         FindingStatus = f.FindingStatus,
         Sex = f.Sex,
         FilterModeOfPayment = f.FilterModeOfPayment,
+        IsLivenessVerified = f.IsLivenessVerified, // ✅ new — without this, the duplicate scan queued
+        IsReadyForEft = f.IsReadyForEft,           // from here silently ignored these and scanned everyone
         SpecificAge = f.SpecificAge,
         MilestoneYear = f.MilestoneYear,
         SpecificBirthday = f.SpecificBirthday,
@@ -650,6 +652,8 @@ public class BeneficiaryStateService
             a.FindingStatus == b.FindingStatus &&
             a.Sex == b.Sex &&
             a.FilterModeOfPayment == b.FilterModeOfPayment &&
+            a.IsLivenessVerified == b.IsLivenessVerified &&
+            a.IsReadyForEft == b.IsReadyForEft &&
 
             // Age / Birthday
             a.SpecificAge == b.SpecificAge &&
@@ -753,6 +757,10 @@ public class BeneficiaryStateService
             parts.Add($"Findings: {GetFindingStatusLabel(filter.FindingStatus.Value)}");
         if (filter.FilterModeOfPayment.HasValue)
             parts.Add($"Mode of Payment: {GetModeOfPaymentLabel(filter.FilterModeOfPayment.Value)}");
+        if (filter.IsLivenessVerified.HasValue)
+            parts.Add($"Liveness: {(filter.IsLivenessVerified.Value ? "Verified" : "Not Verified")}");
+        if (filter.IsReadyForEft.HasValue)
+            parts.Add($"EFT: {(filter.IsReadyForEft.Value ? "Ready" : "Not Ready")}");
 
         // ── Age & Birthday ──────────────────────────────────────────────────────
         if (filter.SpecificAge.HasValue)
