@@ -380,13 +380,13 @@
         try
         {
             await AuthService.LogoutAsync();
-            Navigation.NavigateTo("/login", true);
+            Navigation.NavigateTo("/features", true);
         }
         catch
         {
             // Best-effort — we're logging out either way; a failed cleanup
             // step here shouldn't block leaving the page.
-            Navigation.NavigateTo("/login", true);
+            Navigation.NavigateTo("/features", true);
         }
     }
 
@@ -708,7 +708,7 @@
             // Best-effort cleanup — still navigate away below regardless.
         }
 
-        Navigation.NavigateTo("/login", true);
+        Navigation.NavigateTo("/features", true);
     }
 
     // Surfaced as a red dot on the profile entry instead of a separate Feed

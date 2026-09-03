@@ -243,7 +243,7 @@
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
         await Task.Delay(100);
-        Navigation.NavigateTo("/login", true);
+        Navigation.NavigateTo("/features", true);
     }
 
     // Another of this account's own devices logged out (which cascades a
@@ -253,7 +253,7 @@
     {
         await AuthService.LogoutAsync();
         ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
-        Navigation.NavigateTo("/login", true);
+        Navigation.NavigateTo("/features", true);
     }
 
     public void Dispose()
