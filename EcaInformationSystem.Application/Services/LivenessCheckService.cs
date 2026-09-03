@@ -60,10 +60,30 @@ namespace EcaInformationSystem.Application.Services
             await _statisticsService.InvalidateStatisticsCacheAsync();
         }
 
-        public async Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string baseUrl)
+        public async Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string role, string baseUrl)
         {
             var beneficiary = await _repo.GetBeneficiaryAsync(beneficiaryId)
                 ?? throw new InvalidOperationException("Beneficiary record not found.");
+
+            // ✅ Same jurisdiction rule as GetPendingReviewsForUserAsync below —
+            // Admin/SuperAdmin/Encoder are unrestricted; a PDO may only generate
+            // a link for a grantee in one of their own assigned municipalities;
+            // any other role (Viewer/Focal) is rejected outright. The client
+            // already hides the button outside this scope, but that's not
+            // enforcement on its own — this is what actually stops a direct API
+            // call from generating a link for a grantee outside the caller's
+            // jurisdiction.
+            if (!UnrestrictedRoles.Contains(role))
+            {
+                if (role != "PDO")
+                    throw new InvalidOperationException("You don't have permission to generate a liveness link.");
+
+                var user = await _userRepo.GetByUserNameAsync(generatedByUserId);
+                var allowedMunicipalityCodes = user?.Jurisdictions.Select(j => j.PsgcCodeMunicipality).ToList() ?? new();
+
+                if (!allowedMunicipalityCodes.Contains(beneficiary.Municipality))
+                    throw new InvalidOperationException("This grantee is outside your assigned jurisdiction.");
+            }
 
             // Only one liveness check attempt ever exists per grantee — never
             // multiple rows/links. Regenerating overwrites the same record

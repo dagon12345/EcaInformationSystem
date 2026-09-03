@@ -4,7 +4,10 @@ namespace EcaInformationSystem.Application.Interfaces.Services
 {
     public interface ILivenessCheckService
     {
-        Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string baseUrl);
+        // ✅ role added — a PDO may only generate a link for a grantee inside
+        // their own assigned jurisdiction; Admin/SuperAdmin/Encoder are
+        // unrestricted, everyone else (Viewer/Focal) is rejected outright.
+        Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string role, string baseUrl);
         Task<List<LivenessCheckHistoryItemDto>> GetHistoryAsync(Guid beneficiaryId, string baseUrl);
         Task<(byte[] Bytes, string ContentType)> GetPhotoAsync(Guid recordId);
         Task VerifyAsync(Guid recordId, string reviewedByUserId, string? notes);

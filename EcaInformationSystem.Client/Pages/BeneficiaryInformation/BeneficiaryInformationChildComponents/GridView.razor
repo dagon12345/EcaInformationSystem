@@ -1424,7 +1424,14 @@
 
 <h6 id="liveness-anchor" class="text-primary fw-bold border-bottom pb-1 mb-3 d-flex align-items-center justify-content-between">
     <span><i class="bi bi-person-check-fill me-1"></i>Liveness Verification &amp; EFT Readiness</span>
-    @if (_isAdmin)
+    @* ✅ Was _isAdmin-only — a PDO should be able to generate a liveness link
+         for a grantee in their OWN jurisdiction too, not just Admin/SuperAdmin.
+         IsInJurisdiction already covers both: true unconditionally for
+         Admin/SuperAdmin/Encoder, true for PDO only when this grantee's
+         municipality is one of theirs — same check already used to scope
+         what PDOs can even see in this grid (see IsInJurisdiction usage
+         elsewhere in this file). *@
+    @if (selectedDetails is not null && AuthService.IsInJurisdiction(selectedDetails.PsgcCodeMunicipality))
     {
         <button class="btn btn-sm btn-primary" disabled="@_isGeneratingLivenessLink" @onclick="() => GenerateLivenessLinkAsync(selectedDetails!.Id)">
             @if (_isGeneratingLivenessLink)

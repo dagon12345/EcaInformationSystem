@@ -54,7 +54,8 @@ namespace EcaInformationSystem.Api.Controllers
             try
             {
                 var userId = User.Identity?.Name ?? "System";
-                var result = await _service.GenerateLinkAsync(beneficiaryId, userId, GetClientBaseUrl());
+                var role = User.GetRole();
+                var result = await _service.GenerateLinkAsync(beneficiaryId, userId, role, GetClientBaseUrl());
                 return Ok(result);
             }
             catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
