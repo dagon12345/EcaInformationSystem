@@ -31,7 +31,7 @@
             <div class="annexa-field mb-3">
                 <span class="annexa-item-label">E.1 Preferred Mode to Receive the Cash Gift</span>
                 <select class="annexa-select" value="@Account.PreferredChannel"
-                        @onchange="@(e => { Account.PreferredChannel = ParseInt(e.Value); NotifyChanged(); })">
+                        @onchange="OnPreferredChannelChanged">
                     <option value="0">Not yet set</option>
                     <option value="1">Landbank of the Philippines (PISO or Savings Account)</option>
                     <option value="2">Other Banks (rural / overseas)</option>
@@ -40,7 +40,39 @@
                 </select>
             </div>
 
-            @if (Account.PreferredChannel != 0)
+            @if (Account.PreferredChannel == 4)
+            {
+                @* Palawan Pawnshop (PSP) is not a bank account — it's picked up in
+                   person at a branch using a mobile number, not deposited into an
+                   account number. Reuses MobileNumber/BranchName (same fields the
+                   Liveness form's print-out already reads for this channel — see
+                   LivenessCheckPrintDocument's PalawanMobileNumber/PalawanBranch),
+                   just with labels/inputs that actually match what's being
+                   collected here instead of the generic bank fields below, which
+                   don't apply to this channel at all. *@
+                <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
+                    <div class="annexa-subsection-title">E.2 Palawan Pawnshop Details</div>
+                    <div class="annexa-grid cols-2">
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Active Mobile Number for Palawan Pawnshop <span class="annexa-required">*</span></span>
+                            <PhMobileNumberInput Value="@Account.MobileNumber"
+                                                 ValueChanged="@(v => { Account.MobileNumber = v; NotifyChanged(); })"
+                                                 ShowValidation="true" />
+                        </div>
+                        <div class="annexa-field">
+                            <span class="annexa-item-label">Preferred Branch</span>
+                            <input class="annexa-input" value="@Account.BranchName"
+                                   @oninput="@(e => { Account.BranchName = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-light border py-2 px-3 mt-3 mb-0 small">
+                    <strong>Note:</strong> Attach a screenshot of the grantee's registered mobile number/ID
+                    used for pickup at Palawan Pawnshop.
+                </div>
+            }
+            else if (Account.PreferredChannel != 0)
             {
                 <div class="annexa-subsection" style="border-top:none; margin-top:0; padding-top:0;">
                     <div class="annexa-subsection-title">E.2 Account Details</div>
@@ -102,7 +134,7 @@
                                        @oninput="@(e => { Account.SwiftCode = SanitizeUpper(e.Value?.ToString()); NotifyChanged(); })" />
                             </div>
                             <div class="annexa-field">
-                                <span class="annexa-item-label">IBAN 
+                                <span class="annexa-item-label">IBAN
                                     <span class="annexa-item-note" style="display:inline;">(European Countries)</span>
                                 </span>
                                 <input class="annexa-input" value="@Account.Iban"
@@ -149,6 +181,33 @@
     };
 
     private int ParseInt(object? value) => int.TryParse(value?.ToString(), out var r) ? r : 0;
+
+    // Switching TO Palawan Pawnshop — clear the bank/GCash-only fields that
+    // this channel's edit fields don't even show, so a value left over from
+    // a previously-selected channel (e.g. Bank Name from Landbank, GCash Name
+    // from EMI) doesn't silently get saved alongside the correct Mobile
+    // Number/Preferred Branch just because the input for it is now hidden.
+    // MobileNumber and BranchName are deliberately left alone — Palawan's own
+    // fields bind to those same two, so clearing them here would erase what
+    // was just entered.
+    private void OnPreferredChannelChanged(ChangeEventArgs e)
+    {
+        var newChannel = ParseInt(e.Value);
+        Account.PreferredChannel = newChannel;
+
+        if (newChannel == 4)
+        {
+            Account.BankOrWalletName = null;
+            Account.AccountNumber = null;
+            Account.BankAddress = null;
+            Account.GCashName = null;
+            Account.IsJointAccount = null;
+            Account.SwiftCode = null;
+            Account.Iban = null;
+        }
+
+        NotifyChanged();
+    }
 
     private bool? ParseNullableBool(object? value)
     {

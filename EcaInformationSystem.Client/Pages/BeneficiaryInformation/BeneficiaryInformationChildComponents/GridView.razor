@@ -2001,20 +2001,39 @@ else
         <h5 class="modal-title">Liveness Photo Review</h5>
     </HeaderTemplate>
     <BodyTemplate>
-        @if (_selectedLivenessPhotoUrl is not null)
-        {
-            <div class="text-center mb-2">
-                <img src="@_selectedLivenessPhotoUrl" alt="Liveness submission" style="max-width:100%;border-radius:8px;" />
-            </div>
-        }
-        @if (_selectedLivenessItem is not null)
-        {
-            <p class="text-muted small mb-0">
-                Submitted @(_selectedLivenessItem.SubmittedDate?.ToLocalTime().ToString("MMMM d, yyyy h:mm tt") ?? "—")
-            </p>
-        }
+        <div>
+            @if (_selectedLivenessPhotoUrl is not null)
+            {
+                <div class="text-center mb-2">
+                    <img src="@_selectedLivenessPhotoUrl" alt="Liveness submission" style="max-width:100%;border-radius:8px;" />
+                </div>
+            }
+            @if (_selectedLivenessItem is not null)
+            {
+                <p class="text-muted small mb-0">
+                    Submitted @(_selectedLivenessItem.SubmittedDate?.ToLocalTime().ToString("MMMM d, yyyy h:mm tt") ?? "—")
+                </p>
+            }
+        </div>
     </BodyTemplate>
     <FooterTemplate>
+        @* View / Word — Print was removed, Word download covers that need now. *@
+        <HxButton Color="ThemeColor.Secondary" Outline="true" Enabled="@(_selectedLivenessPhotoUrl is not null)"
+                  @onclick='() => JS.InvokeVoidAsync("open", _selectedLivenessPhotoUrl, "_blank")' title="View full size in a new tab">
+            <i class="bi bi-arrows-fullscreen me-1"></i>View
+        </HxButton>
+        <HxButton Color="ThemeColor.Info" Outline="true" Enabled="@(_selectedLivenessItem is not null && !_isDownloadingLivenessWord)"
+                  @onclick="DownloadLivenessPhotoWordAsync" title="Download as an editable Word document">
+            @if (_isDownloadingLivenessWord)
+            {
+                //We removed the spinner because the hx have already the spinner the modal itself.
+            }
+            else
+            {
+                <i class="bi bi-file-earmark-word-fill me-1"></i>
+            }
+            Word
+        </HxButton>
         @if (_selectedLivenessItem?.Status == "Submitted")
         {
             <HxButton Color="ThemeColor.Danger" Enabled="@(!_isReviewingLiveness)" @onclick="RejectLivenessAsync">Reject</HxButton>
@@ -4412,6 +4431,7 @@ private HxModal _livenessPhotoModal = default!;
 private LivenessCheckHistoryItemDto? _selectedLivenessItem;
 private string? _selectedLivenessPhotoUrl;
 private bool _isReviewingLiveness;
+private bool _isDownloadingLivenessWord;
 
 private async Task GenerateLivenessLinkAsync(Guid beneficiaryId)
 {
@@ -4512,6 +4532,33 @@ private async Task OpenLivenessPhotoModal(LivenessCheckHistoryItemDto item)
     catch (Exception ex)
     {
         toast.ShowError($"Failed to load photo: {ex.Message}");
+    }
+}
+
+// Same authenticated-fetch-then-blob-download pattern BeneficiaryDocumentUpload
+// uses for its own Download button (triggerFileDownload in index.html) — the
+// endpoint wraps the photo in an editable .docx instead of the raw JPEG.
+private async Task DownloadLivenessPhotoWordAsync()
+{
+    if (_selectedLivenessItem is null) return;
+
+    try
+    {
+        _isDownloadingLivenessWord = true;
+        StateHasChanged();
+
+        var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+        var url = $"{Http.BaseAddress?.ToString().TrimEnd('/')}/api/liveness-check/{_selectedLivenessItem.Id}/photo/docx";
+        await JS.InvokeVoidAsync("triggerFileDownload", url, "Liveness Photo.docx", token);
+    }
+    catch (Exception ex)
+    {
+        toast.ShowError($"Failed to download Word document: {ex.Message}");
+    }
+    finally
+    {
+        _isDownloadingLivenessWord = false;
+        StateHasChanged();
     }
 }
 

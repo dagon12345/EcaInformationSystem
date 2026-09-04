@@ -156,9 +156,11 @@
                     <span class="annexm-doc-field-inline-label">Bank Name <em>(no acronyms)</em>:</span>
                     <span class="annexa-doc-underline-value annexm-doc-field-fill">@(BankAccount?.BankOrWalletName ?? "")</span>
                 </div>
+                @* Branch Name left blank for Palawan (channel 4) — same field as
+                   "Preferred branch" below, would otherwise print twice. *@
                 <div class="annexm-doc-field-row">
                     <span class="annexm-doc-field-inline-label">Branch Name <em>(no acronyms)</em>:</span>
-                    <span class="annexa-doc-underline-value annexm-doc-field-fill">@(BankAccount?.BranchName ?? "")</span>
+                    <span class="annexa-doc-underline-value annexm-doc-field-fill">@(BankAccount?.PreferredChannel == 4 ? "" : (BankAccount?.BranchName ?? ""))</span>
                 </div>
                 <div class="annexm-doc-field-row">
                     <span class="annexm-doc-field-inline-label">Bank Address:</span>
@@ -185,12 +187,14 @@
                     <span class="annexa-doc-underline-value annexm-doc-field-fill"></span>
                 </div>
 
+                @* GCash digit boxes left blank for Palawan too — same field as
+                   "Active Mobile Number for PALAWAN PAWNSHOP" below. *@
                 <div class="annexm-doc-field-row">
                     <span class="annexm-doc-field-inline-label"><strong>GCASH ACCOUNT NUMBER:</strong></span>
                     <div class="annexm-doc-digit-boxes">
                         @for (int i = 0; i < 11; i++)
                         {
-                            <span class="annexm-doc-digit-box">@GCashDigitAt(i)</span>
+                            <span class="annexm-doc-digit-box">@(BankAccount?.PreferredChannel == 4 ? ' ' : GCashDigitAt(i))</span>
                             if (i == 3 || i == 6)
                             {
                                 <span class="annexm-doc-digit-dash">&ndash;</span>

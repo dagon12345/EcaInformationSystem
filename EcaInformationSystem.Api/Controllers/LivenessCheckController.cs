@@ -94,6 +94,22 @@ namespace EcaInformationSystem.Api.Controllers
             catch (InvalidOperationException ex) { return NotFound(ex.Message); }
         }
 
+        // Same photo as GetPhoto above, wrapped in an editable .docx instead of
+        // the raw JPEG — so a PDO can download it straight into Word.
+        [HttpGet("{recordId:guid}/photo/docx")]
+        [Authorize]
+        public async Task<IActionResult> GetPhotoAsWord(Guid recordId)
+        {
+            try
+            {
+                var (bytes, fileName) = await _service.GetPhotoAsWordAsync(recordId);
+                return File(bytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    fileName);
+            }
+            catch (InvalidOperationException ex) { return NotFound(ex.Message); }
+        }
+
         [HttpPost("{recordId:guid}/verify")]
         [Authorize]
         public async Task<IActionResult> Verify(Guid recordId, [FromBody] LivenessReviewRequestDto? dto)

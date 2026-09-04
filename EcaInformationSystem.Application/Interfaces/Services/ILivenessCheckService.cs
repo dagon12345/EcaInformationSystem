@@ -10,6 +10,12 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<LivenessCheckLinkDto> GenerateLinkAsync(Guid beneficiaryId, string generatedByUserId, string role, string baseUrl);
         Task<List<LivenessCheckHistoryItemDto>> GetHistoryAsync(Guid beneficiaryId, string baseUrl);
         Task<(byte[] Bytes, string ContentType)> GetPhotoAsync(Guid recordId);
+
+        // Same photo, wrapped in an editable .docx (grantee name/date caption
+        // above the image) instead of the raw JPEG — so it can be downloaded
+        // straight into Word without the PDO having to build a document
+        // around it themselves.
+        Task<(byte[] Bytes, string FileName)> GetPhotoAsWordAsync(Guid recordId);
         Task VerifyAsync(Guid recordId, string reviewedByUserId, string? notes);
         Task RejectAsync(Guid recordId, string reviewedByUserId, string? notes);
         Task DeleteLinkAsync(Guid recordId, string deletedByUserName);

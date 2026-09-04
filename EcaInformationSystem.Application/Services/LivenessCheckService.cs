@@ -186,6 +186,29 @@ namespace EcaInformationSystem.Application.Services
             return (record.PhotoData, record.PhotoContentType ?? "image/jpeg");
         }
 
+        public async Task<(byte[] Bytes, string FileName)> GetPhotoAsWordAsync(Guid recordId)
+        {
+            var record = await _repo.GetByIdAsync(recordId)
+                ?? throw new InvalidOperationException("Liveness check record not found.");
+
+            if (record.PhotoData is null || record.PhotoData.Length == 0)
+                throw new InvalidOperationException("No photo has been submitted for this record.");
+
+            var beneficiary = await _repo.GetBeneficiaryAsync(record.BeneficiaryInformationId);
+            var nameParts = new[] { beneficiary?.LastName, beneficiary?.FirstName, beneficiary?.MiddleName, beneficiary?.Extension }
+                .Where(p => !string.IsNullOrWhiteSpace(p));
+            var fullName = string.Join(", ", nameParts).Trim();
+            if (string.IsNullOrWhiteSpace(fullName)) fullName = "Unknown Grantee";
+
+            var docBytes = LivenessPhotoWordDocumentBuilder.Build(
+                record.PhotoData, fullName, record.SubmittedDate, record.Status.ToString());
+
+            var safeFileName = string.Concat(fullName.Split(Path.GetInvalidFileNameChars()));
+            var fileName = $"Liveness Photo - {safeFileName}.docx";
+
+            return (docBytes, fileName);
+        }
+
         public async Task VerifyAsync(Guid recordId, string reviewedByUserId, string? notes)
         {
             var record = await _repo.GetByIdAsync(recordId)
