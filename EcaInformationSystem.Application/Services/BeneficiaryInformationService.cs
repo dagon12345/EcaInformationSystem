@@ -713,6 +713,7 @@ namespace EcaInformationSystem.Application.Services
                 // ── Age / Birthday ────────────────────────────────────────────
                 N(f.SpecificAge),
                 N(f.MilestoneYear),
+                ListN(f.AnticipatedMilestoneYears),
                 N(f.SpecificBirthday),
                 N(f.BirthdayFrom),
                 N(f.BirthdayTo),
@@ -5625,6 +5626,8 @@ namespace EcaInformationSystem.Application.Services
                 parts.Add($"Age: {filter.SpecificAge}");
             if (filter.MilestoneYear.HasValue)
                 parts.Add($"Milestone: {filter.MilestoneYear}");
+            if (filter.AnticipatedMilestoneYears is { Count: > 0 })
+                parts.Add($"Anticipated Milestones: {string.Join(", ", filter.AnticipatedMilestoneYears)}");
             if (filter.SpecificBirthday.HasValue)
                 parts.Add($"Birthday: {filter.SpecificBirthday:MMM dd}");
             if (filter.BirthdayFrom.HasValue || filter.BirthdayTo.HasValue)
@@ -5801,6 +5804,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
                 filter.SpecificAge?.ToString() ?? CommonConstants.Null,
                 filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
+                (filter.AnticipatedMilestoneYears != null && filter.AnticipatedMilestoneYears.Any())
+                    ? string.Join(",", filter.AnticipatedMilestoneYears.OrderBy(y => y))
+                    : CommonConstants.Null,
                 filter.SpecificBirthday?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,
@@ -5992,6 +5998,9 @@ namespace EcaInformationSystem.Application.Services
                 filter.PaymentDate?.ToFullDate() ?? CommonConstants.Null,
                 filter.SpecificAge?.ToString() ?? CommonConstants.Null,
                 filter.MilestoneYear?.ToString() ?? CommonConstants.Null,
+                (filter.AnticipatedMilestoneYears != null && filter.AnticipatedMilestoneYears.Any())
+                    ? string.Join(",", filter.AnticipatedMilestoneYears.OrderBy(y => y))
+                    : CommonConstants.Null,
                 filter.SpecificBirthday?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayFrom?.ToFullDate() ?? CommonConstants.Null,
                 filter.BirthdayTo?.ToFullDate() ?? CommonConstants.Null,

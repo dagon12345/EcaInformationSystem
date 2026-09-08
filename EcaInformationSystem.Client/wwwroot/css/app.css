@@ -190,11 +190,11 @@
 /* ── Composer ──────────────────────────────────────────────────────── */
 .feed-composer {
     background: #fff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 14px;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
@@ -207,19 +207,19 @@
     width: 100%;
     border: none;
     background: #f0f2f5;
-    border-radius: 20px;
-    padding: 10px 16px;
-    font-size: 14px;
+    border-radius: 16px;
+    padding: 7px 14px;
+    font-size: 13px;
     resize: none;
     outline: none;
-    min-height: 40px;
+    min-height: 32px;
     max-height: 280px;
     overflow-y: auto;
     transition: border-radius 0.15s ease;
 }
 
     .feed-composer-textarea:focus {
-        border-radius: 12px;
+        border-radius: 10px;
         background: #f0f2f5;
         box-shadow: 0 0 0 2px #0C447C33;
     }
@@ -227,8 +227,8 @@
 .feed-composer-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 8px;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 .feed-composer-file-input {
@@ -237,6 +237,18 @@
 
 .feed-composer-image-btn {
     cursor: pointer;
+    color: #16a34a;
+    border-color: #16a34a;
+}
+
+    .feed-composer-image-btn:hover {
+        color: #fff;
+        background: #16a34a;
+        border-color: #16a34a;
+    }
+
+.feed-composer-post-btn {
+    border-radius: 16px;
 }
 
 .feed-composer-preview-grid {
@@ -5735,6 +5747,29 @@
         border-bottom: none;
     }
 
+    /* Already verified/rejected/accepted elsewhere — the row stays in the
+       feed (see UnifiedNotificationBell.razor's _seenFeedItems) instead of
+       disappearing, just visually receded so it doesn't compete with items
+       still awaiting action. */
+    .notif-feed-item--handled {
+        opacity: 0.6;
+    }
+    .notif-feed-handled-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #15803d;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 999px;
+        padding: 1px 7px;
+        white-space: nowrap;
+    }
+
     .notif-feed-item:hover {
         background: #f8f9fa;
     }
@@ -5931,6 +5966,44 @@
     .icon-btn:hover {
         background: #e9ecef;
     }
+
+    /* Color the top navbar's Sticky Notes / Messages / Notifications icons
+       (MainLayout.razor only — scoped to .main-navbar-actions so
+       FocalLayout's copies of these same widgets, and GridViewNotificationBell's
+       unrelated .icon-btn bell on the Records grid, are unaffected). */
+    .main-navbar-actions .notes-toggle-btn {
+        color: #eab308; /* sticky-note yellow */
+    }
+    .main-navbar-actions .chat-toggle-btn {
+        color: #0d6efd; /* matches the existing unread-attention pulse's blue */
+    }
+    .main-navbar-actions .icon-btn {
+        color: #f97316; /* notification-bell orange */
+    }
+    .main-navbar-actions .navbar-leaderboard-toggle {
+        color: #d97706; /* trophy gold — distinct from the notification bell's orange */
+    }
+    .main-navbar-actions .navbar-feed-btn {
+        color: #6366f1; /* matches NavMenu's Feed icon indigo */
+    }
+
+.navbar-feed-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.navbar-leaderboard-menu {
+    width: 360px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 10px;
+}
+.navbar-leaderboard-menu .tier-leaderboard-card {
+    margin-bottom: 0;
+    box-shadow: none;
+}
 
     .icon-btn .badge {
         font-size: 10px;
@@ -9157,6 +9230,22 @@ body {
                 pointer-events: none;
             }
 
+            /* .toggle-btn centers its row (icon + label) as a group — the label
+               above only fades to opacity:0, it doesn't stop taking up width,
+               so when collapsed the centered group is wider than the 64px
+               rail and overflow:hidden crops the icon out, leaving the
+               (invisible) label's empty space as the only thing on screen.
+               Collapsing the label's box to zero width keeps the icon alone
+               and centered. */
+            .sidebar.collapsed .toggle-btn {
+                gap: 0;
+            }
+            .sidebar.collapsed .toggle-btn span {
+                width: 0;
+                margin: 0;
+                overflow: hidden;
+            }
+
     .sidebar-brand {
         display: flex;
         align-items: center;
@@ -9174,10 +9263,22 @@ body {
         transition: opacity 0.2s;
     }
 
+    .brand-icon {
+        display: flex;
+        border-radius: 50%;
+        animation: brand-icon-glow 2.4s ease-in-out infinite;
+    }
+
+    @keyframes brand-icon-glow {
+        0%, 100% { box-shadow: 0 0 6px 1px rgba(220, 38, 38, 0.35); }
+        50% { box-shadow: 0 0 14px 4px rgba(220, 38, 38, 0.6); }
+    }
+
     .sidebar-nav {
         flex: 1;
         padding: 12px 8px;
         overflow-y: auto;
+        overflow-x: hidden;
         scrollbar-width: thin; /* Firefox */
         scrollbar-color: #d7dbe2 transparent;
     }
@@ -9213,6 +9314,52 @@ body {
     .sidebar.collapsed .nav-section-label {
         opacity: 0;
     }
+
+    /* Clickable section header (NavMenu.razor's RenderSectionHeader) — each
+       section collapses/expands independently, so the sidebar reads as a
+       short list of section names rather than every route at once. */
+    .nav-section-label--toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        border-radius: 6px;
+        user-select: none;
+    }
+    .nav-section-label--toggle:hover {
+        color: #6b7280;
+        background: #f3f4f6;
+    }
+    .nav-section-chevron {
+        font-size: 9px;
+        opacity: 0.7;
+        transition: transform 0.2s ease;
+    }
+    .nav-section-chevron--open {
+        transform: rotate(90deg);
+    }
+
+    /* Smooth expand/collapse for each section's items (NavMenu.razor) — a
+       CSS Grid row animated between 0fr and 1fr, since the content's real
+       height varies per section (1 item vs 5) and isn't known ahead of
+       time; grid-template-rows is what makes animating to an unknown
+       "auto" height possible without measuring in JS. Content stays in the
+       DOM at all times (see the .nav-section-collapse-inner wrapper) —
+       only its visible row height changes, which is what makes this
+       animate at all instead of the instant show/hide an @if would give. */
+    .nav-section-collapse {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.25s ease;
+    }
+    .nav-section-collapse--open {
+        grid-template-rows: 1fr;
+    }
+    .nav-section-collapse-inner {
+        overflow: hidden;
+        min-height: 0;
+    }
+
     /* Nav items — override Bootstrap's .nav-link */
     .nav-item {
         display: flex !important;
@@ -9271,6 +9418,45 @@ body {
         transition: opacity 0.2s;
     }
 
+    /* Collapsed icon-rail hover flyout (NavMenu.razor + navFlyout.js) — one
+       shared element, JS-repositioned per hovered icon. position:fixed so
+       .sidebar's own overflow:hidden (needed for its width-collapse
+       animation) doesn't clip it. Fast, snappy pop rather than a slow fade —
+       this is a hover aid, it should feel instant. */
+    .nav-flyout {
+        position: fixed;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transform: translateY(-50%) scale(0.9);
+        transform-origin: left center;
+        background: rgba(31, 41, 55, 0.65);
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #fff;
+        padding: 6px 14px 6px 10px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        z-index: 2000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.08s ease-out, transform 0.08s ease-out;
+    }
+    .nav-flyout--show {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+    .nav-flyout .nav-flyout-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 15px;
+    }
+
     .nav-badge {
         margin-left: auto;
         background: #4f46e5;
@@ -9292,6 +9478,14 @@ body {
     .sidebar-footer {
         padding: 12px 8px;
         border-top: 1px solid #eaecf0;
+    }
+
+    /* Collapse/expand toggle moved above the nav list, right under the
+       brand — border-bottom instead of the original border-top since it
+       now sits at the top of the sidebar, not the bottom. */
+    .sidebar-footer--top {
+        border-top: none;
+        border-bottom: 1px solid #eaecf0;
     }
 
     .user-card {
@@ -10587,6 +10781,25 @@ body {
         flex-shrink: 0; /* ✅ never let icons/logout get squeezed by a long breadcrumb */
     }
 
+    /* Wraps Sticky Notes / Messaging / Notification in the top navbar
+       (MainLayout.razor) so a small caption can sit under each icon,
+       mobile-tab-bar style, instead of relying on hover-only tooltips.
+       Purely a layout wrapper — each widget's own root element still owns
+       its dropdown's position:relative anchor, unaffected by this. */
+    .navbar-action-labeled {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+    }
+    .navbar-action-label {
+        font-size: 9px;
+        font-weight: 600;
+        color: #9ca3af;
+        white-space: nowrap;
+        line-height: 1;
+    }
+
     .icon-btn {
         width: 34px;
         height: 34px;
@@ -10690,6 +10903,114 @@ body {
     align-items: center;
     justify-content: center;
 }
+
+/* ── Navbar profile dropdown — LinkedIn-style card (avatar, name, title,
+   org, tier progress, "View Full Profile") at the top of the dropdown,
+   followed by the existing DAR/My DTR/Logout list below. ── */
+.profile-card-dropdown {
+    width: 260px;
+    padding-top: 0;
+    padding-bottom: 4px;
+}
+
+.profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 16px 14px;
+}
+
+.profile-card-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #eef2f8;
+    margin-bottom: 10px;
+}
+
+.profile-card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #111;
+}
+
+.profile-card-title {
+    font-size: 12px;
+    color: #4b5563;
+    margin-top: 2px;
+}
+
+.profile-card-org {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 6px;
+}
+
+.profile-card-tier-progress {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.profile-card-mfa-warning {
+    font-size: 10.5px;
+    color: #dc2626;
+    margin-top: 8px;
+}
+
+.profile-card-view-btn {
+    width: 100%;
+    margin-top: 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+/* Feed sidebar's standalone version of the same card (not inside a dropdown) —
+   sits where the old Transaction Leaderboard card used to be (see PostFeed.razor). */
+.profile-card-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 24px 18px 18px;
+}
+
+.profile-card-links {
+    width: 100%;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #eef0f3;
+}
+
+.profile-card-link {
+    display: flex;
+    align-items: center;
+    padding: 8px 4px;
+    font-size: 12.5px;
+    color: #495057;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+    .profile-card-link:hover {
+        background: #f3f4f6;
+        color: #111;
+    }
 
 /* ── User Profile page + shared small-avatar rendering (Feed, Chat, NavMenu) ── */
 .profile-avatar-wrap {

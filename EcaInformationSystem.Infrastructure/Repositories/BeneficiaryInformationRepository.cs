@@ -813,6 +813,27 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         !(b.BirthDate.Year + m == 2024 &&
                           (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17)))));
             }
+
+            // ✅ NEW — separate, additive "anticipation" filter: multi-select
+            // 2024/2025/2026, independent of the single-year MilestoneYear
+            // filter above (which is untouched). Same bracket rule and same
+            // March 17, 2024 cutoff, but ORed across every selected year so
+            // a beneficiary matches if they turn a milestone age in ANY of
+            // them — including a milestone birthday that hasn't happened yet
+            // this year, since the point is anticipating who's coming up,
+            // not just who has already turned it.
+            if (request.AnticipatedMilestoneYears is { Count: > 0 } anticipatedYears)
+            {
+                var milestonesForAnticipation = new[] { 80, 85, 90, 95, 100 };
+
+                query = query.Where(b =>
+                    anticipatedYears.Any(targetYear =>
+                        milestonesForAnticipation.Any(m =>
+                            b.BirthDate.Year + m == targetYear &&
+                            b.BirthDate.Year + m >= 2024 &&
+                            !(b.BirthDate.Year + m == 2024 &&
+                              (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17))))));
+            }
             // ── Milestone Age filter ─────────────────────────────────────────────
             // ✅ FIXED — matches the same "bracket" rule used by AgeDistribution
             // below (age >= m && age < m+5), not an exact birth-year match. This is
@@ -1038,7 +1059,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // even though their birth year matches "year - milestoneAge".
             // Only year 2024 needs this check — every later year is a full
             // calendar year with no mid-year cutoff.
-            bool IsValidMilestoneYear(DateTime birthDate, int milestoneAge, int targetYear)
+            bool IsValidMilestoneYearLocal(DateTime birthDate, int milestoneAge, int targetYear)
             {
                 if (birthDate.Year + milestoneAge != targetYear) return false;
                 if (targetYear < 2024) return false;
@@ -1055,17 +1076,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .Select(year =>
                 {
                     var records = allData
-                        .Where(b => milestoneAges.Any(m => IsValidMilestoneYear(b.BirthDate, m, year)))
+                        .Where(b => milestoneAges.Any(m => IsValidMilestoneYearLocal(b.BirthDate, m, year)))
                         .ToList();
                     return new MilestoneYearSummaryDto
                     {
                         Year = year,
                         TotalCount = records.Count,
-                        Age80Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 80, year)),
-                        Age85Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 85, year)),
-                        Age90Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 90, year)),
-                        Age95Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 95, year)),
-                        Age100Count = records.Count(b => IsValidMilestoneYear(b.BirthDate, 100, year))
+                        Age80Count = records.Count(b => IsValidMilestoneYearLocal(b.BirthDate, 80, year)),
+                        Age85Count = records.Count(b => IsValidMilestoneYearLocal(b.BirthDate, 85, year)),
+                        Age90Count = records.Count(b => IsValidMilestoneYearLocal(b.BirthDate, 90, year)),
+                        Age95Count = records.Count(b => IsValidMilestoneYearLocal(b.BirthDate, 95, year)),
+                        Age100Count = records.Count(b => IsValidMilestoneYearLocal(b.BirthDate, 100, year))
                     };
                 })
                 .ToList();
@@ -1384,7 +1405,13 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     OscaIdNumber = b.OscaIdNumber,
                     BatchCode = b.BatchCode,
                     Sex = b.Sex,
-                    MilestoneYear = ComputeMilestoneYear(b.BirthDate),
+                    // ✅ When the new anticipation filter is active, show the
+                    // anticipated year that actually matched (which may not
+                    // have happened yet this year) instead of "0"/an unrelated
+                    // past milestone — otherwise unchanged from before.
+                    MilestoneYear = request.AnticipatedMilestoneYears is { Count: > 0 }
+                        ? ComputeDisplayMilestoneYear(b.BirthDate, request.AnticipatedMilestoneYears)
+                        : ComputeMilestoneYear(b.BirthDate),
                     Age = ComputeAge(b.BirthDate),
                     ProvinceName = _psgcNameCache.GetProvinceName(b.Province) ?? b.Province.ToString(),
                     MunicipalityName = _psgcNameCache.GetMunicipalityName(b.Municipality) ?? b.Municipality.ToString(),
@@ -1455,6 +1482,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 IsReadyForEft = filter.IsReadyForEft,           // ✅ new
                 SpecificAge = filter.SpecificAge,
                 MilestoneYear = filter.MilestoneYear,
+                AnticipatedMilestoneYears = filter.AnticipatedMilestoneYears,
                 SpecificBirthday = filter.SpecificBirthday,
                 BirthdayFrom = filter.BirthdayFrom,
                 BirthdayTo = filter.BirthdayTo,
@@ -2556,7 +2584,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     Extension = x.Extension,
                     BirthDate = x.BirthDate,
                     Age = ComputeAge(x.BirthDate),
-                    MilestoneYear = ComputeMilestoneYear(x.BirthDate),
+                    // ✅ When the Anticipated Milestones filter is active, show the
+                    // anticipated year that actually matched (which may not have
+                    // happened yet this year) instead of "0" — otherwise unchanged.
+                    MilestoneYear = filter.AnticipatedMilestoneYears is { Count: > 0 }
+                        ? ComputeDisplayMilestoneYear(x.BirthDate, filter.AnticipatedMilestoneYears)
+                        : ComputeMilestoneYear(x.BirthDate),
                     Sex = x.Sex,
                     Citizenship = x.Citizenship,
                     PsgcCodeRegion = x.Region,
@@ -2662,6 +2695,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .DistinctBy(x => x.Id)
                 .Select(MapToDto)
                 .ToList();
+
+            // ✅ When the Anticipated Milestones filter is active, show the
+            // anticipated year that actually matched (which may not have
+            // happened yet this year) instead of "0" — otherwise unchanged.
+            if (filter.AnticipatedMilestoneYears is { Count: > 0 })
+            {
+                foreach (var dto in deduped)
+                    dto.MilestoneYear = ComputeDisplayMilestoneYear(dto.BirthDate, filter.AnticipatedMilestoneYears);
+            }
 
             return new PagedResultDto<BeneficiaryInformationDto>
             {
@@ -3069,6 +3111,27 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 }
             }
 
+            // ✅ NEW — separate, additive "anticipation" filter: multi-select
+            // 2024/2025/2026, independent of the single-year MilestoneYear
+            // filter above (which is untouched). ORed across every selected
+            // year so a beneficiary matches if they turn a milestone age in
+            // ANY of them — including a milestone birthday that hasn't
+            // happened yet this year, since the point is anticipating who's
+            // coming up, not just who has already turned it.
+            if (filter.AnticipatedMilestoneYears is { Count: > 0 } anticipatedYearsPaged)
+            {
+                var anticipationMilestones = new[] { 80, 85, 90, 95, 100 };
+
+                query = query.Where(x =>
+                    anticipatedYearsPaged.Any(targetYear =>
+                        anticipationMilestones.Any(m =>
+                            x.Beneficiary.BirthDate.Year + m == targetYear &&
+                            x.Beneficiary.BirthDate.Year + m >= 2024 &&
+                            !(x.Beneficiary.BirthDate.Year + m == 2024 &&
+                              (x.Beneficiary.BirthDate.Month < 3 ||
+                               (x.Beneficiary.BirthDate.Month == 3 && x.Beneficiary.BirthDate.Day < 17))))));
+            }
+
             // ── Sex ───────────────────────────────────────────────────────────────
             if (filter.Sex.HasValue && filter.Sex.Value > 0)
                 query = query.Where(x => x.Beneficiary.Sex == filter.Sex.Value);
@@ -3413,6 +3476,52 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // never had a window to enter the program, even though the YEAR is 2024).
         private static int ComputeMilestoneYear(DateTime birthDate) => EcaEligibilityHelper.ComputeMilestoneYear(birthDate);
         private static int ComputeAge(DateTime birthDate) => EcaEligibilityHelper.ComputeAge(birthDate);
+
+        // ✅ Anticipation check for the Statistics "Milestone Year" filter —
+        // deliberately does NOT require the milestone birthday to have
+        // occurred yet, only that the calendar YEAR matches (birthYear +
+        // milestoneAge == targetYear). This is what lets someone whose 2026
+        // milestone birthday hasn't happened yet still count under "Milestone
+        // Year 2026" — the point is anticipating who's coming up, not just
+        // who has already turned it. Only 2024 needs the program-start-date
+        // (March 17, 2024) cutoff — every later year is a full calendar year.
+        private static bool IsValidMilestoneYear(DateTime birthDate, int milestoneAge, int targetYear)
+        {
+            if (birthDate.Year + milestoneAge != targetYear) return false;
+            if (targetYear < 2024) return false;
+            if (targetYear == 2024)
+            {
+                var milestoneBirthday = new DateTime(targetYear, birthDate.Month, birthDate.Day);
+                if (milestoneBirthday < EcaEligibilityHelper.ProgramStartDate) return false;
+            }
+            return true;
+        }
+
+        // ✅ NEW — the per-row "Milestone Year" shown in the Statistics audit
+        // modal used to always call ComputeMilestoneYear(), which returns 0
+        // (or an already-past milestone) for anyone whose anticipated 2024/
+        // 2025/2026 milestone birthday hasn't happened yet this year — even
+        // though that same person was correctly INCLUDED in, say, the
+        // "Milestone Year 2026" filtered count. That made the audit list look
+        // wrong: a row counted under 2026 would show "0" or an unrelated year
+        // instead of 2026. This checks the anticipation years first (whatever
+        // was selected in the filter, or all of 2024/2025/2026 if none was),
+        // and only falls back to the "already reached" computation when the
+        // row isn't part of any anticipated year (e.g. an unfiltered "All"
+        // bucket listing someone whose only milestone was years ago).
+        private static int ComputeDisplayMilestoneYear(DateTime birthDate, List<int>? candidateYears)
+        {
+            var years = candidateYears is { Count: > 0 } ? candidateYears : new List<int> { 2024, 2025, 2026 };
+            var milestoneAges = new[] { 80, 85, 90, 95, 100 };
+
+            foreach (var year in years.OrderBy(y => y))
+            {
+                if (milestoneAges.Any(m => IsValidMilestoneYear(birthDate, m, year)))
+                    return year;
+            }
+
+            return ComputeMilestoneYear(birthDate);
+        }
 
         public async Task<BeneficiaryInformation?> FindExistingAsync(string? lastName, string? firstName, string? middleName, DateTime birthDate)
         {
@@ -3973,6 +4082,25 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         !(b.BirthDate.Year + m == 2024 &&
                           (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17)))));
                 }
+            }
+
+            // ✅ NEW — separate, additive "anticipation" filter: multi-select
+            // 2024/2025/2026, independent of the single-year MilestoneYear
+            // filter above (which is untouched). ORed across every selected
+            // year so a beneficiary matches if they turn a milestone age in
+            // ANY of them — including a milestone birthday that hasn't
+            // happened yet this year, since the point is anticipating who's
+            // coming up, not just who has already turned it.
+            if (filter.AnticipatedMilestoneYears is { Count: > 0 } anticipatedYearsNarrow)
+            {
+                var anticipationMilestonesNarrow = new[] { 80, 85, 90, 95, 100 };
+
+                query = query.Where(b =>
+                    anticipatedYearsNarrow.Any(targetYear =>
+                        anticipationMilestonesNarrow.Any(m =>
+                            b.BirthDate.Year + m == targetYear && b.BirthDate.Year + m >= 2024 &&
+                            !(b.BirthDate.Year + m == 2024 &&
+                              (b.BirthDate.Month < 3 || (b.BirthDate.Month == 3 && b.BirthDate.Day < 17))))));
             }
             // ── General Search ──────────────────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(filter.GeneralSearch))

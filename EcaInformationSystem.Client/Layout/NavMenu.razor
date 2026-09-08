@@ -3,100 +3,138 @@
 @using EcaInformationSystem.Shared.DTOs.Activity
 @inject AuthService AuthService
 @inject ActivityClientService ActivityClient
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="sidebar-brand">
     <NavLink href="" Match="NavLinkMatch.All">
         <div class="brand-icon">
-            <img src="/images/ncsc-seal.png" alt="NCSC"
-                 style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:white"
+            <img src="/images/ncsc-seal.png" alt="NCSC" class="brand-logo-img"
+                 style="width:40px;height:40px;border-radius:50%;object-fit:cover;background:white"
                  onerror="this.style.display='none'" />
         </div>
     </NavLink>
     <span class="brand-text">ECA-InFORMS</span>
 </div>
 
+<div class="sidebar-footer sidebar-footer--top">
+    <button class="toggle-btn" @onclick="OnToggle">
+        <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+        <span>@(Collapsed ? "Expand" : "Collapse")</span>
+    </button>
+</div>
+
 <nav class="sidebar-nav">
-    <div class="nav-section-label">Main</div>
+    @* ── Every section below is collapsible — click its label to expand/
+         collapse. Starts collapsed except whichever section contains the
+         page you're currently on (see DetermineInitialExpandedSection),
+         so the sidebar reads as a short list of section names instead of
+         every route at once. When the whole sidebar is itself collapsed to
+         its icon rail (the Collapse button at the bottom, a different,
+         pre-existing feature), section grouping is bypassed entirely and
+         every icon shows — group headers have no room to render there anyway. ── *@
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("main")' @onmouseleave='() => OnSectionMouseLeave("main")'>
+        @RenderSectionHeader("main", "Main")
+        <div class="nav-section-collapse @(IsSectionOpen("main") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                <NavLink class="nav-item" href="" Match="NavLinkMatch.All" title="Feed">
+                    <span class="nav-icon nav-icon--indigo"><i class="bi bi-house-door-fill"></i></span>
+                    <span class="nav-label">Feed</span>
+                </NavLink>
+                @* ── Calendar — visible to all roles ── *@
+                <NavLink class="nav-item" href="calendar" title="Calendar">
+                    <span class="nav-icon nav-icon--blue"><i class="bi bi-calendar3"></i></span>
+                    <span class="nav-label">Calendar</span>
+                    @if (_todayActivityCount > 0)
+                    {
+                        <span class="nav-badge nav-badge--danger">@_todayActivityCount</span>
+                    }
+                </NavLink>
+            </div>
+        </div>
+    </div>
 
-    <NavLink class="nav-item" href="" Match="NavLinkMatch.All" title="Feed">
-        <span class="nav-icon nav-icon--indigo"><i class="bi bi-grid"></i></span>
-        <span class="nav-label">Feed</span>
-    </NavLink>
-    @* ── Calendar — visible to all roles ── *@
-    <NavLink class="nav-item" href="calendar" title="Calendar">
-        <span class="nav-icon nav-icon--blue"><i class="bi bi-calendar3"></i></span>
-        <span class="nav-label">Calendar</span>
-        @if (_todayActivityCount > 0)
-        {
-            <span class="nav-badge nav-badge--danger">@_todayActivityCount</span>
-        }
-    </NavLink>
-    <div class="nav-section-label">Reports</div>
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("reports")' @onmouseleave='() => OnSectionMouseLeave("reports")'>
+        @RenderSectionHeader("reports", "Reports")
+        <div class="nav-section-collapse @(IsSectionOpen("reports") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                @* ── Statistics — Admin + PDO + Viewer ── *@
+                <NavLink class="nav-item" href="statistics" title="Statistics & Region Map">
+                    <span class="nav-icon nav-icon--orange"><i class="bi bi-pin-map-fill"></i></span>
+                    <span class="nav-label">Statistics &amp; Region Map</span>
+                </NavLink>
 
-    @* ── Statistics — Admin + PDO + Viewer ── *@
-    <NavLink class="nav-item" href="statistics" title="Statistics & Region Map">
-        <span class="nav-icon nav-icon--orange"><i class="bi bi-pin-map-fill"></i></span>
-        <span class="nav-label">Statistics &amp; Region Map</span>
-    </NavLink>
+                @* ── Applications & Validations — branch of Statistics, own filters (Date Added / Date Endorsed only) — Admin + PDO + Viewer ── *@
+                <NavLink class="nav-item" href="statistics/applications-validations" title="Applications & Validations">
+                    <span class="nav-icon nav-icon--amber"><i class="bi bi-clipboard2-check-fill"></i></span>
+                    <span class="nav-label">Applications & Validations</span>
+                </NavLink>
 
-    @* ── Applications & Validations — branch of Statistics, own filters (Date Added / Date Endorsed only) — Admin + PDO + Viewer ── *@
-    <NavLink class="nav-item" href="statistics/applications-validations" title="Applications & Validations">
-        <span class="nav-icon nav-icon--amber"><i class="bi bi-clipboard2-check-fill"></i></span>
-        <span class="nav-label">Applications & Validations</span>
-    </NavLink>
+                @* ── Annual Grantee Target — branch of Statistics, split into its own page
+                     so Statistics itself stays focused on filters/report retrieval —
+                     Admin + PDO + Viewer ── *@
+                <NavLink class="nav-item" href="statistics/annual-target" title="Annual Grantee Target">
+                    <span class="nav-icon nav-icon--teal"><i class="bi bi-bullseye"></i></span>
+                    <span class="nav-label">Annual Grantee Target</span>
+                </NavLink>
+            </div>
+        </div>
+    </div>
 
-    @* ── Annual Grantee Target — branch of Statistics, split into its own page
-         so Statistics itself stays focused on filters/report retrieval —
-         Admin + PDO + Viewer ── *@
-    <NavLink class="nav-item" href="statistics/annual-target" title="Annual Grantee Target">
-        <span class="nav-icon nav-icon--teal"><i class="bi bi-bullseye"></i></span>
-        <span class="nav-label">Annual Grantee Target</span>
-    </NavLink>
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("records")' @onmouseleave='() => OnSectionMouseLeave("records")'>
+        @RenderSectionHeader("records", "Records")
+        <div class="nav-section-collapse @(IsSectionOpen("records") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                @* ── Create Record — Admin + PDO + Encoder ── *@
+                @if (_isAdmin || _isPdo || _isEncoder)
+                {
+                    <NavLink class="nav-item" href="beneficiary-create" title="Create Record">
+                        <span class="nav-icon nav-icon--green"><i class="bi bi-person-plus"></i></span>
+                        <span class="nav-label">Create Record</span>
+                    </NavLink>
+                }
 
-    <div class="nav-section-label">Records</div>
+                <NavLink class="nav-item" href="beneficiary-records" title="Records">
+                    <span class="nav-icon nav-icon--blue"><i class="bi bi-file-text"></i></span>
+                    <span class="nav-label">Records</span>
+                </NavLink>
 
-    @* ── Create Record — Admin + PDO + Encoder ── *@
-    @if (_isAdmin || _isPdo || _isEncoder)
-    {
-        <NavLink class="nav-item" href="beneficiary-create" title="Create Record">
-            <span class="nav-icon nav-icon--green"><i class="bi bi-person-plus"></i></span>
-            <span class="nav-label">Create Record</span>
-        </NavLink>
-    }
-
-    <NavLink class="nav-item" href="beneficiary-records" title="Records">
-        <span class="nav-icon nav-icon--blue"><i class="bi bi-file-text"></i></span>
-        <span class="nav-label">Records</span>
-    </NavLink>
-
-    @* ── Files (Forms Gateway) — visible to all roles; upload/edit/delete gated inside the page ── *@
-    <NavLink class="nav-item" href="forms-gateway" title="Files">
-        <span class="nav-icon nav-icon--amber"><i class="bi bi-folder2-open"></i></span>
-        <span class="nav-label">Files</span>
-    </NavLink>
-
+                @* ── Files (Forms Gateway) — visible to all roles; upload/edit/delete gated inside the page ── *@
+                <NavLink class="nav-item" href="forms-gateway" title="Files">
+                    <span class="nav-icon nav-icon--amber"><i class="bi bi-folder2-open"></i></span>
+                    <span class="nav-label">Files</span>
+                </NavLink>
+            </div>
+        </div>
+    </div>
 
     @* ── Financial section — Liquidation is Admin only; WFP-ECA is viewable by
        Admin/Finance/SuperAdmin, but only Finance/SuperAdmin can edit it (enforced
        inside the page itself). ── *@
     @if (_isAdmin || _isFinance)
     {
-        <div class="nav-section-label">Financial</div>
-        @if (_isAdmin)
-        {
-            <NavLink class="nav-item" href="liquidation" title="Liquidation">
-                <span class="nav-icon nav-icon--red"><i class="bi bi-plus-slash-minus"></i></span>
-                <span class="nav-label">Liquidation</span>
-            </NavLink>
-        }
-        @if (_isFinance || _isAdmin)
-        {
-            <NavLink class="nav-item" href="wfp-eca" title="WFP-ECA">
-                <span class="nav-icon nav-icon--emerald"><i class="bi bi-cash-stack"></i></span>
-                <span class="nav-label">WFP-ECA</span>
-            </NavLink>
-        }
+        <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("financial")' @onmouseleave='() => OnSectionMouseLeave("financial")'>
+            @RenderSectionHeader("financial", "Financial")
+            <div class="nav-section-collapse @(IsSectionOpen("financial") ? "nav-section-collapse--open" : "")">
+                <div class="nav-section-collapse-inner">
+                    @if (_isAdmin)
+                    {
+                        <NavLink class="nav-item" href="liquidation" title="Liquidation">
+                            <span class="nav-icon nav-icon--red"><i class="bi bi-plus-slash-minus"></i></span>
+                            <span class="nav-label">Liquidation</span>
+                        </NavLink>
+                    }
+                    @if (_isFinance || _isAdmin)
+                    {
+                        <NavLink class="nav-item" href="wfp-eca" title="WFP-ECA">
+                            <span class="nav-icon nav-icon--emerald"><i class="bi bi-cash-stack"></i></span>
+                            <span class="nav-label">WFP-ECA</span>
+                        </NavLink>
+                    }
+                </div>
+            </div>
+        </div>
     }
 
     @* ── Tracking — Application Tracking (grantee document batches) and Document
@@ -104,131 +142,153 @@
          the same "hand it off, accept it, route it" shape, so they're grouped
          under one section here even though each has its own nav-item/route.
          Both are visible to everyone; actions are gated inside each page. ── *@
-    <div class="nav-section-label">Tracking</div>
-    <NavLink class="nav-item" href="application-tracking" title="Application Tracking">
-        <span class="nav-icon nav-icon--violet"><i class="bi bi-truck"></i></span>
-        <span class="nav-label">Application Tracking</span>
-    </NavLink>
-    <NavLink class="nav-item" href="document-tracking" title="Document Tracking">
-        <span class="nav-icon nav-icon--pink"><i class="bi bi-send"></i></span>
-        <span class="nav-label">Document Tracking</span>
-    </NavLink>
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("tracking")' @onmouseleave='() => OnSectionMouseLeave("tracking")'>
+        @RenderSectionHeader("tracking", "Tracking")
+        <div class="nav-section-collapse @(IsSectionOpen("tracking") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                <NavLink class="nav-item" href="application-tracking" title="Application Tracking">
+                    <span class="nav-icon nav-icon--violet"><i class="bi bi-truck"></i></span>
+                    <span class="nav-label">Application Tracking</span>
+                </NavLink>
+                <NavLink class="nav-item" href="document-tracking" title="Document Tracking">
+                    <span class="nav-icon nav-icon--pink"><i class="bi bi-send"></i></span>
+                    <span class="nav-label">Document Tracking</span>
+                </NavLink>
+            </div>
+        </div>
+    </div>
 
-    @* ── Senior Citizens Directory — visible to everyone (view-only); Add/Edit/Delete are gated inside the page to PDO/Admin/SuperAdmin ── *@
-    <div class="nav-section-label">Directory</div>
-    <NavLink class="nav-item" href="senior-citizen-directory" title="Senior Citizens Directory">
-        <span class="nav-icon nav-icon--rose"><i class="bi bi-people-fill"></i></span>
-        <span class="nav-label">Senior Citizens Directory</span>
-    </NavLink>
-    @* ── NCSC Team Directory — nationwide, visible to everyone (view-only); Add/Edit/Delete/Import are gated inside the page to Admin/SuperAdmin ── *@
-    <NavLink class="nav-item" href="ncsc-team-directory" title="NCSC Team Directory">
-        <span class="nav-icon nav-icon--indigo"><i class="bi bi-diagram-3-fill"></i></span>
-        <span class="nav-label">NCSC Team Directory</span>
-    </NavLink>
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("directory")' @onmouseleave='() => OnSectionMouseLeave("directory")'>
+        @RenderSectionHeader("directory", "Directory")
+        <div class="nav-section-collapse @(IsSectionOpen("directory") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                @* ── Senior Citizens Directory — visible to everyone (view-only); Add/Edit/Delete are gated inside the page to PDO/Admin/SuperAdmin ── *@
+                <NavLink class="nav-item" href="senior-citizen-directory" title="Senior Citizens Directory">
+                    <span class="nav-icon nav-icon--rose"><i class="bi bi-people-fill"></i></span>
+                    <span class="nav-label">Senior Citizens Directory</span>
+                </NavLink>
+                @* ── NCSC Team Directory — nationwide, visible to everyone (view-only); Add/Edit/Delete/Import are gated inside the page to Admin/SuperAdmin ── *@
+                <NavLink class="nav-item" href="ncsc-team-directory" title="NCSC Team Directory">
+                    <span class="nav-icon nav-icon--indigo"><i class="bi bi-diagram-3-fill"></i></span>
+                    <span class="nav-label">NCSC Team Directory</span>
+                </NavLink>
 
-    @* ── Provincial Focals — visible to everyone including Focal accounts (that's
-       the whole point, they need to find people to call); inviting is gated
-       inside the page to PDO/Admin/SuperAdmin. Encoder is deliberately excluded —
-       they're an office-only Create/Edit/View role with no calling/directory need. ── *@
-    @if (!_isEncoder)
-    {
-        <NavLink class="nav-item" href="provincial-focals" title="Provincial Focals">
-            <span class="nav-icon nav-icon--sky"><i class="bi bi-diagram-3-fill"></i></span>
-            <span class="nav-label">Provincial Focals</span>
-        </NavLink>
-    }
+                @* ── Provincial Focals — visible to everyone including Focal accounts (that's
+                   the whole point, they need to find people to call); inviting is gated
+                   inside the page to PDO/Admin/SuperAdmin. Encoder is deliberately excluded —
+                   they're an office-only Create/Edit/View role with no calling/directory need. ── *@
+                @if (!_isEncoder)
+                {
+                    <NavLink class="nav-item" href="provincial-focals" title="Provincial Focals">
+                        <span class="nav-icon nav-icon--sky"><i class="bi bi-diagram-3-fill"></i></span>
+                        <span class="nav-label">Provincial Focals</span>
+                    </NavLink>
+                }
 
-    @* ── Call Logs — SuperAdmin/Admin see every call; PDO sees only their own
-       (enforced server-side too). Not shown to Finance/Viewer/Focal. ── *@
-    @if (_isSuperAdmin || _isAdmin || _isPdo)
-    {
-        <NavLink class="nav-item" href="call-logs" title="Call Logs">
-            <span class="nav-icon nav-icon--orange"><i class="bi bi-clock-history"></i></span>
-            <span class="nav-label">Call Logs</span>
-        </NavLink>
-    }
+                @* ── Call Logs — SuperAdmin/Admin see every call; PDO sees only their own
+                   (enforced server-side too). Not shown to Finance/Viewer/Focal. ── *@
+                @if (_isSuperAdmin || _isAdmin || _isPdo)
+                {
+                    <NavLink class="nav-item" href="call-logs" title="Call Logs">
+                        <span class="nav-icon nav-icon--orange"><i class="bi bi-clock-history"></i></span>
+                        <span class="nav-label">Call Logs</span>
+                    </NavLink>
+                }
 
-    @* ── Attendance Management — SuperAdmin/Finance: link users to their
-       biometric device and review all DTRs ── *@
-    @if (_isSuperAdmin || _isFinance)
-    {
-        <NavLink class="nav-item" href="attendance-management" title="Attendance Management">
-            <span class="nav-icon nav-icon--violet"><i class="bi bi-fingerprint"></i></span>
-            <span class="nav-label">Attendance Management</span>
-        </NavLink>
-    }
+                @* ── Attendance Management — SuperAdmin/Finance: link users to their
+                   biometric device and review all DTRs ── *@
+                @if (_isSuperAdmin || _isFinance)
+                {
+                    <NavLink class="nav-item" href="attendance-management" title="Attendance Management">
+                        <span class="nav-icon nav-icon--violet"><i class="bi bi-fingerprint"></i></span>
+                        <span class="nav-label">Attendance Management</span>
+                    </NavLink>
+                }
+            </div>
+        </div>
+    </div>
 
     @* ── Administration section — User Management: SuperAdmin + Finance;
        Conversation Oversight / System Updates stay SuperAdmin only ── *@
     @if (_isSuperAdmin || _isFinance)
     {
-        <div class="nav-section-label">Administration</div>
-        @if (_isSuperAdmin || _isFinance)
-        {
-            <NavLink class="nav-item" href="user-management" title="User Management">
-                <span class="nav-icon nav-icon--blue"><i class="bi bi-people-fill"></i></span>
-                <span class="nav-label">User Management</span>
-            </NavLink>
-        }
-        @if (_isSuperAdmin)
-        {
-            <NavLink class="nav-item" href="chat-oversight" title="Conversation Oversight">
-                <span class="nav-icon nav-icon--red"><i class="bi bi-shield-lock-fill"></i></span>
-                <span class="nav-label">Conversation Oversight</span>
-            </NavLink>
-            <NavLink class="nav-item" href="system-updates" title="System Updates">
-                <span class="nav-icon nav-icon--cyan"><i class="bi bi-arrow-repeat"></i></span>
-                <span class="nav-label">System Updates</span>
-            </NavLink>
-        }
+        <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("administration")' @onmouseleave='() => OnSectionMouseLeave("administration")'>
+            @RenderSectionHeader("administration", "Administration")
+            <div class="nav-section-collapse @(IsSectionOpen("administration") ? "nav-section-collapse--open" : "")">
+                <div class="nav-section-collapse-inner">
+                    @if (_isSuperAdmin || _isFinance)
+                    {
+                        <NavLink class="nav-item" href="user-management" title="User Management">
+                            <span class="nav-icon nav-icon--blue"><i class="bi bi-people-fill"></i></span>
+                            <span class="nav-label">User Management</span>
+                        </NavLink>
+                    }
+                    @if (_isSuperAdmin)
+                    {
+                        <NavLink class="nav-item" href="chat-oversight" title="Conversation Oversight">
+                            <span class="nav-icon nav-icon--red"><i class="bi bi-shield-lock-fill"></i></span>
+                            <span class="nav-label">Conversation Oversight</span>
+                        </NavLink>
+                        <NavLink class="nav-item" href="system-updates" title="System Updates">
+                            <span class="nav-icon nav-icon--cyan"><i class="bi bi-arrow-repeat"></i></span>
+                            <span class="nav-label">System Updates</span>
+                        </NavLink>
+                    }
+                </div>
+            </div>
+        </div>
     }
 
-    <div class="nav-section-label mt-2">System</div>
+    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("system")' @onmouseleave='() => OnSectionMouseLeave("system")'>
+        @RenderSectionHeader("system", "System", "mt-2")
+        <div class="nav-section-collapse @(IsSectionOpen("system") ? "nav-section-collapse--open" : "")">
+            <div class="nav-section-collapse-inner">
+                @* ── Activity Logs — Admin only ── *@
+                @if (_isAdmin)
+                {
+                    <NavLink class="nav-item" href="logs" title="Activity Logs">
+                        <span class="nav-icon nav-icon--slate"><i class="bi bi-clock-history"></i></span>
+                        <span class="nav-label">Activity Logs</span>
+                    </NavLink>
+                }
 
-    @* ── Activity Logs — Admin only ── *@
-    @if (_isAdmin)
-    {
-        <NavLink class="nav-item" href="logs" title="Activity Logs">
-            <span class="nav-icon nav-icon--slate"><i class="bi bi-clock-history"></i></span>
-            <span class="nav-label">Activity Logs</span>
-        </NavLink>
-    }
+                @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
+                   so it opens in its own tab and never loses your place in the app. Sits
+                   last, out of the way of the actual work items above it. ── *@
+                <a class="nav-item" href="help.html" target="_blank" rel="noopener" title="Help">
+                    <span class="nav-icon nav-icon--green"><i class="bi bi-question-circle-fill"></i></span>
+                    <span class="nav-label">Help</span>
+                </a>
 
-    @* ── Help — the step-by-step user manual, a static page (not a Blazor route)
-       so it opens in its own tab and never loses your place in the app. Sits
-       last, out of the way of the actual work items above it. ── *@
-    <a class="nav-item" href="help.html" target="_blank" rel="noopener" title="Help">
-        <span class="nav-icon nav-icon--green"><i class="bi bi-question-circle-fill"></i></span>
-        <span class="nav-label">Help</span>
-    </a>
-
-    @* ── Features / About / Regional Offices / Directory of Officials — same
-       public pages the login navbar links to; moved below Help per request,
-       out of the way of the day-to-day work items above them. ── *@
-    <NavLink class="nav-item" href="features" title="Features">
-        <span class="nav-icon nav-icon--amber"><i class="bi bi-stars"></i></span>
-        <span class="nav-label">Features</span>
-    </NavLink>
-    <NavLink class="nav-item" href="about" title="About">
-        <span class="nav-icon nav-icon--slate"><i class="bi bi-info-circle"></i></span>
-        <span class="nav-label">About</span>
-    </NavLink>
-    <NavLink class="nav-item" href="regional-offices" title="Regional Offices">
-        <span class="nav-icon nav-icon--teal"><i class="bi bi-telephone"></i></span>
-        <span class="nav-label">Regional Offices</span>
-    </NavLink>
-    <NavLink class="nav-item" href="directory-officials" title="Directory of Officials">
-        <span class="nav-icon nav-icon--cyan"><i class="bi bi-people"></i></span>
-        <span class="nav-label">Directory of Officials</span>
-    </NavLink>
+                @* ── Features / About / Regional Offices / Directory of Officials — same
+                   public pages the login navbar links to; moved below Help per request,
+                   out of the way of the day-to-day work items above them. ── *@
+                <NavLink class="nav-item" href="features" title="Features">
+                    <span class="nav-icon nav-icon--amber"><i class="bi bi-stars"></i></span>
+                    <span class="nav-label">Features</span>
+                </NavLink>
+                <NavLink class="nav-item" href="about" title="About">
+                    <span class="nav-icon nav-icon--slate"><i class="bi bi-info-circle"></i></span>
+                    <span class="nav-label">About</span>
+                </NavLink>
+                <NavLink class="nav-item" href="regional-offices" title="Regional Offices">
+                    <span class="nav-icon nav-icon--teal"><i class="bi bi-telephone"></i></span>
+                    <span class="nav-label">Regional Offices</span>
+                </NavLink>
+                <NavLink class="nav-item" href="directory-officials" title="Directory of Officials">
+                    <span class="nav-icon nav-icon--cyan"><i class="bi bi-people"></i></span>
+                    <span class="nav-label">Directory of Officials</span>
+                </NavLink>
+            </div>
+        </div>
+    </div>
 </nav>
 
-<div class="sidebar-footer">
-    <button class="toggle-btn" @onclick="OnToggle">
-        <i class="bi @(Collapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
-        <span>@(Collapsed ? "Expand" : "Collapse")</span>
-    </button>
-</div>
+@* ── Shared hover flyout for the collapsed icon rail — one element, JS-
+     positioned per hovered item (see navFlyout.js and wwwroot/css/app.css's
+     .nav-flyout rules). position:fixed, so it isn't clipped by .sidebar's
+     own overflow:hidden (needed for the width-collapse animation). ── *@
+<div class="nav-flyout" id="nav-flyout"></div>
 
 @code {
     [Parameter] public EventCallback OnToggle { get; set; }
@@ -249,6 +309,94 @@
     private int? _myRegionCode;
     private int _todayActivityCount;
 
+    // ── Collapsible sections ────────────────────────────────────────────
+    // Which section keys are PINNED open — by a click, or because it's the
+    // section containing the current route (see ExpandSectionForCurrentRoute).
+    // These stay open regardless of hover.
+    private readonly HashSet<string> _expandedSections = new();
+
+    // Which single section is being hover-previewed right now — separate
+    // from the pinned set above, so it collapses again the instant the mouse
+    // leaves instead of staying open like a click would.
+    private string? _hoveredSection;
+
+    // Bypassed (always "open") when the whole sidebar is itself collapsed to
+    // its icon rail — that's a different, pre-existing feature (the Collapse
+    // button at the bottom), and section headers have no room to render
+    // there anyway, so every icon should still show.
+    private bool IsSectionOpen(string key) =>
+        Collapsed || _expandedSections.Contains(key) || _hoveredSection == key;
+
+    private void ToggleSection(string key)
+    {
+        if (!_expandedSections.Remove(key))
+            _expandedSections.Add(key);
+    }
+
+    // Hover preview — opens on enter, closes on leave (OnSectionMouseLeave
+    // below), independent of whatever's pinned via click/current-route.
+    private void OnSectionMouseEnter(string key) => _hoveredSection = key;
+
+    private void OnSectionMouseLeave(string key)
+    {
+        if (_hoveredSection == key)
+            _hoveredSection = null;
+    }
+
+    // First path segment(s) that belong to each section — used only to pick
+    // which section starts expanded based on the current URL.
+    private static readonly Dictionary<string, string[]> SectionRoutePrefixes = new()
+    {
+        ["main"] = new[] { "", "calendar" },
+        ["reports"] = new[] { "statistics" },
+        ["records"] = new[] { "beneficiary-create", "beneficiary-records", "forms-gateway" },
+        ["financial"] = new[] { "liquidation", "wfp-eca" },
+        ["tracking"] = new[] { "application-tracking", "document-tracking" },
+        ["directory"] = new[] { "senior-citizen-directory", "ncsc-team-directory", "provincial-focals", "call-logs", "attendance-management" },
+        ["administration"] = new[] { "user-management", "chat-oversight", "system-updates" },
+        ["system"] = new[] { "logs", "features", "about", "regional-offices", "directory-officials" }
+    };
+
+    private void ExpandSectionForCurrentRoute()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/').ToLowerInvariant();
+        var firstSegment = path.Split('/')[0];
+
+        foreach (var (key, prefixes) in SectionRoutePrefixes)
+        {
+            if (prefixes.Contains(firstSegment) || prefixes.Contains(path))
+            {
+                _expandedSections.Add(key);
+                return;
+            }
+        }
+
+        _expandedSections.Add("main"); // fallback for any route not listed above
+    }
+
+    // Manually builds the clickable section-label row (label + chevron)
+    // instead of a Razor snippet, since it needs to be invoked as
+    // @RenderSectionHeader(...) — a plain @{ } code block can't emit markup.
+    private RenderFragment RenderSectionHeader(string key, string label, string? extraClass = null) => builder =>
+    {
+        var isOpen = IsSectionOpen(key);
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", string.IsNullOrEmpty(extraClass)
+            ? "nav-section-label nav-section-label--toggle"
+            : $"nav-section-label nav-section-label--toggle {extraClass}");
+        builder.AddAttribute(2, "onclick", EventCallback.Factory.Create(this, () => ToggleSection(key)));
+        builder.OpenElement(3, "span");
+        builder.AddContent(4, label);
+        builder.CloseElement();
+        builder.OpenElement(5, "i");
+        // Always the same glyph, rotated via CSS instead of swapped between
+        // bi-chevron-right/bi-chevron-down — a glyph swap can't transition
+        // smoothly, a transform rotation can.
+        builder.AddAttribute(6, "class", $"bi bi-chevron-right nav-section-chevron {(isOpen ? "nav-section-chevron--open" : "")}");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
@@ -265,11 +413,26 @@
         _myRegionCode = AuthService.GetRegionCode();
         await RefreshTodayActivityCountAsync();
 
+        ExpandSectionForCurrentRoute();
+
+        try { await JS.InvokeVoidAsync("navFlyout.init"); }
+        catch { /* non-fatal — collapsed rail just won't show the hover flyout */ }
+
         ActivityClient.ActivityStarting += OnActivityEvent;
         ActivityClient.ActivityChanged += OnActivityEvent;
         ActivityClient.ActivityDeleted += OnActivityDeletedEvent;
+        Navigation.LocationChanged += OnLocationChanged;
 
         StateHasChanged();
+    }
+
+    // Auto-collapse the expanded sidebar back to its icon rail once a nav
+    // link is actually followed — expanded is meant for finding your way
+    // around, not for staying open once you've arrived somewhere.
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!Collapsed)
+            InvokeAsync(() => OnToggle.InvokeAsync());
     }
 
     private void OnActivityEvent(ActivityDto activity)
@@ -299,5 +462,6 @@
         ActivityClient.ActivityStarting -= OnActivityEvent;
         ActivityClient.ActivityChanged -= OnActivityEvent;
         ActivityClient.ActivityDeleted -= OnActivityDeletedEvent;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

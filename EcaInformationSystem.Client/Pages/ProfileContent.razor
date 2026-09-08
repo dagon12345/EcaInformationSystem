@@ -91,6 +91,9 @@
                         <button type="button" class="btn btn-sm btn-link p-0 mt-1 d-block" @onclick="OpenPermissionsModal">
                             <i class="bi bi-shield-check me-1"></i>View my permissions
                         </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-3 w-100" @onclick="RequestLogout">
+                            <i class="bi bi-box-arrow-right me-1"></i>Logout
+                        </button>
                     </div>
                 </div>
 
@@ -611,6 +614,35 @@
     </div>
 }
 
+@* ── Logout confirmation — reached via the Logout button on the identity card above ── *@
+@if (_showLogoutConfirm)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1080;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-warning-emphasis">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Log Out?
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelLogout"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        You're about to end your current session. Any unsaved changes on this page
+                        will be lost. Are you sure you want to log out?
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelLogout">Cancel</button>
+                    <button class="btn btn-danger" @onclick="HandleLogoutAsync" disabled="@_loggingOut">
+                        <i class="bi bi-box-arrow-right me-1"></i>Yes, Log Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid? UserId { get; set; }
     // Where the "Set Up MFA" link goes — staff (Profile.razor) use the full
@@ -621,6 +653,28 @@
     private bool _isSelf;
     private bool _isLoading = true;
     private string? _loadError;
+    private bool _showLogoutConfirm;
+    private bool _loggingOut;
+
+    private void RequestLogout() => _showLogoutConfirm = true;
+    private void CancelLogout() => _showLogoutConfirm = false;
+
+    private async Task HandleLogoutAsync()
+    {
+        if (_loggingOut) return;
+        _loggingOut = true;
+        StateHasChanged();
+
+        try
+        {
+            await AuthService.LogoutAsync();
+            ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+        }
+        finally
+        {
+            Navigation.NavigateTo("/features", true);
+        }
+    }
 
     private UserProfileDto? _myProfile;
     private PublicUserProfileDto? _publicProfile;

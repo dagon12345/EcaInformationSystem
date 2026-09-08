@@ -11,7 +11,6 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject HttpClient Http
-@inject BeneficiaryStateService State
 @inject IConfiguration Configuration
 @inject ChatClientService ChatClientService
 @inject VoiceCallClientService VoiceCallClientService
@@ -54,18 +53,32 @@
                         <span class="separator">›</span>
                         <span class="current">@currentPage</span>
                     </div>
-                    <div class="navbar-actions">
+                    <div class="navbar-actions main-navbar-actions">
+
+                        @* ── Feed — quick link back to the Feed/home page from anywhere. ── *@
+                        <div class="navbar-action-labeled">
+                            <a href="/" class="icon-btn navbar-feed-btn" title="Feed">
+                                <i class="bi bi-house-door-fill"></i>
+                            </a>
+                            <span class="navbar-action-label">Feed</span>
+                        </div>
 
                         @* ── Sticky Notes — floating toggle + panel, same click-to-open
                              behavior as Messages below. The Feed page (PostFeed.razor) keeps
                              its own always-visible sidebar copy; this is a second entry point
                              so the user can glimpse/manage their notes from anywhere. ── *@
-                        <StickyNotesWidget />
+                        <div class="navbar-action-labeled">
+                            <StickyNotesWidget />
+                            <span class="navbar-action-label">Sticky Notes</span>
+                        </div>
 
                         @* ── Messages — floating toggle + panel (ChatWidget's non-inline mode),
                              same click-to-open behavior as the bell. Was previously an always-
                              visible sidebar on the Feed page; now it's reachable from anywhere. ── *@
-                        <ChatWidget />
+                        <div class="navbar-action-labeled">
+                            <ChatWidget />
+                            <span class="navbar-action-label">Messaging</span>
+                        </div>
 
                         @* ── Browser-to-browser voice calls between logged-in users —
                              renders incoming-call/dialing/in-call overlays globally so a
@@ -73,101 +86,32 @@
                         <VoiceCallWidget />
 
                         @* ── Single notification bell — duplicates, calendar, uploads ── *@
-                        <UnifiedNotificationBell @ref="_notificationBell" />
+                        <div class="navbar-action-labeled">
+                            <UnifiedNotificationBell @ref="_notificationBell" />
+                            <span class="navbar-action-label">Notifications</span>
+                        </div>
 
-                        @* ── User info + role badge — click opens a dropdown with
-                             View Profile / Logout (logout no longer sits as its
-                             own bare icon in the navbar). ────────────────────── *@
-                        <div class="dropdown navbar-profile-dropdown me-2">
-                            <button class="btn navbar-profile-toggle dropdown-toggle position-relative" type="button"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                @if (_mfaEnabled == false)
-                                {
-                                    <span class="navbar-profile-mfa-dot" title="Add two-factor authentication to secure your account"></span>
-                                }
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="d-flex flex-column align-items-end" style="line-height:1.2; min-width:100px;">
-                                        <span style="font-size:12px; color:#6b7280; font-weight:500;">
-                                            @_displayFullName
-                                        </span>
-                                        @if (_myTier is not null)
-                                        {
-                                            <div class="navbar-profile-tier-progress @TierVisuals.For(_myTier.TierLevel).CssClass"
-                                                 title="@TierProgressTitle()">
-                                                <div class="navbar-profile-tier-progress-track">
-                                                    <div class="navbar-profile-tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
-                                                </div>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(_userRole))
-                                        {
-                                            <span class="badge @GetRoleBadgeClass(_userRole)"
-                                                  style="font-size:9px; padding:2px 6px; margin-top:2px;">
-                                                <i class="bi @GetRoleIcon(_userRole) me-1"></i>@GetRoleLabel(_userRole)
-                                            </span>
-                                        }
-                                    </div>
-                                    <div class="position-relative">
-                                        @if (_currentUserId.HasValue)
-                                        {
-                                            <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="navbar-profile-avatar avatar-img"
-                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                            <div class="navbar-profile-avatar" style="display:none;">@GetInitials(_displayFullName)</div>
-                                        }
-                                        else
-                                        {
-                                            <div class="navbar-profile-avatar">@GetInitials(_displayFullName)</div>
-                                        }
-                                        @if (_myTier is not null)
-                                        {
-                                            <span class="tier-badge-dot @TierVisuals.For(_myTier.TierLevel).CssClass"
-                                                  title="@($"{_myTier.TierName} tier — {_myTier.TransactionCount} transaction(s)")">
-                                                <i class="bi @TierVisuals.For(_myTier.TierLevel).Icon"></i>
-                                            </span>
-                                        }
+                        @* ── Transaction Leaderboard — icon that drops down into the same
+                             season header / my-tier progress / rank list card that used to
+                             sit permanently on the Feed page's sidebar; reachable from
+                             anywhere now instead of only there. Not shown to Focal accounts
+                             (they aren't ranked). ── *@
+                        @if (_userRole != "Focal")
+                        {
+                            <div class="navbar-action-labeled">
+                                <div class="dropdown navbar-leaderboard-dropdown">
+                                    <button class="icon-btn navbar-leaderboard-toggle" type="button"
+                                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Transaction Leaderboard">
+                                        <i class="bi bi-trophy-fill"></i>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end navbar-leaderboard-menu">
+                                        <TransactionLeaderboardWidget />
                                     </div>
                                 </div>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li>
-                                    <a class="dropdown-item d-flex align-items-center" href="/profile">
-                                        @if (_currentUserId.HasValue)
-                                        {
-                                            <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="navbar-profile-menu-avatar avatar-img me-2"
-                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                            <div class="navbar-profile-menu-avatar me-2" style="display:none;">@GetInitials(_displayFullName)</div>
-                                        }
-                                        else
-                                        {
-                                            <div class="navbar-profile-menu-avatar me-2">@GetInitials(_displayFullName)</div>
-                                        }
-                                        View Profile
-                                        @if (_mfaEnabled == false)
-                                        {
-                                            <span class="badge bg-danger ms-2" style="font-size:9px;">
-                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure account
-                                            </span>
-                                        }
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item d-flex align-items-center" href="/dar">
-                                        <i class="bi bi-journal-check me-2"></i>Daily Accomplishment Report
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item d-flex align-items-center" href="/my-dtr">
-                                        <i class="bi bi-clock-history me-2"></i>My DTR
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li>
-                                    <button type="button" class="dropdown-item text-danger" @onclick="RequestLogout" disabled="@_loggingOut">
-                                        <i class="bi bi-box-arrow-right me-2"></i>Logout
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
+                                <span class="navbar-action-label">Leaderboard</span>
+                            </div>
+                        }
+
                     </div>
                 </div>
 
@@ -213,34 +157,6 @@
             </div>
         }
 
-        @* ── Logout confirmation — reached via the profile dropdown above ── *@
-        @if (_showLogoutConfirm)
-        {
-            <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1080;">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title text-warning-emphasis">
-                                <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>Log Out?
-                            </h5>
-                            <button type="button" class="btn-close" @onclick="CancelLogout"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p class="mb-0">
-                                You're about to end your current session. Any unsaved changes on this page
-                                will be lost. Are you sure you want to log out?
-                            </p>
-                        </div>
-                        <div class="modal-footer">
-                            <button class="btn btn-secondary" @onclick="CancelLogout">Cancel</button>
-                            <button class="btn btn-danger" @onclick="HandleLogout">
-                                <i class="bi bi-box-arrow-right me-1"></i>Yes, Log Out
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
     </Authorized>
     <NotAuthorized>
         @Body
@@ -248,10 +164,9 @@
 </AuthorizeView>
 
 @code {
-    private bool collapsed = false;
+    private bool collapsed = true;
     private bool mobileOpen = false;
     private string userName = string.Empty;
-    private string _displayFullName = "User";
     private string currentPage = "Dashboard";
     private string? _userRole;
     private bool _showPermissionBanner = false;
@@ -259,13 +174,10 @@
     private string _bannerType = "error";
     private System.Threading.CancellationTokenSource? _bannerCts;
     private UnifiedNotificationBell? _notificationBell;
-    private bool _showLogoutConfirm;
-    // Guards against HandleLogout (manual click) and HandleForceLogout (a
-    // "log out other devices" push, or a same-account logout elsewhere)
-    // ever running concurrently — see the comment in AuthService.LogoutAsync
-    // for why that race could happen and what it broke.
+    // Guards HandleForceLogout (a "log out other devices" push, or a
+    // same-account logout elsewhere) against double-firing — see the comment
+    // in AuthService.LogoutAsync for why that race could happen.
     private bool _loggingOut;
-    private bool? _mfaEnabled; // null = not checked yet
     private Guid? _currentUserId;
     private UserTransactionTierDto? _myTier;
     private UserTransactionTierDto? _levelUpTier;
@@ -443,8 +355,6 @@
         if (user.Identity?.IsAuthenticated == true)
         {
             userName = user.Identity.Name ?? "User";
-            var fullName = user.FindFirst("FullName")?.Value;
-            _displayFullName = !string.IsNullOrWhiteSpace(fullName) ? fullName : userName;
             _currentUserId = Guid.TryParse(user.FindFirst("sub")?.Value, out var id) ? id : (Guid?)null;
 
             if (!ChatClientService.IsConnected)
@@ -565,7 +475,6 @@
             await JS.InvokeVoidAsync("chatInterop.primeNotificationAudio");
             await JS.InvokeVoidAsync("chatInterop.notifications.requestPermission");
 
-            await LoadMfaStatusAsync();
             _myTier = await TierClient.GetMyTierAsync();
         }
 
@@ -616,28 +525,6 @@
         _ => "You do not have permission to perform this action."
     };
 
-    private static string GetRoleBadgeClass(string role) => role switch
-    {
-        "SuperAdmin" => "bg-dark",
-        "Admin" => "bg-danger",
-        "PDO" => "bg-primary",
-        "Viewer" => "bg-secondary",
-        "Encoder" => "bg-primary", // shares PDO's visual — same operational tier
-        "Focal" => "bg-info", // call-only, never actually renders (FocalLayout is used instead)
-        _ => "bg-secondary"
-    };
-
-    private static string GetRoleIcon(string role) => role switch
-    {
-        "SuperAdmin" => "bi-shield-fill-exclamation",
-        "Admin" => "bi-shield-fill-check",
-        "PDO" => "bi-person-badge-fill",
-        "Viewer" => "bi-eye-fill",
-        "Encoder" => "bi-keyboard-fill",
-        "Focal" => "bi-telephone-fill",
-        _ => "bi-person-fill"
-    };
-
     private static string GetRoleLabel(string role) => role switch
     {
         "SuperAdmin" => "Super Administrator",
@@ -685,63 +572,6 @@
     }
 
     private void ToggleSidebar() => collapsed = !collapsed;
-
-    private void RequestLogout() => _showLogoutConfirm = true;
-    private void CancelLogout() => _showLogoutConfirm = false;
-
-    private async Task HandleLogout()
-    {
-        if (_loggingOut) return;
-        _loggingOut = true;
-
-        Current = null;
-        State.ResetGlobalDuplicateState();
-
-        try
-        {
-            await AuthService.LogoutAsync();
-            ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
-            await Task.Delay(100);
-        }
-        catch
-        {
-            // Best-effort cleanup — still navigate away below regardless.
-        }
-
-        Navigation.NavigateTo("/features", true);
-    }
-
-    // Surfaced as a red dot on the profile entry instead of a separate Feed
-    // banner — one place, one action: open the profile and set it up there.
-    private async Task LoadMfaStatusAsync()
-    {
-        try
-        {
-            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
-            _mfaEnabled = status?.IsMfaEnabled ?? true;
-        }
-        catch
-        {
-            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
-        }
-    }
-
-    private class MfaStatusResponse
-    {
-        public bool IsMfaEnabled { get; set; }
-    }
-
-    // Absolute URL — see Profile.razor's AvatarUrl for why a relative <img src>
-    // 404s (API is on a different origin than the client).
-    private string AvatarUrl(Guid userId) => $"{Http.BaseAddress}api/UserProfile/{userId}/avatar/thumb";
-
-    private static string GetInitials(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "U";
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][0].ToString().ToUpper();
-        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
-    }
 
     public void Dispose()
     {

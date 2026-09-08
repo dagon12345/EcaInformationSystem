@@ -24,6 +24,10 @@ public class BeneficiaryStateService
     public int SelectedSex { get; set; }
     public List<int> SelectedPaymentStatuses { get; set; } = new();
     public List<int> SelectedPayrollQuarters { get; set; } = new(); // ✅ new
+    // ✅ NEW — separate, additive "anticipation" filter: multi-select
+    // 2024/2025/2026, independent of Filter.MilestoneYear (single-year,
+    // untouched). Same deferred-apply pattern as SelectedPaymentStatuses above.
+    public List<int> SelectedAnticipatedMilestoneYears { get; set; } = new();
     public string? ErrorMessage { get; set; }
 
     // ✅ Persist loaded dropdown lists so they don't reload on back-navigation
@@ -263,6 +267,7 @@ public class BeneficiaryStateService
             || f.FilterModeOfPayment.HasValue
             || f.SpecificAge.HasValue
             || f.MilestoneYear.HasValue
+            || (f.AnticipatedMilestoneYears != null && f.AnticipatedMilestoneYears.Any())
             || f.SpecificBirthday.HasValue || f.BirthdayFrom.HasValue || f.BirthdayTo.HasValue
             || f.FilterQuarter.HasValue
             || f.FilterFiscalYear.HasValue
@@ -428,6 +433,7 @@ public class BeneficiaryStateService
             // ── Age / Birthday ────────────────────────────────────────────
             N(f.SpecificAge),
             N(f.MilestoneYear),
+            ListN(f.AnticipatedMilestoneYears),
             N(f.SpecificBirthday),
             N(f.BirthdayFrom),
             N(f.BirthdayTo),
@@ -507,6 +513,7 @@ public class BeneficiaryStateService
         IsReadyForEft = f.IsReadyForEft,           // from here silently ignored these and scanned everyone
         SpecificAge = f.SpecificAge,
         MilestoneYear = f.MilestoneYear,
+        AnticipatedMilestoneYears = f.AnticipatedMilestoneYears,
         SpecificBirthday = f.SpecificBirthday,
         BirthdayFrom = f.BirthdayFrom,
         BirthdayTo = f.BirthdayTo,
@@ -658,6 +665,7 @@ public class BeneficiaryStateService
             // Age / Birthday
             a.SpecificAge == b.SpecificAge &&
             a.MilestoneYear == b.MilestoneYear &&
+            AreListsEqual(a.AnticipatedMilestoneYears, b.AnticipatedMilestoneYears) &&
             a.SpecificBirthday == b.SpecificBirthday &&
             a.BirthdayFrom == b.BirthdayFrom &&
             a.BirthdayTo == b.BirthdayTo &&
@@ -767,6 +775,8 @@ public class BeneficiaryStateService
             parts.Add($"Age: {filter.SpecificAge}");
         if (filter.MilestoneYear.HasValue)
             parts.Add($"Milestone: {filter.MilestoneYear}");
+        if (filter.AnticipatedMilestoneYears is { Count: > 0 })
+            parts.Add($"Anticipated Milestones: {string.Join(", ", filter.AnticipatedMilestoneYears)}");
         if (filter.SpecificBirthday.HasValue)
             parts.Add($"Birthday: {filter.SpecificBirthday:MMM dd}");
         if (filter.BirthdayFrom.HasValue || filter.BirthdayTo.HasValue)

@@ -26,6 +26,14 @@
         public DateTime? BirthdayTo { get; set; }
         public bool? OnlyEightyYearsOld { get; set; }
         public int? MilestoneYear { get; set; }
+        // ✅ NEW — separate, additive "anticipation" filter: multi-select
+        // 2024/2025/2026, independent of MilestoneYear above (which stays a
+        // single-year filter with its original behavior, untouched). A
+        // beneficiary matches if they turn ANY milestone age (80/85/90/95/100)
+        // in ANY of the selected years — including a milestone birthday that
+        // hasn't happened yet this year, so PDOs can anticipate who's coming
+        // up across all three years at once instead of checking one at a time.
+        public List<int>? AnticipatedMilestoneYears { get; set; }
         public int? Sex { get; set; }
         // For filtering by PayrollQuarter
         public int? FilterPayrollQuarter { get; set; }

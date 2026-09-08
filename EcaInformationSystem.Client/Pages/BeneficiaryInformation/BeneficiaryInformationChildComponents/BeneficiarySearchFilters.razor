@@ -408,6 +408,21 @@
                             </select>
                         </div>
 
+                        @* Anticipated Milestones — separate, additive filter: pick any of
+                           2024/2025/2026 together to see grantees turning a milestone age
+                           (80/85/90/95/100) in ANY of those years, including a milestone
+                           birthday that hasn't happened yet this year, so PDOs can
+                           anticipate upcoming milestones ahead of time instead of checking
+                           one year at a time via Milestone Year above. *@
+                        <div class="sf-field">
+                            <label>Anticipated Milestones</label>
+                            <MultiSelectDropdown TItem="MilestoneYearOption" Items="_anticipatedMilestoneYearOptions"
+                                                 SelectedIds="State.SelectedAnticipatedMilestoneYears"
+                                                 SelectedIdsChanged="@(ids => State.SelectedAnticipatedMilestoneYears = ids)"
+                                                 IdSelector="@(y => y.Value)" LabelSelector="@(y => y.Label)"
+                                                 Placeholder="Anticipated Years" Disabled="@IsLoading" />
+                        </div>
+
                         @* Specific Birthday — Month + Day only *@
                         <div class="sf-field">
                             <label>Specific Birthday</label>
@@ -652,6 +667,13 @@
     private int _municipalityLoadSequence = 0;
     private record PayrollQuarterOption(int Value, string Label);
     private record PaymentStatusOption(int Value, string Label);
+    private record MilestoneYearOption(int Value, string Label);
+    private readonly List<MilestoneYearOption> _anticipatedMilestoneYearOptions = new()
+    {
+        new(2024, "2024"),
+        new(2025, "2025"),
+        new(2026, "2026"),
+    };
     // ── Birthday state ────────────────────────────────────────────────
     private int _specificBirthdayMonth = 0;
     private int _specificBirthdayDay = 0;
@@ -1148,6 +1170,7 @@
             State.Filter.PsgcCodeBarangay = State.SelectedBarangayId > 0 ? State.SelectedBarangayId : null;
             State.Filter.PaymentStatuses = State.SelectedPaymentStatuses;
             State.Filter.FilterPayrollQuarters = State.SelectedPayrollQuarters; // ✅ new
+            State.Filter.AnticipatedMilestoneYears = State.SelectedAnticipatedMilestoneYears; // ✅ new
             // ── Map month+day selectors → filter DateTime fields ──────────
             State.Filter.SpecificBirthday = BuildMonthDay(_specificBirthdayMonth, _specificBirthdayDay);
             State.Filter.BirthdayFrom = BuildMonthDay(_birthdayFromMonth, _birthdayFromDay);
@@ -1187,6 +1210,7 @@
         State.SelectedBarangayId = 0;
         State.SelectedPaymentStatuses = new();
         State.SelectedPayrollQuarters = new();
+        State.SelectedAnticipatedMilestoneYears = new();
         filterMunicipalityCache.Clear();
         filterBarangayCache.Clear();
         provinceSelectKey++;
@@ -1266,6 +1290,7 @@
     f.SpecificAge == null &&
     // ✅ null means "not selected"; 0 means "filter for no milestone" — both are valid states
     f.MilestoneYear == null &&
+    !State.SelectedAnticipatedMilestoneYears.Any() &&
     f.PaymentDateFrom == null &&
     f.PaymentDateTo == null &&
     f.PsgcCodeRegion == null &&
@@ -1413,6 +1438,8 @@
             chips.Add($"Age: {f.SpecificAge}");
         if (f.MilestoneYear.HasValue)
             chips.Add($"Milestone Year: {f.MilestoneYear}");
+        if (State.SelectedAnticipatedMilestoneYears.Any())
+            chips.Add($"Anticipated Milestones: {string.Join(", ", State.SelectedAnticipatedMilestoneYears)}");
         if (f.SpecificBirthday.HasValue)
             chips.Add("Specific Birthday");
         if (f.BirthdayFrom.HasValue || f.BirthdayTo.HasValue)

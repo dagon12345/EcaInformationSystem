@@ -136,6 +136,21 @@
                                 </select>
                             </div>
 
+                            @* ── Anticipated Milestone Years — separate, additive filter: pick
+                                 any of 2024/2025/2026 together to see the count of grantees
+                                 turning a milestone age (80/85/90/95/100) in ANY of those years,
+                                 including a milestone birthday that hasn't happened yet this
+                                 year, so PDOs can anticipate upcoming milestones ahead of time
+                                 instead of checking one year at a time via Milestone Year above. ── *@
+                            <div class="sf-field">
+                                <label>Anticipated Milestones</label>
+                                <MultiSelectDropdown TItem="MilestoneYearOption" Items="_anticipatedMilestoneYearOptions"
+                                                     SelectedIds="_selectedAnticipatedMilestoneYears"
+                                                     SelectedIdsChanged="@(ids => _selectedAnticipatedMilestoneYears = ids)"
+                                                     IdSelector="@(y => y.Value)" LabelSelector="@(y => y.Label)"
+                                                     Placeholder="Anticipated Years" Disabled="@_isLoading" />
+                            </div>
+
                             @* ── Milestone Age ─────────────────────────────────── *@
                             <div class="sf-field">
                                 <label>Milestone Age</label>
@@ -853,6 +868,17 @@
     private int _selectedMunicipalityId;
     private int _selectedFiscalYear; // 0 = all
     private int _selectedMilestoneYear;
+    // ✅ NEW — separate, additive "anticipation" filter: multi-select
+    // 2024/2025/2026, independent of _selectedMilestoneYear above (which
+    // stays a single-year filter with its original behavior, untouched).
+    private List<int> _selectedAnticipatedMilestoneYears = new();
+    private record MilestoneYearOption(int Value, string Label);
+    private readonly List<MilestoneYearOption> _anticipatedMilestoneYearOptions = new()
+    {
+        new(2024, "2024"),
+        new(2025, "2025"),
+        new(2026, "2026"),
+    };
     private int _selectedMilestone;
     // ✅ CHANGED — multi-select payment status, same as BeneficiarySearchFilters.
     // Empty = no filter (was a single int with -1 meaning "all").
@@ -1103,6 +1129,7 @@
         _selectedProvinceId > 0 ||
         _selectedMunicipalityId > 0 ||
         _selectedMilestoneYear > 0 ||
+        _selectedAnticipatedMilestoneYears.Count > 0 ||
         _selectedMilestone > 0 ||
         _selectedPaymentStatuses.Count > 0 ||
         _selectedPayrollQuarter > 0 ||
@@ -1191,6 +1218,7 @@
         _selectedProvinceId = 0;
         _selectedMunicipalityId = 0;
         _selectedMilestoneYear = 0;
+        _selectedAnticipatedMilestoneYears = new();
         _selectedMilestone = 0;
         _selectedPaymentStatuses = new();
         _provincesForRegion = new();
@@ -1246,6 +1274,7 @@
         Province = _selectedProvinceId > 0 ? _selectedProvinceId : null,
         Municipality = _selectedMunicipalityId > 0 ? _selectedMunicipalityId : null,
         MilestoneYear = _selectedMilestoneYear,
+        AnticipatedMilestoneYears = _selectedAnticipatedMilestoneYears,
         MilestoneAge = _selectedMilestone,
         PaymentStatuses = _selectedPaymentStatuses,
         PayrollQuarter = _selectedPayrollQuarter > 0 ? _selectedPayrollQuarter : null,

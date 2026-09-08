@@ -7,6 +7,14 @@
         public int? Municipality { get; set; }
         public int MilestoneYear { get; set; }  // 2024, 2025, 2026
         public int MilestoneAge { get; set; }   // 80, 85, 90, 95, 100
+        // ✅ NEW — separate, additive "anticipation" filter: multi-select
+        // 2024/2025/2026, independent of MilestoneYear above (which stays a
+        // single-year filter with its original behavior, untouched). A
+        // beneficiary matches if they turn ANY milestone age (80/85/90/95/100)
+        // in ANY of the selected years — including years whose milestone
+        // birthday hasn't happened yet, so PDOs can anticipate who's coming
+        // up across all three years at once instead of checking one at a time.
+        public List<int>? AnticipatedMilestoneYears { get; set; }
         // ✅ CHANGED — multi-select: null/empty = no filter (was a single int
         // with -1 meaning "all"). A beneficiary matches if ANY selected status
         // is found on their (period-scoped) payment history record.

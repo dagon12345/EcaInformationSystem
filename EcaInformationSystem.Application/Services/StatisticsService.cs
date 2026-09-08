@@ -63,6 +63,13 @@ namespace EcaInformationSystem.Application.Services
                 request.Municipality?.ToString() ?? "null",
                 request.MilestoneYear.ToString(),
                 request.MilestoneAge.ToString(),
+                // ✅ NEW — separate, additive anticipation filter (2024/2025/2026
+                // multi-select); order-independent join so [2024,2025] and
+                // [2025,2024] hit the same cache entry (same reasoning as
+                // PaymentStatuses below).
+                request.AnticipatedMilestoneYears != null && request.AnticipatedMilestoneYears.Any()
+                    ? string.Join(",", request.AnticipatedMilestoneYears.OrderBy(y => y))
+                    : "null",
                 // ✅ CHANGED — order-independent so [1,2] and [2,1] hit the same
                 // cache entry instead of silently missing each other.
                 request.PaymentStatuses != null && request.PaymentStatuses.Any()

@@ -67,13 +67,18 @@
                 {
                     @foreach (var item in Feed)
                     {
-                        <div class="notif-feed-item notif-feed-item--@item.AccentKey" style="cursor:@(item.OnClick is null ? "default" : "pointer");"
+                        <div class="notif-feed-item notif-feed-item--@item.AccentKey @(item.IsStillPending ? "" : "notif-feed-item--handled")"
+                             style="cursor:@(item.OnClick is null ? "default" : "pointer");"
                              @onclick="() => HandleFeedItemClick(item)">
                             <div class="d-flex align-items-start gap-2">
                                 <span class="notif-feed-icon notif-feed-icon--@item.AccentKey"><i class="bi @item.Icon"></i></span>
                                 <div class="flex-grow-1" style="min-width:0;">
                                     <div class="d-flex align-items-center justify-content-between gap-2">
                                         <span class="notif-feed-category notif-feed-category--@item.AccentKey">@item.Category</span>
+                                        @if (!item.IsStillPending)
+                                        {
+                                            <span class="notif-feed-handled-badge"><i class="bi bi-check-lg"></i> Handled</span>
+                                        }
                                     </div>
                                     <div class="fw-semibold text-truncate" style="font-size:13px;">@item.Title</div>
                                     @if (!string.IsNullOrWhiteSpace(item.Subtitle))
@@ -163,6 +168,7 @@
 
     private class FeedItem
     {
+        public string Key { get; set; } = string.Empty;
         public DateTime Timestamp { get; set; }
         public string Category { get; set; } = string.Empty;
         public string AccentKey { get; set; } = string.Empty; // maps to notif-feed-item--{key} CSS
@@ -170,18 +176,36 @@
         public string Title { get; set; } = string.Empty;
         public string? Subtitle { get; set; }
         public Func<Task>? OnClick { get; set; }
+        // False once the underlying item leaves its source's "still pending"
+        // list (verified/rejected/accepted elsewhere) — the row stays in the
+        // feed either way (see _seenFeedItems below), just dimmed slightly so
+        // "already handled" reads at a glance instead of looking identical
+        // to something still awaiting action.
+        public bool IsStillPending { get; set; } = true;
     }
+
+    // Application Tracking / Document Tracking / Liveness only ever expose a
+    // "currently pending" list — once someone acts on one elsewhere, the
+    // server correctly drops it from that list, and BuildFeed used to mirror
+    // that directly, so the notification just vanished from the bell the
+    // moment it was handled. System Updates doesn't have this problem (it's
+    // a real append-only history), which is the behavior being matched here:
+    // every item ever seen this session stays keyed in this dictionary, only
+    // ever upserted (fresher data replaces older) — never removed just
+    // because the source's pending list moved on. Capped below to avoid
+    // unbounded growth across a very long-lived session.
+    private readonly Dictionary<string, FeedItem> _seenFeedItems = new();
+    private const int MaxSeenFeedItems = 100;
 
     private List<FeedItem> Feed => BuildFeed();
 
     private List<FeedItem> BuildFeed()
     {
-        var items = new List<FeedItem>();
-
         foreach (var b in AppTracking.PendingForMeItems)
         {
-            items.Add(new FeedItem
+            UpsertSeenItem(new FeedItem
             {
+                Key = $"apptracking-{b.Id}",
                 Timestamp = b.CreatedAt,
                 Category = "Application Tracking",
                 AccentKey = "application",
@@ -194,8 +218,9 @@
 
         foreach (var d in DocTracking.PendingForMeItems)
         {
-            items.Add(new FeedItem
+            UpsertSeenItem(new FeedItem
             {
+                Key = $"doctracking-{d.Id}",
                 Timestamp = d.CreatedAt,
                 Category = "Document Tracking",
                 AccentKey = "document",
@@ -208,8 +233,9 @@
 
         foreach (var l in LivenessNotification.PendingItems)
         {
-            items.Add(new FeedItem
+            UpsertSeenItem(new FeedItem
             {
+                Key = $"liveness-{l.RecordId}",
                 Timestamp = l.SubmittedDate,
                 Category = "Liveness Check",
                 AccentKey = "liveness",
@@ -220,11 +246,26 @@
             });
         }
 
+        // Anything previously seen that's no longer in its source's current
+        // pending list has been handled — keep the row, just mark it so.
+        var stillPendingKeys = new HashSet<string>(
+            AppTracking.PendingForMeItems.Select(b => $"apptracking-{b.Id}")
+            .Concat(DocTracking.PendingForMeItems.Select(d => $"doctracking-{d.Id}"))
+            .Concat(LivenessNotification.PendingItems.Select(l => $"liveness-{l.RecordId}")));
+
+        foreach (var item in _seenFeedItems.Values)
+            item.IsStillPending = stillPendingKeys.Contains(item.Key);
+
+        TrimSeenFeedItems();
+
+        var items = new List<FeedItem>(_seenFeedItems.Values);
+
         foreach (var u in _updateNotices)
         {
             var isLatestUnseen = _hasUnseenUpdate && u == _updateNotices.First();
             items.Add(new FeedItem
             {
+                Key = $"update-{u.Version}",
                 Timestamp = u.PublishedAt,
                 Category = "System Update",
                 AccentKey = "update",
@@ -236,6 +277,25 @@
         }
 
         return items.OrderByDescending(i => i.Timestamp).ToList();
+    }
+
+    private void UpsertSeenItem(FeedItem item) => _seenFeedItems[item.Key] = item;
+
+    // Keeps the most recent MaxSeenFeedItems by timestamp — a safety cap so a
+    // long-running session (day-long shift, never refreshing the tab) can't
+    // grow this dictionary without bound.
+    private void TrimSeenFeedItems()
+    {
+        if (_seenFeedItems.Count <= MaxSeenFeedItems) return;
+
+        var toRemove = _seenFeedItems.Values
+            .OrderBy(i => i.Timestamp)
+            .Take(_seenFeedItems.Count - MaxSeenFeedItems)
+            .Select(i => i.Key)
+            .ToList();
+
+        foreach (var key in toRemove)
+            _seenFeedItems.Remove(key);
     }
 
     private async Task HandleFeedItemClick(FeedItem item)

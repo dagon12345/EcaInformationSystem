@@ -22,221 +22,58 @@
 <div class="feed-page-layout">
 @if (_isAuthenticated && !_isFocal)
 {
-    @* ── Transaction Leaderboard — replaces the old inline chat sidebar here;
-         Messages moved to a navbar icon (MainLayout) with the same click-to-open
-         behavior as the notification bell. Reuses .feed-chat-sidebar's exact
-         CSS (width/shrink/mobile-stacking) so the column behaves identically.
-         Ranks internal staff transaction volume — not shown to Focal, whose
-         feed access is intentionally view/comment/like/share only. ── *@
+    @* ── Profile card — LinkedIn-style quick-glance card (avatar, name, title,
+         org, tier progress, View Full Profile) replacing the old inline
+         Transaction Leaderboard card here; the leaderboard itself now lives
+         behind an icon dropdown in the top navbar (MainLayout), reachable
+         from anywhere instead of only the Feed page. Reuses
+         .feed-chat-sidebar's exact CSS (width/shrink/mobile-stacking) so the
+         column behaves identically. ── *@
     <aside class="feed-chat-sidebar">
-        <div class="tier-leaderboard-card">
-            <div class="tier-leaderboard-header" @onclick="ToggleLeaderboard">
-                <div class="tier-leaderboard-header-left">
-                    <i class="bi bi-trophy-fill"></i>
-                    <div class="tier-leaderboard-header-text">
-                        <div class="tier-leaderboard-title-row">
-                            <span class="tier-leaderboard-title">Transaction Leaderboard</span>
-                            @if (_seasonInfo is not null)
-                            {
-                                <span class="tier-season-badge">
-                                    <i class="bi bi-star-fill"></i>Season @_seasonInfo.SeasonNumber
-                                </span>
-                            }
-                        </div>
-                        <div class="tier-leaderboard-subtitle">
-                            @if (_seasonInfo is not null)
-                            {
-                                <span>Resets @FormatCountdown(_seasonInfo.NextAutoResetAtUtc) — Sunday 11:59 PM</span>
-                            }
-                            else
-                            {
-                                <span>Ranked by activity across the whole system</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    @* Was a full-width text banner ("Correcting incomplete grantee
-                       info, following up on missing documents...") shown whenever the
-                       card was expanded — collapsed down to a hover-for-detail icon
-                       so the header stays compact; the explanation is one hover away
-                       instead of always taking up a whole row. *@
-                    <span class="tier-info-icon-btn" tabindex="0" @onclick:stopPropagation="true"
-                          title="Correcting incomplete grantee info, following up on missing documents, and verifying pending records all count toward your weekly rank.">
-                        <i class="bi bi-info-circle"></i>
-                    </span>
-                    @if (_isSuperAdmin)
-                    {
-                        <button type="button" class="tier-reset-btn" title="End this week's season now"
-                                disabled="@_isResettingSeason"
-                                @onclick="OpenResetConfirm" @onclick:stopPropagation="true">
-                            <i class="bi bi-arrow-repeat"></i>
-                        </button>
-                    }
-                    <i class="bi bi-chevron-@(_leaderboardExpanded ? "up" : "down")"></i>
-                </div>
+        <div class="profile-card-widget">
+            @if (_currentUserId.HasValue)
+            {
+                <img src="@AvatarUrl(_currentUserId.Value)" crossorigin="anonymous" alt="" class="profile-card-avatar avatar-img"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <div class="profile-card-avatar" style="display:none;">@GetInitials(_myDisplayName)</div>
+            }
+            else
+            {
+                <div class="profile-card-avatar">@GetInitials(_myDisplayName)</div>
+            }
+            <div class="profile-card-name">@_myDisplayName</div>
+            @if (!string.IsNullOrWhiteSpace(_myPosition))
+            {
+                <div class="profile-card-title">@_myPosition</div>
+            }
+            <div class="profile-card-org">
+                <i class="bi bi-building"></i>
+                <span>National Commission of Senior Citizens</span>
             </div>
-
-            @if (_leaderboardExpanded && _myTier is not null)
+            @if (_myTier is not null)
             {
-                var myVisual = TierVisuals.For(_myTier.TierLevel);
-                <div class="tier-leaderboard-myprogress @myVisual.CssClass">
-                    <div class="tier-leaderboard-myprogress-top">
-                        <span><i class="bi @myVisual.Icon me-1"></i>You're <strong>@_myTier.TierName</strong> tier</span>
-                        <button type="button" class="tier-info-btn" title="View the full tier list"
-                                @onclick="OpenTierLadderModal">
-                            <i class="bi bi-info-circle"></i>
-                        </button>
+                <div class="navbar-profile-tier-progress profile-card-tier-progress @TierVisuals.For(_myTier.TierLevel).CssClass"
+                     title="@TierProgressTitle()">
+                    <div class="navbar-profile-tier-progress-track">
+                        <div class="navbar-profile-tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
                     </div>
-                    <div class="tier-progress-track">
-                        <div class="tier-progress-fill" style="width:@(_myTier.ProgressPercent.ToString("0.#"))%;"></div>
-                    </div>
-                    <div class="tier-progress-label @(_myTier.NextTierMinCount is null ? "tier-progress-label--max" : "")">
-                        @if (_myTier.NextTierMinCount.HasValue)
-                        {
-                            <i class="bi bi-arrow-up-circle me-1"></i>
-                            <strong>@((_myTier.NextTierMinCount.Value - _myTier.TransactionCount).ToString("N0"))</strong>
-                            <span>@(" transaction" + (_myTier.NextTierMinCount.Value - _myTier.TransactionCount == 1 ? "" : "s")) away from <strong>@_myTier.NextTierName</strong></span>
-                        }
-                        else
-                        {
-                            <i class="bi bi-check-circle-fill me-1"></i><span>Max tier reached!</span>
-                        }
-                    </div>
-
-                    <TierStatsStrip Tier="_myTier" />
-
-                    @* Last week's rank, win count, and motivation nudge now live on
-                       your Profile page instead of here — click through to see them. ── *@
-                    <a href="/profile" class="tier-profile-nav-link">
-                        <i class="bi bi-person-badge me-1"></i>View your last season rank on your profile
-                        <i class="bi bi-chevron-right ms-1"></i>
-                    </a>
                 </div>
             }
-
-            @if (_leaderboardExpanded)
+            @if (_mfaEnabled == false)
             {
-                @if (_isLoadingLeaderboard)
-                {
-                    <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-                }
-                else if (!_leaderboard.Any())
-                {
-                    <div class="tier-leaderboard-empty">No activity recorded yet.</div>
-                }
-                else
-                {
-                    <div class="tier-leaderboard-list">
-                        @foreach (var entry in _leaderboard)
-                        {
-                            var v = TierVisuals.For(entry.TierLevel);
-                            var isLive = _recentlyUpdatedUserNames.Contains(entry.UserName);
-                            var isRankedUp = _rankedUpUserNames.Contains(entry.UserName);
-                            var isRankedDown = _rankedDownUserNames.Contains(entry.UserName);
-                            var delta = _deltaByUserName.TryGetValue(entry.UserName, out var d) ? d : 0;
-                            <div @key="entry.UserName" class="tier-leaderboard-row @v.CssClass @(entry.IsMe ? "tier-leaderboard-row--me" : "") @RankRowClass(entry.Rank) @(entry.UserId.HasValue ? "tier-leaderboard-row--clickable" : "") @(isLive ? "tier-leaderboard-row--live" : "") @(isRankedUp ? "tier-leaderboard-row--rank-up" : "") @(isRankedDown ? "tier-leaderboard-row--rank-down" : "")"
-                                 @onclick="() => ToggleExpandedStats(entry.UserId)">
-                                <span class="tier-row-sheen"></span>
-                                <span class="tier-row-particle tier-row-particle--1"></span>
-                                <span class="tier-row-particle tier-row-particle--2"></span>
-                                <span class="tier-row-particle tier-row-particle--3"></span>
-                                <span class="tier-row-particle tier-row-particle--4"></span>
-                                <span class="tier-row-particle tier-row-particle--5"></span>
-                                <span class="tier-row-particle tier-row-particle--6"></span>
-                                @if (isLive || isRankedUp)
-                                {
-                                    <span class="tier-bolt-flash"></span>
-                                }
-                                @if (delta > 0)
-                                {
-                                    <span class="tier-count-delta">+@delta</span>
-                                }
-                                <div class="tier-leaderboard-rank">
-                                    @if (entry.Rank <= 3)
-                                    {
-                                        <i class="bi bi-award-fill"></i>
-                                    }
-                                    else
-                                    {
-                                        <span>#@entry.Rank</span>
-                                    }
-                                    @if (isRankedUp)
-                                    {
-                                        <i class="bi bi-caret-up-fill tier-leaderboard-rank-arrow tier-leaderboard-rank-arrow--up" title="Overtook someone!"></i>
-                                    }
-                                    else if (isRankedDown)
-                                    {
-                                        <i class="bi bi-caret-down-fill tier-leaderboard-rank-arrow tier-leaderboard-rank-arrow--down" title="Got overtaken"></i>
-                                    }
-                                </div>
-
-                                <div class="tier-leaderboard-avatar-fx">
-                                    @if (entry.UserId.HasValue)
-                                    {
-                                        <img src="@AvatarUrl(entry.UserId.Value)" crossorigin="anonymous" alt="" class="tier-leaderboard-avatar avatar-img"
-                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                        <div class="tier-leaderboard-avatar tier-leaderboard-avatar-fallback" style="display:none;">@GetInitials(entry.DisplayName)</div>
-                                    }
-                                    else
-                                    {
-                                        <div class="tier-leaderboard-avatar tier-leaderboard-avatar-fallback">@GetInitials(entry.DisplayName)</div>
-                                    }
-                                </div>
-
-                                <div class="tier-leaderboard-info">
-                                    <div class="tier-leaderboard-name @(isLive ? "tier-leaderboard-name--live" : "")">
-                                        @entry.DisplayName
-                                        @if (entry.IsMe)
-                                        {
-                                            <span class="tier-leaderboard-you-tag">You</span>
-                                        }
-                                        @if (isLive)
-                                        {
-                                            <i class="bi bi-lightning-charge-fill tier-leaderboard-live-icon" title="Just updated"></i>
-                                        }
-                                        @if (entry.IsOnFire)
-                                        {
-                                            <i class="bi bi-fire tier-leaderboard-live-icon" style="color:#ea580c;" title="@(entry.CurrentStreakDays)-day streak — on fire!"></i>
-                                        }
-                                    </div>
-                                    <div class="tier-leaderboard-tier">
-                                        <i class="bi @v.Icon"></i>@entry.TierName
-                                    </div>
-                                </div>
-
-                                <div class="tier-leaderboard-count @(isLive ? "tier-leaderboard-count--live" : "")">@entry.TransactionCount.ToString("N0")</div>
-                                @if (entry.UserId.HasValue)
-                                {
-                                    <i class="bi bi-chevron-@(_expandedUserId == entry.UserId ? "up" : "down") ms-1" style="font-size:11px;color:#9ca3af;"></i>
-                                }
-                            </div>
-
-                            @if (entry.UserId.HasValue && _expandedUserId == entry.UserId)
-                            {
-                                <div class="tier-leaderboard-expand">
-                                    @if (_isLoadingExpandedStats)
-                                    {
-                                        <div class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-                                    }
-                                    else if (_expandedStats.TryGetValue(entry.UserId.Value, out var fullStats))
-                                    {
-                                        <TierStatsStrip Tier="fullStats" />
-                                        <a href="/profile/@entry.UserId" class="tier-profile-nav-link">
-                                            <i class="bi bi-person-badge me-1"></i>View full profile
-                                            <i class="bi bi-chevron-right ms-1"></i>
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <div class="text-muted small">Couldn't load stats — try again.</div>
-                                    }
-                                </div>
-                            }
-                        }
-                    </div>
-                }
+                <div class="profile-card-mfa-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure your account
+                </div>
             }
+            <a href="/profile" class="btn btn-outline-primary btn-sm profile-card-view-btn">View Full Profile</a>
+            <div class="profile-card-links">
+                <a href="/dar" class="profile-card-link">
+                    <i class="bi bi-journal-check me-2"></i>Daily Accomplishment Report
+                </a>
+                <a href="/my-dtr" class="profile-card-link">
+                    <i class="bi bi-clock-history me-2"></i>My DTR
+                </a>
+            </div>
         </div>
     </aside>
 }
@@ -288,8 +125,7 @@
                             <i class="bi bi-image"></i> Photo
                         </label>
                         <div class="flex-grow-1"></div>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="CollapseComposer">Cancel</button>
-                        <button class="btn btn-sm btn-primary" @onclick="SubmitPostAsync"
+                        <button class="btn btn-sm btn-primary feed-composer-post-btn" @onclick="SubmitPostAsync"
                                 disabled="@(_isPosting || (string.IsNullOrWhiteSpace(_newPostContent) && !_selectedImages.Any()))">
                             @(_isPosting ? "Posting..." : "Post")
                         </button>
@@ -987,84 +823,6 @@
     </div>
 }
 
-@* ✅ Standard Bootstrap-style modal (same pattern as MainLayout's logout
-   confirm) — the custom .modal-backdrop-custom/.delete-confirm-modal pair
-   collides with a same-named, higher-z-index rule in calendar.css, which is
-   what caused the "solid black, modal stuck behind it" bug. This pattern
-   uses its own explicit z-index and no shared class names. ── *@
-@if (_showResetConfirm)
-{
-    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1085;">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title text-warning-emphasis">
-                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>End This Week's Season Now?
-                    </h5>
-                    <button type="button" class="btn-close" @onclick="CloseResetConfirm"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-0">
-                        @if (_seasonInfo is not null)
-                        {
-                            <text>Season @_seasonInfo.SeasonNumber will end immediately — everyone's rank, count, and win are snapshotted onto their profile, then Season @(_seasonInfo.SeasonNumber + 1) starts right away. </text>
-                        }
-                        This otherwise happens automatically every Sunday 11:59 PM and cannot be undone.
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="CloseResetConfirm" disabled="@_isResettingSeason">Cancel</button>
-                    <button class="btn btn-danger" @onclick="ConfirmResetSeasonAsync" disabled="@_isResettingSeason">
-                        @if (_isResettingSeason)
-                        {
-                            <span>Resetting...</span>
-                        }
-                        else
-                        {
-                            <span>Yes, End Season Now</span>
-                        }
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-@* ── Tier ladder ("the legend") — modal instead of an inline expanding
-   list, so opening it doesn't push the rankings list further down the
-   sidebar. ── *@
-@if (_showTierInfo && _myTier is not null)
-{
-    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.6); z-index:1085;" @onclick="CloseTierLadderModal">
-        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-list-stars me-2"></i>Tier Ladder</h5>
-                    <button type="button" class="btn-close" @onclick="CloseTierLadderModal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="tier-ladder tier-ladder--modal">
-                        @foreach (var t in TransactionTierHelper.Tiers.AsEnumerable().Reverse())
-                        {
-                            var v = TierVisuals.For(t.Level);
-                            var isCurrent = t.Level == _myTier.TierLevel;
-                            <div class="tier-ladder-row @v.CssClass @(isCurrent ? "tier-ladder-row--current" : "")">
-                                <i class="bi @v.Icon"></i>
-                                <span class="tier-ladder-name">@t.Name</span>
-                                <span class="tier-ladder-min">@t.MinCount.ToString("N0")+</span>
-                                @if (isCurrent)
-                                {
-                                    <i class="bi bi-star-fill tier-ladder-current-mark" title="Your current tier"></i>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 @if (_showNoteModal)
 {
     <div class="modal-backdrop-custom" @onclick="RequestCloseNoteModal">
@@ -1186,7 +944,7 @@
     private Guid? _expandedPostId;
     private string _newPostContent = string.Empty;
     private string _viewerKey = string.Empty;
-    private bool _composerExpanded;
+    private bool _composerExpanded = true;
 
     private int _pageNumber = 1;
     private bool _hasMore = true;
@@ -1528,29 +1286,29 @@
         if (_isAuthenticated)
         {
             await AuthService.InitAsync();
-            _isSuperAdmin = AuthService.IsSuperAdmin();
             _isFocal = AuthService.IsFocal();
+
+            var fullName = authState.User.FindFirst("FullName")?.Value;
+            _myDisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : (authState.User.Identity?.Name ?? "User");
+            _currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var myId) ? myId : (Guid?)null;
+            await LoadMyPositionAsync();
+            await LoadMfaStatusAsync();
 
             await LoadUpcomingBirthdaysAsync();
 
             // Focal's feed access is intentionally view/comment/like/share
-            // only — skip fetching sticky notes / leaderboard / tier data
-            // entirely rather than just hiding the widgets, since none of
-            // those endpoints are reachable for Focal anyway (see
-            // StickyNoteController / UserTransactionTierController).
+            // only — skip fetching sticky notes / tier data entirely rather
+            // than just hiding the widgets, since none of those endpoints
+            // are reachable for Focal anyway (see StickyNoteController /
+            // UserTransactionTierController).
             if (!_isFocal)
             {
                 await LoadNotesAsync();
 
-                // ✅ Now a persistent sidebar (like birthday/sticky-notes) instead of
-                // an inline collapsed-by-default banner, so it starts expanded and
-                // loads immediately rather than waiting for a header click.
-                _leaderboardExpanded = true;
-                await LoadLeaderboardAsync();
+                // Quick-glance tier progress on the profile card — the full
+                // leaderboard itself now lives behind a navbar icon dropdown
+                // (see TransactionLeaderboardWidget), not here.
                 _myTier = await TierClient.GetMyTierAsync();
-                _seasonInfo = await TierClient.GetSeasonInfoAsync();
-
-                await ConnectTierRealtimeAsync();
             }
         }
 
@@ -1996,146 +1754,7 @@
         PostsClient.PostEdited -= OnPostEdited;
         PostsClient.CommentEdited -= OnCommentEdited;
         PostsClient.ReactionUpdated -= OnReactionUpdated;
-        TierHub.TransactionRecorded -= OnTransactionRecorded;
-        TierHub.LeaderboardReset -= OnLeaderboardReset;
         await Task.CompletedTask;
-    }
-
-    // ── Live leaderboard ─────────────────────────────────────────────────
-    private HashSet<string> _recentlyUpdatedUserNames = new();
-    // Rank moved up (overtook someone) vs. moved down (got overtaken) —
-    // separate from _recentlyUpdatedUserNames (count pulse) so an "overtake"
-    // gets its own distinct climb/drop effect instead of just the count glow.
-    private HashSet<string> _rankedUpUserNames = new();
-    private HashSet<string> _rankedDownUserNames = new();
-    // How much a row's count just went up by — drives the floating "+N" badge.
-    private Dictionary<string, int> _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
-
-    private async Task ConnectTierRealtimeAsync()
-    {
-        TierHub.TransactionRecorded += OnTransactionRecorded;
-        TierHub.LeaderboardReset += OnLeaderboardReset;
-        try
-        {
-            var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
-            var hubUrl = new Uri(new Uri(apiBase), "transactionTierHub").ToString();
-            await TierHub.ConnectAsync(hubUrl);
-        }
-        catch { /* non-fatal — the leaderboard still works, just without live push */ }
-    }
-
-    private void OnTransactionRecorded(string userName)
-    {
-        _ = InvokeAsync(async () =>
-        {
-            var previous = _leaderboard;
-            _leaderboard = await TierClient.GetLeaderboardAsync(forceRefresh: true);
-
-            var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var rankedUp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var rankedDown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var deltas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in _leaderboard)
-            {
-                var old = previous.FirstOrDefault(p => string.Equals(p.UserName, entry.UserName, StringComparison.OrdinalIgnoreCase));
-                if (old is null || old.TransactionCount != entry.TransactionCount)
-                {
-                    changed.Add(entry.UserName);
-                    var delta = entry.TransactionCount - (old?.TransactionCount ?? 0);
-                    if (delta > 0) deltas[entry.UserName] = delta;
-                }
-
-                // Only flag an actual overtake — both users need to have been
-                // ranked before (a brand-new leaderboard entry isn't "overtaking"
-                // anyone, it's just showing up for the first time).
-                if (old is not null && old.Rank != entry.Rank)
-                {
-                    if (entry.Rank < old.Rank) rankedUp.Add(entry.UserName);
-                    else rankedDown.Add(entry.UserName);
-                }
-            }
-
-            // Own badge/progress bar (NavMenu/MainLayout/Profile) reads from the
-            // same cached tier — force-refresh it too when it's our own activity.
-            if (changed.Any(u => string.Equals(u, userName, StringComparison.OrdinalIgnoreCase)))
-                _myTier = await TierClient.GetMyTierAsync(forceRefresh: true);
-
-            _recentlyUpdatedUserNames = changed;
-            _rankedUpUserNames = rankedUp;
-            _rankedDownUserNames = rankedDown;
-            _deltaByUserName = deltas;
-            StateHasChanged();
-
-            await Task.Delay(2800);
-            _recentlyUpdatedUserNames = new();
-            _rankedUpUserNames = new();
-            _rankedDownUserNames = new();
-            _deltaByUserName = new(StringComparer.OrdinalIgnoreCase);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
-
-    // Fires for EVERY connected client when a season ends — manual reset or
-    // the automatic Sunday 11:59 PM job. Refreshes the board/tier/season info
-    // and celebrates the top 3 so a reset doesn't just look like the board
-    // silently emptying out.
-    private void OnLeaderboardReset(LeaderboardResetResultDto result)
-    {
-        _ = InvokeAsync(async () =>
-        {
-            TierClient.InvalidateAfterReset();
-            _leaderboard = await TierClient.GetLeaderboardAsync(forceRefresh: true);
-            _myTier = await TierClient.GetMyTierAsync(forceRefresh: true);
-            _seasonInfo = await TierClient.GetSeasonInfoAsync(forceRefresh: true);
-
-            var podium = string.Join(", ", result.TopThree.Select(t => $"#{t.Rank} {t.DisplayName}"));
-            toast.ShowSuccess(
-                string.IsNullOrWhiteSpace(podium)
-                    ? $"Season {result.EndedSeasonNumber} ended — Season {result.NewSeasonNumber} has begun!"
-                    : $"Season {result.EndedSeasonNumber} ended! Top 3: {podium}. Season {result.NewSeasonNumber} has begun!",
-                "Leaderboard Reset");
-
-            StateHasChanged();
-        });
-    }
-
-    private void OpenTierLadderModal() => _showTierInfo = true;
-    private void CloseTierLadderModal() => _showTierInfo = false;
-
-    private void OpenResetConfirm() => _showResetConfirm = true;
-    private void CloseResetConfirm() => _showResetConfirm = false;
-
-    private async Task ConfirmResetSeasonAsync()
-    {
-        _isResettingSeason = true;
-        StateHasChanged();
-        try
-        {
-            var (success, _, error) = await TierClient.ResetSeasonNowAsync();
-            _showResetConfirm = false;
-            if (!success)
-                toast.ShowError(string.IsNullOrWhiteSpace(error) ? "Failed to reset the leaderboard." : error);
-            // On success, the server-side broadcast (OnLeaderboardReset above)
-            // handles refreshing the board — including for the admin who just
-            // clicked it, since they're a connected client too.
-        }
-        finally
-        {
-            _isResettingSeason = false;
-            StateHasChanged();
-        }
-    }
-
-    private static string FormatCountdown(DateTime nextResetAtUtc)
-    {
-        var remaining = nextResetAtUtc - DateTime.UtcNow;
-        if (remaining <= TimeSpan.Zero) return "soon";
-
-        if (remaining.TotalDays >= 1)
-            return $"in {(int)remaining.TotalDays}d {remaining.Hours}h";
-        if (remaining.TotalHours >= 1)
-            return $"in {(int)remaining.TotalHours}h {remaining.Minutes}m";
-        return $"in {remaining.Minutes}m";
     }
 
     private void OnPostCreated(PostDto post)
@@ -2242,89 +1861,59 @@
         _ => "🏅"
     };
 
-    // ── Transaction Leaderboard ──────────────────────────────────────────
-    private List<UserLeaderboardEntryDto> _leaderboard = new();
-    private bool _leaderboardExpanded;
-    private bool _isLoadingLeaderboard;
-    private bool _leaderboardLoaded;
+    // ── Profile card (sidebar) — quick-glance tier progress only; the full
+    // leaderboard lives in TransactionLeaderboardWidget (navbar icon). ──
     private UserTransactionTierDto? _myTier;
-    private bool _showTierInfo;
-    private LeaderboardSeasonInfoDto? _seasonInfo;
-    private bool _isSuperAdmin;
     // Focal's feed access is intentionally view/comment/like/share only —
     // no post composer, no leaderboard, no sticky notes.
     private bool _isFocal;
-    private bool _showResetConfirm;
-    private bool _isResettingSeason;
+    private string _myDisplayName = "User";
+    private string? _myPosition;
+    private Guid? _currentUserId;
+    private bool? _mfaEnabled;
 
-    private async Task ToggleLeaderboard()
+    private string TierProgressTitle()
     {
-        _leaderboardExpanded = !_leaderboardExpanded;
-        if (_leaderboardExpanded && !_leaderboardLoaded)
-            await LoadLeaderboardAsync();
+        if (_myTier is null) return string.Empty;
+
+        return _myTier.NextTierMinCount.HasValue
+            ? $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). " +
+              $"{_myTier.NextTierMinCount.Value - _myTier.TransactionCount:N0} more to reach {_myTier.NextTierName}."
+            : $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). Max tier reached!";
     }
 
-    private async Task LoadLeaderboardAsync()
+    // Position (job title) — shown on the profile card instead of the role
+    // badge, e.g. "Project Development Officer I" rather than the generic
+    // "PDO" role tier.
+    private async Task LoadMyPositionAsync()
     {
-        _isLoadingLeaderboard = true;
-        StateHasChanged();
         try
         {
-            _leaderboard = await TierClient.GetLeaderboardAsync();
-            _leaderboardLoaded = true;
+            var profile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
+            _myPosition = profile?.Position;
         }
-        finally
+        catch
         {
-            _isLoadingLeaderboard = false;
-            StateHasChanged();
+            // Non-fatal — the card just falls back to showing no title line.
         }
     }
 
-    private static string RankRowClass(int rank) => rank switch
+    private async Task LoadMfaStatusAsync()
     {
-        1 => "tier-leaderboard-row--rank1",
-        2 => "tier-leaderboard-row--rank2",
-        3 => "tier-leaderboard-row--rank3",
-        _ => ""
-    };
-
-    private void GoToProfile(Guid? userId)
-    {
-        if (userId.HasValue) Navigation.NavigateTo($"/profile/{userId.Value}");
+        try
+        {
+            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
+            _mfaEnabled = status?.IsMfaEnabled ?? true;
+        }
+        catch
+        {
+            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
+        }
     }
 
-    // Clicking a leaderboard card expands their full stat breakdown in place
-    // (per request — "amazed on how many transactions that user have")
-    // instead of navigating away to their profile. Lazily fetched and cached
-    // per userId for the rest of this page load, since scrolling through the
-    // whole board shouldn't mean re-fetching stats for someone re-expanded.
-    private Guid? _expandedUserId;
-    private bool _isLoadingExpandedStats;
-    private readonly Dictionary<Guid, UserTransactionTierDto> _expandedStats = new();
-
-    private async Task ToggleExpandedStats(Guid? userId)
+    private class MfaStatusResponse
     {
-        if (!userId.HasValue) return;
-
-        if (_expandedUserId == userId)
-        {
-            _expandedUserId = null;
-            return;
-        }
-
-        _expandedUserId = userId;
-
-        if (!_expandedStats.ContainsKey(userId.Value))
-        {
-            _isLoadingExpandedStats = true;
-            StateHasChanged();
-
-            var stats = await TierClient.GetTierForUserAsync(userId.Value);
-            if (stats is not null)
-                _expandedStats[userId.Value] = stats;
-
-            _isLoadingExpandedStats = false;
-        }
+        public bool IsMfaEnabled { get; set; }
     }
 
     private string GetCommentDraft(Guid postId)
@@ -2397,13 +1986,6 @@
     private void RemoveSelectedImage(int index)
     {
         _selectedImages.RemoveAt(index);
-    }
-
-    private void CollapseComposer()
-    {
-        _composerExpanded = false;
-        _newPostContent = string.Empty;
-        _selectedImages.Clear();
     }
 
     private async Task SubmitPostAsync()
