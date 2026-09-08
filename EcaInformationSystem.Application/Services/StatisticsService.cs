@@ -75,7 +75,11 @@ namespace EcaInformationSystem.Application.Services
                 request.DateAddedFrom?.ToString("yyyyMMdd") ?? "null",
                 request.DateAddedTo?.ToString("yyyyMMdd") ?? "null",
                 request.IsLivenessVerified?.ToString() ?? "null",
-                request.IsReadyForEft?.ToString() ?? "null");
+                request.IsReadyForEft?.ToString() ?? "null",
+                request.CoDateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",
+                request.CoDateEndorsedTo?.ToString("yyyyMMdd") ?? "null",
+                request.CoDateApprovedFrom?.ToString("yyyyMMdd") ?? "null",
+                request.CoDateApprovedTo?.ToString("yyyyMMdd") ?? "null");
         }
         private string GetCurrentCacheVersion()
         {

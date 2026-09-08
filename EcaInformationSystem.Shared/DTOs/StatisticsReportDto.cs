@@ -13,6 +13,8 @@
         // ✅ new
         public int LivenessVerifiedCount { get; set; }
         public int ReadyForEftCount { get; set; }
+        public int CoEndorsedCount { get; set; }
+        public int CoApprovedCount { get; set; }
 
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }

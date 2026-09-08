@@ -20,6 +20,14 @@
         // ✅ new — nullable, same "null = no filter" convention as everything above
         public bool? IsLivenessVerified { get; set; }
         public bool? IsReadyForEft { get; set; }
+
+        // ✅ new — CO (Central Office) endorsement/approval dates, distinct
+        // from DateEndorsed above (that's the application's own endorsement
+        // date; these are CoDateEndorsed/CoDateApproved on the same entity).
+        public DateTime? CoDateEndorsedFrom { get; set; }
+        public DateTime? CoDateEndorsedTo { get; set; }
+        public DateTime? CoDateApprovedFrom { get; set; }
+        public DateTime? CoDateApprovedTo { get; set; }
     }
 
     // ✅ NEW — powers the Statistics page's "audit this count" modal: same

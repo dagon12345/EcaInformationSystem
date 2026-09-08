@@ -8,6 +8,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<IEnumerable<BeneficiaryInformationDto>> GetAllAsync();
         Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter);
         Task<int> CountMatchingAsync(BeneficiaryFilterDto filter);
+        Task<List<BatchCodeCoStatusSummaryDto>> GetEndorsedBatchCodeSummaryAsync();
         Task<PagedResultDto<BeneficiaryInformationDto>> GetPagedAsync(BeneficiaryFilterDto filter);
         Task<BeneficiaryInformationDto?> GetByIdAsync(Guid id);
         Task<BeneficiaryInformation?> GetEntityByIdAsync(Guid id);

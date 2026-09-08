@@ -341,7 +341,7 @@
    expanded width, which in turn leaves the centered quicklinks more room
    before they ever need to step aside. Scoped to >760px so the mobile
    dropdown (already correct as-is) is completely untouched. */
-@media (min-width: 761px) {
+@media (min-width: 1101px) {
     .login-navbar-fields .login-navbar-input {
         height: 30px;
         padding: 0 10px;
@@ -374,7 +374,7 @@
 /* Mobile ignores all of the above — the hamburger dropdown already shows
    everything at once when open, so the toggle icon is hidden and the
    fields are forced fully visible regardless of desktop expand state. */
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
     .login-navbar-signin-toggle,
     .login-navbar-signin-close {
         display: none;
@@ -523,25 +523,6 @@
     }
 }
 
-/* PublicNavbar's Sign In: the inline expandable form (.public-navbar-signin-form,
-   built from the exact same .login-navbar-form/.login-navbar-fields markup
-   Login.razor's own navbar uses) on desktop, falling back to a plain link to
-   /login (.public-navbar-signin-mobile-link, reusing .login-navbar-back-link)
-   below 760px — this shared navbar has no hamburger/dropdown to house the
-   expanded fields the way Login.razor's mobile menu does, so mobile keeps
-   the simple redirect instead of showing a cramped inline form. */
-.public-navbar-signin-mobile-link {
-    display: none;
-}
-@media (max-width: 760px) {
-    .public-navbar-signin-form {
-        display: none !important;
-    }
-    .public-navbar-signin-mobile-link {
-        display: inline-flex;
-    }
-}
-
 .login-feed-body {
     max-width: 720px;
     margin: 0 auto;
@@ -650,11 +631,14 @@
     box-shadow: 0 24px 64px rgba(0,0,0,0.4);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
     .login-navbar {
         /* Desktop's 3-column grid is overkill on mobile — just brand on the
            left and the hamburger on the right (quicklinks hidden entirely,
-           they live inside the hamburger's dropdown instead). */
+           they live inside the hamburger's dropdown instead). Widened from
+           760px to 1100px — below that, .login-navbar-quicklinks (6 pills)
+           plus the Sign In form no longer fit the row and were clipping mid-
+           pill instead of wrapping or scrolling anywhere visible. */
         display: flex;
         flex-wrap: nowrap;
         justify-content: space-between;
@@ -1091,12 +1075,11 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Quick nav row below the hero CTA — a visible-everywhere fallback to
-   PublicNavbar's own quicklinks (About NCSC/Contact/Officials/Developer),
-   which vanish below 760px on this shared navbar with no hamburger/dropdown
-   to replace them (Login.razor has its own separate mobile menu; Features/
-   About/Regional Offices/Developer don't). Shown at every width so it's
-   never a dead end, not just on mobile. */
+/* Quick nav row below the hero CTA — originally a fallback for PublicNavbar's
+   own quicklinks vanishing below 760px with no hamburger to replace them;
+   PublicNavbar now has its own working hamburger dropdown (matching
+   Login.razor's), but this row is left in place as a second, always-visible
+   way to jump around from partway down the page without scrolling back up. */
 .features-hero-nav-links {
     position: relative;
     display: flex;

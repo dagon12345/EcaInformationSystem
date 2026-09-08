@@ -7601,6 +7601,28 @@
             grid-template-columns: repeat(2, 1fr);
         }
 
+    /* Heading above a second .sf-date-ranges row (e.g. Statistics.razor's "CO
+       Status Dates") — carries the dashed divider itself, so the row right
+       below it doesn't need (and shouldn't repeat) its own top border. */
+    .sf-date-ranges-group-label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .8px;
+        text-transform: uppercase;
+        color: var(--navy);
+        padding-top: 10px;
+        margin-top: 4px;
+        border-top: 1px dashed var(--border);
+    }
+    .sf-date-ranges-group-label + .sf-date-ranges {
+        border-top: none;
+        padding-top: 6px;
+        margin-top: 0;
+    }
+
     .sf-actions {
         display: flex;
         justify-content: flex-end;
@@ -7850,6 +7872,7 @@
     .btn-icon-action--navy  { background: var(--navy); }
     .btn-icon-action--amber { background: #b45309; }
     .btn-icon-action--green { background: #15803d; }
+    .btn-icon-action--purple { background: #6d28d9; }
 
     .btn-icon-action-badge {
         position: absolute;
@@ -7866,6 +7889,14 @@
         line-height: 16px;
         text-align: center;
         border: 2px solid #fff;
+    }
+    /* Informational variant — flags "there's a follow-up step" rather than a
+       count, e.g. Export Excel's post-export CO Endorsed prompt. Always
+       shown (not conditional on a number), so it's visible without hovering
+       instead of being a hover-only tooltip detail. */
+    .btn-icon-action-badge--info {
+        background: #2563eb;
+        color: #fff;
     }
 
     /* ── Pagination bar ────────────────────────────────────── */

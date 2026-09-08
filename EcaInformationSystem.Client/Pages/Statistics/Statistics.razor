@@ -231,6 +231,45 @@
                             </div>
                         </div>
 
+                        @* ── CO Status Dates — its own labeled row, distinct from
+                             "Date Endorsed" above; CoDateEndorsed/CoDateApproved are
+                             set via the CO Status bulk-update (or the post-export
+                             "mark as endorsed" prompt), not the application's own
+                             DateEndorsed. Kept as a separate .sf-date-ranges row
+                             instead of 4-across in one — two pairs read more clearly
+                             than four narrow boxes squeezed onto one line. ── *@
+                        <div class="sf-date-ranges-group-label">
+                            <i class="bi bi-building-check"></i> CO Status Dates
+                        </div>
+                        <div class="sf-date-ranges">
+                            <div>
+                                <div class="sf-section-label"><i class="bi bi-calendar-check me-1"></i>CO Date Endorsed</div>
+                                <div class="sf-grid">
+                                    <div class="sf-field">
+                                        <label>From</label>
+                                        <input type="date" class="ff-input" @bind="_coDateEndorsedFrom" />
+                                    </div>
+                                    <div class="sf-field">
+                                        <label>To</label>
+                                        <input type="date" class="ff-input" @bind="_coDateEndorsedTo" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="sf-section-label"><i class="bi bi-patch-check me-1"></i>CO Date Approved</div>
+                                <div class="sf-grid">
+                                    <div class="sf-field">
+                                        <label>From</label>
+                                        <input type="date" class="ff-input" @bind="_coDateApprovedFrom" />
+                                    </div>
+                                    <div class="sf-field">
+                                        <label>To</label>
+                                        <input type="date" class="ff-input" @bind="_coDateApprovedTo" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="sf-actions">
                             <button class="sf-btn sf-btn-clear" @onclick="ClearFilters" disabled="@_isLoading">Clear</button>
                             <button class="sf-btn sf-btn-apply" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
@@ -378,6 +417,28 @@
                 <div class="dash-stat-value" data-countup="@_report.ReadyForEftCount">0</div>
                 <div class="dash-stat-label">Ready for EFT</div>
                 <div class="dash-stat-sub">@SharePct(_report.ReadyForEftCount)% of total</div>
+            </div>
+        </div>
+
+        @* ── CO Status — stays inside #stats-countup-root for the same reason
+             as Liveness/EFT above (count-up only animates within that root). ── *@
+        <div class="dash-section-label"><i class="bi bi-building-check"></i> CO Status</div>
+        <div class="dash-stat-grid dash-stat-grid--cols-2 mb-3">
+            <div class="dash-stat-card dash-stat-card--navy dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("coendorsed", "CO Endorsed Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-send-check-fill"></i></div>
+                <div class="dash-stat-value" data-countup="@_report.CoEndorsedCount">0</div>
+                <div class="dash-stat-label">CO Endorsed</div>
+                <div class="dash-stat-sub">@SharePct(_report.CoEndorsedCount)% of total</div>
+            </div>
+            <div class="dash-stat-card dash-stat-card--amber dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("coapproved", "CO Approved Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-patch-check-fill"></i></div>
+                <div class="dash-stat-value" data-countup="@_report.CoApprovedCount">0</div>
+                <div class="dash-stat-label">CO Approved</div>
+                <div class="dash-stat-sub">@SharePct(_report.CoApprovedCount)% of total</div>
             </div>
         </div>
         </div>
@@ -811,6 +872,11 @@
     // ✅ new — tri-state, empty string = no filter, same pattern as other selects here
     private string _selectedLiveness = string.Empty;
     private string _selectedEft = string.Empty;
+    // ✅ new — CO Date Endorsed/Approved, distinct from _dateEndorsedFrom/To above
+    private DateTime? _coDateEndorsedFrom;
+    private DateTime? _coDateEndorsedTo;
+    private DateTime? _coDateApprovedFrom;
+    private DateTime? _coDateApprovedTo;
 
     private bool _isLoadingProvinces;
     private bool _isLoadingMunicipalities;
@@ -1046,7 +1112,11 @@
         _dateEndorsedFrom.HasValue ||
         _dateEndorsedTo.HasValue ||
         !string.IsNullOrEmpty(_selectedLiveness) ||
-        !string.IsNullOrEmpty(_selectedEft);
+        !string.IsNullOrEmpty(_selectedEft) ||
+        _coDateEndorsedFrom.HasValue ||
+        _coDateEndorsedTo.HasValue ||
+        _coDateApprovedFrom.HasValue ||
+        _coDateApprovedTo.HasValue;
 
     private async Task LoadStatisticsAsync()
     {
@@ -1133,6 +1203,10 @@
         _dateEndorsedTo = null;
         _dateAddedFrom = null;
         _dateAddedTo = null;
+        _coDateEndorsedFrom = null;
+        _coDateEndorsedTo = null;
+        _coDateApprovedFrom = null;
+        _coDateApprovedTo = null;
 
         // Without this, the cards/tables kept showing the LAST loaded
         // report's numbers after Clear — stale data with no filter behind
@@ -1191,7 +1265,11 @@
             "ready" => true,
             "notready" => false,
             _ => null
-        }
+        },
+        CoDateEndorsedFrom = _coDateEndorsedFrom,
+        CoDateEndorsedTo = _coDateEndorsedTo,
+        CoDateApprovedFrom = _coDateApprovedFrom,
+        CoDateApprovedTo = _coDateApprovedTo
     };
 
     private async Task OpenMembersModalAsync(string bucket, string title)
@@ -1369,6 +1447,8 @@
         // actually deserializes into here.
         public int LivenessVerifiedCount { get; set; }
         public int ReadyForEftCount { get; set; }
+        public int CoEndorsedCount { get; set; }
+        public int CoApprovedCount { get; set; }
 
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }

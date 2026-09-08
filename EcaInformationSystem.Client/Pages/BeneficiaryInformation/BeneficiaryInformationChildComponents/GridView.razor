@@ -91,7 +91,7 @@
 
                                 <button type="button" class="btn-icon-action btn-icon-action--green" @onclick="ExportExcel"
                                         disabled="@(!checkedIds.Any() || IsExporting)"
-                                        title="Export the selected records to Excel">
+                                        title="Export the selected records to Excel — you'll then be asked whether to also mark them CO Endorsed">
                                     @if (IsExporting)
                                     {
                                         <span class="spinner-border spinner-border-sm"></span>
@@ -99,6 +99,10 @@
                                     else
                                     {
                                         <i class="bi bi-file-earmark-spreadsheet"></i>
+                                        <span class="btn-icon-action-badge btn-icon-action-badge--info"
+                                              title="After export, you'll be asked whether to bulk-mark these as CO Endorsed">
+                                            <i class="bi bi-stars"></i>
+                                        </span>
                                     }
                                 </button>
 
@@ -107,6 +111,23 @@
                                     @if (State.LastCrossmatchResult is { } lastXm && (lastXm.NewCount + lastXm.PossibleCount) > 0)
                                     {
                                         <span class="btn-icon-action-badge">@(lastXm.NewCount + lastXm.PossibleCount)</span>
+                                    }
+                                </button>
+
+                                @* ── CO Endorsed batches — standalone lookup, doesn't need a
+                                     selection like the others above. Batch codes are grouped
+                                     here because CO Date Endorsed is set per batch (see the
+                                     post-export "mark as endorsed" prompt), so "which batches
+                                     are already endorsed" is the natural way to browse it back. ── *@
+                                <button type="button" class="btn-icon-action btn-icon-action--purple" @onclick="OpenEndorsedBatchesModal"
+                                        title="View batch codes with CO Status: Endorsed">
+                                    @if (_isLoadingEndorsedBatches)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-building-check"></i>
                                     }
                                 </button>
                             </div>
@@ -1105,6 +1126,26 @@
                 <strong>@bulkCoDateApproved.Value.ToString("MMMM dd, yyyy")</strong>
             </p>
         }
+        @if (_bulkCoStatusExisting.Any())
+        {
+            <div class="alert alert-warning py-2 px-3 mt-3 mb-0">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-triangle-fill text-warning mt-1 flex-shrink-0"></i>
+                    <div class="flex-grow-1">
+                        <strong>@_bulkCoStatusExisting.Count of these already have a CO Status set.</strong>
+                        Continuing will overwrite it. Continue?
+                        <div style="max-height:160px; overflow-y:auto;" class="mt-2">
+                            <ul class="mb-0 small ps-3">
+                                @foreach (var b in _bulkCoStatusExisting)
+                                {
+                                    <li>@GetFullName(b) — currently <strong>@GetCoStatusLabel(b.CoStatus)</strong></li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkCoStatusModal.HideAsync()">Cancel</HxButton>
@@ -1119,6 +1160,211 @@
                 <span>Yes, Update</span>
             }
         </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Post-export "mark as endorsed" prompt — shown right after a successful
+     bulk Export Excel, so a PDO isn't forced to come back and re-select the
+     same rows later just to bulk-endorse them. Entirely optional (Skip just
+     closes it); reuses the same api/beneficiary/bulk-co-status endpoint the
+     regular CO Status bulk-update bar already uses, CoStatus=1 (Endorsed). ── *@
+<HxModal @ref="postExportEndorseModal">
+    <HeaderTemplate>
+        <h5 class="modal-title"><i class="bi bi-check2-circle me-2"></i>Mark as CO Endorsed?</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <p>
+            <strong>@_postExportIds.Count</strong> record(s) were just exported.
+            Would you also like to set their CO Status to <strong>Endorsed</strong> now,
+            so you don't need to come back and bulk-update this later?
+        </p>
+        <div class="mb-0">
+            <label class="form-label small text-muted mb-1">CO Date Endorsed</label>
+            <input type="date" class="form-control form-control-sm w-auto" @bind="_postExportEndorseDate" />
+        </div>
+        @if (_postExportExistingCoStatus.Any())
+        {
+            <div class="alert alert-warning py-2 px-3 mt-3 mb-0">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-triangle-fill text-warning mt-1 flex-shrink-0"></i>
+                    <div class="flex-grow-1">
+                        <strong>@_postExportExistingCoStatus.Count of these already have a CO Status set.</strong>
+                        Continuing will overwrite it. Continue?
+                        <div style="max-height:160px; overflow-y:auto;" class="mt-2">
+                            <ul class="mb-0 small ps-3">
+                                @foreach (var b in _postExportExistingCoStatus)
+                                {
+                                    <li>@GetFullName(b) — currently <strong>@GetCoStatusLabel(b.CoStatus)</strong></li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => postExportEndorseModal.HideAsync()">Skip</HxButton>
+        <HxButton Color="ThemeColor.Primary" @onclick="ConfirmPostExportEndorseAsync"
+                  Disabled="@(_postExportEndorseDate == null || _isPostExportEndorsing)">
+            @if (_isPostExportEndorsing)
+            {
+                <span>Updating...</span>
+            }
+            else
+            {
+                <span>Yes, Mark as Endorsed</span>
+            }
+        </HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── CO Endorsed Batches — grouped list, one row per batch code, opened via
+     the purple button in the record-actions bar above. Client-side paged
+     (the whole batch-summary list is small enough to fetch in one call). ── *@
+<HxModal @ref="endorsedBatchesModal" Size="ModalSize.Large">
+    <HeaderTemplate>
+        <h5 class="modal-title"><i class="bi bi-building-check me-2"></i>Batch Codes — CO Status: Endorsed</h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingEndorsedBatches)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading endorsed batches...</p>
+            </div>
+        }
+        else if (!_endorsedBatches.Any())
+        {
+            <div class="alert alert-info mb-0">No batch codes currently have CO Status: Endorsed.</div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                <span class="badge bg-primary fs-6">@_endorsedBatches.Count Batch Code(s)</span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_endorsedBatchesPageNumber <= 1)"
+                            @onclick="() => GoToEndorsedBatchesPage(_endorsedBatchesPageNumber - 1)">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span class="small text-muted">Page @_endorsedBatchesPageNumber of @Math.Max(1, _endorsedBatchesTotalPages)</span>
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_endorsedBatchesPageNumber >= _endorsedBatchesTotalPages)"
+                            @onclick="() => GoToEndorsedBatchesPage(_endorsedBatchesPageNumber + 1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Batch Code</th>
+                        <th class="text-center" style="width:160px;">Grantees Endorsed</th>
+                        <th style="width:100px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var batch in _endorsedBatchesPageItems)
+                    {
+                        <tr style="cursor:pointer;" @onclick="() => OpenEndorsedBatchMembersAsync(batch.BatchCode)">
+                            <td class="fw-semibold">@batch.BatchCode</td>
+                            <td class="text-center">
+                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
+                                    @batch.Count
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick:stopPropagation="true"
+                                        @onclick="() => OpenEndorsedBatchMembersAsync(batch.BatchCode)">
+                                    View <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => endorsedBatchesModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
+@* ── Drill-down: grantees within one endorsed batch code — same paged-table
+     design as the Statistics page's Grantee Audit Modal, server-side paged
+     via the same api/beneficiary/paged-list endpoint the main grid uses. ── *@
+<HxModal @ref="endorsedBatchMembersModal" Size="ModalSize.ExtraLarge">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-people-fill me-2"></i>
+            Batch @_selectedEndorsedBatchCode — Endorsed Grantees
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingEndorsedBatchMembers)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading grantees...</p>
+            </div>
+        }
+        else if (!_endorsedBatchMembers.Any())
+        {
+            <div class="alert alert-info mb-0">No grantees found for this batch.</div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                <span class="badge bg-primary fs-6">@_endorsedBatchMembersTotalCount Total</span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_endorsedBatchMembersPageNumber <= 1 || _isLoadingEndorsedBatchMembers)"
+                            @onclick="() => GoToEndorsedBatchMembersPageAsync(_endorsedBatchMembersPageNumber - 1)">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span class="small text-muted">
+                        Page @_endorsedBatchMembersPageNumber of @Math.Max(1, _endorsedBatchMembersTotalPages)
+                        (@(((_endorsedBatchMembersPageNumber - 1) * _endorsedBatchMembersPageSize) + 1)–@Math.Min(_endorsedBatchMembersPageNumber * _endorsedBatchMembersPageSize, _endorsedBatchMembersTotalCount) of @_endorsedBatchMembersTotalCount)
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_endorsedBatchMembersPageNumber >= _endorsedBatchMembersTotalPages || _isLoadingEndorsedBatchMembers)"
+                            @onclick="() => GoToEndorsedBatchMembersPageAsync(_endorsedBatchMembersPageNumber + 1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="max-height:480px; overflow-y:auto;">
+                <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size:12px;">
+                    <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                        <tr>
+                            <th style="width:36px;">#</th>
+                            <th>Full Name</th>
+                            <th style="width:50px;">Age</th>
+                            <th style="width:90px;">Milestone Year</th>
+                            <th>Location</th>
+                            <th style="width:130px;">CO Date Endorsed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowNum = ((_endorsedBatchMembersPageNumber - 1) * _endorsedBatchMembersPageSize) + 1; }
+                        @foreach (var m in _endorsedBatchMembers)
+                        {
+                            <tr>
+                                <td>@rowNum</td>
+                                <td class="fw-semibold">@GetListItemFullName(m)</td>
+                                <td>@m.Age</td>
+                                <td>@(m.MilestoneYear > 0 ? m.MilestoneYear.ToString() : "—")</td>
+                                <td>@m.MunicipalityName, @m.ProvinceName</td>
+                                <td>@(m.CoDateEndorsed?.ToString("MMM dd, yyyy") ?? "—")</td>
+                            </tr>
+                            rowNum++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => endorsedBatchMembersModal.HideAsync()">Close</HxButton>
     </FooterTemplate>
 </HxModal>
 
@@ -3071,6 +3317,36 @@ else
     private Action? _stateChangeHandler;
     private string? errorMessage;
     private bool IsExporting;
+    // ── CO Endorsed batches lookup ───────────────────────────────────────
+    private bool _isLoadingEndorsedBatches;
+    private List<BatchCodeCoStatusSummaryDto> _endorsedBatches = new();
+    private HxModal endorsedBatchesModal = default!;
+    private int _endorsedBatchesPageNumber = 1;
+    private const int _endorsedBatchesPageSize = 10;
+    private int _endorsedBatchesTotalPages =>
+        (int)Math.Ceiling(_endorsedBatches.Count / (double)_endorsedBatchesPageSize);
+    private IEnumerable<BatchCodeCoStatusSummaryDto> _endorsedBatchesPageItems =>
+        _endorsedBatches.Skip((_endorsedBatchesPageNumber - 1) * _endorsedBatchesPageSize).Take(_endorsedBatchesPageSize);
+
+    // Drill-down: grantees within one endorsed batch code
+    private HxModal endorsedBatchMembersModal = default!;
+    private string? _selectedEndorsedBatchCode;
+    private bool _isLoadingEndorsedBatchMembers;
+    private List<BeneficiaryListItemDto> _endorsedBatchMembers = new();
+    private int _endorsedBatchMembersPageNumber = 1;
+    private const int _endorsedBatchMembersPageSize = 50;
+    private int _endorsedBatchMembersTotalCount;
+    private int _endorsedBatchMembersTotalPages;
+
+    // ── Post-export "mark as endorsed" prompt ───────────────────────────
+    private HxModal postExportEndorseModal = default!;
+    // Snapshot of checkedIds at export time — checkedIds itself isn't
+    // touched by export, but this modal shouldn't silently follow along if
+    // the selection changes while it's open.
+    private List<Guid> _postExportIds = new();
+    private DateTime? _postExportEndorseDate = DateTime.Today;
+    private bool _isPostExportEndorsing;
+    private List<BeneficiaryInformationDto> _postExportExistingCoStatus = new();
     private bool IsGeneratingPayroll;
     private PayrollModal _payrollModal = default!;
     private bool IsLogsLoading;
@@ -3259,6 +3535,12 @@ else
     private DateTime? bulkCoDateApproved = null;
     private bool IsBulkUpdatingCoStatus;
     private HxModal bulkCoStatusModal = default!;
+    // Grantees among the current selection that already have a CO Status set
+    // (Endorsed/Approved) BEFORE this bulk update would overwrite it — so the
+    // confirm modal can warn "N of these already have a CO Status" and list
+    // them, instead of silently clobbering existing endorsement/approval data.
+    private List<BeneficiaryInformationDto> _bulkCoStatusExisting = new();
+    private bool _isCheckingExistingCoStatus;
 
     // ── Replacement Status — now per Payment History entry, not per beneficiary ──
     private HxModal replaceModal = default!;
@@ -4007,7 +4289,33 @@ public void Dispose()
     private async Task OpenBulkCoStatusModal()
     {
         if (!checkedIds.Any() || string.IsNullOrWhiteSpace(bulkCoStatus)) return;
+        _bulkCoStatusExisting = await FindExistingCoStatusAsync(checkedIds.ToList());
         await bulkCoStatusModal.ShowAsync();
+    }
+
+    // Shared by the CO Status bulk-update bar and the post-export "mark as
+    // endorsed" prompt — both overwrite CoStatus/CoDateEndorsed/CoDateApproved
+    // for a batch of ids, so both need the same "some of these already have a
+    // value" check before the user confirms.
+    private async Task<List<BeneficiaryInformationDto>> FindExistingCoStatusAsync(List<Guid> ids)
+    {
+        if (!ids.Any()) return new();
+
+        try
+        {
+            _isCheckingExistingCoStatus = true;
+            var response = await Http.PostAsJsonAsync("api/beneficiary/by-ids", ids);
+            if (!response.IsSuccessStatusCode) return new();
+
+            var records = await response.Content.ReadFromJsonAsync<List<BeneficiaryInformationDto>>() ?? new();
+            return records.Where(b => b.CoStatus is 1 or 2).ToList();
+        }
+        catch
+        {
+            // Non-fatal — the confirm modal just won't show the warning this time.
+            return new();
+        }
+        finally { _isCheckingExistingCoStatus = false; }
     }
 
     // ── Replacement Status ──────────────────────────────────────────────
@@ -5025,6 +5333,13 @@ private void PayrollPreviewZoomReset() => _payrollPreviewZoom = 100;
         return $"{item.LastName}, {item.FirstName}{middle}{extension}";
     }
 
+    private string GetListItemFullName(BeneficiaryListItemDto item)
+    {
+        var middle = string.IsNullOrWhiteSpace(item.MiddleName) ? "" : $" {item.MiddleName}";
+        var extension = string.IsNullOrWhiteSpace(item.Extension) ? "" : $" {item.Extension}";
+        return $"{item.LastName}, {item.FirstName}{middle}{extension}";
+    }
+
     private void ToggleCheck(Guid id)
     {
         if (checkedIds.Contains(id)) checkedIds.Remove(id);
@@ -5069,9 +5384,125 @@ private void PayrollPreviewZoomReset() => _payrollPreviewZoom = 100;
             if (exportBytes == null || exportBytes.Length == 0) { toast.ShowError("No data returned from export."); return; }
             await JS.InvokeVoidAsync("downloadFile", $"Beneficiaries_{DateTime.Now:yyyy-MM-dd}.xlsx",
 Convert.ToBase64String(exportBytes));
+
+            _postExportIds = checkedIds.ToList();
+            _postExportEndorseDate = DateTime.Today;
+            _postExportExistingCoStatus = await FindExistingCoStatusAsync(_postExportIds);
+            await postExportEndorseModal.ShowAsync();
         }
         catch (Exception ex) { toast.ShowError($"Export failed: {ex.Message}"); }
         finally { IsExporting = false; }
+    }
+
+    private async Task ConfirmPostExportEndorseAsync()
+    {
+        if (_postExportEndorseDate == null || !_postExportIds.Any()) return;
+
+        try
+        {
+            _isPostExportEndorsing = true;
+            var request = new
+            {
+                Ids = _postExportIds,
+                CoStatus = 1, // Endorsed
+                CoDateEndorsed = _postExportEndorseDate,
+                CoDateApproved = (DateTime?)null
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-co-status", request);
+
+            await HandleApiResponseAsync(
+                response,
+                $"Marked {_postExportIds.Count} record(s) as CO Endorsed.",
+                async () =>
+                {
+                    _postExportIds = new();
+                    await postExportEndorseModal.HideAsync();
+                    ClearSelection();
+                    State.Invalidate();
+                    await State.LoadAsync();
+                });
+        }
+        catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
+        finally { _isPostExportEndorsing = false; }
+    }
+
+    // ── CO Endorsed batches lookup ────────────────────────────────────────
+    private async Task OpenEndorsedBatchesModal()
+    {
+        try
+        {
+            _isLoadingEndorsedBatches = true;
+            _endorsedBatches = await Http.GetFromJsonAsync<List<BatchCodeCoStatusSummaryDto>>(
+                "api/beneficiary/co-status-endorsed-batches") ?? new();
+            _endorsedBatchesPageNumber = 1;
+            await endorsedBatchesModal.ShowAsync();
+        }
+        catch (Exception ex) { toast.ShowError($"Failed to load endorsed batches: {ex.Message}"); }
+        finally { _isLoadingEndorsedBatches = false; }
+    }
+
+    private void GoToEndorsedBatchesPage(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > _endorsedBatchesTotalPages) return;
+        _endorsedBatchesPageNumber = pageNumber;
+    }
+
+    private async Task OpenEndorsedBatchMembersAsync(string batchCode)
+    {
+        _selectedEndorsedBatchCode = batchCode;
+        _endorsedBatchMembersPageNumber = 1;
+        _endorsedBatchMembers = new();
+        _endorsedBatchMembersTotalCount = 0;
+        _endorsedBatchMembersTotalPages = 0;
+
+        await endorsedBatchesModal.HideAsync();
+        await endorsedBatchMembersModal.ShowAsync();
+        await FetchEndorsedBatchMembersPageAsync();
+    }
+
+    private async Task GoToEndorsedBatchMembersPageAsync(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > _endorsedBatchMembersTotalPages || _isLoadingEndorsedBatchMembers) return;
+        _endorsedBatchMembersPageNumber = pageNumber;
+        await FetchEndorsedBatchMembersPageAsync();
+    }
+
+    private async Task FetchEndorsedBatchMembersPageAsync()
+    {
+        if (_selectedEndorsedBatchCode is null) return;
+
+        _isLoadingEndorsedBatchMembers = true;
+        StateHasChanged();
+
+        try
+        {
+            var filter = new BeneficiaryFilterDto
+            {
+                BatchCode = _selectedEndorsedBatchCode,
+                CoStatus = 1,
+                PageNumber = _endorsedBatchMembersPageNumber,
+                PageSize = _endorsedBatchMembersPageSize
+            };
+
+            var response = await Http.PostAsJsonAsync("api/beneficiary/paged-list", filter);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PagedResultDto<BeneficiaryListItemDto>>();
+                _endorsedBatchMembers = result?.Items ?? new();
+                _endorsedBatchMembersTotalCount = result?.TotalCount ?? 0;
+                _endorsedBatchMembersTotalPages = result?.TotalPages ?? 0;
+            }
+            else
+            {
+                toast.ShowError($"Failed to load batch members: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex) { toast.ShowError($"Failed to load batch members: {ex.Message}"); }
+        finally
+        {
+            _isLoadingEndorsedBatchMembers = false;
+            StateHasChanged();
+        }
     }
 
     private async Task GeneratePayrollAsync()

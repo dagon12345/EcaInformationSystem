@@ -5390,6 +5390,11 @@ namespace EcaInformationSystem.Application.Services
         {
             return await _repo.CountMatchingAsync(filter);
         }
+
+        public async Task<List<BatchCodeCoStatusSummaryDto>> GetEndorsedBatchCodeSummaryAsync()
+        {
+            return await _repo.GetEndorsedBatchCodeSummaryAsync();
+        }
         public async Task<PagedResultDto<BeneficiaryInformationDto>> GetPaginatedAsync(BeneficiaryFilterDto filter)
         {
             // WHY: [FromQuery]/[FromBody] model binding does zero validation on

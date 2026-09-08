@@ -11,9 +11,13 @@
    Sign In (desktop) no longer just links to /login — it expands the same
    inline Username/Password panel Login.razor's own navbar uses, so a
    visitor can sign in without ever leaving the page they're reading.
-   Mobile keeps the old plain link, since this shared navbar has no
-   hamburger/dropdown to house the expanded fields the way Login.razor's
-   mobile menu does. *@
+   Below the collapse breakpoint, this now uses the same hamburger +
+   dropdown pattern as Login.razor's own navbar (quicklinks become full-
+   width buttons at the top of the dropdown, Sign In fields below them) —
+   previously this fell back to a plain "Sign In" link with no way to
+   reach About/Contact/Officials/Developer at all once the quicklinks row
+   was hidden on narrow screens, and clipped mid-pill on in-between widths
+   before it was hidden at all. *@
 @using EcaInformationSystem.Client.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.ComponentModel.DataAnnotations
@@ -56,8 +60,29 @@
         </div>
     </div>
 
-    <EditForm Model="model" OnValidSubmit="HandleLoginAsync" OnInvalidSubmit="HandleInvalidSubmit" class="login-navbar-form public-navbar-signin-form">
+    @* ── Hamburger — same element/class Login.razor's own navbar already uses
+         (.login-navbar-hamburger), just missing here until now. Below the
+         collapse breakpoint this is what replaces .login-navbar-quicklinks
+         (hidden at that width) instead of leaving it to clip/scroll. ── *@
+    <button class="login-navbar-hamburger" @onclick="ToggleMobileMenu" title="Menu">
+        <i class="bi bi-list"></i>
+    </button>
+
+    <EditForm Model="model" OnValidSubmit="HandleLoginAsync" OnInvalidSubmit="HandleInvalidSubmit"
+              class="@($"login-navbar-form public-navbar-signin-form {(_mobileMenuOpen ? "login-navbar-form--open" : "")}")">
         <DataAnnotationsValidator />
+
+        @* Mobile-only full-width copies of the quicklinks — same pattern as
+           Login.razor's .login-navbar-menu-links, so About/Contact/Officials/
+           Developer stay reachable once the top bar's pills are hidden. *@
+        <div class="login-navbar-menu-links">
+            <a href="features" class="login-navbar-register-btn"><i class="bi bi-stars me-1"></i>Features</a>
+            <a href="about" class="login-navbar-register-btn"><i class="bi bi-info-circle me-1"></i>About NCSC</a>
+            <a href="regional-offices" class="login-navbar-register-btn"><i class="bi bi-telephone me-1"></i>Contact</a>
+            <a href="directory-officials" class="login-navbar-register-btn"><i class="bi bi-people me-1"></i>Officials</a>
+            <a href="login" class="login-navbar-register-btn"><i class="bi bi-broadcast me-1"></i>Live Feed</a>
+            <a href="developer" class="login-navbar-register-btn"><i class="bi bi-code-slash me-1"></i>Developer</a>
+        </div>
 
         @if (!_desktopLoginExpanded)
         {
@@ -79,8 +104,6 @@
             </button>
         </div>
     </EditForm>
-
-    <a href="login" class="login-navbar-back-link public-navbar-signin-mobile-link"><i class="bi bi-box-arrow-in-right"></i> <span>Sign In</span></a>
 </div>
 
 <PublicLiveTicker />
@@ -174,6 +197,12 @@
     // Desktop only — the Username/Password/Sign in row stays collapsed
     // behind a single icon until clicked (see auth-shared.css's .login-navbar-fields).
     private bool _desktopLoginExpanded;
+
+    // Below the hamburger breakpoint — same pattern as Login.razor's own
+    // navbar, toggles the whole .login-navbar-form into an open dropdown
+    // (quicklinks + Sign In fields together).
+    private bool _mobileMenuOpen;
+    private void ToggleMobileMenu() => _mobileMenuOpen = !_mobileMenuOpen;
 
     private void HandleInvalidSubmit()
     {

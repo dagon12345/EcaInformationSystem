@@ -171,6 +171,11 @@ namespace EcaInformationSystem.Api.Controllers
         public async Task<IActionResult> GetSummary([FromQuery] BeneficiaryFilterDto filter)
             => Ok(await _service.GetSummaryAsync(filter));
 
+        // Backs the "View Endorsed Batches" button in GridView.razor.
+        [HttpGet("co-status-endorsed-batches")]
+        public async Task<IActionResult> GetEndorsedBatchCodeSummary()
+            => Ok(await _service.GetEndorsedBatchCodeSummaryAsync());
+
         [HttpPost("create")]
         [Authorize(Policy = "GranteeEncodeAccess")]
         public async Task<IActionResult> Create([FromBody] CreateBeneficiaryInformationDto dto)

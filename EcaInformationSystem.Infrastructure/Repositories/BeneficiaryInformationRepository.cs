@@ -775,6 +775,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.DateAddedTo.HasValue)
                 query = query.Where(b => b.DateAdded < request.DateAddedTo.Value.Date.AddDays(1));
 
+            // ── CO Date Endorsed / Approved Range ──────────────────────────────────
+            // Distinct from "Date Endorsed" above — that's DateEndorsed (the
+            // application's own endorsement date); these are CoDateEndorsed/
+            // CoDateApproved, set when CO Status is bulk-updated to Endorsed/
+            // Approved (see GridView.razor's CO Status bulk-update bar and the
+            // post-export "mark as endorsed" prompt).
+            if (request.CoDateEndorsedFrom.HasValue)
+                query = query.Where(b => b.CoDateEndorsed >= request.CoDateEndorsedFrom.Value.Date);
+            if (request.CoDateEndorsedTo.HasValue)
+                query = query.Where(b => b.CoDateEndorsed < request.CoDateEndorsedTo.Value.Date.AddDays(1));
+            if (request.CoDateApprovedFrom.HasValue)
+                query = query.Where(b => b.CoDateApproved >= request.CoDateApprovedFrom.Value.Date);
+            if (request.CoDateApprovedTo.HasValue)
+                query = query.Where(b => b.CoDateApproved < request.CoDateApprovedTo.Value.Date.AddDays(1));
+
             // ✅ NEW — Milestone Year filter (was completely missing before)
             // Mirrors the same bracket rule used elsewhere: a beneficiary
             // "belongs" to milestoneYear if BirthYear + one of {80,85,90,95,100} == milestoneYear,
@@ -984,6 +999,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 NotApplicableCount = allData.Count(b => EffectiveStatus(b) == 0),
                 LivenessVerifiedCount = allData.Count(b => b.IsLivenessVerified == true),
                 ReadyForEftCount = allData.Count(b => b.IsReadyForEft == true),
+                CoEndorsedCount = allData.Count(b => b.CoStatus == 1),
+                CoApprovedCount = allData.Count(b => b.CoStatus == 2),
                 TotalDisbursement = allData
                     .Where(b => EffectiveStatus(b) == 2)
                     .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate))),
@@ -1323,6 +1340,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "noliveness" => allData.Where(b => b.IsLivenessVerified != true),
                 "eft" => allData.Where(b => b.IsReadyForEft == true),
                 "noeft" => allData.Where(b => b.IsReadyForEft != true),
+                "coendorsed" => allData.Where(b => b.CoStatus == 1),
+                "coapproved" => allData.Where(b => b.CoStatus == 2),
                 _ => allData
             };
 
@@ -2369,6 +2388,23 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             var query = await BuildNarrowFilterQuery(filter);
             return await query.CountAsync();
+        }
+
+        // Backs the "View Endorsed Batches" button — one row per distinct
+        // BatchCode among CO Status = Endorsed (1) records, with how many
+        // grantees are in each. Same duplicate-exclusion as every other
+        // beneficiary listing/count here.
+        public async Task<List<BatchCodeCoStatusSummaryDto>> GetEndorsedBatchCodeSummaryAsync()
+        {
+            var query = ExcludeKnownDuplicates(_context.BeneficiaryInformations.AsNoTracking()
+                .Where(b => !b.IsDeleted && b.CoStatus == 1 && b.BatchCode != null && b.BatchCode != ""));
+
+            return await query
+                .GroupBy(b => b.BatchCode)
+                .Select(g => new BatchCodeCoStatusSummaryDto { BatchCode = g.Key!, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .ThenBy(x => x.BatchCode)
+                .ToListAsync();
         }
         public async Task<PagedResultDto<BeneficiaryListItemDto>> GetPagedListAsync(BeneficiaryFilterDto filter)
         {
