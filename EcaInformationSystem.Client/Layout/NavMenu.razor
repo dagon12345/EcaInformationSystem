@@ -34,7 +34,7 @@
          its icon rail (the Collapse button at the bottom, a different,
          pre-existing feature), section grouping is bypassed entirely and
          every icon shows — group headers have no room to render there anyway. ── *@
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("main")' @onmouseleave='() => OnSectionMouseLeave("main")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("main", "Main")
         <div class="nav-section-collapse @(IsSectionOpen("main") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -55,7 +55,7 @@
         </div>
     </div>
 
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("reports")' @onmouseleave='() => OnSectionMouseLeave("reports")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("reports", "Reports")
         <div class="nav-section-collapse @(IsSectionOpen("reports") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -82,7 +82,7 @@
         </div>
     </div>
 
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("records")' @onmouseleave='() => OnSectionMouseLeave("records")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("records", "Records")
         <div class="nav-section-collapse @(IsSectionOpen("records") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -114,7 +114,7 @@
        inside the page itself). ── *@
     @if (_isAdmin || _isFinance)
     {
-        <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("financial")' @onmouseleave='() => OnSectionMouseLeave("financial")'>
+        <div class="nav-section-hover-wrap">
             @RenderSectionHeader("financial", "Financial")
             <div class="nav-section-collapse @(IsSectionOpen("financial") ? "nav-section-collapse--open" : "")">
                 <div class="nav-section-collapse-inner">
@@ -142,7 +142,7 @@
          the same "hand it off, accept it, route it" shape, so they're grouped
          under one section here even though each has its own nav-item/route.
          Both are visible to everyone; actions are gated inside each page. ── *@
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("tracking")' @onmouseleave='() => OnSectionMouseLeave("tracking")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("tracking", "Tracking")
         <div class="nav-section-collapse @(IsSectionOpen("tracking") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -158,7 +158,7 @@
         </div>
     </div>
 
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("directory")' @onmouseleave='() => OnSectionMouseLeave("directory")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("directory", "Directory")
         <div class="nav-section-collapse @(IsSectionOpen("directory") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -222,7 +222,7 @@
        Conversation Oversight / System Updates stay SuperAdmin only ── *@
     @if (_isSuperAdmin || _isFinance)
     {
-        <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("administration")' @onmouseleave='() => OnSectionMouseLeave("administration")'>
+        <div class="nav-section-hover-wrap">
             @RenderSectionHeader("administration", "Administration")
             <div class="nav-section-collapse @(IsSectionOpen("administration") ? "nav-section-collapse--open" : "")">
                 <div class="nav-section-collapse-inner">
@@ -249,7 +249,7 @@
         </div>
     }
 
-    <div class="nav-section-hover-wrap" @onmouseenter='() => OnSectionMouseEnter("system")' @onmouseleave='() => OnSectionMouseLeave("system")'>
+    <div class="nav-section-hover-wrap">
         @RenderSectionHeader("system", "System", "mt-2")
         <div class="nav-section-collapse @(IsSectionOpen("system") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
@@ -325,32 +325,22 @@
     // These stay open regardless of hover.
     private readonly HashSet<string> _expandedSections = new();
 
-    // Which single section is being hover-previewed right now — separate
-    // from the pinned set above, so it collapses again the instant the mouse
-    // leaves instead of staying open like a click would.
-    private string? _hoveredSection;
-
     // Bypassed (always "open") when the whole sidebar is itself collapsed to
     // its icon rail — that's a different, pre-existing feature (the Collapse
     // button at the bottom), and section headers have no room to render
     // there anyway, so every icon should still show.
+    //
+    // ✅ Click-only — a section expands/collapses ONLY via ToggleSection
+    // below (clicking its header). There is deliberately no hover-preview
+    // anymore: it was confusing users into thinking sections opened/closed
+    // on their own.
     private bool IsSectionOpen(string key) =>
-        Collapsed || _expandedSections.Contains(key) || _hoveredSection == key;
+        Collapsed || _expandedSections.Contains(key);
 
     private void ToggleSection(string key)
     {
         if (!_expandedSections.Remove(key))
             _expandedSections.Add(key);
-    }
-
-    // Hover preview — opens on enter, closes on leave (OnSectionMouseLeave
-    // below), independent of whatever's pinned via click/current-route.
-    private void OnSectionMouseEnter(string key) => _hoveredSection = key;
-
-    private void OnSectionMouseLeave(string key)
-    {
-        if (_hoveredSection == key)
-            _hoveredSection = null;
     }
 
     // First path segment(s) that belong to each section — used only to pick
@@ -369,6 +359,12 @@
 
     private void ExpandSectionForCurrentRoute()
     {
+        // ✅ Main, Reports, and Records stay expanded by default regardless
+        // of the current route — the most-used sections, per request.
+        _expandedSections.Add("main");
+        _expandedSections.Add("reports");
+        _expandedSections.Add("records");
+
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/').ToLowerInvariant();
         var firstSegment = path.Split('/')[0];
 
@@ -431,18 +427,8 @@
         ActivityClient.ActivityStarting += OnActivityEvent;
         ActivityClient.ActivityChanged += OnActivityEvent;
         ActivityClient.ActivityDeleted += OnActivityDeletedEvent;
-        Navigation.LocationChanged += OnLocationChanged;
 
         StateHasChanged();
-    }
-
-    // Auto-collapse the expanded sidebar back to its icon rail once a nav
-    // link is actually followed — expanded is meant for finding your way
-    // around, not for staying open once you've arrived somewhere.
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-    {
-        if (!Collapsed)
-            InvokeAsync(() => OnToggle.InvokeAsync());
     }
 
     private void OnActivityEvent(ActivityDto activity)
@@ -472,6 +458,5 @@
         ActivityClient.ActivityStarting -= OnActivityEvent;
         ActivityClient.ActivityChanged -= OnActivityEvent;
         ActivityClient.ActivityDeleted -= OnActivityDeletedEvent;
-        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
