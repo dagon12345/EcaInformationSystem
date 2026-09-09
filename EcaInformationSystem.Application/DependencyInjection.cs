@@ -56,6 +56,7 @@ namespace EcaInformationSystem.Application
             services.AddScoped<IDarReportService, DarReportService>();
             services.AddScoped<IAttendanceLogService, AttendanceLogService>();
             services.AddScoped<IDtrService, DtrService>();
+            services.AddScoped<IDtrPunchRequestService, DtrPunchRequestService>();
             services.AddScoped<IBiometricDeviceUserService, BiometricDeviceUserService>();
             services.AddScoped<IBiometricSyncStatusService, BiometricSyncStatusService>();
             services.AddScoped<IBiometricDeviceSettingService, BiometricDeviceSettingService>();

@@ -46,5 +46,21 @@ namespace EcaInformationSystem.Api.Controllers
             var members = await _statisticsService.GetStatisticsMembersAsync(request);
             return Ok(members);
         }
+
+        // ✅ NEW — "Download Excel" inside the audit modal: every grantee in
+        // the currently-open bucket (same Filter + Bucket the modal's list
+        // itself was fetched with), one row each, including full Section E
+        // payout-account detail.
+        [HttpPost("export")]
+        public async Task<IActionResult> Export([FromBody] StatisticsMembersRequestDto request)
+        {
+            if (QuarterMissingYear(request.Filter))
+                return BadRequest(new { message = "Select a Fiscal Year along with Payroll Quarter — a quarter number alone repeats every year." });
+
+            var bytes = await _statisticsService.ExportGranteesAsync(request);
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Grantees_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
     }
 }

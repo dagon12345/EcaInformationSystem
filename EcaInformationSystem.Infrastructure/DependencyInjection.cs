@@ -96,8 +96,10 @@ namespace EcaInformationSystem.Infrastructure
             services.AddScoped<IBiometricSyncStatusRepository, BiometricSyncStatusRepository>();
             services.AddScoped<IBiometricDeviceSettingRepository, BiometricDeviceSettingRepository>();
             services.AddScoped<IDtrDayMarkRepository, DtrDayMarkRepository>();
+            services.AddScoped<IDtrPunchRequestRepository, DtrPunchRequestRepository>();
             services.AddScoped<ITransactionTierBroadcaster, NoOpTransactionTierBroadcaster>();
             services.AddScoped<ILivenessNotificationBroadcaster, NoOpLivenessNotificationBroadcaster>();
+            services.AddScoped<IDtrPunchRequestBroadcaster, NoOpDtrPunchRequestBroadcaster>();
             return services;
         }
     }

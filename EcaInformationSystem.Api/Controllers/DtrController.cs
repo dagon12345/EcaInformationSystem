@@ -1,5 +1,6 @@
 using EcaInformationSystem.Api.ZkDevice;
 using EcaInformationSystem.Application.Interfaces.Services;
+using EcaInformationSystem.Application.Services;
 using EcaInformationSystem.Shared.DTOs.Dtr;
 using EcaInformationSystem.Shared.DTOs.UserManagement;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,7 @@ namespace EcaInformationSystem.Api.Controllers
         private readonly IBiometricDeviceSettingService _deviceSettingService;
         private readonly IDtrDayMarkService _dayMarkService;
         private readonly IAttendanceLogService _attendanceLogService;
+        private readonly IDtrPunchRequestService _punchRequestService;
         private readonly ZkSyncRunner _syncRunner;
         private readonly ZkDirectOptions _zkOptions;
 
@@ -32,6 +34,7 @@ namespace EcaInformationSystem.Api.Controllers
             IBiometricDeviceSettingService deviceSettingService,
             IDtrDayMarkService dayMarkService,
             IAttendanceLogService attendanceLogService,
+            IDtrPunchRequestService punchRequestService,
             ZkSyncRunner syncRunner,
             IOptions<ZkDirectOptions> zkOptions)
         {
@@ -42,9 +45,15 @@ namespace EcaInformationSystem.Api.Controllers
             _deviceSettingService = deviceSettingService;
             _dayMarkService = dayMarkService;
             _attendanceLogService = attendanceLogService;
+            _punchRequestService = punchRequestService;
             _syncRunner = syncRunner;
             _zkOptions = zkOptions.Value;
         }
+
+        // Only these three roles may mutate AttendanceLog directly — everyone
+        // else's Add/Remove goes through DtrPunchRequestService as a pending
+        // request instead (see AddManualPunch/RemoveManualPunch below).
+        private bool IsPunchApprover() => DtrPunchRequestService.ApproverRoles.Any(User.IsInRole);
 
         // Every account — including SuperAdmin/Finance — has its own Region
         // claim and is scoped to it; there's no "sees every region" bypass
@@ -341,7 +350,13 @@ namespace EcaInformationSystem.Api.Controllers
         // able to correct their own missed punch, not just SuperAdmin/
         // Finance. Same ownership rule as day-marks above: a viewer can
         // always manage their OWN record; SuperAdmin/Finance can also
-        // manage another same-region user's. ──────────────────────────────
+        // manage another same-region user's.
+        //
+        // ✅ NEW — only Admin/Finance/SuperAdmin actually write the punch
+        // here. Everyone else's request is filed as Pending instead (see
+        // DtrPunchRequestService) and notified to those three roles via
+        // UnifiedNotificationBell — the punch only takes effect once one of
+        // them approves it through the pending-requests screen. ──────────
         [HttpPost("manual-punch")]
         public async Task<IActionResult> AddManualPunch([FromBody] AddManualPunchRequestDto dto)
         {
@@ -354,9 +369,20 @@ namespace EcaInformationSystem.Api.Controllers
             if (string.IsNullOrWhiteSpace(target.BiometricUserId))
                 return BadRequest(new { message = "This user has no biometric device ID linked yet." });
 
-            var addedByName = User.Identity?.Name;
-            var id = await _attendanceLogService.AddManualPunchAsync(target.BiometricUserId, dto.PunchDateTime, addedByName);
-            return Ok(new { id });
+            var addedByName = User.Identity?.Name ?? "Unknown";
+
+            if (IsPunchApprover())
+            {
+                var id = await _attendanceLogService.AddManualPunchAsync(target.BiometricUserId, dto.PunchDateTime, addedByName);
+                return Ok(new DtrPunchActionResultDto { Pending = false, Id = id });
+            }
+
+            await _punchRequestService.RequestAddAsync(dto.UserId, target.BiometricUserId, target.FullName, dto.PunchDateTime, addedByName, target.Region);
+            return Ok(new DtrPunchActionResultDto
+            {
+                Pending = true,
+                Message = "Your time entry request has been submitted for approval."
+            });
         }
 
         // A punch (device-synced or manual) is only ever addressed by its
@@ -388,6 +414,11 @@ namespace EcaInformationSystem.Api.Controllers
         // Clears any punch (device-synced or manual) so it can be re-entered
         // via AddManualPunch above — the log book is authoritative, so a
         // wrong or missing device scan is just as correctable as a gap.
+        //
+        // ✅ NEW — same Admin/Finance/SuperAdmin-only direct-write split as
+        // AddManualPunch: everyone else's removal is filed as a Pending
+        // request instead of actually deleting the punch, so a request that
+        // later gets rejected hasn't lost any real data in the meantime.
         [HttpDelete("manual-punch/{id:int}")]
         public async Task<IActionResult> RemoveManualPunch(int id)
         {
@@ -398,8 +429,76 @@ namespace EcaInformationSystem.Api.Controllers
             if (!await CanManagePunchOwnerAsync(biometricUserId))
                 return Forbid();
 
-            var removed = await _attendanceLogService.RemovePunchAsync(id);
-            return removed ? Ok() : NotFound(new { message = "No time entry found with that Id." });
+            if (IsPunchApprover())
+            {
+                var removed = await _attendanceLogService.RemovePunchAsync(id);
+                return removed
+                    ? Ok(new DtrPunchActionResultDto { Pending = false })
+                    : NotFound(new { message = "No time entry found with that Id." });
+            }
+
+            var selfIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            if (!Guid.TryParse(selfIdClaim, out var selfUserId))
+                return Unauthorized();
+
+            var self = await _userManagementService.GetUserByIdAsync(selfUserId);
+            var punchTime = await _attendanceLogService.GetPunchTimeAsync(id);
+            if (self is null || punchTime is null)
+                return NotFound(new { message = "No time entry found with that Id." });
+
+            var requestedByName = User.Identity?.Name ?? "Unknown";
+            await _punchRequestService.RequestRemoveAsync(
+                selfUserId, biometricUserId, self.FullName, id,
+                punchTime.Value.ToString("h:mm tt"), punchTime.Value, requestedByName, self.Region);
+
+            return Ok(new DtrPunchActionResultDto
+            {
+                Pending = true,
+                Message = "Your time entry removal request has been submitted for approval."
+            });
+        }
+
+        // ── Admin/Finance/SuperAdmin: pending self-service punch-edit
+        // requests awaiting approval — feeds UnifiedNotificationBell and the
+        // approval screen. Empty list for any other role (enforced inside
+        // the service, mirroring LivenessCheckService.GetPendingReviewsForUserAsync). ──
+        [HttpGet("punch-requests/pending")]
+        public async Task<IActionResult> GetPendingPunchRequests()
+        {
+            var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+            return Ok(await _punchRequestService.GetPendingForRoleAsync(role));
+        }
+
+        [HttpPost("punch-requests/{id:guid}/approve")]
+        [Authorize(Roles = "Admin,Finance,SuperAdmin")]
+        public async Task<IActionResult> ApprovePunchRequest(Guid id, [FromBody] ReviewDtrPunchRequestDto dto)
+        {
+            var reviewedByName = User.Identity?.Name ?? "Unknown";
+            try
+            {
+                await _punchRequestService.ApproveAsync(id, reviewedByName, dto.Notes);
+                return Ok();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("punch-requests/{id:guid}/reject")]
+        [Authorize(Roles = "Admin,Finance,SuperAdmin")]
+        public async Task<IActionResult> RejectPunchRequest(Guid id, [FromBody] ReviewDtrPunchRequestDto dto)
+        {
+            var reviewedByName = User.Identity?.Name ?? "Unknown";
+            try
+            {
+                await _punchRequestService.RejectAsync(id, reviewedByName, dto.Notes);
+                return Ok();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

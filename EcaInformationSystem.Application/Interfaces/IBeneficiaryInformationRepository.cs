@@ -62,6 +62,7 @@ namespace EcaInformationSystem.Application.Interfaces
         Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(BeneficiaryFilterDto filter, int maxPairs = 50, CancellationToken cancellationToken = default);
         Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);
         Task<StatisticsMembersPagedResultDto> GetStatisticsMembersAsync(StatisticsRequestDto request, string bucket, int pageNumber, int pageSize);
+        Task<List<StatisticsGranteeExportRowDto>> GetGranteeExportRowsAsync(StatisticsRequestDto request, string bucket);
         Task BulkSetCgpAssignmentsAsync(List<CgpAssignmentDto> assignments);
         Task<List<Guid>> FindSimilarNameIdsAsync(string term, int maxResults = 50, double minScore = 0.75);
         Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId);

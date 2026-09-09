@@ -5812,6 +5812,11 @@
 .notif-feed-icon--update { background: #f1f5f9; color: #475569; }
 .notif-feed-category--update { color: #475569; }
 
+/* DTR Punch Request — soft violet (awaiting approval) */
+.notif-feed-item--dtr { border-left-color: #8b5cf6; }
+.notif-feed-icon--dtr { background: #f5f3ff; color: #6d28d9; }
+.notif-feed-category--dtr { color: #6d28d9; }
+
 .duplicate-dropdown-all-resolved {
     border-left: 4px solid #198754;
 }

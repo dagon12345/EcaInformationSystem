@@ -82,5 +82,11 @@ namespace EcaInformationSystem.Application.Services
             var log = await _repository.GetByIdAsync(attendanceLogId);
             return log?.BiometricUserId;
         }
+
+        public async Task<DateTime?> GetPunchTimeAsync(int attendanceLogId)
+        {
+            var log = await _repository.GetByIdAsync(attendanceLogId);
+            return log?.PunchTime;
+        }
     }
 }

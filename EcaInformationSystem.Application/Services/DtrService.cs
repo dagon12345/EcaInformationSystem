@@ -200,10 +200,17 @@ namespace EcaInformationSystem.Application.Services
                 case 1:
                     break; // just clocked in so far
                 case 2:
-                    // No lunch punches logged — a plain whole-day in/out.
-                    pmOutTime = punches[1].Time;
-                    pmOut = Format(pmOutTime.Value);
-                    pmOutId = punches[1].Id;
+                    // ✅ FIXED — strictly sequential slot assignment: 1st punch
+                    // is always AM Time In, 2nd is always AM Time Out, 3rd is
+                    // always PM Time In, 4th is always PM Time Out — by
+                    // POSITION, never inferred from punch count. A 2-punch day
+                    // used to be read as "whole day in/out" (2nd punch → PM
+                    // Time Out), which put a value in a slot 3 positions later
+                    // than the punch actually occurred and left AM Time Out
+                    // blank even though it was the 2nd punch of the day.
+                    amOutTime = punches[1].Time;
+                    amOut = Format(amOutTime.Value);
+                    amOutId = punches[1].Id;
                     break;
                 case 3:
                     // This office's convention: morning-in, lunch-out,

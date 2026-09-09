@@ -3,6 +3,7 @@
 @using EcaInformationSystem.Shared.DTOs.SystemUpdate
 @using EcaInformationSystem.Shared.DTOs.ApplicationTracking
 @using EcaInformationSystem.Shared.DTOs.DocumentTracking
+@using EcaInformationSystem.Shared.DTOs.Dtr
 @using EcaInformationSystem.Client.Services
 @using System.Net.Http.Json
 @inject BeneficiaryStateService State
@@ -10,6 +11,7 @@
 @inject ApplicationTrackingClientService AppTracking
 @inject DocumentTrackingClientService DocTracking
 @inject LivenessNotificationClientService LivenessNotification
+@inject DtrPunchRequestClientService DtrRequests
 @inject SystemUpdateClientService SystemUpdateClient
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -246,12 +248,28 @@
             });
         }
 
+        foreach (var r in DtrRequests.PendingItems)
+        {
+            UpsertSeenItem(new FeedItem
+            {
+                Key = $"dtr-request-{r.Id}",
+                Timestamp = r.RequestedAt,
+                Category = "DTR Request",
+                AccentKey = "dtr",
+                Icon = "bi-clock-history",
+                Title = $"{r.EmployeeName} — {r.RequestType} time entry",
+                Subtitle = $"{r.PunchDate:MMM d} • from {r.RequestedByName}",
+                OnClick = () => { GoToDtrPunchRequests(); return Task.CompletedTask; }
+            });
+        }
+
         // Anything previously seen that's no longer in its source's current
         // pending list has been handled — keep the row, just mark it so.
         var stillPendingKeys = new HashSet<string>(
             AppTracking.PendingForMeItems.Select(b => $"apptracking-{b.Id}")
             .Concat(DocTracking.PendingForMeItems.Select(d => $"doctracking-{d.Id}"))
-            .Concat(LivenessNotification.PendingItems.Select(l => $"liveness-{l.RecordId}")));
+            .Concat(LivenessNotification.PendingItems.Select(l => $"liveness-{l.RecordId}"))
+            .Concat(DtrRequests.PendingItems.Select(r => $"dtr-request-{r.Id}")));
 
         foreach (var item in _seenFeedItems.Values)
             item.IsStillPending = stillPendingKeys.Contains(item.Key);
@@ -337,6 +355,8 @@
 
         LivenessNotification.OnChange += HandleFeedSourceChange;
 
+        DtrRequests.OnChange += HandleFeedSourceChange;
+
         SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
         await LoadUpdateNoticesAsync();
     }
@@ -397,6 +417,12 @@
         {
             Navigation.NavigateTo("/beneficiary-records");
         }
+    }
+
+    private void GoToDtrPunchRequests()
+    {
+        _showDropdown = false;
+        Navigation.NavigateTo("/dtr-punch-requests");
     }
 
     #region Calendar (activity-start interrupt only — the "today" list moved to NavMenu's badge)
@@ -570,6 +596,7 @@
         AppTracking.OnChange -= HandleFeedSourceChange;
         DocTracking.OnChange -= HandleFeedSourceChange;
         LivenessNotification.OnChange -= HandleFeedSourceChange;
+        DtrRequests.OnChange -= HandleFeedSourceChange;
 
         SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
 

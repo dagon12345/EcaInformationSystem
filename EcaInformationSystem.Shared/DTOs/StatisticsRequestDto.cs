@@ -67,6 +67,14 @@
         public string? MunicipalityName { get; set; }
         public int PaymentStatus { get; set; }
         public List<PaymentHistoryDto> PaymentHistories { get; set; } = new();
+
+        // ✅ NEW — Annex A Section E (payout account) detail, so the audit
+        // modal shows which bank/channel is actually active per grantee.
+        public string PreferredChannelLabel { get; set; } = string.Empty;
+        public string? BankOrWalletName { get; set; }
+        public string? AccountNumber { get; set; }
+        public string? GCashOrMobileNumber { get; set; }
+        public string? BranchName { get; set; }
     }
 
     // ✅ NEW — paged wrapper for the audit modal's grantee list.

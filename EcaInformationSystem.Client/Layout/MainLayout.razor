@@ -18,6 +18,7 @@
 @inject ApplicationTrackingClientService ApplicationTrackingClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject LivenessNotificationClientService LivenessNotificationClientService
+@inject DtrPunchRequestClientService DtrPunchRequestClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
 @inject TransactionTierClientService TierClient
@@ -425,6 +426,20 @@
                 catch
                 {
                     // Non-fatal — "liveness submitted" toasts/badge just won't live-update this session
+                }
+            }
+
+            if (!DtrPunchRequestClientService.IsConnected)
+            {
+                try
+                {
+                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
+                    var hubUrl = new Uri(new Uri(apiBase), "dtrPunchRequestHub").ToString();
+                    await DtrPunchRequestClientService.ConnectAsync(hubUrl);
+                }
+                catch
+                {
+                    // Non-fatal — DTR punch-request toasts/badge just won't live-update this session
                 }
             }
 

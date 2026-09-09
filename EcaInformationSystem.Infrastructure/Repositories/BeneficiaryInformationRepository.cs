@@ -1397,6 +1397,16 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .GroupBy(h => h.BeneficiaryInformationId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // ✅ NEW — Section E (payout account) detail for the audit modal's
+            // "Bank / Payout Account" column, same batch-by-ids pattern as
+            // payment histories above (one query for the whole page, not
+            // one-at-a-time).
+            var bankAccounts = await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .Where(a => ids.Contains(a.BeneficiaryInformationId))
+                .ToListAsync();
+            var bankByBeneficiary = bankAccounts.ToDictionary(a => a.BeneficiaryInformationId);
+
             var items = pagedData
                 .Select(b => new StatisticsMemberDto
                 {
@@ -1416,6 +1426,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     ProvinceName = _psgcNameCache.GetProvinceName(b.Province) ?? b.Province.ToString(),
                     MunicipalityName = _psgcNameCache.GetMunicipalityName(b.Municipality) ?? b.Municipality.ToString(),
                     PaymentStatus = EffectiveStatus(b),
+                    PreferredChannelLabel = PreferredChannelLabelFor(
+                        bankByBeneficiary.TryGetValue(b.Id, out var bankAcct) ? bankAcct.PreferredChannel : (int?)null),
+                    // Palawan Pawnshop (4) reuses BankOrWalletName/AccountNumber's
+                    // sibling columns for pickup details, not a deposit account —
+                    // no bank name/account number applies to that channel.
+                    BankOrWalletName = bankAcct?.PreferredChannel == 4 ? null : bankAcct?.BankOrWalletName,
+                    AccountNumber = bankAcct?.PreferredChannel == 4 ? null : bankAcct?.AccountNumber,
+                    GCashOrMobileNumber = bankAcct?.MobileNumber,
+                    BranchName = bankAcct?.BranchName,
                     PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
                         ? h.Select(x => new PaymentHistoryDto
                         {
@@ -1445,6 +1464,125 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 PageNumber = page,
                 PageSize = size
             };
+        }
+
+        // Full, unpaginated export for the Statistics page's "Total Grantees"
+        // Download as Excel button — same filtered set BuildFilteredStatisticsDataAsync
+        // gives the report/audit modal (so the export always matches whatever
+        // the card currently shows), plus every Annex A Section E (payout
+        // account) field so the reader can tell which bank/channel is
+        // actually active per grantee instead of just a beneficiary summary.
+        public async Task<List<StatisticsGranteeExportRowDto>> GetGranteeExportRowsAsync(StatisticsRequestDto request, string bucket)
+        {
+            var (allDataUnfiltered, effectiveStatus, _, _) = await BuildFilteredStatisticsDataAsync(request);
+
+            // Same bucket narrowing as GetStatisticsMembersAsync, so
+            // downloading from inside the audit modal exports exactly what
+            // that bucket's list is showing (e.g. "Paid" only), not every
+            // grantee matching the page's filters regardless of bucket.
+            IEnumerable<BeneficiaryInformation> allData = bucket?.ToLowerInvariant() switch
+            {
+                "paid" => allDataUnfiltered.Where(b => effectiveStatus(b) == 2),
+                "unpaid" => allDataUnfiltered.Where(b => effectiveStatus(b) == 1),
+                "pending" => allDataUnfiltered.Where(b => effectiveStatus(b) == 3),
+                "notapplicable" => allDataUnfiltered.Where(b => effectiveStatus(b) == 0),
+                "male" => allDataUnfiltered.Where(b => b.Sex == 1),
+                "female" => allDataUnfiltered.Where(b => b.Sex == 2),
+                "liveness" => allDataUnfiltered.Where(b => b.IsLivenessVerified == true),
+                "noliveness" => allDataUnfiltered.Where(b => b.IsLivenessVerified != true),
+                "eft" => allDataUnfiltered.Where(b => b.IsReadyForEft == true),
+                "noeft" => allDataUnfiltered.Where(b => b.IsReadyForEft != true),
+                "coendorsed" => allDataUnfiltered.Where(b => b.CoStatus == 1),
+                "coapproved" => allDataUnfiltered.Where(b => b.CoStatus == 2),
+                _ => allDataUnfiltered
+            };
+
+            var ids = allData.Select(b => b.Id).ToList();
+
+            var bankAccounts = await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .Where(a => ids.Contains(a.BeneficiaryInformationId))
+                .ToListAsync();
+            var bankByBeneficiary = bankAccounts.ToDictionary(a => a.BeneficiaryInformationId);
+
+            var phoneNumbers = await _context.BeneficiaryPhoneNumbers
+                .AsNoTracking()
+                .Where(p => ids.Contains(p.BeneficiaryInformationId))
+                .OrderBy(p => p.SortOrder)
+                .ToListAsync();
+            var phonesByBeneficiary = phoneNumbers
+                .GroupBy(p => p.BeneficiaryInformationId)
+                .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(p => p.Number)));
+
+            return allData
+                .OrderBy(b => b.LastName)
+                .ThenBy(b => b.FirstName)
+                .ThenBy(b => b.MiddleName)
+                .Select(b =>
+                {
+                    bankByBeneficiary.TryGetValue(b.Id, out var bank);
+                    phonesByBeneficiary.TryGetValue(b.Id, out var contactNumber);
+
+                    return new StatisticsGranteeExportRowDto
+                    {
+                        BatchCode = b.BatchCode,
+                        OscaIdNumber = b.OscaIdNumber,
+                        NcscRrn = b.NcscRrn,
+                        LastName = b.LastName,
+                        FirstName = b.FirstName,
+                        MiddleName = b.MiddleName,
+                        Extension = b.Extension,
+                        BirthDate = b.BirthDate,
+                        Age = ComputeAge(b.BirthDate),
+                        Sex = b.Sex == 1 ? "Male" : "Female",
+
+                        RegionName = _psgcNameCache.GetRegionName(b.Region),
+                        ProvinceName = _psgcNameCache.GetProvinceName(b.Province),
+                        MunicipalityName = _psgcNameCache.GetMunicipalityName(b.Municipality),
+                        BarangayName = _psgcNameCache.GetBarangayName(b.Barangay),
+                        ContactNumber = contactNumber ?? string.Empty,
+
+                        IsCompliant = b.IsCompliant,
+                        Validator = b.Validator,
+                        ValidationDate = b.ValidationDate,
+                        Remarks = b.Remarks,
+
+                        PaymentStatusLabel = PaymentStatusLabelFor(effectiveStatus(b)),
+                        PayrollQuarter = b.PayrollQuarter,
+                        FiscalYear = b.FiscalYear,
+                        ModeOfPaymentLabel = b.ModeOfPayment switch
+                        {
+                            1 => "Cash Advance by SDO",
+                            2 => "Bank Transfer",
+                            _ => "N/A"
+                        },
+                        CoStatusLabel = b.CoStatus switch
+                        {
+                            1 => "Endorsed",
+                            2 => "Approved",
+                            _ => "Not Set"
+                        },
+                        MilestoneYear = ComputeMilestoneYear(b.BirthDate),
+                        IsLivenessVerified = b.IsLivenessVerified,
+                        IsReadyForEft = b.IsReadyForEft,
+
+                        PreferredChannelLabel = PreferredChannelLabelFor(bank?.PreferredChannel),
+                        // Palawan Pawnshop (4) reuses MobileNumber/BranchName for
+                        // pickup details, not a deposit account — no bank name/
+                        // account number applies to that channel (see
+                        // BeneficiaryBankAccountSection.razor).
+                        BankOrWalletName = bank?.PreferredChannel == 4 ? null : bank?.BankOrWalletName,
+                        AccountNumber = bank?.PreferredChannel == 4 ? null : bank?.AccountNumber,
+                        BranchName = bank?.BranchName,
+                        BankAddress = bank?.PreferredChannel == 4 ? null : bank?.BankAddress,
+                        GCashName = bank?.GCashName,
+                        GCashOrMobileNumber = bank?.MobileNumber,
+                        IsJointAccount = bank?.PreferredChannel == 4 ? null : bank?.IsJointAccount,
+                        SwiftCode = bank?.SwiftCode,
+                        Iban = bank?.Iban
+                    };
+                })
+                .ToList();
         }
 
         public async Task<List<PossibleDuplicatePairDto>> FindAllPossibleDuplicatesAsync(
@@ -4377,6 +4515,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             2 => "Paid",
             3 => "Pending",
             _ => "N/A"
+        };
+
+        // Annex A Section E — same 5 channel values BeneficiaryBankAccountSection.razor's
+        // E.1 dropdown uses. Shared here so the Statistics audit modal and the
+        // grantee Excel export agree on the exact same wording.
+        private static string PreferredChannelLabelFor(int? channel) => channel switch
+        {
+            1 => "Landbank of the Philippines (PISO or Savings Account)",
+            2 => "Other Banks (rural / overseas)",
+            3 => "Electronic Money Issuer (EMI) — e.g. GCash",
+            4 => "Payment Service Provider (PSP) — Palawan Pawnshop",
+            _ => "Not yet set"
         };
 
         // ── Private helper — builds a clear reason label for the reviewer ─────────────

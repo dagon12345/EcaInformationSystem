@@ -204,6 +204,16 @@
                         <span class="nav-label">Attendance Management</span>
                     </NavLink>
                 }
+
+                @* ── DTR Time Entry Requests — Admin/Finance/SuperAdmin: approve
+                   or reject self-service punch edits filed by everyone else ── *@
+                @if (_isSuperAdmin || _isFinance || _isAdmin)
+                {
+                    <NavLink class="nav-item" href="dtr-punch-requests" title="DTR Time Entry Requests">
+                        <span class="nav-icon nav-icon--violet"><i class="bi bi-clock-history"></i></span>
+                        <span class="nav-label">DTR Time Entry Requests</span>
+                    </NavLink>
+                }
             </div>
         </div>
     </div>
@@ -352,7 +362,7 @@
         ["records"] = new[] { "beneficiary-create", "beneficiary-records", "forms-gateway" },
         ["financial"] = new[] { "liquidation", "wfp-eca" },
         ["tracking"] = new[] { "application-tracking", "document-tracking" },
-        ["directory"] = new[] { "senior-citizen-directory", "ncsc-team-directory", "provincial-focals", "call-logs", "attendance-management" },
+        ["directory"] = new[] { "senior-citizen-directory", "ncsc-team-directory", "provincial-focals", "call-logs", "attendance-management", "dtr-punch-requests" },
         ["administration"] = new[] { "user-management", "chat-oversight", "system-updates" },
         ["system"] = new[] { "logs", "features", "about", "regional-offices", "directory-officials" }
     };

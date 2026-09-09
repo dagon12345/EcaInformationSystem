@@ -765,7 +765,20 @@
         else
         {
             <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-                <span class="badge bg-primary fs-6">@_membersTotalCount Total</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary fs-6">@_membersTotalCount Total</span>
+                    <button class="btn btn-sm btn-outline-success" disabled="@_isExportingGrantees" @onclick="ExportGranteesAsync"
+                            title="Download this list as Excel, including bank/payout account (Section E) details">
+                        @if (_isExportingGrantees)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span><span>Downloading...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-file-earmark-excel me-1"></i><span>Download Excel</span>
+                        }
+                    </button>
+                </div>
                 <div class="d-flex align-items-center gap-2">
                     <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber <= 1 || _isLoadingMembers)"
                             @onclick="() => GoToMembersPageAsync(_membersPageNumber - 1)">
@@ -793,6 +806,7 @@
                             <th>Location</th>
                             <th>Batch Code</th>
                             <th>Status</th>
+                            <th style="min-width:200px;">Bank / Payout Account (Section E)</th>
                             <th style="min-width:260px;">Payment History</th>
                         </tr>
                     </thead>
@@ -808,6 +822,25 @@
                                 <td>@m.MunicipalityName, @m.ProvinceName</td>
                                 <td>@(string.IsNullOrWhiteSpace(m.BatchCode) ? "—" : m.BatchCode)</td>
                                 <td><span class="badge @GetMemberStatusBadgeClass(m.PaymentStatus)">@GetMemberStatusLabel(m.PaymentStatus)</span></td>
+                                <td>
+                                    <div class="small text-muted">@m.PreferredChannelLabel</div>
+                                    @if (!string.IsNullOrWhiteSpace(m.BankOrWalletName))
+                                    {
+                                        <div>@m.BankOrWalletName</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(m.AccountNumber))
+                                    {
+                                        <div>Acct: @m.AccountNumber</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(m.GCashOrMobileNumber))
+                                    {
+                                        <div>Mobile: @m.GCashOrMobileNumber</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(m.BranchName))
+                                    {
+                                        <div class="text-muted">Branch: @m.BranchName</div>
+                                    }
+                                </td>
                                 <td>
                                     @if (!m.PaymentHistories.Any())
                                     {
@@ -1300,6 +1333,49 @@
         CoDateApprovedFrom = _coDateApprovedFrom,
         CoDateApprovedTo = _coDateApprovedTo
     };
+
+    private bool _isExportingGrantees;
+
+    // "Download Excel" inside the audit modal — exports exactly what the
+    // modal is currently showing (same Filter + Bucket the modal's own list
+    // was fetched with, see OpenMembersModalAsync/FetchMembersPageAsync),
+    // not just the unpaginated page currently on screen.
+    private async Task ExportGranteesAsync()
+    {
+        if (_isExportingGrantees) return;
+        _isExportingGrantees = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Statistics/export", new SharedDtos.StatisticsMembersRequestDto
+            {
+                Filter = _membersFilterSnapshot,
+                Bucket = _membersBucket
+            });
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.ShowError($"Export failed: {await response.Content.ReadAsStringAsync()}");
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            if (bytes.Length == 0)
+            {
+                Toast.ShowError("No data returned from export.");
+                return;
+            }
+
+            var safeTitle = string.Join("_", _membersModalTitle.Split(System.IO.Path.GetInvalidFileNameChars()));
+            await JS.InvokeVoidAsync("downloadFile", $"{safeTitle}_{DateTime.Now:yyyy-MM-dd}.xlsx", Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            _isExportingGrantees = false;
+        }
+    }
 
     private async Task OpenMembersModalAsync(string bucket, string title)
     {

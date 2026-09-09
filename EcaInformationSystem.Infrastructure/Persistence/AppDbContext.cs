@@ -76,6 +76,7 @@ namespace EcaInformationSystem.Infrastructure.Persistence
             public DbSet<DarReport> DarReports => Set<DarReport>();
             public DbSet<DarEntry> DarEntries => Set<DarEntry>();
             public DbSet<DtrDayMark> DtrDayMarks => Set<DtrDayMark>();
+            public DbSet<DtrPunchEditRequest> DtrPunchEditRequests => Set<DtrPunchEditRequest>();
             protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
                   base.OnModelCreating(modelBuilder);
@@ -1253,6 +1254,22 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.HasIndex(x => new { x.UserId, x.Date, x.Slot })
                         .IsUnique()
                         .HasDatabaseName("UQ_DtrDayMark_User_Date_Slot");
+                  });
+
+                  // ═══════════════════════════════════════════════════════════════════
+                  // DTR PUNCH EDIT REQUEST (non-Admin/Finance/SuperAdmin self-service
+                  // punch edits — pending approval before AttendanceLog is touched)
+                  // ═══════════════════════════════════════════════════════════════════
+                  modelBuilder.Entity<DtrPunchEditRequest>(entity =>
+                  {
+                        entity.HasKey(x => x.Id);
+                        entity.Property(x => x.BiometricUserId).IsRequired().HasMaxLength(50);
+                        entity.Property(x => x.RequestedByName).HasMaxLength(200);
+                        entity.Property(x => x.ReviewedByName).HasMaxLength(200);
+                        entity.Property(x => x.ReviewNotes).HasMaxLength(500);
+
+                        entity.HasIndex(x => x.Status);
+                        entity.HasIndex(x => x.UserId);
                   });
 
                   // ═══════════════════════════════════════════════════════════════════

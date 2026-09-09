@@ -20,5 +20,10 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         // Which BiometricUserId a punch belongs to — lets the caller check
         // ownership before deleting. Null if it doesn't exist.
         Task<string?> GetPunchOwnerBiometricUserIdAsync(int attendanceLogId);
+
+        // The punch's own timestamp — used when filing a Remove request, so
+        // the pending-approval list can show what time is being asked to be
+        // cleared. Null if the log doesn't exist.
+        Task<DateTime?> GetPunchTimeAsync(int attendanceLogId);
     }
 }

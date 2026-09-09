@@ -105,6 +105,14 @@
     // server enforces the actual ownership rule (self, or SuperAdmin/Finance
     // within their own region) on the manual-punch endpoints regardless of
     // what this flag is set to client-side.
+    //
+    // What DOES differ server-side by caller role: Admin/Finance/SuperAdmin
+    // write the punch immediately; every other role's Add/Remove is filed as
+    // a Pending DtrPunchEditRequest instead and only takes effect once one of
+    // those three approves it (see DtrController, DtrPunchRequestService,
+    // and the "DTR Request" feed in UnifiedNotificationBell). This component
+    // doesn't need to know which path it's on — HandlePunchResponseAsync
+    // below surfaces the "submitted for approval" case either way.
     [Parameter] public bool AllowManualPunchEdit { get; set; }
 
     // Adding/removing a punch changes Document.Days server-side (AM/PM times,
@@ -371,6 +379,31 @@
         await SaveMarkAsync(input.Day, "Note", entry.Text, input.Slot, input.NewSlotEnd);
     }
 
+    // ✅ NEW — the server only writes the punch directly when the caller is
+    // Admin/Finance/SuperAdmin; anyone else's Add/Remove comes back with
+    // Pending=true instead (it was filed as a request, not applied), so this
+    // surfaces that distinction instead of silently refreshing as if nothing
+    // happened.
+    private async Task<bool> HandlePunchResponseAsync(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode)
+            return false;
+
+        try
+        {
+            var result = await response.Content.ReadFromJsonAsync<DtrPunchActionResultDto>();
+            if (result?.Pending == true)
+                Toast.ShowSuccess(result.Message ?? "Submitted for approval.", "Request Submitted");
+        }
+        catch
+        {
+            // Older/empty response body (e.g. RemoveManualPunch's direct-delete
+            // path returns no content) — not an error, just nothing to surface.
+        }
+
+        return true;
+    }
+
     private async Task AddManualPunch((int Day, TimeOnly Time) input)
     {
         try
@@ -382,7 +415,7 @@
                 PunchDateTime = punchDateTime
             });
 
-            if (response.IsSuccessStatusCode)
+            if (await HandlePunchResponseAsync(response))
                 await OnDocumentChanged.InvokeAsync();
             else
                 Toast.ShowError("Failed to add the manual time entry.");
@@ -398,7 +431,7 @@
         try
         {
             var response = await Http.DeleteAsync($"api/dtr/manual-punch/{manualPunchId}");
-            if (response.IsSuccessStatusCode)
+            if (await HandlePunchResponseAsync(response))
                 await OnDocumentChanged.InvokeAsync();
             else
                 Toast.ShowError("Failed to remove the manual time entry.");
@@ -414,12 +447,19 @@
     // checks, so this just does both under one user-facing "Edit" action
     // (and one document refresh) instead of making the user do it as two
     // separate steps.
+    //
+    // ✅ For a non-Admin/Finance/SuperAdmin caller, neither call actually
+    // mutates anything — the DELETE files a "Remove this punch" request and
+    // the POST files an "Add this new time" request, both Pending, so the
+    // original punch is untouched until an approver acts on both. That's two
+    // separate approvals instead of one atomic edit, but it means a rejected
+    // request never loses the real punch in the meantime.
     private async Task EditManualPunch((int Day, int LogId, TimeOnly NewTime) input)
     {
         try
         {
             var removeResponse = await Http.DeleteAsync($"api/dtr/manual-punch/{input.LogId}");
-            if (!removeResponse.IsSuccessStatusCode)
+            if (!await HandlePunchResponseAsync(removeResponse))
             {
                 Toast.ShowError("Failed to update the time entry.");
                 return;
@@ -432,7 +472,7 @@
                 PunchDateTime = punchDateTime
             });
 
-            if (addResponse.IsSuccessStatusCode)
+            if (await HandlePunchResponseAsync(addResponse))
                 await OnDocumentChanged.InvokeAsync();
             else
                 Toast.ShowError("Failed to update the time entry.");

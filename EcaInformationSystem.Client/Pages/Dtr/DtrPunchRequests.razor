@@ -1,0 +1,204 @@
+@* Client/Pages/Dtr/DtrPunchRequests.razor — Admin/Finance/SuperAdmin: review
+   and approve/reject self-service DTR punch-edit requests filed by everyone
+   else (see DtrController.AddManualPunch/RemoveManualPunch — a non-approver's
+   Add/Remove is filed here instead of writing straight to AttendanceLog).
+   Reached from UnifiedNotificationBell's "DTR Request" feed items. *@
+@page "/dtr-punch-requests"
+@attribute [Authorize]
+@using EcaInformationSystem.Client.Services
+@using EcaInformationSystem.Shared.DTOs.Dtr
+@using Microsoft.AspNetCore.Authorization
+@inject HttpClient Http
+@inject ToastService Toast
+@inject AuthService AuthService
+@inject DtrPunchRequestClientService DtrRequests
+
+<PageTitle>DTR Time Entry Requests</PageTitle>
+
+@if (!_isAuthorized)
+{
+    <div class="container-fluid py-3">
+        <div class="alert alert-danger">You are not authorized to view this page.</div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-3">
+        <div class="page-header-bar mb-3">
+            <div class="page-header-icon">
+                <i class="bi bi-clock-history"></i>
+            </div>
+            <div>
+                <h5 class="page-header-title">DTR Time Entry Requests</h5>
+                <span class="page-header-sub">Approve or reject self-service punch edits before they're written to the DTR</span>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="text-muted">Loading…</div>
+        }
+        else if (!_requests.Any())
+        {
+            <div class="alert alert-secondary">
+                <i class="bi bi-check-circle me-1"></i>No pending requests.
+            </div>
+        }
+        else
+        {
+            <div class="sys-card">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Requested By</th>
+                                <th>Requested At</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in _requests)
+                            {
+                                <tr>
+                                    <td>@r.EmployeeName</td>
+                                    <td>
+                                        <span class="badge @(r.RequestType == "Add" ? "bg-success" : "bg-danger")">@r.RequestType</span>
+                                    </td>
+                                    <td>@r.PunchDate.ToString("MMM d, yyyy")</td>
+                                    <td>
+                                        @if (r.RequestType == "Add")
+                                        {
+                                            <span>@r.RequestedPunchTime</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Remove @r.CurrentPunchTime</span>
+                                        }
+                                    </td>
+                                    <td>@r.RequestedByName</td>
+                                    <td>@r.RequestedAt.ToLocalTime().ToString("MMM d, h:mm tt")</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-success me-1" disabled="@_processingId.HasValue"
+                                                @onclick="() => ApproveAsync(r.Id)">
+                                            <i class="bi bi-check-lg"></i> Approve
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" disabled="@_processingId.HasValue"
+                                                @onclick="() => RejectAsync(r.Id)">
+                                            <i class="bi bi-x-lg"></i> Reject
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _isAuthorized;
+    private bool _isLoading = true;
+    private List<DtrPunchRequestDto> _requests = new();
+    private Guid? _processingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitAsync();
+        _isAuthorized = AuthService.IsAdmin() || AuthService.IsFinance();
+        if (!_isAuthorized)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            _requests = await Http.GetFromJsonAsync<List<DtrPunchRequestDto>>("api/dtr/punch-requests/pending") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load pending requests: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApproveAsync(Guid id)
+    {
+        _processingId = id;
+        StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/dtr/punch-requests/{id}/approve", new ReviewDtrPunchRequestDto());
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Request approved and applied to the DTR.");
+                await RefreshAllAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to approve the request.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to approve the request: {ex.Message}");
+        }
+        finally
+        {
+            _processingId = null;
+        }
+    }
+
+    private async Task RejectAsync(Guid id)
+    {
+        _processingId = id;
+        StateHasChanged();
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/dtr/punch-requests/{id}/reject", new ReviewDtrPunchRequestDto());
+            if (response.IsSuccessStatusCode)
+            {
+                Toast.ShowSuccess("Request rejected.");
+                await RefreshAllAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to reject the request.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to reject the request: {ex.Message}");
+        }
+        finally
+        {
+            _processingId = null;
+        }
+    }
+
+    // Refreshes this page's own list AND the bell's shared PendingItems, so
+    // the badge count drops immediately instead of waiting for the next
+    // SignalR push or page reload.
+    private async Task RefreshAllAsync()
+    {
+        await LoadAsync();
+        await DtrRequests.RefreshAsync();
+    }
+}

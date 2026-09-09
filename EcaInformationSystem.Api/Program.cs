@@ -315,6 +315,12 @@ builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.ITransact
 builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.ILivenessNotificationBroadcaster,
     EcaInformationSystem.Api.Services.LivenessNotificationHubBroadcaster>();
 
+// Overrides Infrastructure's no-op IDtrPunchRequestBroadcaster registration
+// (last registration wins) with the real SignalR one — must be registered
+// AFTER AddInfrastructure().
+builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.IDtrPunchRequestBroadcaster,
+    EcaInformationSystem.Api.Services.DtrPunchRequestHubBroadcaster>();
+
 // ─── Sync-only mode ───────────────────────────────────────────────────────────
 // For running this exact same API project locally on a machine that's on the
 // biometric device's network (since there's no port-forward to it and no
@@ -399,6 +405,7 @@ app.MapHub<EcaInformationSystem.Api.Hubs.SeniorCitizenDirectoryHub>("/seniorCiti
 app.MapHub<EcaInformationSystem.Api.Hubs.TransactionTierHub>("/transactionTierHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.NcscTeamDirectoryHub>("/ncscTeamDirectoryHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.LivenessNotificationHub>("/livenessNotificationHub");
+app.MapHub<EcaInformationSystem.Api.Hubs.DtrPunchRequestHub>("/dtrPunchRequestHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),

@@ -6,6 +6,7 @@ namespace EcaInformationSystem.Application.Interfaces.Services
     {
         Task<StatisticsReportDto> GetStatisticsReportAsync(StatisticsRequestDto request);
         Task<StatisticsMembersPagedResultDto> GetStatisticsMembersAsync(StatisticsMembersRequestDto request);
+        Task<byte[]> ExportGranteesAsync(StatisticsMembersRequestDto request);
         Task InvalidateStatisticsCacheAsync();
     }
 }
