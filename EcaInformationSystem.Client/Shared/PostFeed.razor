@@ -16,6 +16,7 @@
 @inject StickyNoteClientService StickyNotes
 @inject ToastService toast
 @inject TransactionTierClientService TierClient
+@inject UserProfileClientService UserProfileClient
 @inject TransactionTierHubClientService TierHub
 @inject AuthService AuthService
 
@@ -42,9 +43,9 @@
                 <div class="profile-card-avatar">@GetInitials(_myDisplayName)</div>
             }
             <div class="profile-card-name">@_myDisplayName</div>
-            @if (!string.IsNullOrWhiteSpace(_myPosition))
+            @if (!string.IsNullOrWhiteSpace(_myProfile?.Position))
             {
-                <div class="profile-card-title">@_myPosition</div>
+                <div class="profile-card-title">@_myProfile.Position</div>
             }
             <div class="profile-card-org">
                 <i class="bi bi-building"></i>
@@ -59,7 +60,7 @@
                     </div>
                 </div>
             }
-            @if (_mfaEnabled == false)
+            @if (_myProfile?.IsMfaEnabled == false)
             {
                 <div class="profile-card-mfa-warning">
                     <i class="bi bi-exclamation-triangle-fill me-1"></i>Secure your account
@@ -1281,8 +1282,6 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-        await LoadFeedAsync(reset: true);
-
         if (_isAuthenticated)
         {
             await AuthService.InitAsync();
@@ -1291,10 +1290,19 @@
             var fullName = authState.User.FindFirst("FullName")?.Value;
             _myDisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : (authState.User.Identity?.Name ?? "User");
             _currentUserId = Guid.TryParse(authState.User.FindFirst("sub")?.Value, out var myId) ? myId : (Guid?)null;
-            await LoadMyPositionAsync();
-            await LoadMfaStatusAsync();
 
-            await LoadUpcomingBirthdaysAsync();
+            // ✅ FIXED — these used to be awaited one at a time (feed, then
+            // profile, then MFA status, then birthdays, then notes, then
+            // tier), stacking every round trip in series. None of them
+            // depends on another's result, so firing them together is what
+            // actually made the profile card/sticky notes feel slow to
+            // appear, independent of whether any single endpoint has caching.
+            var initTasks = new List<Task>
+            {
+                LoadFeedAsync(reset: true),
+                LoadMyProfileAsync(),
+                LoadUpcomingBirthdaysAsync()
+            };
 
             // Focal's feed access is intentionally view/comment/like/share
             // only — skip fetching sticky notes / tier data entirely rather
@@ -1303,13 +1311,18 @@
             // UserTransactionTierController).
             if (!_isFocal)
             {
-                await LoadNotesAsync();
-
+                initTasks.Add(LoadNotesAsync());
                 // Quick-glance tier progress on the profile card — the full
                 // leaderboard itself now lives behind a navbar icon dropdown
                 // (see TransactionLeaderboardWidget), not here.
-                _myTier = await TierClient.GetMyTierAsync();
+                initTasks.Add(LoadMyTierAsync());
             }
+
+            await Task.WhenAll(initTasks);
+        }
+        else
+        {
+            await LoadFeedAsync(reset: true);
         }
 
         // ✅ If we were opened via a shared link, ensure that post is present
@@ -1868,9 +1881,8 @@
     // no post composer, no leaderboard, no sticky notes.
     private bool _isFocal;
     private string _myDisplayName = "User";
-    private string? _myPosition;
+    private UserProfileDto? _myProfile;
     private Guid? _currentUserId;
-    private bool? _mfaEnabled;
 
     private string TierProgressTitle()
     {
@@ -1882,39 +1894,13 @@
             : $"{_myTier.TierName} tier — {_myTier.TransactionCount:N0} transaction(s). Max tier reached!";
     }
 
-    // Position (job title) — shown on the profile card instead of the role
-    // badge, e.g. "Project Development Officer I" rather than the generic
-    // "PDO" role tier.
-    private async Task LoadMyPositionAsync()
-    {
-        try
-        {
-            var profile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
-            _myPosition = profile?.Position;
-        }
-        catch
-        {
-            // Non-fatal — the card just falls back to showing no title line.
-        }
-    }
+    // Position (job title) and MFA status for the profile card — both come
+    // off UserProfileDto, so one cached fetch (shared with ProfileContent.razor
+    // via UserProfileClientService) covers both instead of two separate
+    // uncached round trips (api/UserProfile/me + api/auth/mfa/status).
+    private async Task LoadMyProfileAsync() => _myProfile = await UserProfileClient.GetMyProfileAsync();
 
-    private async Task LoadMfaStatusAsync()
-    {
-        try
-        {
-            var status = await Http.GetFromJsonAsync<MfaStatusResponse>("api/auth/mfa/status");
-            _mfaEnabled = status?.IsMfaEnabled ?? true;
-        }
-        catch
-        {
-            _mfaEnabled = true; // fail closed — don't nag if the check itself failed
-        }
-    }
-
-    private class MfaStatusResponse
-    {
-        public bool IsMfaEnabled { get; set; }
-    }
+    private async Task LoadMyTierAsync() => _myTier = await TierClient.GetMyTierAsync();
 
     private string GetCommentDraft(Guid postId)
         => _newCommentContent.TryGetValue(postId, out var val) ? val : string.Empty;

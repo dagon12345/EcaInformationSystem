@@ -86,4 +86,5 @@ builder.Services.AddScoped<SeniorCitizenDirectoryClientService>();
 builder.Services.AddScoped<NcscTeamDirectoryClientService>();
 builder.Services.AddScoped<TransactionTierHubClientService>();
 builder.Services.AddScoped<TransactionTierClientService>();
+builder.Services.AddScoped<UserProfileClientService>();
 await builder.Build().RunAsync();

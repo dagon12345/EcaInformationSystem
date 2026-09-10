@@ -16,6 +16,15 @@
         public int CoEndorsedCount { get; set; }
         public int CoApprovedCount { get; set; }
 
+        // ✅ NEW — Annex A Section E, "Preferred Mode to Receive the Cash
+        // Gift" breakdown. A beneficiary with no BeneficiaryBankAccount row
+        // at all counts under ChannelNotSetCount too (same as PreferredChannel 0).
+        public int ChannelNotSetCount { get; set; }
+        public int ChannelLandbankCount { get; set; }
+        public int ChannelOtherBanksCount { get; set; }
+        public int ChannelEmiCount { get; set; }
+        public int ChannelPspCount { get; set; }
+
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }
         public int TotalAge90 { get; set; }

@@ -1009,6 +1009,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             var (allData, EffectiveStatus, _, locationFilteredData) = await BuildFilteredStatisticsDataAsync(request);
 
+            // ✅ NEW — Annex A Section E, "Preferred Mode to Receive the Cash
+            // Gift" breakdown. A beneficiary with no BeneficiaryBankAccount
+            // row at all counts as channel 0 (Not Yet Set), same as an
+            // existing row whose PreferredChannel is explicitly 0.
+            var allIds = allData.Select(b => b.Id).ToList();
+            var channelByBeneficiary = await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .Where(a => allIds.Contains(a.BeneficiaryInformationId))
+                .Select(a => new { a.BeneficiaryInformationId, a.PreferredChannel })
+                .ToDictionaryAsync(a => a.BeneficiaryInformationId, a => a.PreferredChannel);
+            int ChannelFor(BeneficiaryInformation b) =>
+                channelByBeneficiary.TryGetValue(b.Id, out var ch) ? ch : 0;
+
             var report = new StatisticsReportDto
             {
                 TotalBeneficiaries = allData.Count,
@@ -1022,6 +1035,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 ReadyForEftCount = allData.Count(b => b.IsReadyForEft == true),
                 CoEndorsedCount = allData.Count(b => b.CoStatus == 1),
                 CoApprovedCount = allData.Count(b => b.CoStatus == 2),
+                ChannelNotSetCount = allData.Count(b => ChannelFor(b) == 0),
+                ChannelLandbankCount = allData.Count(b => ChannelFor(b) == 1),
+                ChannelOtherBanksCount = allData.Count(b => ChannelFor(b) == 2),
+                ChannelEmiCount = allData.Count(b => ChannelFor(b) == 3),
+                ChannelPspCount = allData.Count(b => ChannelFor(b) == 4),
                 TotalDisbursement = allData
                     .Where(b => EffectiveStatus(b) == 2)
                     .Sum(b => PayrollSettingsDto.CalculateCashGiftAmount(ComputeAge(b.BirthDate))),
@@ -1349,6 +1367,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             var (allData, EffectiveStatus, _, _) = await BuildFilteredStatisticsDataAsync(request);
 
+            // ✅ NEW — needed up front (before paging) so the "Preferred Mode
+            // to Receive the Cash Gift" breakdown card's channel buckets can
+            // narrow the FULL matching set, not just whatever page happens
+            // to be fetched later for display.
+            var allIdsForChannel = allData.Select(b => b.Id).ToList();
+            var channelByBeneficiaryId = await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .Where(a => allIdsForChannel.Contains(a.BeneficiaryInformationId))
+                .Select(a => new { a.BeneficiaryInformationId, a.PreferredChannel })
+                .ToDictionaryAsync(a => a.BeneficiaryInformationId, a => a.PreferredChannel);
+            int ChannelForBucket(BeneficiaryInformation b) =>
+                channelByBeneficiaryId.TryGetValue(b.Id, out var ch) ? ch : 0;
+
             IEnumerable<BeneficiaryInformation> members = bucket?.ToLowerInvariant() switch
             {
                 "paid" => allData.Where(b => EffectiveStatus(b) == 2),
@@ -1363,6 +1394,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "noeft" => allData.Where(b => b.IsReadyForEft != true),
                 "coendorsed" => allData.Where(b => b.CoStatus == 1),
                 "coapproved" => allData.Where(b => b.CoStatus == 2),
+                "channelnotset" => allData.Where(b => ChannelForBucket(b) == 0),
+                "channellandbank" => allData.Where(b => ChannelForBucket(b) == 1),
+                "channelotherbanks" => allData.Where(b => ChannelForBucket(b) == 2),
+                "channelemi" => allData.Where(b => ChannelForBucket(b) == 3),
+                "channelpsp" => allData.Where(b => ChannelForBucket(b) == 4),
                 _ => allData
             };
 
@@ -1476,6 +1512,18 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             var (allDataUnfiltered, effectiveStatus, _, _) = await BuildFilteredStatisticsDataAsync(request);
 
+            // Fetched up front (before the bucket switch below) since a
+            // channel bucket needs to filter on it, and reused afterward for
+            // each row's Section E columns — one query either way.
+            var unfilteredIds = allDataUnfiltered.Select(b => b.Id).ToList();
+            var bankAccounts = await _context.BeneficiaryBankAccounts
+                .AsNoTracking()
+                .Where(a => unfilteredIds.Contains(a.BeneficiaryInformationId))
+                .ToListAsync();
+            var bankByBeneficiary = bankAccounts.ToDictionary(a => a.BeneficiaryInformationId);
+            int ChannelForBucket(BeneficiaryInformation b) =>
+                bankByBeneficiary.TryGetValue(b.Id, out var acct) ? acct.PreferredChannel : 0;
+
             // Same bucket narrowing as GetStatisticsMembersAsync, so
             // downloading from inside the audit modal exports exactly what
             // that bucket's list is showing (e.g. "Paid" only), not every
@@ -1494,16 +1542,15 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "noeft" => allDataUnfiltered.Where(b => b.IsReadyForEft != true),
                 "coendorsed" => allDataUnfiltered.Where(b => b.CoStatus == 1),
                 "coapproved" => allDataUnfiltered.Where(b => b.CoStatus == 2),
+                "channelnotset" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 0),
+                "channellandbank" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 1),
+                "channelotherbanks" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 2),
+                "channelemi" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 3),
+                "channelpsp" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 4),
                 _ => allDataUnfiltered
             };
 
             var ids = allData.Select(b => b.Id).ToList();
-
-            var bankAccounts = await _context.BeneficiaryBankAccounts
-                .AsNoTracking()
-                .Where(a => ids.Contains(a.BeneficiaryInformationId))
-                .ToListAsync();
-            var bankByBeneficiary = bankAccounts.ToDictionary(a => a.BeneficiaryInformationId);
 
             var phoneNumbers = await _context.BeneficiaryPhoneNumbers
                 .AsNoTracking()

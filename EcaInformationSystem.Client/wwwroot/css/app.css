@@ -3943,6 +3943,10 @@
     grid-template-columns: repeat(5, 1fr);
 }
 
+.dash-stat-grid--cols-1 {
+    grid-template-columns: 1fr;
+}
+
 .dash-stat-card {
     position: relative;
     overflow: hidden;

@@ -456,6 +456,21 @@
                 <div class="dash-stat-sub">@SharePct(_report.CoApprovedCount)% of total</div>
             </div>
         </div>
+
+        @* ── Preferred Payout Channel (Annex A Section E) — one launcher card;
+             click it to see the 5-way breakdown (Not Yet Set / Landbank /
+             Other Banks / EMI / PSP), then click any of those to drill into
+             that group's grantee list with full bank-account detail. ── *@
+        <div class="dash-section-label"><i class="bi bi-bank"></i> Preferred Payout Channel</div>
+        <div class="dash-stat-grid dash-stat-grid--cols-1 mb-3">
+            <div class="dash-stat-card dash-stat-card--purple dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick="OpenChannelBreakdownModalAsync" title="Click to view the breakdown by preferred mode to receive the cash gift">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-bank"></i></div>
+                <div class="dash-stat-label">Preferred Mode to Receive the Cash Gift</div>
+                <div class="dash-stat-sub">Click to view the breakdown by bank/channel (Section E)</div>
+            </div>
+        </div>
         </div>
 
         <div class="sys-card mb-3">
@@ -875,6 +890,50 @@
     </FooterTemplate>
 </HxModal>
 
+@* ── Preferred Payout Channel breakdown — 5-way split (Annex A Section E),
+     each row clickable to drill into that group's grantee list (reuses the
+     same audit modal above, with the "channel*" buckets). ── *@
+<HxModal @ref="_channelBreakdownModal">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-bank me-2"></i>
+            Preferred Mode to Receive the Cash Gift
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <div class="list-group">
+            <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    @onclick='() => SelectChannelBucketAsync("channelnotset", "Not Yet Set — Grantees")'>
+                <span><i class="bi bi-question-circle me-2 text-muted"></i>Not Yet Set</span>
+                <span class="badge bg-secondary rounded-pill fs-6">@_report.ChannelNotSetCount</span>
+            </button>
+            <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    @onclick='() => SelectChannelBucketAsync("channellandbank", "Landbank of the Philippines — Grantees")'>
+                <span><i class="bi bi-bank2 me-2 text-primary"></i>Landbank of the Philippines</span>
+                <span class="badge bg-primary rounded-pill fs-6">@_report.ChannelLandbankCount</span>
+            </button>
+            <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    @onclick='() => SelectChannelBucketAsync("channelotherbanks", "Other Banks — Grantees")'>
+                <span><i class="bi bi-bank me-2 text-info"></i>Other Banks</span>
+                <span class="badge bg-info rounded-pill fs-6">@_report.ChannelOtherBanksCount</span>
+            </button>
+            <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    @onclick='() => SelectChannelBucketAsync("channelemi", "Electronic Money Issuer (EMI) — Grantees")'>
+                <span><i class="bi bi-phone me-2 text-success"></i>Electronic Money Issuer (EMI) — e.g. GCash</span>
+                <span class="badge bg-success rounded-pill fs-6">@_report.ChannelEmiCount</span>
+            </button>
+            <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                    @onclick='() => SelectChannelBucketAsync("channelpsp", "Payment Service Provider (Palawan Pawnshop) — Grantees")'>
+                <span><i class="bi bi-shop me-2 text-warning"></i>Payment Service Provider (Palawan Pawnshop)</span>
+                <span class="badge bg-warning rounded-pill fs-6">@_report.ChannelPspCount</span>
+            </button>
+        </div>
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _channelBreakdownModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
+
 @code {
     private int _selectedPayrollQuarter;
     // ✅ CHANGED — starts false since nothing auto-loads on mount anymore.
@@ -942,6 +1001,7 @@
 
     // ── Grantee Audit Modal ────────────────────────────────────────────
     private HxModal _membersModal = default!;
+    private HxModal _channelBreakdownModal = default!;
     private string _membersModalTitle = string.Empty;
     private string _membersBucket = "all";
     private bool _isLoadingMembers;
@@ -1402,6 +1462,29 @@
         await FetchMembersPageAsync();
     }
 
+    private async Task OpenChannelBreakdownModalAsync()
+    {
+        // Same guard as OpenMembersModalAsync — the card is always rendered
+        // (0 counts before a filtered report has ever loaded), and this
+        // avoids showing a breakdown modal against stale/empty numbers.
+        if (!_hasLoadedReport)
+        {
+            Toast.ShowWarning("Load a filtered report first (set at least one filter and click Apply) before drilling into a count.");
+            return;
+        }
+
+        await _channelBreakdownModal.ShowAsync();
+    }
+
+    // Clicking a row inside the channel breakdown modal hands off straight
+    // to the existing grantee audit modal (same "channel*" buckets the
+    // server already understands) — hide this one first so they don't stack.
+    private async Task SelectChannelBucketAsync(string bucket, string title)
+    {
+        await _channelBreakdownModal.HideAsync();
+        await OpenMembersModalAsync(bucket, title);
+    }
+
     private async Task GoToMembersPageAsync(int pageNumber)
     {
         if (pageNumber < 1 || pageNumber > _membersTotalPages || _isLoadingMembers) return;
@@ -1554,6 +1637,11 @@
         public int ReadyForEftCount { get; set; }
         public int CoEndorsedCount { get; set; }
         public int CoApprovedCount { get; set; }
+        public int ChannelNotSetCount { get; set; }
+        public int ChannelLandbankCount { get; set; }
+        public int ChannelOtherBanksCount { get; set; }
+        public int ChannelEmiCount { get; set; }
+        public int ChannelPspCount { get; set; }
 
         public int TotalAge80 { get; set; }
         public int TotalAge85 { get; set; }

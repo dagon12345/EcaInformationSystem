@@ -17,6 +17,7 @@
 @inject ToastService Toast
 @inject NavigationManager Navigation
 @inject TransactionTierClientService TierClient
+@inject UserProfileClientService UserProfileClient
 
 <PageTitle>@(_isSelf ? "My Profile" : _publicProfile?.FullName ?? "Profile")</PageTitle>
 
@@ -742,7 +743,12 @@
 
             if (_isSelf)
             {
-                _myProfile = await Http.GetFromJsonAsync<UserProfileDto>("api/UserProfile/me");
+                // forceRefresh — this page is the actual "edit my profile"
+                // destination, so it should never show a stale cached value
+                // to someone who navigated here on purpose (e.g. after
+                // editing from another tab/device); PostFeed's lighter-weight
+                // profile card is the one that benefits from the cache.
+                _myProfile = await UserProfileClient.GetMyProfileAsync(forceRefresh: true);
                 if (_myProfile is not null)
                 {
                     _editFullName = _myProfile.FullName;
@@ -817,6 +823,10 @@
             if (result is not null)
             {
                 _myProfile = result.Profile;
+                // Push the fresh value into the shared cache so PostFeed's
+                // profile card (and anywhere else) picks it up without
+                // needing to refetch over the network.
+                UserProfileClient.SetCachedProfile(result.Profile);
                 await AuthService.UpdateStoredTokenAsync(result.Token);
                 ((JwtAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
             }
