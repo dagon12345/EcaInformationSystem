@@ -75,6 +75,12 @@
         public string? AccountNumber { get; set; }
         public string? GCashOrMobileNumber { get; set; }
         public string? BranchName { get; set; }
+
+        // ✅ NEW — Liveness/EFT status + date, own columns in the audit modal
+        // (was only visible via a separate summary card before).
+        public bool? IsLivenessVerified { get; set; }
+        public DateTime? DateOfLiveness { get; set; }
+        public bool? IsReadyForEft { get; set; }
     }
 
     // ✅ NEW — paged wrapper for the audit modal's grantee list.

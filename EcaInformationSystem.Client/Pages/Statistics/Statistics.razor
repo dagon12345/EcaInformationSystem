@@ -416,7 +416,7 @@
              root element — actually finds and animates these two cards' numbers
              instead of leaving them stuck at their static "0" markup. ── *@
         <div class="dash-section-label"><i class="bi bi-camera-fill"></i> Liveness &amp; EFT Readiness</div>
-        <div class="dash-stat-grid dash-stat-grid--cols-2 mb-3">
+        <div class="dash-stat-grid mb-3">
             <div class="dash-stat-card dash-stat-card--cyan dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("liveness", "Liveness Verified Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
@@ -425,6 +425,18 @@
                 <div class="dash-stat-label">Liveness Verified</div>
                 <div class="dash-stat-sub">@SharePct(_report.LivenessVerifiedCount)% of total</div>
             </div>
+            @* ✅ NEW — the complement of Liveness Verified above, using the
+               same "noliveness" bucket the repository already supports. Both
+               counts sit side by side so the reader sees the full picture
+               (who's verified AND who isn't) instead of only the positive half. ── *@
+            <div class="dash-stat-card dash-stat-card--gray dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("noliveness", "Liveness Not Verified Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-camera"></i></div>
+                <div class="dash-stat-value" data-countup="@(_report.TotalBeneficiaries - _report.LivenessVerifiedCount)">0</div>
+                <div class="dash-stat-label">Liveness Not Verified</div>
+                <div class="dash-stat-sub">@SharePct(_report.TotalBeneficiaries - _report.LivenessVerifiedCount)% of total</div>
+            </div>
             <div class="dash-stat-card dash-stat-card--green dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("eft", "Ready for EFT Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
@@ -432,6 +444,15 @@
                 <div class="dash-stat-value" data-countup="@_report.ReadyForEftCount">0</div>
                 <div class="dash-stat-label">Ready for EFT</div>
                 <div class="dash-stat-sub">@SharePct(_report.ReadyForEftCount)% of total</div>
+            </div>
+            @* ✅ NEW — complement of Ready for EFT above, same "noeft" bucket. *@
+            <div class="dash-stat-card dash-stat-card--gray dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("noeft", "Not Ready for EFT Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-bank"></i></div>
+                <div class="dash-stat-value" data-countup="@(_report.TotalBeneficiaries - _report.ReadyForEftCount)">0</div>
+                <div class="dash-stat-label">Not Ready for EFT</div>
+                <div class="dash-stat-sub">@SharePct(_report.TotalBeneficiaries - _report.ReadyForEftCount)% of total</div>
             </div>
         </div>
 
@@ -758,7 +779,7 @@
      card's count, so figures can be verified against actual records
      instead of taken on faith. Mirrors the CGP drill-down pattern in
      LiquidationModal.razor (full name + payment history per row). ── *@
-<HxModal @ref="_membersModal" Size="ModalSize.ExtraLarge">
+<HxModal @ref="_membersModal" Size="ModalSize.ExtraLarge" CssClass="stats-members-modal-wide">
     <HeaderTemplate>
         <h5 class="modal-title">
             <i class="bi bi-people-fill me-2"></i>
@@ -810,7 +831,7 @@
                 </div>
             </div>
 
-            <div style="max-height:480px; overflow-y:auto;">
+            <div style="max-height:65vh; overflow-y:auto;">
                 <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size:12px;">
                     <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
                         <tr>
@@ -821,6 +842,8 @@
                             <th>Location</th>
                             <th>Batch Code</th>
                             <th>Status</th>
+                            <th style="min-width:110px;">Liveness</th>
+                            <th style="min-width:110px;">EFT</th>
                             <th style="min-width:200px;">Bank / Payout Account (Section E)</th>
                             <th style="min-width:260px;">Payment History</th>
                         </tr>
@@ -837,6 +860,20 @@
                                 <td>@m.MunicipalityName, @m.ProvinceName</td>
                                 <td>@(string.IsNullOrWhiteSpace(m.BatchCode) ? "—" : m.BatchCode)</td>
                                 <td><span class="badge @GetMemberStatusBadgeClass(m.PaymentStatus)">@GetMemberStatusLabel(m.PaymentStatus)</span></td>
+                                <td>
+                                    <span class="badge @(m.IsLivenessVerified == true ? "bg-success" : "bg-secondary")">
+                                        @(m.IsLivenessVerified == true ? "Verified" : "Not Verified")
+                                    </span>
+                                    @if (m.IsLivenessVerified == true && m.DateOfLiveness.HasValue)
+                                    {
+                                        <div class="small text-muted">@m.DateOfLiveness.Value.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @(m.IsReadyForEft == true ? "bg-success" : "bg-secondary")">
+                                        @(m.IsReadyForEft == true ? "Ready" : "Not Ready")
+                                    </span>
+                                </td>
                                 <td>
                                     <div class="small text-muted">@m.PreferredChannelLabel</div>
                                     @if (!string.IsNullOrWhiteSpace(m.BankOrWalletName))

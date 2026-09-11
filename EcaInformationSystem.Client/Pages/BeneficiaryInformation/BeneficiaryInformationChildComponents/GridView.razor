@@ -428,7 +428,7 @@
                                         <th style="min-width:140px;">
                                             Last Name
                                             <i class="bi bi-patch-check-fill hdr-info-icon"
-                                               title="A badge before the name means Liveness verified and/or ready for EFT — hover it on a row for details"></i>
+                                               title="A green check = Liveness verified, a bank icon = ready for EFT, a flower icon = deceased but EFT ready (claimant/heir payout) — hover a row's icon(s) for details"></i>
                                         </th>
                                         <th>First Name</th>
                                         <th>Middle Name</th>
@@ -538,18 +538,38 @@
                                                 <td style="white-space:nowrap;"><span class="batch-code-outline">@Highlight(item.BatchCode)</span></td>
                                                 <td>@Highlight(item.PhoneNumbers.Any() ? string.Join(", ", item.PhoneNumbers.Select(n => n.Number)) : null)</td>
                                                 <td style="min-width:140px; white-space:nowrap;">
-                                                    @* Was two separate green badges (heart-pulse + bank icon) sitting
-                                                       inline before the name — collapsed into one hoverable icon so the
-                                                       column reads cleanly; hovering it shows both statuses at once.
-                                                       Always rendered (not just when verified) and clickable so it also
-                                                       doubles as a one-click shortcut into the Liveness section of the
-                                                       details offcanvas, instead of only being a status indicator. *@
-                                                    <span class="tbl-badge-lv-eft me-1 @(item.IsLivenessVerified == true || item.IsReadyForEft == true ? "" : "tbl-badge-lv-eft--pending")"
+                                                    @* ✅ CHANGED — was one shared circle/icon for "verified and/or
+                                                       ready" (couldn't tell which at a glance). Now each status gets
+                                                       its own distinct icon: a check for Liveness verified, a bank
+                                                       icon for EFT ready — and a separate flower/warning icon when
+                                                       the grantee is deceased and EFT ready, since that payout goes
+                                                       to a claimant/heir, not the grantee themself, and must never
+                                                       look like an ordinary living EFT-ready row. Still one clickable
+                                                       group — a one-click shortcut into the Liveness section. *@
+                                                    <span class="tbl-badge-lv-eft-group me-1"
                                                           style="cursor:pointer;"
                                                           @onclick="() => OpenDetailsPanelAndFocusLiveness(item)"
                                                           @onclick:stopPropagation="true"
                                                           title="@LivenessEftTooltip(item)">
-                                                        <i class="bi @(item.IsLivenessVerified == true || item.IsReadyForEft == true ? "bi-patch-check-fill" : "bi-camera-fill")"></i>
+                                                        @if (item.IsLivenessVerified == true)
+                                                        {
+                                                            <i class="bi bi-patch-check-fill tbl-badge-lv-eft-icon tbl-badge-lv-eft-icon--liveness"></i>
+                                                        }
+                                                        @if (item.IsReadyForEft == true)
+                                                        {
+                                                            @if (item.IsDeceased)
+                                                            {
+                                                                <i class="bi bi-flower1 tbl-badge-lv-eft-icon tbl-badge-lv-eft-icon--deceased-eft"></i>
+                                                            }
+                                                            else
+                                                            {
+                                                                <i class="bi bi-bank2 tbl-badge-lv-eft-icon tbl-badge-lv-eft-icon--eft"></i>
+                                                            }
+                                                        }
+                                                        @if (item.IsLivenessVerified != true && item.IsReadyForEft != true)
+                                                        {
+                                                            <i class="bi bi-camera-fill tbl-badge-lv-eft-icon tbl-badge-lv-eft--pending"></i>
+                                                        }
                                                     </span>
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
                                                     @if (item.HasDuplicateHistory)
@@ -5639,7 +5659,9 @@ private int IncompleteDetailsCount =>
         }
         if (item.IsReadyForEft == true)
         {
-            parts.Add("Ready for Electronic Fund Transfer (EFT)");
+            parts.Add(item.IsDeceased
+                ? "Deceased — EFT ready for claimant/heir payout"
+                : "Ready for Electronic Fund Transfer (EFT)");
         }
         if (parts.Count == 0)
         {

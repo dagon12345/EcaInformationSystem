@@ -1471,6 +1471,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     AccountNumber = bankAcct?.PreferredChannel == 4 ? null : bankAcct?.AccountNumber,
                     GCashOrMobileNumber = bankAcct?.MobileNumber,
                     BranchName = bankAcct?.BranchName,
+                    IsLivenessVerified = b.IsLivenessVerified,
+                    DateOfLiveness = b.DateOfLiveness,
+                    IsReadyForEft = b.IsReadyForEft,
                     PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
                         ? h.Select(x => new PaymentHistoryDto
                         {
@@ -2698,6 +2701,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.IsLivenessVerified,
                     x.b.DateOfLiveness,
                     x.b.IsReadyForEft,
+                    x.b.IsDeceased,
                     x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
@@ -2810,7 +2814,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     NcscRrn = x.NcscRrn,
                     IsLivenessVerified = x.IsLivenessVerified,
                     DateOfLiveness = x.DateOfLiveness,
-                    IsReadyForEft = x.IsReadyForEft
+                    IsReadyForEft = x.IsReadyForEft,
+                    IsDeceased = x.IsDeceased
                 };
             }).ToList();
 

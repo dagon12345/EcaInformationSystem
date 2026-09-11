@@ -80,6 +80,10 @@ namespace EcaInformationSystem.Shared.DTOs
         public bool? IsLivenessVerified { get; set; }
         public DateTime? DateOfLiveness { get; set; }
         public bool? IsReadyForEft { get; set; }
+        // ✅ NEW — needed to give a deceased-but-EFT-ready grantee (payout
+        // is for a claimant, not the grantee themself) its own distinct
+        // grid icon instead of looking identical to a living EFT-ready one.
+        public bool IsDeceased { get; set; }
 
 
         // ✅ Now passes RefCode — generated once, stored in DB

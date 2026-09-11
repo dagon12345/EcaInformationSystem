@@ -958,15 +958,15 @@
     border-radius: 50%;
 }
 
-/* Text-glyph dot, same mechanism as the "✓" checkmark above — a generated
-   empty box with width/height proved unreliable across print engines, since
-   ::after defaults to display:inline (which ignores width/height) and some
-   print pipelines don't apply the override consistently. A glyph is just
-   text, so it always paints. */
-.annexa-doc-checkbox .box.annexa-doc-radio-box.checked::after {
-    content: "●";
-    font-size: 8px;
-    line-height: 1;
+/* ✅ CHANGED — was a small 8px "●" glyph (and briefly a "✓"), both of which
+   left visible empty space inside the circle and read as easy to miss once
+   printed. Filling the box element's OWN background solid instead of
+   relying on a generated ::after glyph sidesteps the print-reliability
+   concern noted above (::after with explicit width/height is what's
+   unreliable across print engines — this box already has real width/
+   height, so painting its background is just as reliable as its border). */
+.annexa-doc-checkbox .box.annexa-doc-radio-box.checked {
+    background-color: #000;
 }
 
 .annexa-doc-note {
