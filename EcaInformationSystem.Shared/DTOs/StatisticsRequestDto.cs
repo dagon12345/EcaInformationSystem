@@ -81,6 +81,10 @@
         public bool? IsLivenessVerified { get; set; }
         public DateTime? DateOfLiveness { get; set; }
         public bool? IsReadyForEft { get; set; }
+
+        // ✅ NEW — so the audit modal can flag payees who are deceased AND
+        // EFT-ready (that payout is for a claimant/heir, not the grantee).
+        public bool IsDeceased { get; set; }
     }
 
     // ✅ NEW — paged wrapper for the audit modal's grantee list.

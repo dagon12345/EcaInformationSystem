@@ -1033,6 +1033,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 NotApplicableCount = allData.Count(b => EffectiveStatus(b) == 0),
                 LivenessVerifiedCount = allData.Count(b => b.IsLivenessVerified == true),
                 ReadyForEftCount = allData.Count(b => b.IsReadyForEft == true),
+                DeceasedEftReadyCount = allData.Count(b => b.IsDeceased && b.IsReadyForEft == true),
                 CoEndorsedCount = allData.Count(b => b.CoStatus == 1),
                 CoApprovedCount = allData.Count(b => b.CoStatus == 2),
                 ChannelNotSetCount = allData.Count(b => ChannelFor(b) == 0),
@@ -1392,6 +1393,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "noliveness" => allData.Where(b => b.IsLivenessVerified != true),
                 "eft" => allData.Where(b => b.IsReadyForEft == true),
                 "noeft" => allData.Where(b => b.IsReadyForEft != true),
+                "deceasedeft" => allData.Where(b => b.IsDeceased && b.IsReadyForEft == true),
                 "coendorsed" => allData.Where(b => b.CoStatus == 1),
                 "coapproved" => allData.Where(b => b.CoStatus == 2),
                 "channelnotset" => allData.Where(b => ChannelForBucket(b) == 0),
@@ -1474,6 +1476,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsLivenessVerified = b.IsLivenessVerified,
                     DateOfLiveness = b.DateOfLiveness,
                     IsReadyForEft = b.IsReadyForEft,
+                    IsDeceased = b.IsDeceased,
                     PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
                         ? h.Select(x => new PaymentHistoryDto
                         {
@@ -1543,6 +1546,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "noliveness" => allDataUnfiltered.Where(b => b.IsLivenessVerified != true),
                 "eft" => allDataUnfiltered.Where(b => b.IsReadyForEft == true),
                 "noeft" => allDataUnfiltered.Where(b => b.IsReadyForEft != true),
+                "deceasedeft" => allDataUnfiltered.Where(b => b.IsDeceased && b.IsReadyForEft == true),
                 "coendorsed" => allDataUnfiltered.Where(b => b.CoStatus == 1),
                 "coapproved" => allDataUnfiltered.Where(b => b.CoStatus == 2),
                 "channelnotset" => allDataUnfiltered.Where(b => ChannelForBucket(b) == 0),

@@ -416,7 +416,7 @@
              root element — actually finds and animates these two cards' numbers
              instead of leaving them stuck at their static "0" markup. ── *@
         <div class="dash-section-label"><i class="bi bi-camera-fill"></i> Liveness &amp; EFT Readiness</div>
-        <div class="dash-stat-grid mb-3">
+        <div class="dash-stat-grid dash-stat-grid--cols-5 mb-3">
             <div class="dash-stat-card dash-stat-card--cyan dash-stat-card--clickable dash-stat-card--anim"
                  @onclick='() => OpenMembersModalAsync("liveness", "Liveness Verified Grantees")' title="Click to view the grantees in this count">
                 <i class="bi bi-search dash-stat-card-hint"></i>
@@ -453,6 +453,17 @@
                 <div class="dash-stat-value" data-countup="@(_report.TotalBeneficiaries - _report.ReadyForEftCount)">0</div>
                 <div class="dash-stat-label">Not Ready for EFT</div>
                 <div class="dash-stat-sub">@SharePct(_report.TotalBeneficiaries - _report.ReadyForEftCount)% of total</div>
+            </div>
+            @* ✅ NEW — deceased grantees who are still EFT-ready: that payout
+               is for a claimant/heir, not the grantee themself, so PDOs need
+               this called out separately from the plain "Ready for EFT" count. *@
+            <div class="dash-stat-card dash-stat-card--red dash-stat-card--clickable dash-stat-card--anim"
+                 @onclick='() => OpenMembersModalAsync("deceasedeft", "Deceased + EFT Ready Grantees")' title="Click to view the grantees in this count">
+                <i class="bi bi-search dash-stat-card-hint"></i>
+                <div class="dash-stat-icon"><i class="bi bi-flower1"></i></div>
+                <div class="dash-stat-value" data-countup="@_report.DeceasedEftReadyCount">0</div>
+                <div class="dash-stat-label">Deceased + EFT Ready</div>
+                <div class="dash-stat-sub">@SharePct(_report.DeceasedEftReadyCount)% of total</div>
             </div>
         </div>
 
@@ -844,6 +855,7 @@
                             <th>Status</th>
                             <th style="min-width:110px;">Liveness</th>
                             <th style="min-width:110px;">EFT</th>
+                            <th style="width:60px;" title="Deceased">Dec.</th>
                             <th style="min-width:200px;">Bank / Payout Account (Section E)</th>
                             <th style="min-width:260px;">Payment History</th>
                         </tr>
@@ -873,6 +885,16 @@
                                     <span class="badge @(m.IsReadyForEft == true ? "bg-success" : "bg-secondary")">
                                         @(m.IsReadyForEft == true ? "Ready" : "Not Ready")
                                     </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (m.IsDeceased)
+                                    {
+                                        <i class="bi bi-flower1 text-danger" title="Deceased"></i>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
                                 </td>
                                 <td>
                                     <div class="small text-muted">@m.PreferredChannelLabel</div>
@@ -1672,6 +1694,7 @@
         // actually deserializes into here.
         public int LivenessVerifiedCount { get; set; }
         public int ReadyForEftCount { get; set; }
+        public int DeceasedEftReadyCount { get; set; }
         public int CoEndorsedCount { get; set; }
         public int CoApprovedCount { get; set; }
         public int ChannelNotSetCount { get; set; }

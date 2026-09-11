@@ -13,6 +13,9 @@
         // ✅ new
         public int LivenessVerifiedCount { get; set; }
         public int ReadyForEftCount { get; set; }
+        // ✅ NEW — deceased grantees who are still EFT-ready, i.e. the payout
+        // is going to a claimant/heir rather than the grantee themself.
+        public int DeceasedEftReadyCount { get; set; }
         public int CoEndorsedCount { get; set; }
         public int CoApprovedCount { get; set; }
 
