@@ -18,6 +18,40 @@ $apiProject = Get-ChildItem -Path $root -Recurse -Filter "*.csproj" |
 if (-not $apiProject) { throw "Could not find Api .csproj under $root" }
 
 # --- Upload an entire folder in ONE persistent SFTP session using lftp ---
+# ✅ CHANGED — EcaInformationSystem.Domain.dll got stuck on the server in a
+# bad state once, and EVERY later mirror pass since then silently skipped
+# re-uploading it — lftp's mirror only transfers files it thinks differ
+# (by size/mtime), so once a bad copy's size happened to match, no amount
+# of "fix the code and redeploy" ever actually re-sent that file. Deleting
+# every managed assembly on the server first guarantees mirror sees them
+# all as missing and does a full, unconditional re-upload every deploy —
+# no diff-based skip can ever mask a repeat of this again.
+function Remove-RemoteManagedAssemblies {
+    param(
+        [string]$LocalFolder,
+        [string]$FtpHostName,
+        [string]$FtpUser,
+        [string]$FtpPass
+    )
+
+    $assemblies = Get-ChildItem -Path $LocalFolder -Include "*.dll", "*.pdb" -File
+    $rmCommands = ($assemblies | ForEach-Object { "rm -f `"/wwwroot/$($_.Name)`"" }) -join "`n"
+
+    $tempScript = New-TemporaryFile
+    @"
+set net:max-retries 3
+set net:timeout 30
+open -u $FtpUser,$FtpPass sftp://$FtpHostName
+$rmCommands
+bye
+"@ | Out-File -FilePath $tempScript -Encoding utf8
+
+    lftp -f $tempScript
+    Remove-Item $tempScript -ErrorAction SilentlyContinue
+    # No exit-code check — deleting a file that isn't there yet (first-ever
+    # deploy) is expected to "fail" per-file; lftp keeps going regardless.
+}
+
 function Upload-ToSftp {
     param(
         [string]$LocalFolder,
@@ -31,7 +65,7 @@ set net:max-retries 3
 set net:reconnect-interval-base 3
 set net:timeout 30
 open -u $FtpUser,$FtpPass sftp://$FtpHostName
-mirror -R --parallel=4 --verbose --no-perms "$LocalFolder" /wwwroot
+mirror -R --parallel=2 --verbose --no-perms "$LocalFolder" /wwwroot
 bye
 "@
 
@@ -93,6 +127,9 @@ try {
 
     Write-Host "Taking API offline for deployment..." -ForegroundColor Yellow
     Set-AppOffline -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass -Enable $true
+
+    Write-Host "Clearing old assemblies to force a clean re-upload..." -ForegroundColor Yellow
+    Remove-RemoteManagedAssemblies -LocalFolder "$root/publish/api" -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass
 
     Write-Host "Uploading API via SFTP..." -ForegroundColor Cyan
     Upload-ToSftp -LocalFolder "$root/publish/api" -FtpHostName $apiFtpHost -FtpUser $apiFtpUser -FtpPass $apiFtpPass
