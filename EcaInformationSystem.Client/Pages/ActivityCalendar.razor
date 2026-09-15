@@ -282,8 +282,9 @@
         _canManage = AuthService.IsAdmin() || AuthService.IsSuperAdmin();
         _myRegionCode = AuthService.GetRegionCode();
 
-        await LoadMonthAsync();
-        await LoadTodayCountAsync();
+        // ✅ Independent of each other (month grid vs. today's banner count) —
+        // fire both requests at once instead of waiting on them one at a time.
+        await Task.WhenAll(LoadMonthAsync(), LoadTodayCountAsync());
         ActivityClient.ActivityChanged += OnActivityChanged;
         ActivityClient.ActivityDeleted += OnActivityDeleted;
     }

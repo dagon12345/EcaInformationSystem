@@ -11,12 +11,21 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public ActivityRepository(AppDbContext context) => _context = context;
 
+        // ✅ Rewritten to avoid wrapping a.StartDate in .Date — SQL Server
+        // translates that to CONVERT(date, StartDate) on every row, which
+        // defeats IX_Activity_IsCancelled_StartDate (and the other StartDate-
+        // led indexes below) by forcing an index/table scan instead of a
+        // seek. rangeEnd/rangeStart/date are always midnight-aligned callers
+        // (first/last day of month, or a plain date), so comparing the raw
+        // column against an exclusive next-day boundary is equivalent to the
+        // old .Date <= .Date / .Date >= .Date comparison, just sargable.
         public async Task<List<Activity>> GetMonthRangeAsync(DateTime rangeStart, DateTime rangeEnd, string? provinceCode = null)
         {
+            var exclusiveEnd = rangeEnd.Date.AddDays(1);
             var query = _context.Activities
                 .Where(a => !a.IsCancelled
-                    && a.StartDate.Date <= rangeEnd.Date
-                    && (a.EndDate ?? a.StartDate).Date >= rangeStart.Date);
+                    && a.StartDate < exclusiveEnd
+                    && (a.EndDate ?? a.StartDate) >= rangeStart.Date);
 
             if (!string.IsNullOrEmpty(provinceCode))
                 query = query.Where(a => a.PsgcCodeProvince == provinceCode);
@@ -26,10 +35,11 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
         public async Task<List<Activity>> GetByDateAsync(DateTime date, string? provinceCode = null)
         {
+            var exclusiveEnd = date.Date.AddDays(1);
             var query = _context.Activities
                 .Where(a => !a.IsCancelled
-                    && a.StartDate.Date <= date.Date
-                    && (a.EndDate ?? a.StartDate).Date >= date.Date);
+                    && a.StartDate < exclusiveEnd
+                    && (a.EndDate ?? a.StartDate) >= date.Date);
 
             if (!string.IsNullOrEmpty(provinceCode))
                 query = query.Where(a => a.PsgcCodeProvince == provinceCode);
@@ -50,7 +60,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
             return await _context.Activities
                 .Where(a => a.IsPublic && !a.IsCancelled
-                    && (a.EndDate ?? a.StartDate).Date >= from.Date)
+                    && (a.EndDate ?? a.StartDate) >= from.Date)
                 .OrderBy(a => a.StartDate)
                 .Take(take)
                 .AsNoTracking()

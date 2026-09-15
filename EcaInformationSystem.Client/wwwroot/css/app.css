@@ -1875,6 +1875,11 @@
 .notes-floating-panel {
     position: absolute;
     top: 46px; /* opens downward from the navbar toggle, same as chat */
+    /* ✅ REVERTED — .navbar-actions is right-docked again (not centered),
+       so anchoring to the toggle's right edge keeps the panel fully
+       on-screen instead of spilling past the viewport's right edge, which
+       is what centering under the toggle did once the toggle itself sat
+       flush against the true right edge of the screen. */
     right: 0;
     width: 340px;
     height: 480px;
@@ -3285,6 +3290,10 @@
 .chat-widget-panel {
     position: absolute;
     top: 46px; /* opens downward from the navbar toggle instead of upward */
+    /* ✅ REVERTED — .navbar-actions is right-docked again, so right:0 keeps
+       this fully on-screen. Only affects the navbar (non-inline) instance —
+       .chat-widget-panel--inline overrides position to static for the Feed
+       sidebar copy. */
     right: 0;
     width: 340px;
     height: 480px;
@@ -5541,7 +5550,10 @@
 }
 
 /* ── Unified notification bell — tab strip ───────────────────────────── */
-.notif-bell-dropdown { min-width: 480px; max-width: 560px; }
+.notif-bell-dropdown {
+    min-width: 480px;
+    max-width: 560px;
+}
 
 .notif-bell-tabs {
     display: flex;
@@ -6023,7 +6035,15 @@
     text-decoration: none;
 }
 
+/* Positioned via plain CSS instead of Bootstrap's Popper (data-bs-display=
+   "static" on the toggle in MainLayout.razor disables Popper) so it stays
+   anchored to its own toggle's right edge — .navbar-actions is right-docked
+   at the true edge of the screen, so right:0 here keeps the menu fully
+   on-screen instead of Popper's positioning fighting with that. */
 .navbar-leaderboard-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
     width: 360px;
     max-height: 80vh;
     overflow-y: auto;
@@ -7257,6 +7277,141 @@
         padding: 16px;
     }
 
+    /* ✅ NEW — Create.razor's "Manual Entry Form" / "Bulk Import via Excel"
+       toolbar (single combined header replacing two separate stacked card
+       headers). Wraps on narrow screens instead of squeezing tabs + actions
+       into one unreadable line. */
+    .entry-mode-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%; /* .sys-card-header doesn't stretch a single flex child by default */
+    }
+    .entry-mode-tabs {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .entry-mode-tab-sep {
+        color: rgba(255,255,255,0.3);
+    }
+    .entry-mode-tab {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.6);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .5px;
+        text-transform: uppercase;
+        padding: 4px 2px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: color 0.15s, border-color 0.15s;
+    }
+        .entry-mode-tab:hover {
+            color: #fff;
+        }
+        .entry-mode-tab--active {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+    .entry-mode-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    /* Pushes Download Template to the far right of the toolbar row, per the
+       "dock download template on the very right" requirement — margin-left:
+       auto only kicks in when the row has room; otherwise it just wraps. */
+    .entry-mode-actions-dock-right {
+        margin-left: auto;
+    }
+    .entry-mode-btn {
+        height: 28px;
+        padding: 0 12px;
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 6px;
+        border: 1.5px solid transparent;
+        cursor: pointer;
+        transition: all .15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .entry-mode-btn--primary {
+        background: #fff;
+        border-color: #fff;
+        color: var(--navy);
+    }
+        .entry-mode-btn--primary:hover:not(:disabled) {
+            background: #e5e7eb;
+        }
+        .entry-mode-btn--primary:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+    .entry-mode-btn--outline {
+        background: transparent;
+        border-color: rgba(255,255,255,0.5);
+        color: #fff;
+    }
+        .entry-mode-btn--outline:hover:not(:disabled) {
+            background: rgba(255,255,255,0.12);
+        }
+        .entry-mode-btn--outline:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+    /* ✅ NEW — collapsible .sys-card-header rows (e.g. "Bulk Import via
+       Excel") previously relied on an inline cursor:pointer + a small
+       chevron alone, easy to miss as clickable. A hover highlight plus an
+       explicit "Expand"/"Collapse" text label next to the chevron makes the
+       toggle affordance obvious without having to guess from the cursor. */
+    .sys-card-header--toggle {
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+        .sys-card-header--toggle:hover {
+            background: rgba(255,255,255,0.08);
+        }
+    .sys-card-header-toggle-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: rgba(255,255,255,0.75);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: normal;
+    }
+    .sys-card-header-toggle-hint-text {
+        display: none;
+    }
+    @media (min-width: 576px) {
+        .sys-card-header-toggle-hint-text {
+            display: inline;
+        }
+    }
+
+    /* ✅ NEW — Reference Number card's info blurb used to sit as a permanent
+       paragraph inside the card body; moved into a hover-only tooltip on a
+       small icon in the header instead, so the card reads shorter at a
+       glance and the explanation only shows up when actually wanted. */
+    .sys-card-header-info {
+        font-size: 13px;
+        color: rgba(255,255,255,0.65);
+        cursor: help;
+        transition: color 0.15s;
+    }
+        .sys-card-header-info:hover {
+            color: #fff;
+        }
+
     /* ── DAR (Daily Accomplishment Report) tables — stack into cards below
        768px instead of relying on horizontal scroll. Each <td> gets a
        data-label attribute matching its column header; the label renders via
@@ -7580,6 +7735,20 @@
 
     .form-section-body {
         padding: 14px;
+    }
+
+    /* ✅ NEW — Reference Number + Date Applied/Endorsed & Batch Code cards
+       (BeneficiaryForm.razor), side by side instead of stacked. Each takes
+       half the row on desktop and wraps to full-width stacked once the row
+       can't fit both at a readable size. */
+    .ref-batch-inline-card {
+        flex: 1 1 320px;
+        min-width: 0; /* lets long content shrink instead of forcing overflow */
+        margin-bottom: 0; /* the row's own gap replaces the old per-card mb-3 */
+    }
+    .ref-batch-inline-card .sf-grid,
+    .ref-batch-inline-card .form-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     }
     /* subsection (nested) */
     .form-subsection {
@@ -10823,6 +10992,26 @@ body {
         align-items: center;
         padding: 0 24px;
         gap: 16px;
+        position: relative; /* anchors flyout centering inside .top-navbar-inner */
+        /* ✅ NEW — position:relative alone leaves z-index:auto, which does NOT
+           establish a real stacking context, so this bar (and every flyout
+           it holds — Sticky Notes/Messaging/Notifications/Leaderboard) could
+           still end up rendered behind page content that happens to carry
+           its own explicit z-index (e.g. .feed-header's 150) once nested a
+           few levels deep. An explicit z-index here forces the whole navbar
+           into its own context, so its flyouts are guaranteed to paint as a
+           block above normal page content, not just "usually." */
+        z-index: 500;
+    }
+
+    /* Feed docks at the true left edge of the bar, the icon group at the
+       true right edge — full-width row, no max-width cap. */
+    .top-navbar-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        gap: 16px;
     }
 
     .breadcrumb-area {
@@ -10843,12 +11032,30 @@ body {
             text-overflow: ellipsis;
         }
 
+    /* ✅ CHANGED — Feed docks on the left by itself; this group (Sticky
+       Notes/Messaging/Notifications/Leaderboard) is the other end of
+       .top-navbar-inner's space-between, so it naturally sits at the
+       right edge of that (now moderate-width, centered) row. */
     .navbar-actions {
         display: flex;
         align-items: center;
         gap: 8px;
-        flex-shrink: 0; /* ✅ never let icons/logout get squeezed by a long breadcrumb */
+        flex-shrink: 0;
     }
+
+    /* ✅ NEW — the Feed icon+label pair sits inside .breadcrumb-area now,
+       so it needs its own inline (not column) layout to sit beside the
+       "ECA › Page" text instead of stacking icon-over-caption like the
+       navbar-actions group does. */
+    .navbar-action-labeled--inline {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        margin-right: 4px;
+    }
+        .navbar-action-labeled--inline .navbar-action-label {
+            display: none; /* icon only — "Feed" as a caption would duplicate the breadcrumb text right next to it */
+        }
 
     /* Wraps Sticky Notes / Messaging / Notification in the top navbar
        (MainLayout.razor) so a small caption can sit under each icon,
@@ -11064,21 +11271,57 @@ body {
     margin-top: 14px;
     padding-top: 12px;
     border-top: 1px solid #eef0f3;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
-.profile-card-link {
+/* ✅ NEW — replaces the old plain-text .profile-card-link rows with a
+   glanceable tile: icon centered in its own fixed-size circle above a bold
+   short label, mirroring the navbar's icon-above-caption convention
+   (.navbar-action-labeled/.icon-btn in MainLayout.razor — Feed, Sticky
+   Notes, Messaging, Notifications, Leaderboard) so DAR/DTR read the same
+   way as every other "icon on top, label below" entry point in the app. */
+.profile-card-quick-tile {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: 8px 4px;
-    font-size: 12.5px;
-    color: #495057;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    background: #f8f9fb;
+    border: 1px solid #eef0f3;
+    border-radius: 10px;
+    color: #344054;
     text-decoration: none;
-    border-radius: 6px;
-    transition: background 0.15s, color 0.15s;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
 }
-    .profile-card-link:hover {
-        background: #f3f4f6;
-        color: #111;
+    .profile-card-quick-tile-icon {
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid #eaecf0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .profile-card-quick-tile-icon i {
+        font-size: 16px;
+        color: #4f46e5;
+    }
+    .profile-card-quick-tile:hover {
+        background: #eef1ff;
+        border-color: #c7d2fe;
+        color: #1e1b4b;
+        transform: translateY(-1px);
+    }
+    .profile-card-quick-tile:hover .profile-card-quick-tile-icon {
+        border-color: #c7d2fe;
     }
 
 /* ── User Profile page + shared small-avatar rendering (Feed, Chat, NavMenu) ── */

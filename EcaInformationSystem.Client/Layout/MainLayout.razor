@@ -37,32 +37,26 @@
                 <NavMenu OnToggle="ToggleSidebar" Collapsed="collapsed" />
             </div>
             <div class="main-area">
-                @* ── Live leaderboard ticker — visible at every width, including
-                     mobile/collapsed, sits above the navbar so the top-of-week
-                     ranking never fully disappears from view no matter what page
-                     you're on. Not shown to Focal accounts (they aren't ranked). ── *@
-                @if (_userRole != "Focal")
-                {
-                    <LiveLeaderboardTicker />
-                }
                 <div class="top-navbar">
                     <button class="mobile-menu-btn" @onclick="ToggleMobileSidebar" title="Menu">
                         <i class="bi bi-list"></i>
                     </button>
-                    <div class="breadcrumb-area">
-                        <span>ECA</span>
-                        <span class="separator">›</span>
-                        <span class="current">@currentPage</span>
-                    </div>
-                    <div class="navbar-actions main-navbar-actions">
-
-                        @* ── Feed — quick link back to the Feed/home page from anywhere. ── *@
-                        <div class="navbar-action-labeled">
+                    @* ── Caps the breadcrumb+icons row at the same 1460px .feed-page-layout
+                         uses, centered the same way, so the icon group's right edge lines up
+                         with the birthday sidebar's right edge below instead of hugging the
+                         browser's true right edge on wide screens where the page content is
+                         centered with blank margin on both sides. ── *@
+                    <div class="top-navbar-inner">
+                        @* ── Feed — quick link back to the Feed/home page from anywhere.
+                             Docked on the left by itself — the "ECA › Page" breadcrumb text
+                             is dropped entirely rather than shown next to it. ── *@
+                        <div class="navbar-action-labeled navbar-action-labeled--inline">
                             <a href="/" class="icon-btn navbar-feed-btn" title="Feed">
                                 <i class="bi bi-house-door-fill"></i>
                             </a>
                             <span class="navbar-action-label">Feed</span>
                         </div>
+                        <div class="navbar-actions main-navbar-actions">
 
                         @* ── Sticky Notes — floating toggle + panel, same click-to-open
                              behavior as Messages below. The Feed page (PostFeed.razor) keeps
@@ -96,23 +90,37 @@
                              season header / my-tier progress / rank list card that used to
                              sit permanently on the Feed page's sidebar; reachable from
                              anywhere now instead of only there. Not shown to Focal accounts
-                             (they aren't ranked). ── *@
+                             (they aren't ranked).
+                             ✅ CHANGED — was a Bootstrap data-bs-toggle="dropdown" menu; even
+                             with data-bs-display="static" its Popper-driven inline positioning
+                             kept fighting our own CSS and overflowing off the right edge of the
+                             viewport. Replaced with the same plain click-to-open panel +
+                             click-outside-to-close backdrop pattern UnifiedNotificationBell
+                             already uses, so positioning is 100% our own CSS. ── *@
                         @if (_userRole != "Focal")
                         {
+                            @if (_showLeaderboardMenu)
+                            {
+                                <div class="notif-bell-backdrop" @onclick="CloseLeaderboardMenu"></div>
+                            }
                             <div class="navbar-action-labeled">
-                                <div class="dropdown navbar-leaderboard-dropdown">
+                                <div class="position-relative navbar-leaderboard-dropdown" @onclick:stopPropagation="true">
                                     <button class="icon-btn navbar-leaderboard-toggle" type="button"
-                                            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Transaction Leaderboard">
+                                            @onclick="ToggleLeaderboardMenu" title="Transaction Leaderboard">
                                         <i class="bi bi-trophy-fill"></i>
                                     </button>
-                                    <div class="dropdown-menu dropdown-menu-end navbar-leaderboard-menu">
-                                        <TransactionLeaderboardWidget />
-                                    </div>
+                                    @if (_showLeaderboardMenu)
+                                    {
+                                        <div class="navbar-leaderboard-menu" @onclick:stopPropagation="true">
+                                            <TransactionLeaderboardWidget />
+                                        </div>
+                                    }
                                 </div>
                                 <span class="navbar-action-label">Leaderboard</span>
                             </div>
                         }
 
+                        </div>
                     </div>
                 </div>
 
@@ -175,6 +183,9 @@
     private string _bannerType = "error";
     private System.Threading.CancellationTokenSource? _bannerCts;
     private UnifiedNotificationBell? _notificationBell;
+    private bool _showLeaderboardMenu;
+    private void ToggleLeaderboardMenu() => _showLeaderboardMenu = !_showLeaderboardMenu;
+    private void CloseLeaderboardMenu() => _showLeaderboardMenu = false;
     // Guards HandleForceLogout (a "log out other devices" push, or a
     // same-account logout elsewhere) against double-firing — see the comment
     // in AuthService.LogoutAsync for why that race could happen.

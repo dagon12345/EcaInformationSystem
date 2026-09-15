@@ -8,24 +8,15 @@
 
 <div class="import-wrap">
 
-    @* ── Top row: description + download template *@
+    @* ── Top row: description only — Download Template + Validate & Import
+         now live in the shared toolbar in Create.razor (this component is
+         driven via @@ref from there), so this description is the only thing
+         left here. ── *@
     <div class="import-toprow">
         <span class="import-hint">
             <i class="bi bi-info-circle me-1"></i>
             Download the official template, fill it out, then upload below.
         </span>
-        <button class="sys-btn sys-btn-outline" @onclick="DownloadTemplateAsync" disabled="@isDownloadingTemplate">
-            @if (isDownloadingTemplate)
-            {
-                <span class="spinner-border spinner-border-sm me-1"></span>
-                <span>Downloading...</span>
-            }
-            else
-            {
-                <i class="bi bi-file-earmark-arrow-down me-1"></i>
-                <span>Download Template</span>
-            }
-        </button>
     </div>
 
     @* ── File picker *@
@@ -44,7 +35,7 @@
     {
         <div class="ff mt-2">
             <label class="ff-label">Worksheet</label>
-            <InputSelect class="ff-input" @bind-Value="selectedSheetName">
+            <InputSelect class="ff-input" @bind-Value="selectedSheetName" @bind-Value:after="NotifyStateChangedAsync">
                 @foreach (var sheet in excelSheetNames)
                 {
                     <option value="@sheet">@sheet</option>
@@ -119,25 +110,6 @@
         <i class="bi bi-shield-check me-1"></i>
         All rows are validated first. No records are saved if any error is found.
     </p>
-
-    @* ── Action buttons *@
-    <div class="d-flex gap-2 mt-2 flex-wrap">
-        <button class="sys-btn sys-btn-save" @onclick="RunPreviewAsync"
-                disabled="@(isUploading || isPreviewing || uploadedExcelBytes == null
-                                                                                                                                                                                                                                                                          || !excelSheetNames.Any()
-                                                                                                                                                                                                                                                                          || string.IsNullOrWhiteSpace(selectedSheetName))">
-            @if (isPreviewing)
-            {
-                <span class="spinner-border spinner-border-sm me-1"></span>
-                <span>Validating...</span>
-            }
-            else
-            {
-                <i class="bi bi-cloud-upload me-1"></i>
-                <span>Validate &amp; Import</span>
-            }
-        </button>
-    </div>
 
     @* ── Import result *@
     @if (importResult != null)
@@ -716,6 +688,24 @@
 </HxModal>
 
 @code {
+    // ✅ NEW — Create.razor drives this component via @@ref instead of this
+    // component owning its own "Download Template"/"Validate & Import"
+    // buttons, so those two actions live in one shared toolbar alongside the
+    // "Manual Entry Form"/"Bulk Import via Excel" tabs (saves the vertical
+    // space two separate card headers used to take). The parent's toolbar
+    // buttons read CanValidate/IsDownloadingTemplate/IsPreviewing below to
+    // decide their own enabled/spinner state, so it needs to know whenever
+    // that state changes here (StateHasChanged alone only re-renders this
+    // component, never the parent).
+    [Parameter] public EventCallback OnStateChanged { get; set; }
+    private Task NotifyStateChangedAsync() => OnStateChanged.InvokeAsync();
+
+    public bool IsDownloadingTemplate => isDownloadingTemplate;
+    public bool IsPreviewing => isPreviewing;
+    public bool CanValidate =>
+        !isUploading && !isPreviewing && uploadedExcelBytes != null
+        && excelSheetNames.Any() && !string.IsNullOrWhiteSpace(selectedSheetName);
+
     // ── State ─────────────────────────────────────────────────────────────────
     private bool isDownloadingTemplate;
     private IBrowserFile? selectedFile;
@@ -1048,11 +1038,12 @@
     }
 
     // ── Download template ─────────────────────────────────────────────────────
-    private async Task DownloadTemplateAsync()
+    public async Task DownloadTemplateAsync()
     {
         try
         {
             isDownloadingTemplate = true;
+            await OnStateChanged.InvokeAsync();
             var response = await Http.GetAsync(
                 "api/beneficiary/download-import-template");
 
@@ -1073,6 +1064,7 @@
         finally
         {
             isDownloadingTemplate = false;
+            await OnStateChanged.InvokeAsync();
         }
     }
 
@@ -1145,6 +1137,7 @@
         {
             isLoadingSheets = false;
             StateHasChanged();
+            await OnStateChanged.InvokeAsync();
         }
     }
 
@@ -1207,7 +1200,7 @@
     }
 
     // ── Phase 1: Preview + duplicate detection ────────────────────────────────
-    private async Task RunPreviewAsync()
+    public async Task RunPreviewAsync()
     {
         // ✅ No role check — API will return 403 if unauthorized
         if (uploadedExcelBytes == null || string.IsNullOrWhiteSpace(uploadedExcelFileName))
@@ -1231,6 +1224,7 @@
         {
             isPreviewing = true;
             StateHasChanged();
+            await OnStateChanged.InvokeAsync();
 
             using var content = new MultipartFormDataContent();
             content.Add(
@@ -1305,6 +1299,7 @@
         {
             isPreviewing = false;
             StateHasChanged();
+            await OnStateChanged.InvokeAsync();
         }
     }
 
@@ -1418,6 +1413,7 @@
         {
             isUploading = false;
             StateHasChanged();
+            await OnStateChanged.InvokeAsync();
         }
     }
 

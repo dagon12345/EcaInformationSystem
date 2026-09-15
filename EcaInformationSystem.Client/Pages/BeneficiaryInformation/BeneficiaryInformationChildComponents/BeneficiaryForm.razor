@@ -45,22 +45,21 @@
     }
 
     @* ══════════════════════════════════════════════════════════════════
-       SYSTEM FIELD — Reference Number (PDO-internal, NOT part of Annex A)
+       SYSTEM FIELDS — Reference Number + Date Applied/Endorsed & Batch Code.
+       ✅ CHANGED — these two were previously stacked full-width, one above
+       the other; now placed side by side in a single row (wraps to stacked
+       on narrow screens) so both are visible at a glance without scrolling.
        ══════════════════════════════════════════════════════════════════ *@
-    <div class="sys-card mb-3">
-        <div class="sys-card-header d-flex align-items-center justify-content-between" style="cursor:pointer;"
-             @onclick="() => _showRefNumber = !_showRefNumber">
-            <span><i class="bi bi-hash me-2"></i>Reference Number <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">Internal / Optional</span></span>
-            <i class="bi @(_showRefNumber ? "bi-chevron-up" : "bi-chevron-down") text-muted"></i>
-        </div>
-        @if (_showRefNumber)
-        {
+    <div class="d-flex flex-wrap gap-3 mb-3 ref-batch-inline-row">
+        <div class="sys-card ref-batch-inline-card">
+            <div class="sys-card-header d-flex align-items-center justify-content-between">
+                <span>
+                    <i class="bi bi-hash me-2"></i>Reference Number <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">Internal / Optional</span>
+                    <i class="bi bi-info-circle-fill ms-2 sys-card-header-info"
+                       title="For PDO internal numbering only — this does not appear on the printed Annex A form. Leave blank to save without one; assign later via Bulk Assign Ref Number."></i>
+                </span>
+            </div>
             <div class="sys-card-body">
-                <p class="text-muted small mb-2">
-                    <i class="bi bi-info-circle me-1"></i>
-                    For PDO internal numbering only — this does not appear on the printed Annex A form.
-                    Leave blank to save without one; assign later via <strong>Bulk Assign Ref Number</strong>.
-                </p>
                 <div class="sf-grid">
                     <div class="ff">
                         <label class="ff-label">Quarter</label>
@@ -89,37 +88,35 @@
                     </div>
                 }
             </div>
-        }
-    </div>
-      <div class="system-fields-body">
+        </div>
 
-            @* ── Remarks (system tracking, not on paper form) ── *@
-            <div class="form-section mb-3">
-                <div class="form-section-header">
-                    <i class="bi bi-calendar me-2"></i>
-                        Date Applied /Endorsed & Batch Code 
-                    <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">
-                        INTERNAL
-                    </span>
-                </div>
-                <div class="form-section-body">
-                    <div class="form-grid">
-                           <div class="ff">
-                                    <label class="ff-label">Date Applied</label>
-                                    <UniformDateInput Value="@model.DateApplied" ValueChanged="@(v => model.DateApplied = v)" />
-                           </div>
-                          <div class="ff">
-                                    <label class="ff-label">Date Endorsed</label>
-                                    <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
-                         </div>
-                        <div class="ff">
-                                    <label class="ff-label">Batch Code</label>
-                                    <input type="text" class="ff-input" placeholder="e.g. BATCH-2026-001" @bind="model.BatchCode" />
-                        </div>
+        @* ── Remarks (system tracking, not on paper form) ── *@
+        <div class="form-section ref-batch-inline-card">
+            <div class="form-section-header">
+                <i class="bi bi-calendar me-2"></i>
+                    Date Applied /Endorsed & Batch Code
+                <span class="badge bg-secondary fw-normal ms-2" style="font-size:10px;">
+                    INTERNAL
+                </span>
+            </div>
+            <div class="form-section-body">
+                <div class="form-grid">
+                       <div class="ff">
+                                <label class="ff-label">Date Applied</label>
+                                <UniformDateInput Value="@model.DateApplied" ValueChanged="@(v => model.DateApplied = v)" />
+                       </div>
+                      <div class="ff">
+                                <label class="ff-label">Date Endorsed</label>
+                                <UniformDateInput Value="@model.DateEndorsed" ValueChanged="@(v => model.DateEndorsed = v)" />
+                     </div>
+                    <div class="ff">
+                                <label class="ff-label">Batch Code</label>
+                                <input type="text" class="ff-input" placeholder="e.g. BATCH-2026-001" @bind="model.BatchCode" />
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 @* ══════════════════════════════════════════════════════════════════
        ANNEX A DOCUMENT WRAPPER — editable replica of the printed form
        ══════════════════════════════════════════════════════════════════ *@
@@ -1341,8 +1338,6 @@
     private HxModal _exactDuplicateModal = default!;
     private string? _refNumberNote;
     private ReferenceNumberModal _refNumberModal = default!;
-    // ── Ref number section toggle ─────────────────────────────────────────────
-    private bool _showRefNumber = true;
 
     // ── Draft autosave (local recovery from accidental reload/close) ─────────
     // Real-time-ish rather than truly per-keystroke: a JS listener watches the

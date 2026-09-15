@@ -1780,8 +1780,8 @@ else if (_livenessHistory is { Count: > 0 })
                         <td class="text-end">
                             @if (item.HasPhoto)
                             {
-                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OpenLivenessPhotoModal(item)">
-                                    <i class="bi bi-image me-1"></i>View
+                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OpenLivenessPhotoModal(item)" title="View">
+                                    <i class="bi bi-eye"></i>
                                 </button>
                             }
                             @if (!string.IsNullOrEmpty(item.Url))
@@ -1792,8 +1792,8 @@ else if (_livenessHistory is { Count: > 0 })
                             }
                             @if (_isSuperAdmin)
                             {
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteLivenessLinkAsync(item)">
-                                    <i class="bi bi-trash me-1"></i>Delete
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteLivenessLinkAsync(item)" title="Delete">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             }
                         </td>

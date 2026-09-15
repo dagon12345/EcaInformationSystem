@@ -18,34 +18,76 @@
         </div>
     </div>
 
-    @* ── Import section *@
+    @* ── Entry mode card — "Manual Entry Form" and "Bulk Import via Excel"
+         used to be two separate stacked cards, each with its own header
+         (Manual Entry Form always open below a collapsible Bulk Import
+         card). Combined into one card with a single tab-style toolbar
+         instead, saving the vertical space a second header used to cost;
+         only one mode's content shows at a time. When Bulk Import is
+         active, its own "Validate & Import"/"Download Template" actions
+         sit right in this same toolbar (driven via @@ref into
+         BeneficiaryImporting) rather than buried further down in its body. ── *@
     <div class="sys-card mb-3">
-        <div class="sys-card-header d-flex align-items-center justify-content-between" style="cursor:pointer;"
-             @onclick="() => _showBulkImport = !_showBulkImport">
-            <span><i class="bi bi-file-earmark-arrow-up me-2"></i>Bulk Import via Excel</span>
-            <i class="bi @(_showBulkImport ? "bi-chevron-up" : "bi-chevron-down") text-muted"></i>
-        </div>
-        @if (_showBulkImport)
-        {
-            <div class="sys-card-body">
-                <BeneficiaryImporting />
+        <div class="sys-card-header entry-mode-toolbar">
+            <div class="entry-mode-tabs">
+                <button type="button" class="entry-mode-tab @(_mode == EntryMode.Manual ? "entry-mode-tab--active" : "")"
+                        @onclick="() => _mode = EntryMode.Manual">
+                    <i class="bi bi-clipboard2-pulse me-1"></i>Manual Entry Form
+                </button>
+                <span class="entry-mode-tab-sep">|</span>
+                <button type="button" class="entry-mode-tab @(_mode == EntryMode.BulkImport ? "entry-mode-tab--active" : "")"
+                        @onclick="() => _mode = EntryMode.BulkImport">
+                    <i class="bi bi-upload me-1"></i>Bulk Import via Excel
+                </button>
             </div>
-        }
-    </div>
 
-    @* ── Form section *@
-    <div class="sys-card">
-        <div class="sys-card-header">
-            <i class="bi bi-clipboard2-pulse me-2"></i>
-            Manual Entry Form
+            @if (_mode == EntryMode.BulkImport)
+            {
+                <div class="entry-mode-actions">
+                    <button type="button" class="entry-mode-btn entry-mode-btn--primary" @onclick="RunPreviewAsync"
+                            disabled="@(_importRef == null || !_importRef.CanValidate)">
+                        @if (_importRef?.IsPreviewing == true)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Validating...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-cloud-upload me-1"></i>
+                            <span>Validate &amp; Import</span>
+                        }
+                    </button>
+                    <button type="button" class="entry-mode-btn entry-mode-btn--outline entry-mode-actions-dock-right"
+                            @onclick="DownloadTemplateAsync" disabled="@(_importRef?.IsDownloadingTemplate == true)">
+                        @if (_importRef?.IsDownloadingTemplate == true)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Downloading...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>
+                            <span>Download Template</span>
+                        }
+                    </button>
+                </div>
+            }
         </div>
-        <div class="sys-card-body">
+        <div class="sys-card-body" style="display:@(_mode == EntryMode.Manual ? "block" : "none");">
             <BeneficiaryForm IsEditMode="false" />
+        </div>
+        <div class="sys-card-body" style="display:@(_mode == EntryMode.BulkImport ? "block" : "none");">
+            <BeneficiaryImporting @ref="_importRef" OnStateChanged="StateHasChanged" />
         </div>
     </div>
 
 </div>
 
 @code {
-    private bool _showBulkImport = false;
+    private enum EntryMode { Manual, BulkImport }
+    private EntryMode _mode = EntryMode.Manual;
+    private BeneficiaryImporting? _importRef;
+
+    private Task RunPreviewAsync() => _importRef?.RunPreviewAsync() ?? Task.CompletedTask;
+    private Task DownloadTemplateAsync() => _importRef?.DownloadTemplateAsync() ?? Task.CompletedTask;
 }
