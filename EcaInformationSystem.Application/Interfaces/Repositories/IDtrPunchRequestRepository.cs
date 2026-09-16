@@ -7,6 +7,7 @@ namespace EcaInformationSystem.Application.Interfaces.Repositories
         Task<DtrPunchEditRequest> AddAsync(DtrPunchEditRequest request);
         Task<DtrPunchEditRequest?> GetByIdAsync(Guid id);
         Task<List<DtrPunchEditRequest>> GetPendingAsync();
+        Task<List<DtrPunchEditRequest>> GetPendingForUserAsync(Guid userId);
         Task SaveChangesAsync();
     }
 }

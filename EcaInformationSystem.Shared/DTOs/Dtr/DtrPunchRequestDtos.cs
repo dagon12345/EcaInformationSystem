@@ -36,6 +36,14 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public string? Notes { get; set; }
     }
 
+    // Approve/reject several requests (typically every pending request for
+    // one employee) in one call instead of one round-trip per row.
+    public class BulkReviewDtrPunchRequestDto
+    {
+        public List<Guid> Ids { get; set; } = new();
+        public string? Notes { get; set; }
+    }
+
     // Pushed over SignalR whenever a new punch-edit request needs review.
     public class DtrPunchRequestSubmittedNotificationDto
     {
@@ -44,5 +52,18 @@ namespace EcaInformationSystem.Shared.DTOs.Dtr
         public string RequestType { get; set; } = string.Empty;
         public DateTime PunchDate { get; set; }
         public DateTime RequestedAt { get; set; }
+    }
+
+    // Pushed over SignalR to the ORIGINAL REQUESTER (not the approvers) once
+    // their Add/Remove request has been approved or rejected, so the bell
+    // that already exists on every layout can surface it without polling.
+    public class DtrPunchRequestDecidedNotificationDto
+    {
+        public Guid RequestId { get; set; }
+        public string RequestType { get; set; } = string.Empty; // "Add" | "Remove"
+        public DateTime PunchDate { get; set; }
+        public string Decision { get; set; } = string.Empty; // "Approved" | "Rejected"
+        public string ReviewedByName { get; set; } = string.Empty;
+        public DateTime DecidedAt { get; set; }
     }
 }

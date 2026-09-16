@@ -107,7 +107,7 @@
                          && !isHoliday && !isWfh && !NoteDays.ContainsKey(day.Day))
                 {
                     <tr class="dtr-doc-weekend">
-                        <td class="dtr-doc-day">@day.Day</td>
+                        <td class="dtr-doc-day">@day.Day @PendingBadge(day.Day)</td>
                         <td colspan="6">
                             @(day.DayType == DtrDayType.Saturday ? "SATURDAY" : "SUNDAY")
                             @if (AllowManualPunchEdit)
@@ -124,7 +124,7 @@
                 else if (isHoliday)
                 {
                     <tr class="dtr-doc-holiday">
-                        <td class="dtr-doc-day">@day.Day</td>
+                        <td class="dtr-doc-day">@day.Day @PendingBadge(day.Day)</td>
                         <td colspan="6">
                             HOLIDAY
                             @if (OnToggleHoliday.HasDelegate)
@@ -139,7 +139,7 @@
                 else if (isWfh)
                 {
                     <tr class="dtr-doc-wfh">
-                        <td class="dtr-doc-day">@day.Day</td>
+                        <td class="dtr-doc-day">@day.Day @PendingBadge(day.Day)</td>
                         <td colspan="6">
                             WORK FROM HOME
                             @if (OnToggleWfh.HasDelegate)
@@ -156,7 +156,7 @@
                     var note = NoteDays[day.Day];
 
                     <tr class="dtr-doc-note">
-                        <td class="dtr-doc-day">@day.Day</td>
+                        <td class="dtr-doc-day">@day.Day @PendingBadge(day.Day)</td>
                         <td colspan="6" class="dtr-doc-note-cell">
                             <NoteCellContent Day="day.Day" Note="note" OnNoteChanged="OnNoteChanged" OnNoteBlur="OnNoteBlur" OnClearNote="OnClearNote" />
                         </td>
@@ -167,6 +167,7 @@
                     <tr>
                         <td class="dtr-doc-day">
                             @day.Day
+                            @PendingBadge(day.Day)
                             @if (OnToggleWfh.HasDelegate)
                             {
                                 <button type="button" class="btn btn-link btn-sm p-0 ms-1 no-print" title="Mark as work-from-home"
@@ -376,6 +377,32 @@
     // Owned by DtrPrintDocument, threaded through here to every DtrTimeCell
     // — one shared confirmation dialog instead of one per cell.
     [Parameter] public ConfirmModal? Confirm { get; set; }
+
+    // This viewer's own pending Add/Remove punch requests, keyed by
+    // day-of-month — see PendingBadge below. Loaded by DtrPrintDocument from
+    // api/dtr/punch-requests/for-user/{userId} so a day still awaiting
+    // approval is never silently indistinguishable from an already-settled
+    // one on the printed grid.
+    [Parameter] public IDictionary<int, List<DtrPunchRequestDto>> PendingRequestsByDay { get; set; } = new Dictionary<int, List<DtrPunchRequestDto>>();
+
+    private RenderFragment PendingBadge(int day) => builder =>
+    {
+        if (!PendingRequestsByDay.TryGetValue(day, out var pending) || pending.Count == 0)
+            return;
+
+        var tooltip = "Awaiting approval: " + string.Join("; ", pending.Select(p =>
+            p.RequestType == "Add" ? $"Add {p.RequestedPunchTime}" : $"Remove {p.CurrentPunchTime}"));
+
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "badge bg-warning text-dark no-print dtr-doc-pending-badge");
+        builder.AddAttribute(2, "title", tooltip);
+        builder.OpenElement(3, "i");
+        builder.AddAttribute(4, "class", "bi bi-hourglass-split");
+        builder.CloseElement();
+        if (pending.Count > 1)
+            builder.AddContent(5, $" {pending.Count}");
+        builder.CloseElement();
+    };
 
     // Bridges DtrTimeCell's (Day, Slot, ...) callbacks to the parent's
     // (Day, ...)-only ones — Slot only matters for picking which cell is

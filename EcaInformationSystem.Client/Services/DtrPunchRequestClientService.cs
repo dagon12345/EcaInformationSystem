@@ -17,6 +17,11 @@ namespace EcaInformationSystem.Client.Services
         private HubConnection? _hubConnection;
 
         public event Action<DtrPunchRequestSubmittedNotificationDto>? OnPunchRequestSubmitted;
+
+        // Fired at the ORIGINAL REQUESTER (any role, not just approvers) when
+        // their Add/Remove request is approved or rejected — see
+        // UnifiedNotificationBell's decided-notices feed.
+        public event Action<DtrPunchRequestDecidedNotificationDto>? OnPunchRequestDecided;
         public event Action? OnChange;
 
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
@@ -53,6 +58,11 @@ namespace EcaInformationSystem.Client.Services
             {
                 OnPunchRequestSubmitted?.Invoke(notification);
                 _ = RefreshAsync();
+            });
+
+            _hubConnection.On<DtrPunchRequestDecidedNotificationDto>("DtrPunchRequestDecided", notification =>
+            {
+                OnPunchRequestDecided?.Invoke(notification);
             });
 
             await _hubConnection.StartAsync();

@@ -469,6 +469,20 @@ namespace EcaInformationSystem.Api.Controllers
             return Ok(await _punchRequestService.GetPendingForRoleAsync(role));
         }
 
+        // ── A specific user's own pending punch-edit requests — lets
+        // DtrPrintDocument mark the specific days still awaiting approval so
+        // the requester never loses track of what they asked to correct.
+        // Same ownership rule as day-marks above: always your own, or
+        // SuperAdmin/Finance viewing a same-region user's DTR. ──
+        [HttpGet("punch-requests/for-user/{userId:guid}")]
+        public async Task<IActionResult> GetPendingPunchRequestsForUser(Guid userId)
+        {
+            if (!await CanManageUserDtrAsync(userId))
+                return Forbid();
+
+            return Ok(await _punchRequestService.GetPendingForUserAsync(userId));
+        }
+
         [HttpPost("punch-requests/{id:guid}/approve")]
         [Authorize(Roles = "Admin,Finance,SuperAdmin")]
         public async Task<IActionResult> ApprovePunchRequest(Guid id, [FromBody] ReviewDtrPunchRequestDto dto)
@@ -499,6 +513,28 @@ namespace EcaInformationSystem.Api.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        // Bulk approve/reject — lets an approver clear every pending request
+        // for one employee (or any chosen selection) in a single action
+        // instead of one-by-one, as filed by DtrPunchRequests.razor's
+        // per-employee "Approve all"/"Reject all" buttons.
+        [HttpPost("punch-requests/approve-batch")]
+        [Authorize(Roles = "Admin,Finance,SuperAdmin")]
+        public async Task<IActionResult> ApprovePunchRequests([FromBody] BulkReviewDtrPunchRequestDto dto)
+        {
+            var reviewedByName = User.Identity?.Name ?? "Unknown";
+            var approved = await _punchRequestService.ApproveManyAsync(dto.Ids, reviewedByName, dto.Notes);
+            return Ok(new { approved });
+        }
+
+        [HttpPost("punch-requests/reject-batch")]
+        [Authorize(Roles = "Admin,Finance,SuperAdmin")]
+        public async Task<IActionResult> RejectPunchRequests([FromBody] BulkReviewDtrPunchRequestDto dto)
+        {
+            var reviewedByName = User.Identity?.Name ?? "Unknown";
+            var rejected = await _punchRequestService.RejectManyAsync(dto.Ids, reviewedByName, dto.Notes);
+            return Ok(new { rejected });
         }
     }
 }

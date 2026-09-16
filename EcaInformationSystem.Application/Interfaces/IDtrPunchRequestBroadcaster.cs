@@ -10,5 +10,10 @@ namespace EcaInformationSystem.Application.Interfaces
     public interface IDtrPunchRequestBroadcaster
     {
         Task NotifyPunchRequestSubmittedAsync(List<Guid> targetUserIds, DtrPunchRequestSubmittedNotificationDto notification);
+
+        // Pushed back to the single original requester once an approver
+        // decides their request, unlike the above which fans out to every
+        // approver.
+        Task NotifyPunchRequestDecidedAsync(Guid userId, DtrPunchRequestDecidedNotificationDto notification);
     }
 }

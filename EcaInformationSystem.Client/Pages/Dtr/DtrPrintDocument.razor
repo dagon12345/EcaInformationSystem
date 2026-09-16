@@ -7,6 +7,7 @@
    see the file-header comment in dtr-form.css for how. *@
 @using EcaInformationSystem.Shared.DTOs.Dtr
 @using EcaInformationSystem.Client.Services
+@implements IDisposable
 
 <div class="no-print dar-print-controls mb-3">
     <div class="dar-print-controls-header">
@@ -78,12 +79,14 @@
                  SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
                  ExpandedWeekendDays="_expandedWeekendDays" OnExpandWeekend="ExpandWeekend" OnCollapseWeekend="CollapseWeekend"
+                 PendingRequestsByDay="_pendingRequestsByDay"
                  Confirm="_confirmModal" />
         <DtrCopy Document="Document" WfhDays="_wfhDays" OnToggleWfh="ToggleWfh" HolidayDays="_holidayDays" OnToggleHoliday="ToggleHoliday"
                  NoteDays="_noteDays" OnSetNote="SetNote" OnNoteChanged="NoteChanged" OnNoteBlur="NoteBlur" OnClearNote="ClearNote"
                  SlotNotes="_slotNotes" OnSetSlotNote="SetSlotNote" OnSlotNoteChanged="SlotNoteChanged" OnSlotNoteBlur="SlotNoteBlur" OnClearSlotNote="ClearSlotNote" OnSlotRangeChanged="SlotRangeChanged"
                  AllowManualPunchEdit="AllowManualPunchEdit" OnAddManualPunch="AddManualPunch" OnRemoveManualPunch="RemoveManualPunch" OnEditManualPunch="EditManualPunch"
                  ExpandedWeekendDays="_expandedWeekendDays" OnExpandWeekend="ExpandWeekend" OnCollapseWeekend="CollapseWeekend"
+                 PendingRequestsByDay="_pendingRequestsByDay"
                  Confirm="_confirmModal" />
     </div>
   </div>
@@ -99,6 +102,7 @@
     [Inject] public IJSRuntime JS { get; set; } = default!;
     [Inject] public ToastService Toast { get; set; } = default!;
     [Inject] public HttpClient Http { get; set; } = default!;
+    [Inject] public DtrPunchRequestClientService DtrRequests { get; set; } = default!;
 
     // Set by AttendanceManagement.razor (SuperAdmin/Finance managing any
     // same-region user's DTR) and by MyDtr.razor (self-service) — the
@@ -147,6 +151,25 @@
     private Guid _loadedForUserId;
     private DateTime _loadedMonth;
 
+    // The viewer's (self or, for SuperAdmin/Finance, the managed employee's)
+    // own pending Add/Remove punch requests for the shown month, keyed by
+    // day-of-month — see PendingBadge in DtrCopy.razor for how it's
+    // rendered. Populated alongside the WFH/Holiday/Note marks below since
+    // both are keyed the same way and change on the same UserId/month switch.
+    private readonly Dictionary<int, List<DtrPunchRequestDto>> _pendingRequestsByDay = new();
+
+    protected override void OnInitialized() =>
+        DtrRequests.OnPunchRequestDecided += HandlePunchRequestDecided;
+
+    // A decision on one of THIS viewer's own requests (approved/rejected)
+    // just landed live — refresh so the pending badge disappears right away
+    // instead of only after the next navigation/reload.
+    private void HandlePunchRequestDecided(DtrPunchRequestDecidedNotificationDto _) =>
+        InvokeAsync(LoadPendingRequestsAsync);
+
+    public void Dispose() =>
+        DtrRequests.OnPunchRequestDecided -= HandlePunchRequestDecided;
+
     protected override async Task OnParametersSetAsync()
     {
         // Days are always shown for Document.PeriodStart's whole month
@@ -158,6 +181,35 @@
         _loadedForUserId = Document.UserId;
         _loadedMonth = month;
         await LoadMarksAsync(month);
+        await LoadPendingRequestsAsync();
+    }
+
+    private async Task LoadPendingRequestsAsync()
+    {
+        _pendingRequestsByDay.Clear();
+
+        try
+        {
+            var requests = await Http.GetFromJsonAsync<List<DtrPunchRequestDto>>(
+                $"api/dtr/punch-requests/for-user/{Document.UserId}") ?? new();
+
+            foreach (var r in requests)
+            {
+                if (r.PunchDate.Year != Document.PeriodStart.Year || r.PunchDate.Month != Document.PeriodStart.Month)
+                    continue;
+
+                if (!_pendingRequestsByDay.TryGetValue(r.PunchDate.Day, out var list))
+                    _pendingRequestsByDay[r.PunchDate.Day] = list = new List<DtrPunchRequestDto>();
+
+                list.Add(r);
+            }
+
+            StateHasChanged();
+        }
+        catch
+        {
+            // Non-fatal — the badge just won't show this session.
+        }
     }
 
     private async Task LoadMarksAsync(DateTime month)
@@ -393,7 +445,10 @@
         {
             var result = await response.Content.ReadFromJsonAsync<DtrPunchActionResultDto>();
             if (result?.Pending == true)
+            {
                 Toast.ShowSuccess(result.Message ?? "Submitted for approval.", "Request Submitted");
+                await LoadPendingRequestsAsync();
+            }
         }
         catch
         {

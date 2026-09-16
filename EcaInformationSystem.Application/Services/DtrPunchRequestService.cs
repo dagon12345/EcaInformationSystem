@@ -133,11 +133,91 @@ namespace EcaInformationSystem.Application.Services
             return results.OrderByDescending(r => r.RequestedAt).ToList();
         }
 
+        // The caller's own pending requests, regardless of role — no
+        // ApproverRoles gate here, everyone is allowed to see their own.
+        public async Task<List<DtrPunchRequestDto>> GetPendingForUserAsync(Guid userId)
+        {
+            var rows = await _repo.GetPendingForUserAsync(userId);
+            var user = await _userRepo.GetByIdAsync(userId);
+            var employeeName = user?.FullName ?? "Unknown";
+
+            var results = new List<DtrPunchRequestDto>();
+            foreach (var r in rows)
+            {
+                DateTime? currentPunchTime = null;
+                if (r.RequestType == DtrPunchRequestType.Remove && r.TargetLogId.HasValue)
+                    currentPunchTime = await _attendanceLogService.GetPunchTimeAsync(r.TargetLogId.Value);
+
+                results.Add(new DtrPunchRequestDto
+                {
+                    Id = r.Id,
+                    UserId = r.UserId,
+                    EmployeeName = employeeName,
+                    RequestType = r.RequestType.ToString(),
+                    PunchDate = (r.RequestedPunchDateTime ?? currentPunchTime ?? r.RequestedAt).Date,
+                    CurrentPunchTime = currentPunchTime?.ToString("h:mm tt"),
+                    RequestedPunchTime = r.RequestedPunchDateTime?.ToString("h:mm tt"),
+                    RequestedByName = r.RequestedByName,
+                    RequestedAt = r.RequestedAt
+                });
+            }
+
+            return results.OrderByDescending(r => r.RequestedAt).ToList();
+        }
+
         public async Task ApproveAsync(Guid requestId, string reviewedByName, string? notes)
         {
             var request = await _repo.GetByIdAsync(requestId);
-            if (request is null || request.Status != DtrPunchRequestStatus.Pending)
+            if (request is null || !await TryApplyApprovalAsync(request, reviewedByName, notes))
                 throw new InvalidOperationException("This request is no longer pending.");
+
+            await _repo.SaveChangesAsync();
+        }
+
+        public async Task RejectAsync(Guid requestId, string reviewedByName, string? notes)
+        {
+            var request = await _repo.GetByIdAsync(requestId);
+            if (request is null || !await TryApplyRejectionAsync(request, reviewedByName, notes))
+                throw new InvalidOperationException("This request is no longer pending.");
+
+            await _repo.SaveChangesAsync();
+        }
+
+        // Bulk approve/reject — same per-request rules as the single-id
+        // methods above, but ids that are missing or already reviewed are
+        // silently skipped instead of aborting the whole batch, and every
+        // row is saved together in one round-trip.
+        public async Task<int> ApproveManyAsync(List<Guid> requestIds, string reviewedByName, string? notes)
+        {
+            var applied = 0;
+            foreach (var id in requestIds)
+            {
+                var request = await _repo.GetByIdAsync(id);
+                if (request is not null && await TryApplyApprovalAsync(request, reviewedByName, notes))
+                    applied++;
+            }
+            await _repo.SaveChangesAsync();
+            return applied;
+        }
+
+        public async Task<int> RejectManyAsync(List<Guid> requestIds, string reviewedByName, string? notes)
+        {
+            var applied = 0;
+            foreach (var id in requestIds)
+            {
+                var request = await _repo.GetByIdAsync(id);
+                if (request is not null && await TryApplyRejectionAsync(request, reviewedByName, notes))
+                    applied++;
+            }
+            await _repo.SaveChangesAsync();
+            return applied;
+        }
+
+        private async Task<bool> TryApplyApprovalAsync(DtrPunchEditRequest request, string reviewedByName, string? notes)
+        {
+            if (request.Status != DtrPunchRequestStatus.Pending) return false;
+
+            var punchDate = request.RequestedPunchDateTime;
 
             if (request.RequestType == DtrPunchRequestType.Add && request.RequestedPunchDateTime.HasValue)
             {
@@ -145,6 +225,9 @@ namespace EcaInformationSystem.Application.Services
             }
             else if (request.RequestType == DtrPunchRequestType.Remove && request.TargetLogId.HasValue)
             {
+                // Look the punch time up BEFORE removing it — the requester's
+                // "Approved" notification wants to show which time this was.
+                punchDate = await _attendanceLogService.GetPunchTimeAsync(request.TargetLogId.Value);
                 await _attendanceLogService.RemovePunchAsync(request.TargetLogId.Value);
             }
 
@@ -152,20 +235,42 @@ namespace EcaInformationSystem.Application.Services
             request.ReviewedByName = reviewedByName;
             request.ReviewedAt = DateTime.UtcNow;
             request.ReviewNotes = notes;
-            await _repo.SaveChangesAsync();
+
+            await NotifyRequesterAsync(request, "Approved", punchDate);
+            return true;
         }
 
-        public async Task RejectAsync(Guid requestId, string reviewedByName, string? notes)
+        private async Task<bool> TryApplyRejectionAsync(DtrPunchEditRequest request, string reviewedByName, string? notes)
         {
-            var request = await _repo.GetByIdAsync(requestId);
-            if (request is null || request.Status != DtrPunchRequestStatus.Pending)
-                throw new InvalidOperationException("This request is no longer pending.");
+            if (request.Status != DtrPunchRequestStatus.Pending) return false;
+
+            var punchDate = request.RequestedPunchDateTime;
+            if (request.RequestType == DtrPunchRequestType.Remove && request.TargetLogId.HasValue)
+                punchDate = await _attendanceLogService.GetPunchTimeAsync(request.TargetLogId.Value);
 
             request.Status = DtrPunchRequestStatus.Rejected;
             request.ReviewedByName = reviewedByName;
             request.ReviewedAt = DateTime.UtcNow;
             request.ReviewNotes = notes;
-            await _repo.SaveChangesAsync();
+
+            await NotifyRequesterAsync(request, "Rejected", punchDate);
+            return true;
+        }
+
+        // Pushes the decision back to whoever originally filed the request —
+        // separate from NotifyApproversAsync above, which fans out to every
+        // Admin/Finance/SuperAdmin instead of one specific user.
+        private async Task NotifyRequesterAsync(DtrPunchEditRequest request, string decision, DateTime? punchDate)
+        {
+            await _broadcaster.NotifyPunchRequestDecidedAsync(request.UserId, new DtrPunchRequestDecidedNotificationDto
+            {
+                RequestId = request.Id,
+                RequestType = request.RequestType.ToString(),
+                PunchDate = (punchDate ?? request.RequestedAt).Date,
+                Decision = decision,
+                ReviewedByName = request.ReviewedByName ?? "Unknown",
+                DecidedAt = request.ReviewedAt ?? DateTime.UtcNow
+            });
         }
     }
 }

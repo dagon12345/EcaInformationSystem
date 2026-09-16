@@ -26,6 +26,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 .OrderByDescending(r => r.RequestedAt)
                 .ToListAsync();
 
+        public Task<List<DtrPunchEditRequest>> GetPendingForUserAsync(Guid userId) =>
+            _context.DtrPunchEditRequests
+                .Where(r => r.Status == DtrPunchRequestStatus.Pending && r.UserId == userId)
+                .OrderByDescending(r => r.RequestedAt)
+                .ToListAsync();
+
         public Task SaveChangesAsync() => _context.SaveChangesAsync();
     }
 }

@@ -10,5 +10,8 @@ namespace EcaInformationSystem.Infrastructure.Services
     {
         public Task NotifyPunchRequestSubmittedAsync(List<Guid> targetUserIds, DtrPunchRequestSubmittedNotificationDto notification)
             => Task.CompletedTask;
+
+        public Task NotifyPunchRequestDecidedAsync(Guid userId, DtrPunchRequestDecidedNotificationDto notification)
+            => Task.CompletedTask;
     }
 }

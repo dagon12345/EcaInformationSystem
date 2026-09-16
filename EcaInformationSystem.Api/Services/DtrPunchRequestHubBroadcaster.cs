@@ -25,5 +25,11 @@ namespace EcaInformationSystem.Api.Services
             await _hub.Clients.Users(targetUserIds.Select(id => id.ToString()).ToList())
                 .SendAsync("DtrPunchRequestSubmitted", notification);
         }
+
+        public async Task NotifyPunchRequestDecidedAsync(Guid userId, DtrPunchRequestDecidedNotificationDto notification)
+        {
+            await _hub.Clients.User(userId.ToString())
+                .SendAsync("DtrPunchRequestDecided", notification);
+        }
     }
 }
