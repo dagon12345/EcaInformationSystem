@@ -656,6 +656,8 @@
                 <div class="age-cell-legend">
                     <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--m"></span>Male</span>
                     <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--f"></span>Female</span>
+                    <span class="age-legend-item"><i class="bi bi-camera-fill age-split-live"></i> Liveness Verified</span>
+                    <span class="age-legend-item"><i class="bi bi-lightning-charge-fill age-split-eft"></i> EFT Ready</span>
                     <span class="age-legend-hint">— shown under each milestone age's total</span>
                 </div>
                 <div class="table-responsive">
@@ -680,11 +682,11 @@
                                 <tr>
                                     <td class="fw-semibold">@p.ProvinceName</td>
                                     <td class="text-center">@p.TotalCount.ToString("N0")</td>
-                                    <td class="text-center age-cell">@AgeCell(p.Age80Count, p.Age80MaleCount, p.Age80FemaleCount)</td>
-                                    <td class="text-center age-cell">@AgeCell(p.Age85Count, p.Age85MaleCount, p.Age85FemaleCount)</td>
-                                    <td class="text-center age-cell">@AgeCell(p.Age90Count, p.Age90MaleCount, p.Age90FemaleCount)</td>
-                                    <td class="text-center age-cell">@AgeCell(p.Age95Count, p.Age95MaleCount, p.Age95FemaleCount)</td>
-                                    <td class="text-center age-cell">@AgeCell(p.Age100Count, p.Age100MaleCount, p.Age100FemaleCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age80Count, p.Age80MaleCount, p.Age80FemaleCount, p.Age80LivenessCount, p.Age80EftReadyCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age85Count, p.Age85MaleCount, p.Age85FemaleCount, p.Age85LivenessCount, p.Age85EftReadyCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age90Count, p.Age90MaleCount, p.Age90FemaleCount, p.Age90LivenessCount, p.Age90EftReadyCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age95Count, p.Age95MaleCount, p.Age95FemaleCount, p.Age95LivenessCount, p.Age95EftReadyCount)</td>
+                                    <td class="text-center age-cell">@AgeCell(p.Age100Count, p.Age100MaleCount, p.Age100FemaleCount, p.Age100LivenessCount, p.Age100EftReadyCount)</td>
                                     <td class="text-center">@p.MaleCount</td>
                                     <td class="text-center">@p.FemaleCount</td>
                                     <td class="text-end fw-semibold">₱@p.TotalDisbursement.ToString("N0")</td>
@@ -695,11 +697,11 @@
                             <tr>
                                 <td>TOTAL</td>
                                 <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
-                                <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.ProvinceBreakdowns.Sum(p => p.Age80MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age80FemaleCount))</td>
-                                <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.ProvinceBreakdowns.Sum(p => p.Age85MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age85FemaleCount))</td>
-                                <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.ProvinceBreakdowns.Sum(p => p.Age90MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age90FemaleCount))</td>
-                                <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.ProvinceBreakdowns.Sum(p => p.Age95MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age95FemaleCount))</td>
-                                <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.ProvinceBreakdowns.Sum(p => p.Age100MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age100FemaleCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.ProvinceBreakdowns.Sum(p => p.Age80MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age80FemaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age80LivenessCount), _report.ProvinceBreakdowns.Sum(p => p.Age80EftReadyCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.ProvinceBreakdowns.Sum(p => p.Age85MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age85FemaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age85LivenessCount), _report.ProvinceBreakdowns.Sum(p => p.Age85EftReadyCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.ProvinceBreakdowns.Sum(p => p.Age90MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age90FemaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age90LivenessCount), _report.ProvinceBreakdowns.Sum(p => p.Age90EftReadyCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.ProvinceBreakdowns.Sum(p => p.Age95MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age95FemaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age95LivenessCount), _report.ProvinceBreakdowns.Sum(p => p.Age95EftReadyCount))</td>
+                                <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.ProvinceBreakdowns.Sum(p => p.Age100MaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age100FemaleCount), _report.ProvinceBreakdowns.Sum(p => p.Age100LivenessCount), _report.ProvinceBreakdowns.Sum(p => p.Age100EftReadyCount))</td>
                                 <td class="text-center">@_report.TotalMale</td>
                                 <td class="text-center">@_report.TotalFemale</td>
                                 <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
@@ -725,6 +727,8 @@
                     <div class="age-cell-legend">
                         <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--m"></span>Male</span>
                         <span class="age-legend-item"><span class="age-legend-swatch age-legend-swatch--f"></span>Female</span>
+                        <span class="age-legend-item"><i class="bi bi-camera-fill age-split-live"></i> Liveness Verified</span>
+                        <span class="age-legend-item"><i class="bi bi-lightning-charge-fill age-split-eft"></i> EFT Ready</span>
                         <span class="age-legend-hint">— shown under each milestone age's total</span>
                     </div>
                     <div class="sys-card-body p-0">
@@ -752,11 +756,11 @@
                                             <td>@m.MunicipalityName</td>
                                             <td>@m.ProvinceName</td>
                                             <td class="text-center">@m.TotalCount.ToString("N0")</td>
-                                            <td class="text-center age-cell">@AgeCell(m.Age80Count, m.Age80MaleCount, m.Age80FemaleCount)</td>
-                                            <td class="text-center age-cell">@AgeCell(m.Age85Count, m.Age85MaleCount, m.Age85FemaleCount)</td>
-                                            <td class="text-center age-cell">@AgeCell(m.Age90Count, m.Age90MaleCount, m.Age90FemaleCount)</td>
-                                            <td class="text-center age-cell">@AgeCell(m.Age95Count, m.Age95MaleCount, m.Age95FemaleCount)</td>
-                                            <td class="text-center age-cell">@AgeCell(m.Age100Count, m.Age100MaleCount, m.Age100FemaleCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age80Count, m.Age80MaleCount, m.Age80FemaleCount, m.Age80LivenessCount, m.Age80EftReadyCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age85Count, m.Age85MaleCount, m.Age85FemaleCount, m.Age85LivenessCount, m.Age85EftReadyCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age90Count, m.Age90MaleCount, m.Age90FemaleCount, m.Age90LivenessCount, m.Age90EftReadyCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age95Count, m.Age95MaleCount, m.Age95FemaleCount, m.Age95LivenessCount, m.Age95EftReadyCount)</td>
+                                            <td class="text-center age-cell">@AgeCell(m.Age100Count, m.Age100MaleCount, m.Age100FemaleCount, m.Age100LivenessCount, m.Age100EftReadyCount)</td>
                                             <td class="text-center">@m.MaleCount</td>
                                             <td class="text-center">@m.FemaleCount</td>
                                             <td class="text-end">₱@m.TotalDisbursement.ToString("N0")</td>
@@ -767,11 +771,11 @@
                                     <tr>
                                         <td colspan="2">TOTAL</td>
                                         <td class="text-center">@_report.TotalBeneficiaries.ToString("N0")</td>
-                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.MunicipalityBreakdowns.Sum(m => m.Age80MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age80FemaleCount))</td>
-                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.MunicipalityBreakdowns.Sum(m => m.Age85MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age85FemaleCount))</td>
-                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.MunicipalityBreakdowns.Sum(m => m.Age90MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age90FemaleCount))</td>
-                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.MunicipalityBreakdowns.Sum(m => m.Age95MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age95FemaleCount))</td>
-                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.MunicipalityBreakdowns.Sum(m => m.Age100MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age100FemaleCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge80, _report.MunicipalityBreakdowns.Sum(m => m.Age80MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age80FemaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age80LivenessCount), _report.MunicipalityBreakdowns.Sum(m => m.Age80EftReadyCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge85, _report.MunicipalityBreakdowns.Sum(m => m.Age85MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age85FemaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age85LivenessCount), _report.MunicipalityBreakdowns.Sum(m => m.Age85EftReadyCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge90, _report.MunicipalityBreakdowns.Sum(m => m.Age90MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age90FemaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age90LivenessCount), _report.MunicipalityBreakdowns.Sum(m => m.Age90EftReadyCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge95, _report.MunicipalityBreakdowns.Sum(m => m.Age95MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age95FemaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age95LivenessCount), _report.MunicipalityBreakdowns.Sum(m => m.Age95EftReadyCount))</td>
+                                        <td class="text-center age-cell">@AgeCell(_report.TotalAge100, _report.MunicipalityBreakdowns.Sum(m => m.Age100MaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age100FemaleCount), _report.MunicipalityBreakdowns.Sum(m => m.Age100LivenessCount), _report.MunicipalityBreakdowns.Sum(m => m.Age100EftReadyCount))</td>
                                         <td class="text-center">@_report.TotalMale</td>
                                         <td class="text-center">@_report.TotalFemale</td>
                                         <td class="text-end">₱@_report.TotalDisbursement.ToString("N0")</td>
@@ -1601,11 +1605,13 @@
     private void ToggleMunicipalityTable() => _showMunicipalityTable = !_showMunicipalityTable;
 
 
-    // Renders a milestone-age table cell as the bracket's total count plus a
-    // small Male/Female split beneath it, e.g. "12" over "M 7 · F 5" — keeps
-    // the existing total visible while adding the gender breakdown requested
-    // for the province table, without doubling the column count.
-    private static RenderFragment AgeCell(int total, int male, int female) => builder =>
+    // Renders a milestone-age table cell as the bracket's total count, a
+    // small Male/Female split, and (new) a Liveness-verified/EFT-ready split
+    // — e.g. "12" over "M 7 · F 5" over "✓4 · ⚡3" — so an approver can see
+    // how much of THIS age bracket is already good to pay without opening a
+    // separate report. Liveness/EftReady default to -1 (rendered as "—")
+    // for call sites that haven't been updated with that data yet.
+    private static RenderFragment AgeCell(int total, int male, int female, int liveness = -1, int eftReady = -1) => builder =>
     {
         builder.OpenElement(0, "div");
         builder.AddAttribute(1, "class", "age-cell-total");
@@ -1623,6 +1629,31 @@
         builder.AddContent(10, $"F {female}");
         builder.CloseElement();
         builder.CloseElement();
+
+        if (liveness >= 0 || eftReady >= 0)
+        {
+            builder.OpenElement(11, "div");
+            builder.AddAttribute(12, "class", "age-cell-split age-cell-split--verify");
+            builder.AddAttribute(13, "title", $"{liveness} liveness verified • {eftReady} EFT ready in this age bracket");
+
+            builder.OpenElement(14, "span");
+            builder.AddAttribute(15, "class", "age-split-live");
+            builder.OpenElement(16, "i");
+            builder.AddAttribute(17, "class", "bi bi-camera-fill");
+            builder.CloseElement();
+            builder.AddContent(18, $" {Math.Max(liveness, 0)}");
+            builder.CloseElement();
+
+            builder.OpenElement(19, "span");
+            builder.AddAttribute(20, "class", "age-split-eft");
+            builder.OpenElement(21, "i");
+            builder.AddAttribute(22, "class", "bi bi-lightning-charge-fill");
+            builder.CloseElement();
+            builder.AddContent(23, $" {Math.Max(eftReady, 0)}");
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
     };
 
     private static string GetYearColor(int year) => year switch
@@ -1753,6 +1784,17 @@
         public int Age95FemaleCount { get; set; }
         public int Age100MaleCount { get; set; }
         public int Age100FemaleCount { get; set; }
+        // ✅ new — Liveness-verified/EFT-ready split within each milestone-age bracket
+        public int Age80LivenessCount { get; set; }
+        public int Age80EftReadyCount { get; set; }
+        public int Age85LivenessCount { get; set; }
+        public int Age85EftReadyCount { get; set; }
+        public int Age90LivenessCount { get; set; }
+        public int Age90EftReadyCount { get; set; }
+        public int Age95LivenessCount { get; set; }
+        public int Age95EftReadyCount { get; set; }
+        public int Age100LivenessCount { get; set; }
+        public int Age100EftReadyCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }
@@ -1783,6 +1825,17 @@
         public int Age95FemaleCount { get; set; }
         public int Age100MaleCount { get; set; }
         public int Age100FemaleCount { get; set; }
+        // ✅ new — Liveness-verified/EFT-ready split within each milestone-age bracket
+        public int Age80LivenessCount { get; set; }
+        public int Age80EftReadyCount { get; set; }
+        public int Age85LivenessCount { get; set; }
+        public int Age85EftReadyCount { get; set; }
+        public int Age90LivenessCount { get; set; }
+        public int Age90EftReadyCount { get; set; }
+        public int Age95LivenessCount { get; set; }
+        public int Age95EftReadyCount { get; set; }
+        public int Age100LivenessCount { get; set; }
+        public int Age100EftReadyCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }

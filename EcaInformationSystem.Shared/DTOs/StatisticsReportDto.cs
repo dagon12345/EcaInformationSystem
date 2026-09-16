@@ -113,6 +113,19 @@
         public int Age95FemaleCount { get; set; }
         public int Age100MaleCount { get; set; }
         public int Age100FemaleCount { get; set; }
+        // ✅ NEW — within each milestone-age bracket, how many are Liveness
+        // Verified / Ready for EFT — lets the province table surface these at
+        // a glance instead of only as whole-province totals.
+        public int Age80LivenessCount { get; set; }
+        public int Age80EftReadyCount { get; set; }
+        public int Age85LivenessCount { get; set; }
+        public int Age85EftReadyCount { get; set; }
+        public int Age90LivenessCount { get; set; }
+        public int Age90EftReadyCount { get; set; }
+        public int Age95LivenessCount { get; set; }
+        public int Age95EftReadyCount { get; set; }
+        public int Age100LivenessCount { get; set; }
+        public int Age100EftReadyCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }
@@ -143,6 +156,17 @@
         public int Age95FemaleCount { get; set; }
         public int Age100MaleCount { get; set; }
         public int Age100FemaleCount { get; set; }
+        // ✅ NEW — same per-bracket Liveness/EFT-ready counts as ProvinceStatisticsDto.
+        public int Age80LivenessCount { get; set; }
+        public int Age80EftReadyCount { get; set; }
+        public int Age85LivenessCount { get; set; }
+        public int Age85EftReadyCount { get; set; }
+        public int Age90LivenessCount { get; set; }
+        public int Age90EftReadyCount { get; set; }
+        public int Age95LivenessCount { get; set; }
+        public int Age95EftReadyCount { get; set; }
+        public int Age100LivenessCount { get; set; }
+        public int Age100EftReadyCount { get; set; }
         public int MaleCount { get; set; }
         public int FemaleCount { get; set; }
         public decimal TotalDisbursement { get; set; }

@@ -4644,6 +4644,29 @@
     color: #d63384;
 }
 
+/* ── Second split line: Liveness Verified / EFT Ready within the bracket ── */
+.age-cell-split--verify {
+    margin-top: 1px;
+}
+
+.age-split-live,
+.age-split-eft {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.age-split-live {
+    color: #0f9d58;
+}
+
+.age-split-eft {
+    color: #e08a00;
+}
+
 /* ── Stat Table — Statistics-family tables (Province/Municipality/Payroll
    Quarter breakdowns) get their own polish here: a gradient header instead
    of flat Bootstrap table-dark, a hover accent per row, and a bolder TOTAL
