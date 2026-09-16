@@ -1580,30 +1580,58 @@
                     </button>
                 </li>
                 <li>
-                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _livenessModal.ShowAsync()">
+                    @* Disabled <button>s don't fire hover/pointer events in most
+                       browsers, so a `title` tooltip here would never actually
+                       show — the reason has to be visible text in the item
+                       itself instead (same for Annex M/N below). *@
+                    <button type="button" class="dropdown-item print-forms-item" disabled="@(!IsLivenessConfirmed(selectedDetails))"
+                            @onclick="() => _livenessModal.ShowAsync()">
                         <i class="bi bi-person-check print-forms-item-icon"></i>
                         <span class="print-forms-item-text">
                             <span class="print-forms-item-title">Liveness &amp; Transaction Form</span>
-                            <span class="print-forms-item-sub">Current form</span>
+                            @if (IsLivenessConfirmed(selectedDetails))
+                            {
+                                <span class="print-forms-item-sub">Current form</span>
+                            }
+                            else
+                            {
+                                <span class="print-forms-item-sub text-warning"><i class="bi bi-lock-fill me-1"></i>Requires Liveness Verified</span>
+                            }
                         </span>
                     </button>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
                 <li>
-                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _annexMModal.ShowAsync()">
+                    <button type="button" class="dropdown-item print-forms-item" disabled="@(!IsLivenessConfirmed(selectedDetails))"
+                            @onclick="() => _annexMModal.ShowAsync()">
                         <i class="bi bi-clipboard2-check print-forms-item-icon"></i>
                         <span class="print-forms-item-text">
                             <span class="print-forms-item-title">Annex M</span>
-                            <span class="print-forms-item-sub">Liveness &amp; Confirmation of Transaction Account (old form)</span>
+                            @if (IsLivenessConfirmed(selectedDetails))
+                            {
+                                <span class="print-forms-item-sub">Liveness &amp; Confirmation of Transaction Account (old form)</span>
+                            }
+                            else
+                            {
+                                <span class="print-forms-item-sub text-warning"><i class="bi bi-lock-fill me-1"></i>Requires Liveness Verified</span>
+                            }
                         </span>
                     </button>
                 </li>
                 <li>
-                    <button type="button" class="dropdown-item print-forms-item" @onclick="() => _annexNModal.ShowAsync()">
+                    <button type="button" class="dropdown-item print-forms-item" disabled="@(!IsLivenessConfirmed(selectedDetails))"
+                            @onclick="() => _annexNModal.ShowAsync()">
                         <i class="bi bi-wallet2 print-forms-item-icon"></i>
                         <span class="print-forms-item-text">
                             <span class="print-forms-item-title">Annex N</span>
-                            <span class="print-forms-item-sub">Transaction Account Form (old form)</span>
+                            @if (IsLivenessConfirmed(selectedDetails))
+                            {
+                                <span class="print-forms-item-sub">Transaction Account Form (old form)</span>
+                            }
+                            else
+                            {
+                                <span class="print-forms-item-sub text-warning"><i class="bi bi-lock-fill me-1"></i>Requires Liveness Verified</span>
+                            }
                         </span>
                     </button>
                 </li>
@@ -1740,6 +1768,17 @@
         </span>
     </div>
 </div>
+
+@if (!IsLivenessConfirmed(selectedDetails))
+{
+    <div class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>
+            The <strong>Liveness &amp; Transaction Form</strong>, <strong>Annex M</strong>, and <strong>Annex N</strong>
+            print forms are disabled until this grantee's Liveness is confirmed Verified (edit the record to check it).
+        </span>
+    </div>
+}
 
 @if (_generatedLivenessUrl is not null)
 {
@@ -5647,6 +5686,14 @@ private int IncompleteDetailsCount =>
         if (reason.Contains("Exact name", StringComparison.OrdinalIgnoreCase)) return "bg-warning text-dark";
         return "bg-secondary";
     }
+
+    // Gates the Liveness & Transaction / Annex M / Annex N print buttons in
+    // the details offcanvas — printing a transaction-account form for a
+    // grantee who hasn't actually had their liveness confirmed would be
+    // premature, so those stay disabled until IsLivenessVerified is
+    // explicitly true (null/not-yet-checked and false both block it).
+    private static bool IsLivenessConfirmed(BeneficiaryInformationDto? details) =>
+        details?.IsLivenessVerified == true;
 
     private static string LivenessEftTooltip(BeneficiaryListItemDto item)
     {

@@ -728,7 +728,7 @@
             <div class="ff">
                 <label class="ff-label">Ready for Electronic Fund Transfer?</label>
                 <label class="annexa-checkbox-item">
-                    <input type="checkbox" checked="@(model.IsReadyForEft ?? false)"
+                    <input type="checkbox" checked="@(model.IsReadyForEft ?? false)" disabled="@(!HasBankAccountOnFile)"
                            @onchange="@(e => model.IsReadyForEft = (bool)(e.Value ?? false))" />
                     Ready for EFT
                 </label>
@@ -738,6 +738,17 @@
                 }
             </div>
         </div>
+        @if (!HasBankAccountOnFile)
+        {
+            <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <span>
+                    "Ready for EFT" is disabled until a Preferred Mode is selected in
+                    @(model.IsDeceased ? "Section F.1 (Claimant's account)" : "Section E.1") —
+                    the account details below it aren't required to enable this.
+                </span>
+            </div>
+        }
     </div>
 </div>
 
@@ -1293,6 +1304,16 @@
         ValidationDate = DateTime.UtcNow,
         PhoneNumbers = new() { new BeneficiaryPhoneNumberDto() },
     };
+    // Gates the "Ready for EFT" checkbox — only E.1's Preferred Mode
+    // dropdown has to be picked (not "Not Set"); the E.2 account-detail
+    // fields underneath it (account number, etc.) are NOT required to
+    // enable this. For a deceased grantee the payout goes to the
+    // claimant/heir instead (see BeneficiaryClaimantSection), so that's the
+    // dropdown checked in that case rather than Section E's.
+    private bool HasBankAccountOnFile => model.IsDeceased
+        ? model.ClaimantBankAccount?.PreferredChannel is not (null or 0)
+        : model.BankAccount?.PreferredChannel is not (null or 0);
+
     // Add these fields in @code
     private bool _isAdmin;
     private bool _isPdo;
