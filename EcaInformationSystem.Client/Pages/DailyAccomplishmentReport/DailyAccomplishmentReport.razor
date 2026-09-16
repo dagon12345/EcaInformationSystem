@@ -188,17 +188,9 @@
                                             <input type="checkbox" class="form-check-input" @bind="_rowDraft.IsWorkFromHome" />
                                         </td>
                                         <td data-label="Accomplishment/s">
-                                            @if (IsWeekend(m.Date))
-                                            {
-                                                <textarea class="form-control form-control-sm" rows="2"
-                                                          value="@WeekendLabel(m.Date)" disabled></textarea>
-                                            }
-                                            else
-                                            {
-                                                <textarea class="form-control form-control-sm" rows="2"
-                                                          placeholder="One bullet per line"
-                                                          @bind="_rowDraft.AccomplishmentText"></textarea>
-                                            }
+                                            <textarea class="form-control form-control-sm" rows="2"
+                                                      placeholder="One bullet per line"
+                                                      @bind="_rowDraft.AccomplishmentText"></textarea>
                                         </td>
                                         <td class="text-center" data-label="Actions">
                                             <div class="d-flex gap-1 justify-content-center">
@@ -522,13 +514,15 @@
     {
         Date = m.Date,
         EssentialFunctionsOverride = m.HasOverride ? m.EssentialFunctionsOverride : null,
-        AccomplishmentBullets = IsWeekend(m.Date)
-            ? new List<string> { WeekendLabel(m.Date) }
-            : (m.AccomplishmentText ?? string.Empty)
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Select(b => b.Trim())
-                .Where(b => b.Length > 0)
-                .ToList(),
+        // Weekends default to the plain "SATURDAY"/"SUNDAY" label (see
+        // RegenerateEntries) but are editable like any other day — a user
+        // who was asked to work a weekend can log it instead of being stuck
+        // with the placeholder label.
+        AccomplishmentBullets = (m.AccomplishmentText ?? string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(b => b.Trim())
+            .Where(b => b.Length > 0)
+            .ToList(),
         IsWorkFromHome = m.IsWorkFromHome
     };
 
