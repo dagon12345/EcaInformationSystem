@@ -6073,15 +6073,39 @@
    "static" on the toggle in MainLayout.razor disables Popper) so it stays
    anchored to its own toggle's right edge — .navbar-actions is right-docked
    at the true edge of the screen, so right:0 here keeps the menu fully
-   on-screen instead of Popper's positioning fighting with that. */
+   on-screen instead of Popper's positioning fighting with that.
+   `position: fixed` (rather than absolute) keeps it clear of .app-shell/
+   .main-area's `overflow:hidden` as this panel grows tall.
+   ✅ FIXED — the REAL bug: this rule never set a z-index, so it fell back to
+   z-index:auto within .top-navbar's stacking context (position:relative +
+   z-index:500 there). Its own click-outside-to-close backdrop
+   (.notif-bell-backdrop, rendered as a PLAIN SIBLING in MainLayout.razor —
+   not an ancestor, so @onclick:stopPropagation on this menu can't help)
+   explicitly sets z-index:1399, which is higher than "auto" — so the
+   backdrop was painting ON TOP of this entire panel. Every click/scroll
+   that looked like it was hitting the leaderboard rows/list was actually
+   landing on the invisible backdrop instead, which just closes the menu —
+   that's what read as "can't scroll" and "click a row, see nothing."
+   Matches .duplicate-dropdown's z-index:1400 — exactly one above its own
+   backdrop's 1399, the same working pattern the notification bell uses. */
 .navbar-leaderboard-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
+    position: fixed;
+    top: 64px;
+    right: 24px;
     width: 360px;
-    max-height: 80vh;
+    max-height: calc(100vh - 88px);
     overflow-y: auto;
     padding: 10px;
+    z-index: 1400;
+}
+
+@media (max-width: 768px) {
+    .navbar-leaderboard-menu {
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-height: calc(100vh - 72px);
+    }
 }
 .navbar-leaderboard-menu .tier-leaderboard-card {
     margin-bottom: 0;

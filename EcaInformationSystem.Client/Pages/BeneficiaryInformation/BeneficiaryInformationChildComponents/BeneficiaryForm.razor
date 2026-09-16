@@ -707,7 +707,7 @@
             <div class="ff">
                 <label class="ff-label">Liveness Verified?</label>
                 <label class="annexa-checkbox-item">
-                    <input type="checkbox" checked="@(model.IsLivenessVerified ?? false)"
+                    <input type="checkbox" checked="@(model.IsLivenessVerified ?? false)" disabled="@(!IsCoApproved)"
                            @onchange="@(e => model.IsLivenessVerified = (bool)(e.Value ?? false))" />
                     Verified
                 </label>
@@ -728,7 +728,7 @@
             <div class="ff">
                 <label class="ff-label">Ready for Electronic Fund Transfer?</label>
                 <label class="annexa-checkbox-item">
-                    <input type="checkbox" checked="@(model.IsReadyForEft ?? false)" disabled="@(!HasBankAccountOnFile)"
+                    <input type="checkbox" checked="@(model.IsReadyForEft ?? false)" disabled="@(!CanEnableEft)"
                            @onchange="@(e => model.IsReadyForEft = (bool)(e.Value ?? false))" />
                     Ready for EFT
                 </label>
@@ -738,15 +738,37 @@
                 }
             </div>
         </div>
-        @if (!HasBankAccountOnFile)
+        @if (!IsCoApproved)
         {
-            <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
-                <i class="bi bi-exclamation-triangle-fill"></i>
+            <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
+                <i class="bi bi-lock-fill"></i>
                 <span>
-                    "Ready for EFT" is disabled until a Preferred Mode is selected in
-                    @(model.IsDeceased ? "Section F.1 (Claimant's account)" : "Section E.1") —
-                    the account details below it aren't required to enable this.
+                    "Liveness Verified?" and "Ready for EFT" are both disabled until <strong>CO Status</strong> (below,
+                    under Internal / System Fields) is set to <strong>Approved</strong> — @(model.CoStatus switch
+                    {
+                        1 => "this record is currently only Endorsed.",
+                        _ => "this record has no CO Status set yet."
+                    })
                 </span>
+            </div>
+        }
+        else if (!CanEnableEft)
+        {
+            <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>"Ready for EFT" is disabled until <strong>both</strong> of these are true:</span>
+                </div>
+                <ul class="mb-0 ps-4">
+                    <li class="@(model.IsLivenessVerified == true ? "text-success" : "")">
+                        @(model.IsLivenessVerified == true ? "✓" : "☐") "Liveness Verified?" is checked above
+                    </li>
+                    <li class="@(HasPreferredModeSelected ? "text-success" : "")">
+                        @(HasPreferredModeSelected ? "✓" : "☐") A Preferred Mode is selected in
+                        @(model.IsDeceased ? "Section F.1 (Claimant's account)" : "Section E.1")
+                        — the E.2 account details themselves aren't required
+                    </li>
+                </ul>
             </div>
         }
     </div>
@@ -1304,15 +1326,30 @@
         ValidationDate = DateTime.UtcNow,
         PhoneNumbers = new() { new BeneficiaryPhoneNumberDto() },
     };
-    // Gates the "Ready for EFT" checkbox — only E.1's Preferred Mode
-    // dropdown has to be picked (not "Not Set"); the E.2 account-detail
-    // fields underneath it (account number, etc.) are NOT required to
-    // enable this. For a deceased grantee the payout goes to the
+    // Gate #0, shared by BOTH "Liveness Verified?" and "Ready for EFT" —
+    // neither can be confirmed until CO Status (see the CO Status section
+    // further down, admin-gated) is Approved (2). Endorsed (1) or unset (0)
+    // isn't enough — this mirrors the real workflow where liveness/EFT
+    // confirmation only happens after Central Office has actually approved
+    // the record, not merely endorsed it.
+    private bool IsCoApproved => model.CoStatus == 2;
+
+    // Gates the "Ready for EFT" checkbox — ALL of these must hold:
+    // (1) E.1's Preferred Mode dropdown has to be picked (not "Not Set");
+    // the E.2 account-detail fields underneath it (account number, etc.)
+    // are NOT required. For a deceased grantee the payout goes to the
     // claimant/heir instead (see BeneficiaryClaimantSection), so that's the
     // dropdown checked in that case rather than Section E's.
-    private bool HasBankAccountOnFile => model.IsDeceased
+    private bool HasPreferredModeSelected => model.IsDeceased
         ? model.ClaimantBankAccount?.PreferredChannel is not (null or 0)
         : model.BankAccount?.PreferredChannel is not (null or 0);
+
+    // (2) Liveness Verified is checked — an EFT-ready grantee has to have
+    // actually been confirmed alive/present first, not just have a channel
+    // on file. (3) CO Approved — checked again here (not just relied on via
+    // the Liveness checkbox being disabled) in case CO Status changes back
+    // away from Approved after Liveness was already checked.
+    private bool CanEnableEft => IsCoApproved && HasPreferredModeSelected && model.IsLivenessVerified == true;
 
     // Add these fields in @code
     private bool _isAdmin;

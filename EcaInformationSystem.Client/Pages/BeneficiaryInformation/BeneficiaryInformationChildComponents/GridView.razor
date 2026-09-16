@@ -2319,6 +2319,20 @@ else
                     Submitted @(_selectedLivenessItem.SubmittedDate?.ToLocalTime().ToString("MMMM d, yyyy h:mm tt") ?? "—")
                 </p>
             }
+            @if (_selectedLivenessItem?.Status == "Submitted" && !IsCoApproved(selectedDetails))
+            {
+                <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small d-flex align-items-center gap-2">
+                    <i class="bi bi-lock-fill"></i>
+                    <span>
+                        <strong>Verify</strong> is disabled until this grantee's <strong>CO Status</strong> is
+                        <strong>Approved</strong> — @(selectedDetails?.CoStatus switch
+                        {
+                            1 => "it's currently only Endorsed.",
+                            _ => "it has no CO Status set yet."
+                        }) Liveness can only be confirmed for a CO-Approved record.
+                    </span>
+                </div>
+            }
         </div>
     </BodyTemplate>
     <FooterTemplate>
@@ -2342,7 +2356,7 @@ else
         @if (_selectedLivenessItem?.Status == "Submitted")
         {
             <HxButton Color="ThemeColor.Danger" Enabled="@(!_isReviewingLiveness)" @onclick="RejectLivenessAsync">Reject</HxButton>
-            <HxButton Color="ThemeColor.Success" Enabled="@(!_isReviewingLiveness)" @onclick="VerifyLivenessAsync">Verify</HxButton>
+            <HxButton Color="ThemeColor.Success" Enabled="@(!_isReviewingLiveness && IsCoApproved(selectedDetails))" @onclick="VerifyLivenessAsync">Verify</HxButton>
         }
         <HxButton Color="ThemeColor.Secondary" @onclick="() => _livenessPhotoModal.HideAsync()">Close</HxButton>
     </FooterTemplate>
@@ -5694,6 +5708,15 @@ private int IncompleteDetailsCount =>
     // explicitly true (null/not-yet-checked and false both block it).
     private static bool IsLivenessConfirmed(BeneficiaryInformationDto? details) =>
         details?.IsLivenessVerified == true;
+
+    // Gates the "Verify" action on a liveness check submitted via the public
+    // link (Liveness Photo Review modal) — same CO Status=Approved(2) rule
+    // as BeneficiaryForm's Liveness/EFT checkboxes, so a submission can't be
+    // confirmed for a record Central Office hasn't actually approved yet.
+    // Reject is intentionally NOT gated — rejecting a bad submission should
+    // always be allowed regardless of CO Status.
+    private static bool IsCoApproved(BeneficiaryInformationDto? details) =>
+        details?.CoStatus == 2;
 
     private static string LivenessEftTooltip(BeneficiaryListItemDto item)
     {
