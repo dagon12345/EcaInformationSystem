@@ -4644,6 +4644,17 @@
     color: #d63384;
 }
 
+/* ── DTR: a still-empty AM/PM slot showing what was requested (pending
+   approval), directly in that column instead of only via the day badge ── */
+.dtr-doc-pending-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-style: italic;
+    font-size: 12px;
+    color: #b8860b;
+}
+
 /* ── Second split line: Liveness Verified / EFT Ready within the bracket ── */
 .age-cell-split--verify {
     margin-top: 1px;

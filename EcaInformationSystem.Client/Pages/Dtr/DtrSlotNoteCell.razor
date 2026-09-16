@@ -31,7 +31,7 @@
 }
 else
 {
-    <DtrTimeCell Day="Day" Slot="@Slot" CurrentTime="@CurrentTime" LogId="LogId"
+    <DtrTimeCell Day="Day" Slot="@Slot" CurrentTime="@CurrentTime" LogId="LogId" PendingTime="@PendingTime"
                  AllowEdit="AllowEdit" OnAdd="OnAddPunch" OnEdit="OnEditPunch" OnClear="OnClearPunch" Confirm="Confirm" />
     @if (AllowEdit)
     {
@@ -61,6 +61,7 @@ else
 
     [Parameter] public string? CurrentTime { get; set; }
     [Parameter] public int? LogId { get; set; }
+    [Parameter] public string? PendingTime { get; set; }
     [Parameter] public bool AllowEdit { get; set; }
     [Parameter] public ConfirmModal? Confirm { get; set; }
 

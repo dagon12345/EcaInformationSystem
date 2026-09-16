@@ -22,6 +22,18 @@
         </button>
     }
 }
+else if (!string.IsNullOrEmpty(PendingTime))
+{
+    @* The slot itself is still empty (nothing in AttendanceLog yet) — this
+       is what the user asked to have added here, shown right in the actual
+       column instead of only via the day-level pending badge, so it reads
+       like "this is what's coming" rather than looking untouched. Not an
+       editable/clearable real punch yet, so no pencil/x controls — those
+       only make sense once the request is approved and it becomes real. *@
+    <span class="dtr-doc-pending-time no-print" title="Awaiting approval — not yet applied to the DTR">
+        <i class="bi bi-hourglass-split"></i> @PendingTime
+    </span>
+}
 else if (AllowEdit)
 {
     <input type="time" class="dtr-doc-manual-input no-print" value="@_picked"
@@ -45,6 +57,10 @@ else if (AllowEdit)
     [Parameter] public string? CurrentTime { get; set; }
     [Parameter] public int? LogId { get; set; }
     [Parameter] public bool AllowEdit { get; set; }
+
+    // Set when this (still-empty) slot has a matching pending Add request —
+    // see DtrCopy.GetPendingAddTime for how the slot is matched.
+    [Parameter] public string? PendingTime { get; set; }
 
     [Parameter] public EventCallback<(int Day, string Slot, TimeOnly Time)> OnAdd { get; set; }
     [Parameter] public EventCallback<(int Day, string Slot, int LogId, TimeOnly NewTime)> OnEdit { get; set; }

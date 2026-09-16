@@ -216,6 +216,7 @@
                                 <DtrSlotNoteCell Day="day.Day" Slot="@slotStart" Text="@seg.Text" SlotEndValue="@(seg.SlotEnd ?? slotStart)"
                                              AvailableEndSlots="@AvailableEndSlots(day.Day, seg.Start)"
                                              CurrentTime="@GetPunchTime(day, slotStart)" LogId="@GetPunchLogId(day, slotStart)"
+                                             PendingTime="@GetPendingAddTime(day, slotStart)"
                                              AllowEdit="AllowManualPunchEdit" OnAddPunch="AddPunch" OnEditPunch="EditPunch" OnClearPunch="ClearPunch"
                                              OnSetNote="OnSetSlotNote" OnChanged="OnSlotNoteChanged" OnBlur="OnSlotNoteBlur" OnClear="OnClearSlotNote"
                                              OnRangeChanged="OnSlotRangeChanged" Confirm="Confirm" />
@@ -307,6 +308,28 @@
         "PmOut" => day.PmTimeOutLogId,
         _ => null
     };
+
+    // Surfaces a pending "Add" punch-edit request's requested time directly
+    // in the actual AM/PM column it would land in, instead of only via the
+    // day-level hourglass badge next to the day number — only for a slot
+    // that's still genuinely empty (a real punch always wins). There's no
+    // slot recorded on the request itself (see DtrPunchEditRequest), so this
+    // matches by AM/PM half — correct as long as at most one pending Add
+    // targets that half of the day, which is the normal case (a request is
+    // filed specifically because one slot is missing).
+    private string? GetPendingAddTime(DtrDayDto day, string slot)
+    {
+        if (!string.IsNullOrEmpty(GetPunchTime(day, slot))) return null;
+        if (!PendingRequestsByDay.TryGetValue(day.Day, out var pending)) return null;
+
+        var isPmSlot = slot is "PmIn" or "PmOut";
+        var match = pending.FirstOrDefault(p => p.RequestType == "Add"
+            && p.RequestedPunchTime is not null
+            && DateTime.TryParse(p.RequestedPunchTime, out var t)
+            && (t.Hour >= 12) == isPmSlot);
+
+        return match?.RequestedPunchTime;
+    }
 
     // Walks the 4 AM/PM columns left to right, grouping a note's covered
     // columns into ONE segment (rendered as one <td colspan>) and leaving

@@ -13,12 +13,6 @@ namespace EcaInformationSystem.Application.Services
     // setting.
     public class DtrService : IDtrService
     {
-        // 8 official work hours + the standard 1-hour lunch = a 9-hour
-        // presence span (e.g. 8:00 AM-5:00 PM). Undertime is measured against
-        // this full span (first punch to last punch), not against the 8
-        // worked hours alone — see ComputeDay below.
-        private const int RequiredSpanMinutes = 540;
-
         private readonly IAttendanceLogRepository _attendanceLogRepository;
         private readonly IPendingUserRegistrationRepository _userRepository;
 
@@ -248,23 +242,9 @@ namespace EcaInformationSystem.Application.Services
                     break;
             }
 
-            // Undertime only makes sense once the day actually has an end —
-            // an ODD punch count means the last punch is a "time in" (1 punch:
-            // just clocked in; 3 punches: back from lunch but no final clock-
-            // out yet), so the day isn't over and Hrs/Min stay blank rather
-            // than showing a misleadingly large "undertime" measured against
-            // an unfinished day.
-            if (punches.Count % 2 != 0)
-                return new DayComputation(amIn, amOut, pmIn, pmOut, amInId, amOutId, pmInId, pmOutId, 0, 0);
-
-            // Measured from the FIRST punch of the day to the LAST — i.e. the
-            // whole presence span — against the required 9-hour span, not the
-            // sum of the AM/PM stretches worked. A shorter lunch than the
-            // standard hour doesn't cancel out a late arrival or an early
-            // departure elsewhere in the day; only the bookend punches matter.
-            var spanMinutes = (int)(punches[^1].Time - punches[0].Time).TotalMinutes;
-            var undertimeMinutes = Math.Max(0, RequiredSpanMinutes - spanMinutes);
-            return new DayComputation(amIn, amOut, pmIn, pmOut, amInId, amOutId, pmInId, pmOutId, undertimeMinutes / 60, undertimeMinutes % 60);
+            // Undertime is no longer computed/displayed — Hrs/Min always come
+            // back 0 (blank in the UI) regardless of the punches, per-day.
+            return new DayComputation(amIn, amOut, pmIn, pmOut, amInId, amOutId, pmInId, pmOutId, 0, 0);
         }
 
         private static string Format(DateTime t) => t.ToString("h:mm tt");
