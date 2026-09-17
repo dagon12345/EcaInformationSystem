@@ -208,9 +208,14 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("GranteeEncodeAccess",
         policy => policy.RequireRole("Admin", "PDO", "SuperAdmin", "Encoder"));
 
-    // ✅ Viewer — "view and upload only" role, plus Admins, can upload Forms Gateway documents
+    // ✅ Forms Gateway management (upload/edit/delete forms & folders) —
+    // Admin/SuperAdmin plus PDO (field officers who manage forms). Viewer
+    // was removed from this policy — Viewer is now view/search/download-only
+    // here, matching its "view-only" role everywhere else in the app. Name
+    // kept as "AdminOrViewer" to avoid touching every controller attribute
+    // that references it.
     options.AddPolicy("AdminOrViewer",
-        policy => policy.RequireRole("Admin", "Viewer", "SuperAdmin"));
+        policy => policy.RequireRole("Admin", "SuperAdmin", "PDO"));
 
     // ✅ Call Logs — SuperAdmin/Admin see every call, PDO/Focal see only their
     // own (enforced again in VoiceCallLogService, not just here). Deliberately

@@ -377,6 +377,37 @@ namespace EcaInformationSystem.Application.Services
             return MapToDto(batch);
         }
 
+        public async Task<ApplicationBatchDto> UpdateEligibilityAsync(Guid batchId, Guid rowId, UpdateGranteeEligibilityDto dto, string callerName)
+        {
+            if (dto.IsEligible == false && string.IsNullOrWhiteSpace(dto.IneligibilityReason))
+                throw new InvalidOperationException("A reason is required when marking a grantee as not eligible.");
+
+            var batch = await LoadAsync(batchId);
+            var row = batch.Rows.FirstOrDefault(r => r.Id == rowId);
+            if (row is null)
+                throw new InvalidOperationException("Grantee row not found.");
+
+            row.IsEligible = dto.IsEligible;
+            row.Birthdate = dto.Birthdate;
+            row.Sex = string.IsNullOrWhiteSpace(dto.Sex) ? null : dto.Sex.Trim();
+            // Only meaningful alongside IsEligible=false — cleared otherwise so a
+            // stale reason can't linger after the row is later marked eligible.
+            row.IneligibilityReason = dto.IsEligible == false ? dto.IneligibilityReason!.Trim() : null;
+
+            // Spell out exactly what was set — not just "eligibility was
+            // touched" — so the activity log is actually useful for auditing
+            // who marked which grantee ineligible and why.
+            var eligibleLabel = row.IsEligible switch { true => "Eligible", false => "Not Eligible", _ => "Not Set" };
+            var ageLabel = row.Birthdate.HasValue ? $"{row.Birthdate.Value:MMM dd, yyyy} (age {ComputeAge(row.Birthdate.Value)})" : "not set";
+            var detail = $"Updated eligibility for grantee row '{row.FirstName} {row.LastName}' — " +
+                $"Eligible: {eligibleLabel}, Birthday: {ageLabel}, Sex: {row.Sex ?? "not set"}" +
+                (row.IsEligible == false ? $", Reason: \"{row.IneligibilityReason}\"" : string.Empty);
+
+            await LogActivityAsync(callerName, batch, detail);
+            await _repo.SaveChangesAsync();
+            return MapToDto(batch);
+        }
+
         public async Task<ApplicationBatchDto> DeleteRowAsync(Guid batchId, Guid rowId, string callerName)
         {
             var batch = await LoadAsync(batchId);
@@ -567,6 +598,17 @@ namespace EcaInformationSystem.Application.Services
             });
         }
 
+        // Standard "years since birthdate, as of today" calculation — hasn't had
+        // their birthday yet this year knocks a year off, same as everywhere
+        // else in the app that computes an age from a birthdate.
+        private static int ComputeAge(DateTime birthdate)
+        {
+            var today = DateTime.UtcNow.Date;
+            var age = today.Year - birthdate.Year;
+            if (birthdate.Date > today.AddYears(-age)) age--;
+            return age;
+        }
+
         private async Task<string> ResolveUserNameAsync(Guid userId)
         {
             var user = await _userManagementService.GetUserByIdAsync(userId);
@@ -615,7 +657,12 @@ namespace EcaInformationSystem.Application.Services
                         FindingNote = r.FindingNote,
                         FindingSetAt = r.FindingSetAt,
                         FindingSetByName = r.FindingSetByName,
-                        FindingResolvedAt = r.FindingResolvedAt
+                        FindingResolvedAt = r.FindingResolvedAt,
+                        IsEligible = r.IsEligible,
+                        Birthdate = r.Birthdate,
+                        Age = r.Birthdate.HasValue ? ComputeAge(r.Birthdate.Value) : null,
+                        Sex = r.Sex,
+                        IneligibilityReason = r.IneligibilityReason
                     }).ToList(),
                 Transfers = batch.Transfers
                     .OrderBy(t => t.RelayedAt)

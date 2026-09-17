@@ -18,11 +18,16 @@ namespace EcaInformationSystem.Api.Controllers
     {
         private readonly IApplicationTrackingService _service;
         private readonly IHubContext<ApplicationTrackingHub> _hub;
+        private readonly IJurisdictionGuardService _jurisdictionGuardService;
 
-        public ApplicationTrackingController(IApplicationTrackingService service, IHubContext<ApplicationTrackingHub> hub)
+        public ApplicationTrackingController(
+            IApplicationTrackingService service,
+            IHubContext<ApplicationTrackingHub> hub,
+            IJurisdictionGuardService jurisdictionGuardService)
         {
             _service = service;
             _hub = hub;
+            _jurisdictionGuardService = jurisdictionGuardService;
         }
 
         [HttpGet]
@@ -173,6 +178,34 @@ namespace EcaInformationSystem.Api.Controllers
         {
             if (!User.IsInRole("SuperAdmin")) return Forbid();
             return await RunAsync(() => _service.DeleteRowAsync(id, rowId, GetFullName()));
+        }
+
+        // ── PDO (scoped to their own jurisdiction's municipality) / Admin /
+        // SuperAdmin — inline Eligible/Birthday/Sex/Reason edit on one row,
+        // reached by opening the batch card (not the SuperAdmin-only edit
+        // modal above). A PDO outside this batch's municipality is blocked
+        // by the jurisdiction check below; everyone else who isn't PDO/
+        // Admin/SuperAdmin is blocked outright.
+        [HttpPut("{id:guid}/rows/{rowId:guid}/eligibility")]
+        public async Task<IActionResult> UpdateRowEligibility(Guid id, Guid rowId, [FromBody] UpdateGranteeEligibilityDto dto)
+        {
+            var isAdminOrSuper = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+            if (!isAdminOrSuper && !User.IsInRole("PDO"))
+                return Forbid();
+
+            if (!isAdminOrSuper)
+            {
+                var batch = await _service.GetByIdAsync(id);
+                if (batch is null) return NotFound();
+
+                var userName = User.Identity?.Name ?? "Unknown";
+                var role = GetRole() ?? string.Empty;
+                var jurisdictionError = await _jurisdictionGuardService.CheckAsync(userName, role, batch.PsgcCodeMunicipality);
+                if (jurisdictionError is not null)
+                    return StatusCode(403, jurisdictionError);
+            }
+
+            return await RunAsync(() => _service.UpdateEligibilityAsync(id, rowId, dto, GetFullName()));
         }
 
         private async Task<IActionResult> RunAsync(Func<Task<ApplicationBatchDto>> action, bool notifyOnHandoff = false)

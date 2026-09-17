@@ -1088,6 +1088,8 @@ namespace EcaInformationSystem.Infrastructure.Persistence
                         entity.Property(x => x.Extension).HasMaxLength(20);
                         entity.Property(x => x.FindingNote).HasMaxLength(1000);
                         entity.Property(x => x.FindingSetByName).HasMaxLength(200);
+                        entity.Property(x => x.Sex).HasMaxLength(20);
+                        entity.Property(x => x.IneligibilityReason).HasMaxLength(1000);
                   });
 
                   modelBuilder.Entity<ApplicationTransfer>(entity =>

@@ -29,6 +29,12 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<ApplicationBatchDto> UpdateRowAsync(Guid batchId, Guid rowId, CreateApplicationGranteeRowDto dto, string callerName);
         Task<ApplicationBatchDto> DeleteRowAsync(Guid batchId, Guid rowId, string callerName);
 
+        // ── PDO (jurisdiction-scoped, enforced in the controller) / Admin /
+        // SuperAdmin — inline Eligible/Birthday/Sex/Reason edit on one row,
+        // from the expanded batch card. IneligibilityReason is required
+        // whenever dto.IsEligible is explicitly false. ─────────────────────
+        Task<ApplicationBatchDto> UpdateEligibilityAsync(Guid batchId, Guid rowId, UpdateGranteeEligibilityDto dto, string callerName);
+
         // ── Admin/SuperAdmin — correct a wrongly-tagged recipient without
         // otherwise disturbing the batch's current workflow stage. ─────────
         Task<ApplicationBatchDto> ReassignRecipientAsync(Guid batchId, Guid newRecipientUserId, Guid callerId, string callerName);

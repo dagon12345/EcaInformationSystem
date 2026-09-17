@@ -24,5 +24,16 @@ namespace EcaInformationSystem.Domain.Entities
         public DateTime? FindingSetAt { get; set; }
         public string? FindingSetByName { get; set; }
         public DateTime? FindingResolvedAt { get; set; }
+
+        // ── Eligibility — set by the PDO responsible for this grantee's
+        // municipality (see JurisdictionGuardService), only while the batch
+        // card is open. Null until a PDO has actually gone through it —
+        // shown as "-" in the UI, never assumed true or false by default.
+        public bool? IsEligible { get; set; }
+        public DateTime? Birthdate { get; set; }
+        public string? Sex { get; set; }
+        // Compulsory whenever IsEligible is explicitly false — enforced in
+        // ApplicationTrackingService.UpdateEligibilityAsync, not just the UI.
+        public string? IneligibilityReason { get; set; }
     }
 }

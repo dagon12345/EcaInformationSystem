@@ -1095,7 +1095,7 @@
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
-        _hasFullAccess = AuthService.IsAdmin() || AuthService.IsViewer();
+        _hasFullAccess = AuthService.IsAdmin() || AuthService.IsPDO();
         await LoadFoldersAsync();
         await LoadFormsAsync();
 

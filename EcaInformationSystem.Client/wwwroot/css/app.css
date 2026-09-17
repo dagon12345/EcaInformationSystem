@@ -6061,6 +6061,9 @@
     .main-navbar-actions .navbar-feed-btn {
         color: #6366f1; /* matches NavMenu's Feed icon indigo */
     }
+    .main-navbar-actions .navbar-logout-btn {
+        color: #dc3545; /* danger red — distinct from the other navbar icons, matches the confirm modal's tone */
+    }
 
 .navbar-feed-btn {
     display: inline-flex;
@@ -11748,6 +11751,45 @@ body {
     background: linear-gradient(135deg, #059669, #34d399);
 }
 
+/* ── Eligible/Sex breakdown tiles — clickable, drills down into who's
+   behind the count (same "click a summary card to see who" concept as
+   Statistics.razor's members modal). ── */
+.dt-stat-tile--clickable {
+    cursor: pointer;
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+.dt-stat-tile--clickable:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,.1);
+    transform: translateY(-1px);
+}
+.dt-stat-tile--success .dt-stat-icon {
+    background: linear-gradient(135deg, #15803d, #4ade80);
+}
+.dt-stat-tile--danger .dt-stat-icon {
+    background: linear-gradient(135deg, #b91c1c, #f87171);
+}
+.dt-stat-tile--warning .dt-stat-icon {
+    background: linear-gradient(135deg, #b45309, #fbbf24);
+}
+.dt-stat-tile--male .dt-stat-icon {
+    background: linear-gradient(135deg, #1d4ed8, #60a5fa);
+}
+.dt-stat-tile--female .dt-stat-icon {
+    background: linear-gradient(135deg, #be185d, #f472b6);
+}
+.dt-stat-tile--sm {
+    flex-basis: 170px;
+    padding: 10px 14px;
+}
+.dt-stat-tile--sm .dt-stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+}
+.dt-stat-tile--sm .dt-stat-value {
+    font-size: 20px;
+}
+
 .dt-stat-text {
     min-width: 0;
 }
@@ -11996,6 +12038,46 @@ body {
     border-radius: 8px;
 }
 
+/* ── Eligible/Birthday/Sex/Reason columns — kept compact (small pills,
+   narrow inputs, truncated Reason with a title tooltip) so 5 extra columns
+   don't turn the grantee table noisy. ── */
+.dt-eligible-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+.dt-eligible-yes {
+    background: #dcfce7;
+    color: #15803d;
+}
+.dt-eligible-no {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.dt-reason-cell {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.dt-eligibility-input {
+    font-size: 12px;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 100%;
+    min-width: 90px;
+}
+.dt-eligibility-reason-input {
+    min-width: 140px;
+}
+
 .dt-link-btn {
     background: none;
     border: none;
@@ -12010,6 +12092,23 @@ body {
     .dt-link-btn:hover {
         text-decoration: underline;
     }
+
+.dt-link-btn-nowrap {
+    white-space: nowrap;
+}
+
+/* ── "Open Batch" landing effect — briefly flashes the card the drill-down
+   jumped to, so it's obvious which one it landed on instead of it just
+   silently expanding somewhere on the page. Auto-clears after ~2.5s (see
+   ApplicationTracking.razor's ClearHighlightAfterDelayAsync). ── */
+.dt-card--highlighted {
+    animation: dt-card-highlight-pulse 1.2s ease-out 2;
+}
+@keyframes dt-card-highlight-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .55); }
+    70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
 
 .dt-transfer-log {
     background: var(--navy-pale);
@@ -12132,6 +12231,13 @@ body {
 
 .dt-modal-lg {
     max-width: 640px;
+}
+
+/* Wide enough for the grantee drill-down's 8-column table (Name/
+   Municipality/Milestone/Eligible/Birthday/Sex/Reason/Open Batch) — dt-
+   modal-lg's 640px squeezed every column down to almost nothing. */
+.dt-modal-xl {
+    max-width: 1080px;
 }
 
 .dt-modal-header {

@@ -159,13 +159,69 @@
             </div>
         </div>
 
+        @* ── Eligible/Sex breakdown — click a tile to see exactly which
+             grantees it counts, same concept as Statistics.razor's clickable
+             summary cards. The "Not Set" tiles exist specifically so a PDO
+             can see at a glance who still needs their status filled in. ── *@
+        <div class="dt-stat-row">
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--success dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.Eligible)">
+                <div class="dt-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@EligibleCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Eligible</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--danger dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.NotEligible)">
+                <div class="dt-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@NotEligibleCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Not Eligible</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--warning dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.EligibilityNotSet)">
+                <div class="dt-stat-icon"><i class="bi bi-question-circle-fill"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@EligibilityNotSetCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Not Set Yet</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--male dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.Male)">
+                <div class="dt-stat-icon"><i class="bi bi-gender-male"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@MaleCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Male</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--female dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.Female)">
+                <div class="dt-stat-icon"><i class="bi bi-gender-female"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@FemaleCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Female</div>
+                </div>
+            </div>
+            <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--warning dt-stat-tile--clickable"
+                 @onclick="() => OpenGranteeDrilldown(GranteeDrilldownKind.SexNotSet)">
+                <div class="dt-stat-icon"><i class="bi bi-question-circle-fill"></i></div>
+                <div class="dt-stat-text">
+                    <div class="dt-stat-value">@SexNotSetCount().ToString("N0")</div>
+                    <div class="dt-stat-label">Sex Not Set</div>
+                </div>
+            </div>
+        </div>
+
         <div class="dt-card-list">
             @foreach (var batch in PagedBatches())
             {
                 var expanded = _expandedIds.Contains(batch.Id);
                 var isMine = batch.CurrentHolderUserId == _currentUserId;
 
-                <div class="dt-card @(batch.CurrentStatus == 6 ? "dt-card-completed" : PriorityAccentClass(batch.Priority))">
+                <div id="app-batch-@batch.Id"
+                     class="dt-card @(batch.CurrentStatus == 6 ? "dt-card-completed" : PriorityAccentClass(batch.Priority)) @(_highlightedBatchId == batch.Id ? "dt-card--highlighted" : "")">
                     <div class="dt-card-header" @onclick="() => ToggleExpand(batch.Id)">
                         <div class="dt-card-header-main">
                             <div class="dt-card-title">
@@ -240,6 +296,7 @@
                     {
                         <div class="dt-card-body" @onclick:stopPropagation="true">
 
+                            @{ var canEditEligibility = CanEditEligibility(batch.PsgcCodeMunicipality); }
                             <div class="dt-rows-table-wrap">
                                 <table class="dt-rows-table">
                                     <thead>
@@ -248,17 +305,93 @@
                                             <th>Middle Name</th>
                                             <th>Last Name</th>
                                             <th>Ext</th>
+                                            <th>Eligible</th>
+                                            <th>Birthday</th>
+                                            <th>Sex</th>
+                                            <th>Reason</th>
                                             <th>Finding</th>
+                                            @if (canEditEligibility)
+                                            {
+                                                <th></th>
+                                            }
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @foreach (var row in batch.Rows)
                                         {
+                                            var isEditingRow = _editingEligibilityRowId == row.Id;
+                                            var rowFullName = $"{row.FirstName} {row.LastName}";
+
                                             <tr class="@(row.HasFinding ? "dt-row-flagged" : "")">
                                                 <td>@row.FirstName</td>
                                                 <td>@(row.MiddleName ?? "—")</td>
                                                 <td>@row.LastName</td>
                                                 <td>@(row.Extension ?? "—")</td>
+                                                @if (isEditingRow)
+                                                {
+                                                    <td>
+                                                        <select class="dt-eligibility-input" @bind="_eligibilityDraftIsEligible">
+                                                            <option value="">-</option>
+                                                            <option value="true">Eligible</option>
+                                                            <option value="false">Not Eligible</option>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="date" class="dt-eligibility-input" @bind="_eligibilityDraftBirthdate" />
+                                                        @if (_eligibilityDraftBirthdate.HasValue)
+                                                        {
+                                                            <span class="text-muted small d-block">@(ComputeAge(_eligibilityDraftBirthdate.Value)) y/o</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        <select class="dt-eligibility-input" @bind="_eligibilityDraftSex">
+                                                            <option value="">-</option>
+                                                            <option value="Male">Male</option>
+                                                            <option value="Female">Female</option>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        @if (_eligibilityDraftIsEligible == "false")
+                                                        {
+                                                            <input class="dt-eligibility-input dt-eligibility-reason-input" placeholder="Reason (required)"
+                                                                   @bind="_eligibilityDraftReason" @bind:event="oninput" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">—</span>
+                                                        }
+                                                    </td>
+                                                }
+                                                else
+                                                {
+                                                    <td>
+                                                        @if (row.IsEligible == true)
+                                                        {
+                                                            <span class="dt-eligible-badge dt-eligible-yes">Eligible</span>
+                                                        }
+                                                        else if (row.IsEligible == false)
+                                                        {
+                                                            <span class="dt-eligible-badge dt-eligible-no">Not Eligible</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">—</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        @if (row.Birthdate.HasValue)
+                                                        {
+                                                            @row.Birthdate.Value.ToString("MMM dd, yyyy")
+                                                            <span class="text-muted small">(@row.Age y/o)</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>—</span>
+                                                        }
+                                                    </td>
+                                                    <td>@(row.Sex ?? "—")</td>
+                                                    <td class="dt-reason-cell" title="@row.IneligibilityReason">@(row.IneligibilityReason ?? "—")</td>
+                                                }
                                                 <td>
                                                     @if (row.HasFinding)
                                                     {
@@ -283,6 +416,26 @@
                                                         <span class="text-muted">—</span>
                                                     }
                                                 </td>
+                                                @if (canEditEligibility)
+                                                {
+                                                    <td>
+                                                        @if (isEditingRow)
+                                                        {
+                                                            <button class="dt-icon-btn" title="Save" @onclick="() => RequestSaveEligibility(batch.Id, row.Id, rowFullName)" disabled="@_busy">
+                                                                <i class="bi bi-check-lg text-success"></i>
+                                                            </button>
+                                                            <button class="dt-icon-btn" title="Cancel" @onclick="CancelEditEligibility" disabled="@_busy">
+                                                                <i class="bi bi-x-lg text-muted"></i>
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button class="dt-icon-btn" title="Edit eligibility" @onclick="() => StartEditEligibility(batch.Id, row)">
+                                                                <i class="bi bi-pencil-fill"></i>
+                                                            </button>
+                                                        }
+                                                    </td>
+                                                }
                                             </tr>
                                         }
                                     </tbody>
@@ -966,6 +1119,135 @@
     </div>
 }
 
+@* ── Confirm before saving an Eligible/Birthday/Sex/Reason edit ──────────── *@
+@if (_confirmEligibilityRowId.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CancelConfirmEligibility">
+        <div class="dt-modal" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-patch-check-fill me-2"></i>Confirm Eligibility Update</span>
+                <button class="dt-modal-close" @onclick="CancelConfirmEligibility"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                <p class="text-muted small mb-2">
+                    Confirm the details for <strong>@_confirmEligibilityRowLabel</strong> before saving.
+                </p>
+                <div class="dt-review-grid">
+                    <div><span class="dt-review-label">Eligible</span>
+                        <span>@(_eligibilityDraftIsEligible switch { "true" => "Eligible", "false" => "Not Eligible", _ => "Not Set" })</span>
+                    </div>
+                    <div><span class="dt-review-label">Birthday</span>
+                        <span>
+                            @(_eligibilityDraftBirthdate.HasValue
+                                ? $"{_eligibilityDraftBirthdate.Value:MMM dd, yyyy} (age {ComputeAge(_eligibilityDraftBirthdate.Value)})"
+                                : "Not Set")
+                        </span>
+                    </div>
+                    <div><span class="dt-review-label">Sex</span><span>@(string.IsNullOrWhiteSpace(_eligibilityDraftSex) ? "Not Set" : _eligibilityDraftSex)</span></div>
+                    @if (_eligibilityDraftIsEligible == "false")
+                    {
+                        <div><span class="dt-review-label">Reason</span><span>@_eligibilityDraftReason</span></div>
+                    }
+                </div>
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CancelConfirmEligibility" disabled="@_busy">Back to Edit</button>
+                <button class="dt-btn dt-btn-primary" @onclick="ConfirmSaveEligibilityAsync" disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    Confirm & Save
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Grantee drill-down — who's behind an Eligible/Sex tile's count.
+     Same "click a summary card, see the list" concept as Statistics.razor's
+     members modal. ── *@
+@if (_drilldownKind.HasValue)
+{
+    <div class="dt-modal-backdrop" @onclick="CloseGranteeDrilldown">
+        <div class="dt-modal dt-modal-xl" @onclick:stopPropagation="true">
+            <div class="dt-modal-header">
+                <span><i class="bi bi-people-fill me-2"></i>@GranteeDrilldownTitle() (@GranteeDrilldownRows().Count)</span>
+                <button class="dt-modal-close" @onclick="CloseGranteeDrilldown"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="dt-modal-body">
+                @{ var drilldownRows = GranteeDrilldownRows(); }
+                @if (!drilldownRows.Any())
+                {
+                    <p class="text-muted small mb-0">No grantees match this right now.</p>
+                }
+                else
+                {
+                    <div class="dt-rows-table-wrap">
+                        <table class="dt-rows-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Municipality</th>
+                                    <th>Milestone</th>
+                                    <th>Eligible</th>
+                                    <th>Birthday</th>
+                                    <th>Sex</th>
+                                    <th>Reason</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var x in drilldownRows)
+                                {
+                                    <tr>
+                                        <td>@x.Row.FirstName @(string.IsNullOrWhiteSpace(x.Row.MiddleName) ? "" : x.Row.MiddleName + " ") @x.Row.LastName @x.Row.Extension</td>
+                                        <td>@x.Batch.MunicipalityName, @x.Batch.ProvinceName</td>
+                                        <td>@x.Batch.MilestoneYear</td>
+                                        <td>
+                                            @if (x.Row.IsEligible == true)
+                                            {
+                                                <span class="dt-eligible-badge dt-eligible-yes">Eligible</span>
+                                            }
+                                            else if (x.Row.IsEligible == false)
+                                            {
+                                                <span class="dt-eligible-badge dt-eligible-no">Not Eligible</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (x.Row.Birthdate.HasValue)
+                                            {
+                                                @x.Row.Birthdate.Value.ToString("MMM dd, yyyy")
+                                                <span class="text-muted small">(@x.Row.Age y/o)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>@(x.Row.Sex ?? "—")</td>
+                                        <td class="dt-reason-cell" title="@x.Row.IneligibilityReason">@(x.Row.IneligibilityReason ?? "—")</td>
+                                        <td>
+                                            <button class="dt-link-btn dt-link-btn-nowrap" @onclick="() => JumpToBatchAsync(x.Batch.Id)">Open Batch</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="dt-modal-footer">
+                <button class="dt-btn dt-btn-outline" @onclick="CloseGranteeDrilldown">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private enum AtAction { ReturnToViewer, DistributeToPdo, EndorseToFinance, ReturnToPdoFindings, ForwardToViewerScanning }
 
@@ -1023,6 +1305,91 @@
     // grantee received") sums RowCount across every batch that survives the
     // current filter, not just the batch count.
     private int TotalGranteesReceived() => FilteredBatches().Sum(b => b.RowCount);
+
+    // ── Eligible/Sex breakdown tiles + drill-down ───────────────────────
+    // Pairs a grantee row with its parent batch (for the Municipality/
+    // Province/"Open Batch" columns in the drill-down) — the row DTO alone
+    // doesn't carry that context.
+    private record GranteeRowContext(ApplicationBatchDto Batch, ApplicationGranteeRowDto Row);
+
+    private IEnumerable<GranteeRowContext> AllVisibleGranteeRows() =>
+        FilteredBatches().SelectMany(b => b.Rows.Select(r => new GranteeRowContext(b, r)));
+
+    private int EligibleCount() => AllVisibleGranteeRows().Count(x => x.Row.IsEligible == true);
+    private int NotEligibleCount() => AllVisibleGranteeRows().Count(x => x.Row.IsEligible == false);
+    private int EligibilityNotSetCount() => AllVisibleGranteeRows().Count(x => x.Row.IsEligible == null);
+    private int MaleCount() => AllVisibleGranteeRows().Count(x => string.Equals(x.Row.Sex, "Male", StringComparison.OrdinalIgnoreCase));
+    private int FemaleCount() => AllVisibleGranteeRows().Count(x => string.Equals(x.Row.Sex, "Female", StringComparison.OrdinalIgnoreCase));
+    private int SexNotSetCount() => AllVisibleGranteeRows().Count(x => string.IsNullOrWhiteSpace(x.Row.Sex));
+
+    private enum GranteeDrilldownKind { Eligible, NotEligible, EligibilityNotSet, Male, Female, SexNotSet }
+    private GranteeDrilldownKind? _drilldownKind;
+
+    private void OpenGranteeDrilldown(GranteeDrilldownKind kind) => _drilldownKind = kind;
+    private void CloseGranteeDrilldown() => _drilldownKind = null;
+
+    private string GranteeDrilldownTitle() => _drilldownKind switch
+    {
+        GranteeDrilldownKind.Eligible => "Eligible Grantees",
+        GranteeDrilldownKind.NotEligible => "Not Eligible Grantees",
+        GranteeDrilldownKind.EligibilityNotSet => "Eligibility Not Set Yet",
+        GranteeDrilldownKind.Male => "Male Grantees",
+        GranteeDrilldownKind.Female => "Female Grantees",
+        GranteeDrilldownKind.SexNotSet => "Sex Not Set Yet",
+        _ => string.Empty
+    };
+
+    private List<GranteeRowContext> GranteeDrilldownRows() => _drilldownKind switch
+    {
+        GranteeDrilldownKind.Eligible => AllVisibleGranteeRows().Where(x => x.Row.IsEligible == true).ToList(),
+        GranteeDrilldownKind.NotEligible => AllVisibleGranteeRows().Where(x => x.Row.IsEligible == false).ToList(),
+        GranteeDrilldownKind.EligibilityNotSet => AllVisibleGranteeRows().Where(x => x.Row.IsEligible == null).ToList(),
+        GranteeDrilldownKind.Male => AllVisibleGranteeRows().Where(x => string.Equals(x.Row.Sex, "Male", StringComparison.OrdinalIgnoreCase)).ToList(),
+        GranteeDrilldownKind.Female => AllVisibleGranteeRows().Where(x => string.Equals(x.Row.Sex, "Female", StringComparison.OrdinalIgnoreCase)).ToList(),
+        GranteeDrilldownKind.SexNotSet => AllVisibleGranteeRows().Where(x => string.IsNullOrWhiteSpace(x.Row.Sex)).ToList(),
+        _ => new()
+    };
+
+    // Highlighted batch card — briefly flashed after "Open Batch" lands on
+    // it, then auto-clears (see ClearHighlightAfterDelayAsync).
+    private Guid? _highlightedBatchId;
+
+    // Closes the drill-down, jumps to the right PAGE of the (possibly
+    // paginated) batch list if the target isn't on the current one, expands
+    // its card, scrolls it into view, and flashes it briefly so the user
+    // actually lands ON it instead of just having it silently expand
+    // somewhere off-screen.
+    private async Task JumpToBatchAsync(Guid batchId)
+    {
+        CloseGranteeDrilldown();
+
+        var filtered = FilteredBatches().ToList();
+        var index = filtered.FindIndex(b => b.Id == batchId);
+        if (index >= 0)
+            _currentPage = (index / PageSize) + 1;
+
+        _expandedIds.Add(batchId);
+        _highlightedBatchId = batchId;
+        StateHasChanged();
+
+        // Let the expanded card actually render before asking the browser to
+        // scroll to it — otherwise the element may not exist in the DOM yet.
+        await Task.Delay(120);
+        try { await JS.InvokeVoidAsync("scrollInterop.scrollToElement", $"app-batch-{batchId}"); }
+        catch { /* non-fatal — the card is still expanded, just not auto-scrolled to */ }
+
+        _ = ClearHighlightAfterDelayAsync(batchId);
+    }
+
+    private async Task ClearHighlightAfterDelayAsync(Guid batchId)
+    {
+        await Task.Delay(2500);
+        if (_highlightedBatchId == batchId)
+        {
+            _highlightedBatchId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private bool IsAnyFilterActive() =>
         _dateReceivedFrom.HasValue || _dateReceivedTo.HasValue
@@ -1723,6 +2090,113 @@
 
     private async Task ResolveFindingAsync(Guid batchId, Guid rowId) =>
         await PostSimpleAsync($"api/application-tracking/{batchId}/rows/{rowId}/resolve-finding");
+
+    // ── Eligible/Birthday/Sex/Reason — inline edit, PDO (own jurisdiction
+    // only), Admin, or SuperAdmin. Mirrors AuthService.IsInJurisdiction's
+    // Admin/SuperAdmin/Encoder-see-everything rule, minus Encoder (the
+    // server endpoint doesn't allow it) — only one used here.
+    private bool CanEditEligibility(int municipalityCode) =>
+        _isAdmin || (AuthService.IsPDO() && AuthService.IsInJurisdiction(municipalityCode));
+
+    // Only one row editable at a time — same "draft, not live-bound" pattern
+    // as the DAR/DTR inline-row editors elsewhere in the app.
+    private Guid? _editingEligibilityRowId;
+    private string _eligibilityDraftIsEligible = string.Empty; // "" | "true" | "false"
+    private DateTime? _eligibilityDraftBirthdate;
+    private string _eligibilityDraftSex = string.Empty;
+    private string _eligibilityDraftReason = string.Empty;
+
+    private void StartEditEligibility(Guid batchId, ApplicationGranteeRowDto row)
+    {
+        _editingEligibilityRowId = row.Id;
+        _eligibilityDraftIsEligible = row.IsEligible switch { true => "true", false => "false", _ => "" };
+        _eligibilityDraftBirthdate = row.Birthdate;
+        _eligibilityDraftSex = row.Sex ?? string.Empty;
+        _eligibilityDraftReason = row.IneligibilityReason ?? string.Empty;
+    }
+
+    private void CancelEditEligibility() => _editingEligibilityRowId = null;
+
+    // Standard "years since birthdate" calc, matching
+    // ApplicationTrackingService.ComputeAge server-side — used for the live
+    // preview next to the date picker and the confirm-modal summary.
+    private static int ComputeAge(DateTime birthdate)
+    {
+        var today = DateTime.Today;
+        var age = today.Year - birthdate.Year;
+        if (birthdate.Date > today.AddYears(-age)) age--;
+        return age;
+    }
+
+    // ── Confirm-before-save — the actual PUT only fires from
+    // ConfirmSaveEligibilityAsync below, never straight from the row's Save
+    // icon, so a PDO always sees a final summary before it's applied. ──────
+    private Guid? _confirmEligibilityBatchId;
+    private Guid? _confirmEligibilityRowId;
+    private string _confirmEligibilityRowLabel = string.Empty;
+
+    private void RequestSaveEligibility(Guid batchId, Guid rowId, string rowLabel)
+    {
+        // Same compulsory-reason guard the server enforces — checked here too
+        // so the user gets an immediate, specific message instead of getting
+        // all the way to the confirm modal (or a round trip) just to find out.
+        if (_eligibilityDraftIsEligible == "false" && string.IsNullOrWhiteSpace(_eligibilityDraftReason))
+        {
+            Toast.ShowError("A reason is required when marking a grantee as not eligible.");
+            return;
+        }
+
+        _confirmEligibilityBatchId = batchId;
+        _confirmEligibilityRowId = rowId;
+        _confirmEligibilityRowLabel = rowLabel;
+    }
+
+    private void CancelConfirmEligibility()
+    {
+        _confirmEligibilityBatchId = null;
+        _confirmEligibilityRowId = null;
+    }
+
+    private async Task ConfirmSaveEligibilityAsync()
+    {
+        if (!_confirmEligibilityBatchId.HasValue || !_confirmEligibilityRowId.HasValue) return;
+
+        await SaveEligibilityAsync(_confirmEligibilityBatchId.Value, _confirmEligibilityRowId.Value);
+        _confirmEligibilityBatchId = null;
+        _confirmEligibilityRowId = null;
+    }
+
+    private async Task SaveEligibilityAsync(Guid batchId, Guid rowId)
+    {
+        if (_busy) return;
+
+        _busy = true;
+        try
+        {
+            var dto = new UpdateGranteeEligibilityDto
+            {
+                IsEligible = _eligibilityDraftIsEligible switch { "true" => true, "false" => false, _ => (bool?)null },
+                Birthdate = _eligibilityDraftBirthdate,
+                Sex = string.IsNullOrWhiteSpace(_eligibilityDraftSex) ? null : _eligibilityDraftSex,
+                IneligibilityReason = _eligibilityDraftIsEligible == "false" ? _eligibilityDraftReason : null
+            };
+
+            var response = await Http.PutAsJsonAsync($"api/application-tracking/{batchId}/rows/{rowId}/eligibility", dto);
+            if (response.IsSuccessStatusCode)
+            {
+                _editingEligibilityRowId = null;
+                await LoadBatchesAsync();
+            }
+            else
+            {
+                Toast.ShowError(await response.Content.ReadAsStringAsync());
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
     private async Task PostSimpleAsync(string url, object? body = null)
     {

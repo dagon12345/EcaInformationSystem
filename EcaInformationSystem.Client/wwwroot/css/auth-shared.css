@@ -978,6 +978,22 @@
     animation: features-fade-in-up 0.5s ease-out both;
 }
 
+/* Spells out the acronym for a first-time/anonymous visitor — the badge and
+   title both just say "ECA-InFORMS" without ever explaining what it stands
+   for, which means nothing to someone landing here cold. */
+.features-hero-fullname {
+    position: relative;
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    margin-bottom: 14px;
+    max-width: 640px;
+    line-height: 1.5;
+    animation: features-fade-in-up 0.55s ease-out 0.02s both;
+}
+.features-hero-fullname strong {
+    color: #dce8f6;
+}
+
 .features-hero-badge {
     position: relative;
     display: inline-flex;
