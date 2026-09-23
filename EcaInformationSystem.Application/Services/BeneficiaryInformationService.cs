@@ -907,6 +907,7 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.IsLivenessVerified = dto.IsLivenessVerified;
             beneficiary.DateOfLiveness = dto.DateOfLiveness;
             beneficiary.IsReadyForEft = dto.IsReadyForEft;
+            beneficiary.PlatformUsed = dto.PlatformUsed;
 
             await _repo.AddAsync(beneficiary);
             await _repo.AddPaymentHistoryEntryAsync(initialHistory);
@@ -1156,6 +1157,10 @@ namespace EcaInformationSystem.Application.Services
                     CivilStatusOtherDetail = beneficiary.CivilStatusOtherDetail,
                     IsSignedDeclaration = beneficiary.IsSignedDeclaration,
                     DateSigned = beneficiary.DateSigned,
+                    IsLivenessVerified = beneficiary.IsLivenessVerified,
+                    DateOfLiveness = beneficiary.DateOfLiveness,
+                    IsReadyForEft = beneficiary.IsReadyForEft,
+                    PlatformUsed = beneficiary.PlatformUsed,
 
                     // ✅ NEW — sub-entities, mapped from the same dto that was just persisted.
                     // Reusing dto.* here instead of re-querying the repo — the values are
@@ -1621,7 +1626,7 @@ namespace EcaInformationSystem.Application.Services
                      dto.HouseNumber, dto.StreetName, dto.ZipCode,
                      dto.DisabilityType, dto.EthnicityName, dto.DualCitizenshipDetails,
                      dto.CivilStatusOtherDetail, dto.IsSignedDeclaration, dto.DateSigned, dto.IsLivenessVerified, dto.DateOfLiveness,
-                     dto.IsReadyForEft);
+                     dto.IsReadyForEft, dto.PlatformUsed);
 
             // ✅ Family members — always replace-all on edit, matches create behavior
             if (dto.FamilyMembers != null)
@@ -6204,6 +6209,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.IsReadyForEft != dto.IsReadyForEft)
                 changes.Add($"Ready for EFT '{MapTriStateLabel(beneficiary.IsReadyForEft)}' → '{MapTriStateLabel(dto.IsReadyForEft)}'");
+
+            if (beneficiary.PlatformUsed != dto.PlatformUsed)
+                changes.Add($"Platform Used '{beneficiary.PlatformUsed}' → '{dto.PlatformUsed}'");
             return changes;
         }
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)

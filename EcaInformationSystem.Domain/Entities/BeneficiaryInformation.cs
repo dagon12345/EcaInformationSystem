@@ -116,6 +116,11 @@ namespace EcaInformationSystem.Domain.Entities
         // an informational marker, no automated validation tied to it.
         public bool? IsReadyForEft { get; set; }
 
+        // ✅ NEW — Platform used for the liveness check (e.g. video call app, in-person
+        // visit), plus any other proof-of-life details. Free text, feeds Section B of
+        // the printed Liveness Check and Transaction Account Form.
+        public string? PlatformUsed { get; set; }
+
         // ── Navigation properties for the new 1:1 / 1:many sub-entities ──
         public BeneficiaryBankAccount? BankAccount { get; set; }
         public BeneficiaryAbroadAddress? AbroadAddress { get; set; }
@@ -195,7 +200,7 @@ namespace EcaInformationSystem.Domain.Entities
             string? houseNumber, string? streetName, string? zipCode,
             string? disabilityType, string? ethnicityName, string? dualCitizenshipDetails,
             string? civilStatusOtherDetail, bool isSignedDeclaration, DateTime? dateSigned, bool? isLivenessVerified,
-            DateTime? dateOfLiveness, bool? isReadyForEft)
+            DateTime? dateOfLiveness, bool? isReadyForEft, string? platformUsed)
         {
             TrackingNumber = trackingNumber;
             DataPrivacyConsent = dataPrivacyConsent;
@@ -212,6 +217,7 @@ namespace EcaInformationSystem.Domain.Entities
             IsLivenessVerified = isLivenessVerified;
             DateOfLiveness = dateOfLiveness;
             IsReadyForEft = isReadyForEft;
+            PlatformUsed = platformUsed;
         }
     }
 }

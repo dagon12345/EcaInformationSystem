@@ -80,6 +80,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public bool? IsLivenessVerified { get; set; }
         public DateTime? DateOfLiveness { get; set; }
         public bool? IsReadyForEft { get; set; }
+        public string? PlatformUsed { get; set; }
         public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
         public BeneficiaryBankAccountDto? BankAccount { get; set; }
         public BeneficiaryAbroadAddressDto? AbroadAddress { get; set; }

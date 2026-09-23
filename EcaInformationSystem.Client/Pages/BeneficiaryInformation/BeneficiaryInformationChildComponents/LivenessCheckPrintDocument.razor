@@ -1,7 +1,7 @@
 @* LivenessCheckPrintDocument.razor — Liveness Check and Transaction Account Form. Internal
    NCSC form (no Annex letter), reflecting the same BeneficiaryInformationDto used by Annex A/B —
    no new entity/DTO fields beyond what BeneficiaryForm.razor already collects (IsLivenessVerified,
-   DateOfLiveness, IsReadyForEft, BatchCode, BankAccount). Independent one-page A4 document with
+   DateOfLiveness, IsReadyForEft, PlatformUsed, BatchCode, BankAccount). Independent one-page A4 document with
    its own print scope (#liveness-print-target) — printing it never pulls in Annex A/B, even when
    all three are rendered on the same page. *@
 @using EcaInformationSystem.Shared.DTOs
@@ -130,9 +130,15 @@
         </tr>
         <tr>
             <td>
-                @* Intentionally left blank — filled in by hand at the time of printing, not reflected from any system field. *@
                 <span class="annexa-doc-field-label d-block">Platform Used, may include other details as to proof of life:</span>
-                <div class="liveness-doc-findings-line"></div>
+                @if (string.IsNullOrWhiteSpace(Beneficiary.PlatformUsed))
+                {
+                    <div class="liveness-doc-findings-line"></div>
+                }
+                else
+                {
+                    <span class="annexa-doc-field-value">@Beneficiary.PlatformUsed</span>
+                }
             </td>
             <td></td>
         </tr>

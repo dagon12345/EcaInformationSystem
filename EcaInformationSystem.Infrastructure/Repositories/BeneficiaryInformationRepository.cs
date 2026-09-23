@@ -2155,7 +2155,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DateSigned = b.DateSigned,
                     IsLivenessVerified = b.IsLivenessVerified,
                     DateOfLiveness = b.DateOfLiveness,
-                    IsReadyForEft = b.IsReadyForEft
+                    IsReadyForEft = b.IsReadyForEft,
+                    PlatformUsed = b.PlatformUsed
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 
@@ -3682,6 +3683,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             IsLivenessVerified = x.IsLivenessVerified,
             DateOfLiveness = x.DateOfLiveness,
             IsReadyForEft = x.IsReadyForEft,
+            PlatformUsed = x.PlatformUsed,
         };
 
         // ✅ Delegates to the shared helper so this stays in lockstep with the
@@ -3868,7 +3870,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         DateSigned = b.DateSigned,
                         IsLivenessVerified = b.IsLivenessVerified,
                         DateOfLiveness = b.DateOfLiveness,
-                        IsReadyForEft = b.IsReadyForEft
+                        IsReadyForEft = b.IsReadyForEft,
+                        PlatformUsed = b.PlatformUsed
                     }
                 ).AsNoTracking().ToListAsync();
 
@@ -3963,7 +3966,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 // ✅ FIX — these were missing from this specific mapping
                 IsLivenessVerified = x.IsLivenessVerified,
                 DateOfLiveness = x.DateOfLiveness,
-                IsReadyForEft = x.IsReadyForEft
+                IsReadyForEft = x.IsReadyForEft,
+                PlatformUsed = x.PlatformUsed
             }).ToList();
 
             return result;
@@ -4562,6 +4566,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool? IsLivenessVerified { get; set; }
             public DateTime? DateOfLiveness { get; set; }
             public bool? IsReadyForEft { get; set; }
+            public string? PlatformUsed { get; set; }
 
         }
         // Add this helper method if not already present
@@ -4737,6 +4742,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             public bool? IsLivenessVerified { get; set; }
             public DateTime? DateOfLiveness { get; set; }
             public bool? IsReadyForEft { get; set; }
+            public string? PlatformUsed { get; set; }
         }
 
         //Normalizes Levenshtein (0.0 = no match, 1.0 = identical)

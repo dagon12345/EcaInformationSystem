@@ -737,6 +737,12 @@
                     <span class="badge bg-secondary fw-normal mt-1" style="font-size:9px;">Not yet checked</span>
                 }
             </div>
+            <div class="ff" style="grid-column: 1 / -1;">
+                <label class="ff-label">Platform Used</label>
+                <input type="text" class="ff-input" placeholder="e.g. Video call, In-person visit"
+                       value="@model.PlatformUsed" @oninput="e => model.PlatformUsed = e.Value?.ToString()" />
+                <small class="text-muted d-block mt-1">May include other details as to proof of life — prints on Section B of the Liveness Check and Transaction Account Form.</small>
+            </div>
         </div>
         @if (!IsCoApproved)
         {
@@ -2595,6 +2601,7 @@
     IsLivenessVerified = model.IsLivenessVerified,
     DateOfLiveness = model.DateOfLiveness,
     IsReadyForEft = model.IsReadyForEft,
+    PlatformUsed = model.PlatformUsed,
 
     FamilyMembers = model.FamilyMembers,
     BankAccount = model.BankAccount,
