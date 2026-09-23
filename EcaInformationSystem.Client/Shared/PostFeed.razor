@@ -67,22 +67,9 @@
                 </div>
             }
             <a href="/profile" class="btn btn-outline-primary btn-sm profile-card-view-btn">View Full Profile</a>
-            @* ✅ CHANGED — was a plain stacked list of full-text links (small
-               font, no visual weight), easy to skim past. Now a 2-column
-               tile grid with a big icon + bold short label so DAR/DTR read
-               at a glance instead of requiring the reader to parse a
-               sentence-length link; the full name lives in the title
-               tooltip for anyone who needs it spelled out. ── *@
-            <div class="profile-card-links">
-                <a href="/dar" class="profile-card-quick-tile" title="Daily Accomplishment Report">
-                    <span class="profile-card-quick-tile-icon"><i class="bi bi-journal-check"></i></span>
-                    <span>DAR</span>
-                </a>
-                <a href="/my-dtr" class="profile-card-quick-tile" title="My Daily Time Record">
-                    <span class="profile-card-quick-tile-icon"><i class="bi bi-clock-history"></i></span>
-                    <span>My DTR</span>
-                </a>
-            </div>
+            @* DAR/My DTR self-service tiles removed — DTR/DAR retired from ECA,
+               fully migrated to HrAdminRecordsSystem. The link below is now
+               the only way to reach either. *@
             <a href="https://eca-hradmin.runasp.net/" target="_blank"
             class="btn btn-primary
             btn-sm profile-card-view-btn"><i class="bi bi-people-fill"></i> HR & Admin Navigation</a>

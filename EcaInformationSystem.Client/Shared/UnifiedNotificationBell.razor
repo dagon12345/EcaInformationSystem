@@ -3,7 +3,6 @@
 @using EcaInformationSystem.Shared.DTOs.SystemUpdate
 @using EcaInformationSystem.Shared.DTOs.ApplicationTracking
 @using EcaInformationSystem.Shared.DTOs.DocumentTracking
-@using EcaInformationSystem.Shared.DTOs.Dtr
 @using EcaInformationSystem.Client.Services
 @using System.Net.Http.Json
 @inject BeneficiaryStateService State
@@ -11,7 +10,6 @@
 @inject ApplicationTrackingClientService AppTracking
 @inject DocumentTrackingClientService DocTracking
 @inject LivenessNotificationClientService LivenessNotification
-@inject DtrPunchRequestClientService DtrRequests
 @inject SystemUpdateClientService SystemUpdateClient
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -199,13 +197,6 @@
     private readonly Dictionary<string, FeedItem> _seenFeedItems = new();
     private const int MaxSeenFeedItems = 100;
 
-    // Approve/reject decisions on requests I personally filed — append-only
-    // like _updateNotices (a decision is a one-off event, not something to
-    // mirror off a "currently pending" list), newest first, capped so a
-    // long-lived session can't grow this unbounded.
-    private readonly List<DtrPunchRequestDecidedNotificationDto> _decidedFeedItems = new();
-    private const int MaxDecidedFeedItems = 50;
-
     private List<FeedItem> Feed => BuildFeed();
 
     private List<FeedItem> BuildFeed()
@@ -255,39 +246,12 @@
             });
         }
 
-        // How many pending requests each employee currently has — so an
-        // approver sees at a glance "this isn't the only one waiting on
-        // them" instead of finding out only after opening the grouped
-        // approval screen.
-        var dtrPendingCountByUser = DtrRequests.PendingItems
-            .GroupBy(x => x.UserId)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        foreach (var r in DtrRequests.PendingItems)
-        {
-            var pendingCount = dtrPendingCountByUser.TryGetValue(r.UserId, out var c) ? c : 1;
-            UpsertSeenItem(new FeedItem
-            {
-                Key = $"dtr-request-{r.Id}",
-                Timestamp = r.RequestedAt,
-                Category = "DTR Request",
-                AccentKey = "dtr",
-                Icon = "bi-clock-history",
-                Title = $"{r.EmployeeName} — {r.RequestType} time entry",
-                Subtitle = pendingCount > 1
-                    ? $"{r.PunchDate:MMM d} • from {r.RequestedByName} • {pendingCount} pending for {r.EmployeeName}"
-                    : $"{r.PunchDate:MMM d} • from {r.RequestedByName}",
-                OnClick = () => { GoToDtrPunchRequests(); return Task.CompletedTask; }
-            });
-        }
-
         // Anything previously seen that's no longer in its source's current
         // pending list has been handled — keep the row, just mark it so.
         var stillPendingKeys = new HashSet<string>(
             AppTracking.PendingForMeItems.Select(b => $"apptracking-{b.Id}")
             .Concat(DocTracking.PendingForMeItems.Select(d => $"doctracking-{d.Id}"))
-            .Concat(LivenessNotification.PendingItems.Select(l => $"liveness-{l.RecordId}"))
-            .Concat(DtrRequests.PendingItems.Select(r => $"dtr-request-{r.Id}")));
+            .Concat(LivenessNotification.PendingItems.Select(l => $"liveness-{l.RecordId}")));
 
         foreach (var item in _seenFeedItems.Values)
             item.IsStillPending = stillPendingKeys.Contains(item.Key);
@@ -295,27 +259,6 @@
         TrimSeenFeedItems();
 
         var items = new List<FeedItem>(_seenFeedItems.Values);
-
-        // Decisions on MY OWN requests — a one-off event, not a "currently
-        // pending" list, so it's appended straight here rather than going
-        // through UpsertSeenItem/stillPendingKeys above (same reasoning as
-        // System Updates just below).
-        foreach (var d in _decidedFeedItems)
-        {
-            var isApproved = d.Decision == "Approved";
-            items.Add(new FeedItem
-            {
-                Key = $"dtr-decided-{d.RequestId}-{d.DecidedAt.Ticks}",
-                Timestamp = d.DecidedAt,
-                Category = "DTR Request",
-                AccentKey = "dtr",
-                Icon = isApproved ? "bi-check-circle-fill" : "bi-x-circle-fill",
-                Title = $"Your {d.RequestType.ToLowerInvariant()} time entry was {d.Decision.ToLowerInvariant()}",
-                Subtitle = $"{d.PunchDate:MMM d} • by {d.ReviewedByName}",
-                OnClick = () => { GoToMyDtr(); return Task.CompletedTask; },
-                IsStillPending = false
-            });
-        }
 
         foreach (var u in _updateNotices)
         {
@@ -394,9 +337,6 @@
 
         LivenessNotification.OnChange += HandleFeedSourceChange;
 
-        DtrRequests.OnChange += HandleFeedSourceChange;
-        DtrRequests.OnPunchRequestDecided += OnPunchRequestDecided;
-
         SystemUpdateClient.OnUnseenUpdate += OnUnseenSystemUpdate;
         await LoadUpdateNoticesAsync();
     }
@@ -457,27 +397,6 @@
         {
             Navigation.NavigateTo("/beneficiary-records");
         }
-    }
-
-    private void GoToDtrPunchRequests()
-    {
-        _showDropdown = false;
-        Navigation.NavigateTo("/dtr-punch-requests");
-    }
-
-    private void GoToMyDtr()
-    {
-        _showDropdown = false;
-        Navigation.NavigateTo("/my-dtr");
-    }
-
-    private void OnPunchRequestDecided(DtrPunchRequestDecidedNotificationDto notification)
-    {
-        _decidedFeedItems.Insert(0, notification);
-        if (_decidedFeedItems.Count > MaxDecidedFeedItems)
-            _decidedFeedItems.RemoveRange(MaxDecidedFeedItems, _decidedFeedItems.Count - MaxDecidedFeedItems);
-
-        InvokeAsync(StateHasChanged);
     }
 
     #region Calendar (activity-start interrupt only — the "today" list moved to NavMenu's badge)
@@ -651,8 +570,6 @@
         AppTracking.OnChange -= HandleFeedSourceChange;
         DocTracking.OnChange -= HandleFeedSourceChange;
         LivenessNotification.OnChange -= HandleFeedSourceChange;
-        DtrRequests.OnChange -= HandleFeedSourceChange;
-        DtrRequests.OnPunchRequestDecided -= OnPunchRequestDecided;
 
         SystemUpdateClient.OnUnseenUpdate -= OnUnseenSystemUpdate;
 

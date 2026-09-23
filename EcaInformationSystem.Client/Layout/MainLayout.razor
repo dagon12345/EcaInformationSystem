@@ -18,7 +18,6 @@
 @inject ApplicationTrackingClientService ApplicationTrackingClientService
 @inject DocumentTrackingClientService DocumentTrackingClientService
 @inject LivenessNotificationClientService LivenessNotificationClientService
-@inject DtrPunchRequestClientService DtrPunchRequestClientService
 @inject SystemUpdateClientService SystemUpdateClientService
 @inject BiometricStatusClientService BiometricStatusClientService
 @inject TransactionTierClientService TierClient
@@ -505,20 +504,6 @@
                 }
             }
 
-            if (!DtrPunchRequestClientService.IsConnected)
-            {
-                try
-                {
-                    var apiBase = Configuration["ApiBaseUrl"] ?? "https://REDACTED_INTERNAL_IP:8080/";
-                    var hubUrl = new Uri(new Uri(apiBase), "dtrPunchRequestHub").ToString();
-                    await DtrPunchRequestClientService.ConnectAsync(hubUrl);
-                }
-                catch
-                {
-                    // Non-fatal — DTR punch-request toasts/badge just won't live-update this session
-                }
-            }
-
             if (!SystemUpdateClientService.IsConnected)
             {
                 try
@@ -557,7 +542,9 @@
                 }
                 catch
                 {
-                    // Non-fatal — Attendance Management/My DTR fall back to their own REST fetch
+                    // Non-fatal — DTR/ZKTeco device management retired from ECA
+                    // (migrated to HrAdminRecordsSystem); nothing in ECA reads
+                    // this hub's pushes anymore, this connection is now inert.
                 }
             }
 

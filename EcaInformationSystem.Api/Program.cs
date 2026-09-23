@@ -320,11 +320,12 @@ builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.ITransact
 builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.ILivenessNotificationBroadcaster,
     EcaInformationSystem.Api.Services.LivenessNotificationHubBroadcaster>();
 
-// Overrides Infrastructure's no-op IDtrPunchRequestBroadcaster registration
-// (last registration wins) with the real SignalR one — must be registered
-// AFTER AddInfrastructure().
-builder.Services.AddScoped<EcaInformationSystem.Application.Interfaces.IDtrPunchRequestBroadcaster,
-    EcaInformationSystem.Api.Services.DtrPunchRequestHubBroadcaster>();
+// DTR (Daily Time Record) retired from ECA — fully migrated to
+// HrAdminRecordsSystem, which has its own independent DtrPunchRequestHub.
+// The real-time broadcaster override that used to live here was removed;
+// Infrastructure's no-op IDtrPunchRequestBroadcaster registration is now
+// the only one, since nothing in ECA calls it anymore (DtrController and
+// the DTR/DAR Blazor pages were removed too).
 
 // ─── Sync-only mode ───────────────────────────────────────────────────────────
 // For running this exact same API project locally on a machine that's on the
@@ -410,7 +411,6 @@ app.MapHub<EcaInformationSystem.Api.Hubs.SeniorCitizenDirectoryHub>("/seniorCiti
 app.MapHub<EcaInformationSystem.Api.Hubs.TransactionTierHub>("/transactionTierHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.NcscTeamDirectoryHub>("/ncscTeamDirectoryHub");
 app.MapHub<EcaInformationSystem.Api.Hubs.LivenessNotificationHub>("/livenessNotificationHub");
-app.MapHub<EcaInformationSystem.Api.Hubs.DtrPunchRequestHub>("/dtrPunchRequestHub");
 
 app.UseWhen(
     context => !context.Request.Path.StartsWithSegments("/chatHub"),
