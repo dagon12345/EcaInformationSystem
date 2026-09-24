@@ -20,6 +20,44 @@ namespace EcaInformationSystem.Application.Services
         private const int MarginLeftRight = 1000;
         private const int ContentWidth = PageWidth - (2 * MarginLeftRight);
 
+        // SubmittedDate is written as DateTime.UtcNow, and EF hands it back with
+        // Kind == Unspecified — so the old .ToLocalTime() here converted it to
+        // the *server's* time zone. On a headless/container host (Azure App
+        // Service, Docker) that zone is UTC, while the PDO's browser and the
+        // grantee's phone are on Philippine time (+8), which is why the printed
+        // "Submitted" stamp disagreed with the timestamp burned into the photo.
+        // Convert to Philippine time explicitly instead of trusting where the
+        // API happens to be hosted.
+        private static readonly TimeZoneInfo PhilippineTimeZone = ResolvePhilippineTimeZone();
+
+        private static TimeZoneInfo ResolvePhilippineTimeZone()
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila"); // Linux/macOS IANA id
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Windows id set — the Philippines has no DST, so Singapore
+                // Standard Time (fixed UTC+8) is an exact equivalent.
+                return TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
+            }
+        }
+
+        private static DateTime ToPhilippineTime(DateTime stored)
+        {
+            var utc = stored.Kind switch
+            {
+                DateTimeKind.Utc => stored,
+                DateTimeKind.Local => stored.ToUniversalTime(),
+                // The DB round-trip drops Kind — same assumption the client-side
+                // .ToLocalTime() calls make, just converted to PHT, not the host's zone.
+                _ => DateTime.SpecifyKind(stored, DateTimeKind.Utc)
+            };
+
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, PhilippineTimeZone);
+        }
+
         public static byte[] Build(byte[] photoBytes, string granteeName, DateTime? submittedDate, string status)
         {
             using var stream = new MemoryStream();
@@ -41,7 +79,7 @@ namespace EcaInformationSystem.Application.Services
 
                 body.AppendChild(CenteredLabelValue("Grantee:", granteeName));
                 body.AppendChild(CenteredLabelValue("Submitted:",
-                    submittedDate.HasValue ? submittedDate.Value.ToLocalTime().ToString("MMMM d, yyyy h:mm tt") : "—"));
+                    submittedDate.HasValue ? ToPhilippineTime(submittedDate.Value).ToString("MMMM d, yyyy h:mm tt") : "—"));
                 body.AppendChild(CenteredLabelValue("Status:", status));
 
                 body.AppendChild(new Paragraph(new Run(new Text(""))));
