@@ -37,6 +37,20 @@ namespace EcaInformationSystem.Api.Controllers
             return latest is null ? NotFound() : Ok(latest);
         }
 
+        // Readable by anyone who can see the notices (same class-level policy
+        // as GetAll) — a downloadable Word summary of every release, each with
+        // the date/time it was published, so the reader can verify when a
+        // change landed and edit/circulate the file if a note needs restating.
+        [HttpGet("summary/docx")]
+        public async Task<IActionResult> GetSummaryAsWord()
+        {
+            var (bytes, fileName) = await _service.GetSummaryAsWordAsync(GetFullName());
+            return File(
+                bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                fileName);
+        }
+
         // SuperAdmin only — suggested next version for the publish form
         // (auto-increments the patch segment of the latest notice). Purely a
         // convenience default; the admin can still type any version manually.

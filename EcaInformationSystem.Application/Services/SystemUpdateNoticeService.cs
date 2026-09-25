@@ -66,6 +66,17 @@ namespace EcaInformationSystem.Application.Services
             return ToDto(notice);
         }
 
+        public async Task<(byte[] Bytes, string FileName)> GetSummaryAsWordAsync(string requestedBy)
+        {
+            var notices = await _repository.GetAllAsync();
+            var generatedAtUtc = DateTime.UtcNow;
+
+            var bytes = SystemUpdateSummaryWordDocumentBuilder.Build(
+                notices.Select(ToDto).ToList(), generatedAtUtc, requestedBy);
+
+            return (bytes, SystemUpdateSummaryWordDocumentBuilder.SuggestedFileName(generatedAtUtc));
+        }
+
         private static SystemUpdateNoticeDto ToDto(SystemUpdateNotice notice) => new()
         {
             Id = notice.Id,

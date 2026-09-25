@@ -22,7 +22,9 @@
             <div>
                 <h5 class="page-header-title">System Updates</h5>
                 <span class="page-header-sub">
-                    Publish a release note — it's pushed live to everyone currently in the app.
+                    @(_authorized
+                        ? "Publish a release note — it's pushed live to everyone currently in the app."
+                        : "Every release note published so far, with the date and time each one went live.")
                 </span>
             </div>
         </div>
@@ -33,19 +35,12 @@
         </button>
     </div>
 
-    @if (!_authorized)
-    {
-        <div class="alert alert-danger d-flex align-items-center gap-2">
-            <i class="bi bi-shield-lock fs-5"></i>
-            <div>
-                <strong>Access Denied</strong>
-                <p class="mb-0 small">This page is restricted to Super Administrators.</p>
-            </div>
-        </div>
-    }
-    else
-    {
-        <div class="row g-3">
+    @* Read-only for everyone else — the release history and its Word summary
+       are readable by any signed-in user (the API's notice feed has always
+       been), so only the publish form is gated to Super Administrators. *@
+    <div class="row g-3">
+        @if (_authorized)
+        {
             <div class="col-md-5">
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-light"><strong>Publish New Update</strong></div>
@@ -79,49 +74,66 @@
                     </div>
                 </div>
             </div>
+        }
 
-            <div class="col-md-7">
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-light"><strong>Update History</strong></div>
-                    <div class="list-group list-group-flush" style="max-height:500px; overflow-y:auto;">
-                        @if (_history is null)
+        <div class="col-md-@(_authorized ? "7" : "12")">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <strong>Update History</strong>
+                    <button class="btn btn-outline-primary btn-sm"
+                            disabled="@(_downloadingWord || _history is null || _history.Count == 0)"
+                            @onclick="DownloadSummaryWordAsync"
+                            title="Download a Word summary of every update — with the date and time each one was published">
+                        @if (_downloadingWord)
                         {
-                            <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-                        }
-                        else if (_history.Count == 0)
-                        {
-                            <div class="p-3 text-muted small">No updates published yet.</div>
+                            <span class="spinner-border spinner-border-sm me-1"></span>
                         }
                         else
                         {
-                            @foreach (var notice in _history)
-                            {
-                                <div class="list-group-item">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <strong>@notice.Title</strong>
-                                        <span class="badge bg-secondary">v@(notice.Version)</span>
-                                    </div>
-                                    <div class="small text-muted mb-1">
-                                        @notice.PublishedByName · @notice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
-                                    </div>
-                                    @foreach (var line in notice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                                    {
-                                        <div class="small">• @line</div>
-                                    }
-                                </div>
-                            }
+                            <i class="bi bi-file-earmark-word me-1"></i>
                         }
-                    </div>
+                        Download Summary (Word)
+                    </button>
+                </div>
+                <div class="list-group list-group-flush" style="max-height:500px; overflow-y:auto;">
+                    @if (_history is null)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                    }
+                    else if (_history.Count == 0)
+                    {
+                        <div class="p-3 text-muted small">No updates published yet.</div>
+                    }
+                    else
+                    {
+                        @foreach (var notice in _history)
+                        {
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <strong>@notice.Title</strong>
+                                    <span class="badge bg-secondary">v@(notice.Version)</span>
+                                </div>
+                                <div class="small text-muted mb-1">
+                                    @notice.PublishedByName · @notice.PublishedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                                </div>
+                                @foreach (var line in notice.Changes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                {
+                                    <div class="small">• @line</div>
+                                }
+                            </div>
+                        }
+                    }
                 </div>
             </div>
         </div>
-    }
+    </div>
 </div>
 
 @code {
     private bool _authorized;
     private bool _publishing;
     private bool _refreshing;
+    private bool _downloadingWord;
     private string? _error;
     private string _version = string.Empty;
     private string _title = string.Empty;
@@ -154,11 +166,12 @@
         await AuthService.InitAsync();
         _authorized = AuthService.IsSuperAdmin();
 
+        // History is loaded for everyone (it drives the read-only view and the
+        // Download Summary button); the suggested next version is admin-only.
+        await LoadHistoryAsync();
+
         if (_authorized)
-        {
-            await LoadHistoryAsync();
             await LoadNextVersionAsync();
-        }
     }
 
     private async Task LoadNextVersionAsync()
@@ -189,6 +202,30 @@
         catch
         {
             _history = new();
+        }
+    }
+
+    private async Task DownloadSummaryWordAsync()
+    {
+        if (_downloadingWord) return;
+        _downloadingWord = true;
+        StateHasChanged();
+
+        try
+        {
+            // Shared with the bell dropdown — an <a href> can't carry the
+            // bearer token, so the service hands it to triggerFileDownload
+            // (wwwroot/index.html) which fetches the file as a blob.
+            await SystemUpdateClient.DownloadSummaryWordAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to download the summary: {ex.Message}", "System Update");
+        }
+        finally
+        {
+            _downloadingWord = false;
+            StateHasChanged();
         }
     }
 

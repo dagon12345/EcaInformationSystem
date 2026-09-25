@@ -8,5 +8,9 @@ namespace EcaInformationSystem.Application.Interfaces.Services
         Task<SystemUpdateNoticeDto?> GetLatestAsync();
         Task<string> GetNextVersionAsync();
         Task<SystemUpdateNoticeDto> PublishAsync(CreateSystemUpdateNoticeDto dto, Guid callerId, string callerName);
+
+        // Editable .docx summary of every published release note, each stamped
+        // with the date/time it was published.
+        Task<(byte[] Bytes, string FileName)> GetSummaryAsWordAsync(string requestedBy);
     }
 }

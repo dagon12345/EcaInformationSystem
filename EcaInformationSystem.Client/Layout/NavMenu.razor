@@ -204,7 +204,7 @@
     </div>
 
     @* ── Administration section — User Management: SuperAdmin + Finance;
-       Conversation Oversight / System Updates stay SuperAdmin only ── *@
+       Conversation Oversight stays SuperAdmin only ── *@
     @if (_isSuperAdmin || _isFinance)
     {
         <div class="nav-section-hover-wrap">
@@ -224,10 +224,6 @@
                             <span class="nav-icon nav-icon--red"><i class="bi bi-shield-lock-fill"></i></span>
                             <span class="nav-label">Conversation Oversight</span>
                         </NavLink>
-                        <NavLink class="nav-item" href="system-updates" title="System Updates">
-                            <span class="nav-icon nav-icon--cyan"><i class="bi bi-arrow-repeat"></i></span>
-                            <span class="nav-label">System Updates</span>
-                        </NavLink>
                     }
                 </div>
             </div>
@@ -238,6 +234,14 @@
         @RenderSectionHeader("system", "System", "mt-2")
         <div class="nav-section-collapse @(IsSectionOpen("system") ? "nav-section-collapse--open" : "")">
             <div class="nav-section-collapse-inner">
+                @* ── System Updates — visible to every role. Non-admins can't publish,
+                   but they can read the history and download the Word summary, and
+                   the bell dropdown links here too. ── *@
+                <NavLink class="nav-item" href="system-updates" title="System Updates">
+                    <span class="nav-icon nav-icon--cyan"><i class="bi bi-arrow-repeat"></i></span>
+                    <span class="nav-label">System Updates</span>
+                </NavLink>
+
                 @* ── Activity Logs — Admin only ── *@
                 @if (_isAdmin)
                 {
@@ -338,8 +342,8 @@
         ["financial"] = new[] { "liquidation", "wfp-eca" },
         ["tracking"] = new[] { "application-tracking", "document-tracking" },
         ["directory"] = new[] { "senior-citizen-directory", "ncsc-team-directory", "provincial-focals", "call-logs" },
-        ["administration"] = new[] { "user-management", "chat-oversight", "system-updates" },
-        ["system"] = new[] { "logs", "features", "about", "regional-offices", "directory-officials" }
+        ["administration"] = new[] { "user-management", "chat-oversight" },
+        ["system"] = new[] { "system-updates", "logs", "features", "about", "regional-offices", "directory-officials" }
     };
 
     private void ExpandSectionForCurrentRoute()

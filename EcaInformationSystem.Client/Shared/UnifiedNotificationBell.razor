@@ -11,6 +11,7 @@
 @inject DocumentTrackingClientService DocTracking
 @inject LivenessNotificationClientService LivenessNotification
 @inject SystemUpdateClientService SystemUpdateClient
+@inject ToastService Toast
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject AuthService AuthService
@@ -96,13 +97,36 @@
                 }
             </div>
 
-            @if (_hasUnseenUpdate)
+            @* Every role gets the Word summary of the releases. System Updates now
+               sits in the sidebar's System section for all roles, but most users
+               go days without opening the sidebar — so the notice lands here
+               first, with the publish date and time, and the page is one click
+               away for the full history. *@
+            @if (_updateNotices.Count > 0 || _hasUnseenUpdate)
             {
                 <div class="duplicate-dropdown-footer">
-                    <button class="duplicate-scan-btn-small" disabled="@_refreshingFromBell" @onclick="RefreshForLatestUpdate">
-                        <i class="bi bi-arrow-clockwise me-1 @(_refreshingFromBell ? "spin" : "")"></i>
-                        @(_refreshingFromBell ? "Refreshing..." : "Refresh Now to Apply Update")
-                    </button>
+                    @if (_updateNotices.Count > 0)
+                    {
+                        <button class="duplicate-scan-btn-small" disabled="@_downloadingSummary" @onclick="DownloadSummaryWord"
+                                title="Download a Word summary of every update — with the date and time each one was published">
+                            @if (_downloadingSummary)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-file-earmark-word me-1"></i>
+                            }
+                            System Update Summary (Word)
+                        </button>
+                    }
+                    @if (_hasUnseenUpdate)
+                    {
+                        <button class="duplicate-scan-btn-small" disabled="@_refreshingFromBell" @onclick="RefreshForLatestUpdate">
+                            <i class="bi bi-arrow-clockwise me-1 @(_refreshingFromBell ? "spin" : "")"></i>
+                            @(_refreshingFromBell ? "Refreshing..." : "Refresh Now to Apply Update")
+                        </button>
+                    }
                 </div>
             }
         </div>
@@ -517,6 +541,7 @@
     private List<SystemUpdateNoticeDto> _updateNotices = new();
     private bool _hasUnseenUpdate;
     private bool _refreshingFromBell;
+    private bool _downloadingSummary;
 
     private async Task LoadUpdateNoticesAsync()
     {
@@ -543,6 +568,27 @@
             _updateNotices.Insert(0, notice);
 
         InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DownloadSummaryWord()
+    {
+        if (_downloadingSummary) return;
+        _downloadingSummary = true;
+        StateHasChanged();
+
+        try
+        {
+            await SystemUpdateClient.DownloadSummaryWordAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to download the summary: {ex.Message}", "System Update");
+        }
+        finally
+        {
+            _downloadingSummary = false;
+            StateHasChanged();
+        }
     }
 
     private async Task RefreshForLatestUpdate()

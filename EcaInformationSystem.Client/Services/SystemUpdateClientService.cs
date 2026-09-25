@@ -82,6 +82,21 @@ namespace EcaInformationSystem.Client.Services
             await _js.InvokeVoidAsync("localStorage.setItem", LastSeenVersionKey, version);
         }
 
+        // The Word summary of every release (each with the date/time it was
+        // published) — offered to EVERY role, not just Super Admins, since the
+        // API endpoint behind it uses the same "any authenticated user incl.
+        // Focal" policy as the notice feed itself. Lives here instead of in the
+        // two components that call it because the bearer token has to be
+        // attached by JS (an <a href> can't carry it) — see triggerFileDownload
+        // in wwwroot/index.html.
+        public async Task DownloadSummaryWordAsync()
+        {
+            var token = await _js.InvokeAsync<string?>("localStorage.getItem", "authToken");
+            var baseUrl = _http.BaseAddress?.ToString().TrimEnd('/') ?? string.Empty;
+            await _js.InvokeVoidAsync("triggerFileDownload", $"{baseUrl}/api/system-updates/summary/docx",
+                $"System Updates Summary - {DateTime.Now:yyyy-MM-dd}.docx", token);
+        }
+
         private async Task<bool> IsUnseenAsync(string version)
         {
             var lastSeen = await _js.InvokeAsync<string?>("localStorage.getItem", LastSeenVersionKey);

@@ -5971,6 +5971,12 @@
 
 .duplicate-dropdown-footer {
     display: flex;
+    flex-wrap: wrap; /* the bell's two action buttons now carry longer labels
+                        ("System Update Summary (Word)" / "Refresh Now to Apply
+                        Update") — without wrapping they'd overflow the 480px
+                        dropdown, and clip outright once the @media (max-width:
+                        768px) rule below narrows it to the viewport. */
+    gap: 4px;
     justify-content: flex-end; /* Changed from space-between */
     padding: 8px 14px;
     border-top: 1px solid #e9ecef;
