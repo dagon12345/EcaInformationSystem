@@ -280,12 +280,28 @@ namespace EcaInformationSystem.Application.Services
         // Always a string cell with Excel's Text number format: the transfer
         // file's bank codes, mobile numbers and account numbers all carry
         // leading zeros that a numeric cell would silently drop.
+        //
+        // A value that starts with an apostrophe has to go in as RICH TEXT.
+        // ClosedXML reads a leading ' in a plain string as Excel's "quote
+        // prefix" text marker: it moves the character into the cell style and
+        // drops it from the stored string, so the export came out as
+        // "0000009631963701" instead of the "'0000009631963701" the template
+        // asks for. Verified against the shipped ClosedXML 0.105.0 —
+        // cell.Value = "'00000..." stores 16 characters with QuotePrefix=true,
+        // while a rich-text run stores all 17. Everything else takes the
+        // normal path.
         private static void WriteTextCell(IXLCell cell, string? value)
         {
             if (value is null || string.IsNullOrWhiteSpace(value))
                 return;
 
-            cell.Value = value.Trim();
+            var text = value.Trim();
+
+            if (text.StartsWith("'", StringComparison.Ordinal))
+                cell.CreateRichText().AddText(text);
+            else
+                cell.Value = text;
+
             cell.Style.NumberFormat.Format = "@";
         }
 
