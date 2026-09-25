@@ -70,7 +70,7 @@
             @* DAR/My DTR self-service tiles removed — DTR/DAR retired from ECA,
                fully migrated to HrAdminRecordsSystem. The link below is now
                the only way to reach either. *@
-            <a href="https://eca-hradmin.runasp.net/" target="_blank"
+            <a href="@_hrNavUrl" target="_blank"
             class="btn btn-primary
             btn-sm profile-card-view-btn"><i class="bi bi-people-fill"></i> HR & Admin Navigation</a>
         </div>
@@ -1269,6 +1269,12 @@
         }
     }
 
+    // Base host of the HR & Admin app. The navigator below hands the current ECA
+    // session token across so HR signs the user in on arrival instead of asking
+    // for credentials a second time.
+    private const string HrNavBaseUrl = "https://eca-hradmin.runasp.net";
+    private string _hrNavUrl = HrNavBaseUrl + "/";
+
     protected override async Task OnInitializedAsync()
     {
         try { _viewerKey = await JS.InvokeAsync<string>("viewerKey.get"); }
@@ -1284,6 +1290,17 @@
         {
             await AuthService.InitAsync();
             _isFocal = AuthService.IsFocal();
+
+            // Carry the token in the URL FRAGMENT: never sent to a server and never
+            // written to an access log (unlike ?eca_token=). The HR app stashes it
+            // in sessionStorage and scrubs it out of the address bar on arrival. If
+            // it is absent, or the HR app has no EcaSso:SharedKey configured, HR
+            // just falls back to its normal password form, so this degrades safely.
+            var ecaToken = await AuthService.GetTokenAsync();
+            if (!string.IsNullOrWhiteSpace(ecaToken))
+            {
+                _hrNavUrl = $"{HrNavBaseUrl}/login#eca_token={Uri.EscapeDataString(ecaToken)}";
+            }
 
             var fullName = authState.User.FindFirst("FullName")?.Value;
             _myDisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : (authState.User.Identity?.Name ?? "User");
