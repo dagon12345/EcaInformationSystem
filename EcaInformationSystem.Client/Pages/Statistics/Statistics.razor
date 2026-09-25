@@ -829,6 +829,30 @@
                             <i class="bi bi-file-earmark-excel me-1"></i><span>Download Excel</span>
                         }
                     </button>
+                    @* ── Second export, only for the payout-channel buckets this
+                         card drills into: the same rows, but in the fund-transfer
+                         upload layout meant to be uploaded as-is, not read. The
+                         Landbank bucket uses Landbank's own file (Account Number,
+                         Name, Amount); every other payout bucket uses the
+                         FINDES & WEACCESS layout (Bank Code, BICFI, TelMobile,
+                         Email, Purpose, CreditorName, CreditorAddress,
+                         CreditorAcctNum, TransferAmount). ── *@
+                    @if (IsPayoutChannelBucket)
+                    {
+                        <button class="btn btn-sm btn-outline-primary" disabled="@_isExportingFindes" @onclick="ExportFindesAsync"
+                                title="@(IsLandbankBucket
+                                        ? "Download these grantees as Landbank's upload file (Account Number, Name, Amount)"
+                                        : "Download these grantees as a FINDES & WEACCESS fund transfer upload file (Bank Code, BICFI, TelMobile, Email, Purpose, CreditorName, CreditorAddress, CreditorAcctNum, TransferAmount)")">
+                            @if (_isExportingFindes)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span><span>Downloading...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-bank me-1"></i><span>@(IsLandbankBucket ? "Download Landbank Upload File" : "Download FINDES Upload File")</span>
+                            }
+                        </button>
+                    }
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber <= 1 || _isLoadingMembers)"
@@ -1459,6 +1483,24 @@
 
     private bool _isExportingGrantees;
 
+    // Separate busy flag from _isExportingGrantees so the two download buttons
+    // in the audit modal can't spin each other up / lock each other out.
+    private bool _isExportingFindes;
+
+    // The FINDES upload file only makes sense for the payout-channel buckets
+    // this modal was opened from (channelnotset / channellandbank /
+    // channelotherbanks / channelemi / channelpsp) — for any other bucket
+    // (Paid, Male, ...) the list isn't a payout batch at all.
+    private bool IsPayoutChannelBucket =>
+        _membersBucket is not null && _membersBucket.StartsWith("channel", StringComparison.OrdinalIgnoreCase);
+
+    // Landbank is the one payout bucket whose export is a different file
+    // entirely (Account Number / Name / Amount instead of the FINDES upload
+    // layout) — see ExportFindesUploadAsync. Checked here so the button label
+    // and the download filename tell the truth before anything is generated.
+    private bool IsLandbankBucket =>
+        IsPayoutChannelBucket && string.Equals(_membersBucket, "channellandbank", StringComparison.OrdinalIgnoreCase);
+
     // "Download Excel" inside the audit modal — exports exactly what the
     // modal is currently showing (same Filter + Bucket the modal's own list
     // was fetched with, see OpenMembersModalAsync/FetchMembersPageAsync),
@@ -1497,6 +1539,49 @@
         finally
         {
             _isExportingGrantees = false;
+        }
+    }
+
+    // "FINDES Upload File" — same rows as ExportGranteesAsync above (same
+    // filter snapshot + bucket), but generated in the FINDES & WEACCESS
+    // fund-transfer upload layout so it can be sent to the bank as-is.
+    private async Task ExportFindesAsync()
+    {
+        if (_isExportingFindes) return;
+        _isExportingFindes = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Statistics/export-findes", new SharedDtos.StatisticsMembersRequestDto
+            {
+                Filter = _membersFilterSnapshot,
+                Bucket = _membersBucket
+            });
+            if (!response.IsSuccessStatusCode)
+            {
+                Toast.ShowError($"Export failed: {await response.Content.ReadAsStringAsync()}");
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            if (bytes.Length == 0)
+            {
+                Toast.ShowError("No data returned from export.");
+                return;
+            }
+
+            await JS.InvokeVoidAsync("downloadFile",
+                IsLandbankBucket
+                    ? $"LBP_Upload_{DateTime.Now:yyyy-MM-dd}.xlsx"
+                    : $"FINDES_Upload_{DateTime.Now:yyyy-MM-dd}.xlsx",
+                Convert.ToBase64String(bytes));
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            _isExportingFindes = false;
         }
     }
 

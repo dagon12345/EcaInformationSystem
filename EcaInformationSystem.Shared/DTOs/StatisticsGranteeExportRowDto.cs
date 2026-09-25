@@ -22,6 +22,12 @@ namespace EcaInformationSystem.Shared.DTOs
         public string? ProvinceName { get; set; }
         public string? MunicipalityName { get; set; }
         public string? BarangayName { get; set; }
+        // ✅ NEW — street-level address detail (Section C.9.1), so the FINDES
+        // transfer-file export can write a full "ADDRESS STORED IN SYSTEM"
+        // instead of only the PSGC names above.
+        public string? HouseNumber { get; set; }
+        public string? StreetName { get; set; }
+        public string? ZipCode { get; set; }
         public string ContactNumber { get; set; } = string.Empty;
 
         public bool IsCompliant { get; set; }
@@ -40,6 +46,11 @@ namespace EcaInformationSystem.Shared.DTOs
 
         // ── Annex A Section E — payout account, "what bank is active" ──────
         public string PreferredChannelLabel { get; set; } = string.Empty;
+        // ✅ NEW — the raw channel code (0 = not set, 1 = Landbank, 2 = Other
+        // Bank, 3 = EMI, 4 = PSP), not just the label: the FINDES export has to
+        // branch on it (mobile-number account numbers vs. real account numbers,
+        // and which rows are payable at all).
+        public int PreferredChannel { get; set; }
         public string? BankOrWalletName { get; set; }
         public string? AccountNumber { get; set; }
         public string? BranchName { get; set; }

@@ -62,5 +62,21 @@ namespace EcaInformationSystem.Api.Controllers
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"Grantees_{DateTime.Now:yyyy-MM-dd}.xlsx");
         }
+
+        // ✅ NEW — "Download FINDES Upload File" from the Preferred Payout
+        // Channel drill-down: same Filter + Bucket as the audit modal's own
+        // list, written in the FINDES & WEACCESS fund-transfer upload layout
+        // instead of the grantee audit sheet.
+        [HttpPost("export-findes")]
+        public async Task<IActionResult> ExportFindes([FromBody] StatisticsMembersRequestDto request)
+        {
+            if (QuarterMissingYear(request.Filter))
+                return BadRequest(new { message = "Select a Fiscal Year along with Payroll Quarter — a quarter number alone repeats every year." });
+
+            var bytes = await _statisticsService.ExportFindesUploadAsync(request);
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"FINDES_Upload_{DateTime.Now:yyyy-MM-dd}.xlsx");
+        }
     }
 }

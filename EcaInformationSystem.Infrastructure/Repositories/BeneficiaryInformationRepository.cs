@@ -1614,6 +1614,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         ProvinceName = _psgcNameCache.GetProvinceName(b.Province),
                         MunicipalityName = _psgcNameCache.GetMunicipalityName(b.Municipality),
                         BarangayName = _psgcNameCache.GetBarangayName(b.Barangay),
+                        HouseNumber = b.HouseNumber,
+                        StreetName = b.StreetName,
+                        ZipCode = b.ZipCode,
                         ContactNumber = contactNumber ?? string.Empty,
 
                         IsCompliant = b.IsCompliant,
@@ -1641,6 +1644,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                         IsReadyForEft = b.IsReadyForEft,
 
                         PreferredChannelLabel = PreferredChannelLabelFor(bank?.PreferredChannel),
+                        PreferredChannel = bank?.PreferredChannel ?? 0,
                         // Palawan Pawnshop (4) reuses MobileNumber/BranchName for
                         // pickup details, not a deposit account — no bank name/
                         // account number applies to that channel (see
