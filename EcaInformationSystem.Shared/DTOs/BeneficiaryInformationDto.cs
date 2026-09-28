@@ -120,6 +120,7 @@ namespace EcaInformationSystem.Shared.DTOs
         public DateTime? DateOfLiveness { get; set; }
         public bool? IsReadyForEft { get; set; }
         public string? PlatformUsed { get; set; }
+        public bool? IsFaceToFace { get; set; }
         // ✅ NEW — nested sub-entities (null-safe: absent until saved)
         public List<BeneficiaryFamilyMemberDto> FamilyMembers { get; set; } = new();
         public BeneficiaryBankAccountDto? BankAccount { get; set; }

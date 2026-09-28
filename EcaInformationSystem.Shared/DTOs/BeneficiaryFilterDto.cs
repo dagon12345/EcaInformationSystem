@@ -79,6 +79,7 @@
         // Nullable — null means "no filter", matching IsCompliant/IsEligible above
         public bool? IsLivenessVerified { get; set; }
         public bool? IsReadyForEft { get; set; }
+        public bool? IsFaceToFace { get; set; }
 
         // Default false — records that are the newer/duplicate side of a
         // Known Duplicate pair (see BeneficiaryDuplicateHistory) are excluded

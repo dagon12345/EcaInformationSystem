@@ -132,6 +132,24 @@ namespace EcaInformationSystem.Application.Services
             InvalidateSummaryCache();
         }
 
+        // ✅ NEW — Face to Face is a standalone marker, independent of payment
+        // status/date/mode. No guard or validation tied to it — the user can
+        // bulk-apply it on its own, with or without also changing payment status.
+        public async Task BulkUpdateFaceToFaceAsync(List<Guid> beneficiaryIds, bool isFaceToFace, string userName)
+        {
+            if (beneficiaryIds == null || !beneficiaryIds.Any())
+                throw new Exception(CommonConstants.NoRecordsSelected);
+
+            await _repo.BulkUpdateFaceToFaceAsync(beneficiaryIds, isFaceToFace);
+
+            var label = isFaceToFace ? "Yes" : "No";
+            foreach (var id in beneficiaryIds)
+                await AddLogAsync(id, $"Face to Face → {label}", userName);
+
+            await _repo.SaveChangesAsync();
+            InvalidateSummaryCache();
+        }
+
         public async Task EditPaymentHistoryEntryAsync(
             Guid historyId, Guid beneficiaryId, int? payrollQuarter, int? fiscalYear,
             int paymentStatus, int? modeOfPayment, DateTime? paymentDate,
@@ -710,6 +728,7 @@ namespace EcaInformationSystem.Application.Services
                 N(f.FilterModeOfPayment),
                 N(f.IsLivenessVerified),
                 N(f.IsReadyForEft),
+                N(f.IsFaceToFace),
                 // ── Age / Birthday ────────────────────────────────────────────
                 N(f.SpecificAge),
                 N(f.MilestoneYear),
@@ -908,6 +927,7 @@ namespace EcaInformationSystem.Application.Services
             beneficiary.DateOfLiveness = dto.DateOfLiveness;
             beneficiary.IsReadyForEft = dto.IsReadyForEft;
             beneficiary.PlatformUsed = dto.PlatformUsed;
+            beneficiary.IsFaceToFace = dto.IsFaceToFace;
 
             await _repo.AddAsync(beneficiary);
             await _repo.AddPaymentHistoryEntryAsync(initialHistory);
@@ -1161,6 +1181,7 @@ namespace EcaInformationSystem.Application.Services
                     DateOfLiveness = beneficiary.DateOfLiveness,
                     IsReadyForEft = beneficiary.IsReadyForEft,
                     PlatformUsed = beneficiary.PlatformUsed,
+                    IsFaceToFace = beneficiary.IsFaceToFace,
 
                     // ✅ NEW — sub-entities, mapped from the same dto that was just persisted.
                     // Reusing dto.* here instead of re-querying the repo — the values are
@@ -1626,7 +1647,7 @@ namespace EcaInformationSystem.Application.Services
                      dto.HouseNumber, dto.StreetName, dto.ZipCode,
                      dto.DisabilityType, dto.EthnicityName, dto.DualCitizenshipDetails,
                      dto.CivilStatusOtherDetail, dto.IsSignedDeclaration, dto.DateSigned, dto.IsLivenessVerified, dto.DateOfLiveness,
-                     dto.IsReadyForEft, dto.PlatformUsed);
+                     dto.IsReadyForEft, dto.PlatformUsed, dto.IsFaceToFace);
 
             // ✅ Family members — always replace-all on edit, matches create behavior
             if (dto.FamilyMembers != null)
@@ -5626,6 +5647,8 @@ namespace EcaInformationSystem.Application.Services
                 parts.Add($"Liveness: {(filter.IsLivenessVerified.Value ? "Verified" : "Not Verified")}");
             if (filter.IsReadyForEft.HasValue)
                 parts.Add($"EFT: {(filter.IsReadyForEft.Value ? "Ready" : "Not Ready")}");
+            if (filter.IsFaceToFace.HasValue)
+                parts.Add($"Face to Face: {(filter.IsFaceToFace.Value ? "Yes" : "No")}");
 
             if (filter.SpecificAge.HasValue)
                 parts.Add($"Age: {filter.SpecificAge}");
@@ -5835,6 +5858,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
                 filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
                 filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
+                filter.IsFaceToFace != null ? filter.IsFaceToFace.ToString() : CommonConstants.Null,
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateEndorsedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
@@ -6026,6 +6050,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.FilterModeOfPayment?.ToString() ?? CommonConstants.Null,
                 filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
                 filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
+                filter.IsFaceToFace != null ? filter.IsFaceToFace.ToString() : CommonConstants.Null,
                 filter.Validator ?? string.Empty,                             // ✅ ADDED
                 filter.BatchCode ?? string.Empty,                             // ✅ ADDED
                 filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one
@@ -6212,6 +6237,9 @@ namespace EcaInformationSystem.Application.Services
 
             if (beneficiary.PlatformUsed != dto.PlatformUsed)
                 changes.Add($"Platform Used '{beneficiary.PlatformUsed}' → '{dto.PlatformUsed}'");
+
+            if (beneficiary.IsFaceToFace != dto.IsFaceToFace)
+                changes.Add($"Face to Face '{MapTriStateLabel(beneficiary.IsFaceToFace)}' → '{MapTriStateLabel(dto.IsFaceToFace)}'");
             return changes;
         }
         private async Task AddLogAsync(Guid beneficiaryId, string activity, string userName)

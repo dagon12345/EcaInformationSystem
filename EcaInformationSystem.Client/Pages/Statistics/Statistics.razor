@@ -214,6 +214,15 @@
                                     <option value="notready">Not Ready</option>
                                 </select>
                             </div>
+                            @* ── Face to Face ─────────────────────────────────── *@
+                            <div class="sf-field">
+                                <label>Face to Face</label>
+                                <select @bind="_selectedFaceToFace" class="ff-input">
+                                    <option value="">All</option>
+                                    <option value="yes">Yes</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
                         </div>
 
                         @* ── Date Ranges ──────────────────────────────────── *@
@@ -1077,6 +1086,7 @@
     // ✅ new — tri-state, empty string = no filter, same pattern as other selects here
     private string _selectedLiveness = string.Empty;
     private string _selectedEft = string.Empty;
+    private string _selectedFaceToFace = string.Empty;
     // ✅ new — CO Date Endorsed/Approved, distinct from _dateEndorsedFrom/To above
     private DateTime? _coDateEndorsedFrom;
     private DateTime? _coDateEndorsedTo;
@@ -1320,6 +1330,7 @@
         _dateEndorsedTo.HasValue ||
         !string.IsNullOrEmpty(_selectedLiveness) ||
         !string.IsNullOrEmpty(_selectedEft) ||
+        !string.IsNullOrEmpty(_selectedFaceToFace) ||
         _coDateEndorsedFrom.HasValue ||
         _coDateEndorsedTo.HasValue ||
         _coDateApprovedFrom.HasValue ||
@@ -1407,6 +1418,7 @@
         _selectedFiscalYear = 0; // ✅ new
         _selectedLiveness = string.Empty;
         _selectedEft = string.Empty;
+        _selectedFaceToFace = string.Empty;
         _dateEndorsedFrom = null;
         _dateEndorsedTo = null;
         _dateAddedFrom = null;
@@ -1473,6 +1485,12 @@
         {
             "ready" => true,
             "notready" => false,
+            _ => null
+        },
+        IsFaceToFace = _selectedFaceToFace switch
+        {
+            "yes" => true,
+            "no" => false,
             _ => null
         },
         CoDateEndorsedFrom = _coDateEndorsedFrom,

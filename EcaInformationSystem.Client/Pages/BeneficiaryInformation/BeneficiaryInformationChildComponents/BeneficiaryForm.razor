@@ -743,6 +743,14 @@
                        value="@model.PlatformUsed" @oninput="e => model.PlatformUsed = e.Value?.ToString()" />
                 <small class="text-muted d-block mt-1">May include other details as to proof of life — prints on Section B of the Liveness Check and Transaction Account Form.</small>
             </div>
+            <div class="ff">
+                <label class="ff-label">Face to Face?</label>
+                <label class="annexa-checkbox-item">
+                    <input type="checkbox" checked="@(model.IsFaceToFace ?? false)"
+                           @onchange="@(e => model.IsFaceToFace = (bool)(e.Value ?? false))" />
+                    Face to Face
+                </label>
+            </div>
         </div>
         @if (!IsCoApproved)
         {
@@ -2602,6 +2610,7 @@
     DateOfLiveness = model.DateOfLiveness,
     IsReadyForEft = model.IsReadyForEft,
     PlatformUsed = model.PlatformUsed,
+    IsFaceToFace = model.IsFaceToFace,
 
     FamilyMembers = model.FamilyMembers,
     BankAccount = model.BankAccount,

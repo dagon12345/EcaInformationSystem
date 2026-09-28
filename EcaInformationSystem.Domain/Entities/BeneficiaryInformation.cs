@@ -121,6 +121,11 @@ namespace EcaInformationSystem.Domain.Entities
         // the printed Liveness Check and Transaction Account Form.
         public string? PlatformUsed { get; set; }
 
+        // ✅ NEW — Face to Face: manual checkbox indicating the grantee was served
+        // through a face-to-face transaction. Nullable/unbound — no guard or date
+        // tied to it, settable individually or via bulk update.
+        public bool? IsFaceToFace { get; set; }
+
         // ── Navigation properties for the new 1:1 / 1:many sub-entities ──
         public BeneficiaryBankAccount? BankAccount { get; set; }
         public BeneficiaryAbroadAddress? AbroadAddress { get; set; }
@@ -200,7 +205,7 @@ namespace EcaInformationSystem.Domain.Entities
             string? houseNumber, string? streetName, string? zipCode,
             string? disabilityType, string? ethnicityName, string? dualCitizenshipDetails,
             string? civilStatusOtherDetail, bool isSignedDeclaration, DateTime? dateSigned, bool? isLivenessVerified,
-            DateTime? dateOfLiveness, bool? isReadyForEft, string? platformUsed)
+            DateTime? dateOfLiveness, bool? isReadyForEft, string? platformUsed, bool? isFaceToFace)
         {
             TrackingNumber = trackingNumber;
             DataPrivacyConsent = dataPrivacyConsent;
@@ -218,6 +223,7 @@ namespace EcaInformationSystem.Domain.Entities
             DateOfLiveness = dateOfLiveness;
             IsReadyForEft = isReadyForEft;
             PlatformUsed = platformUsed;
+            IsFaceToFace = isFaceToFace;
         }
     }
 }

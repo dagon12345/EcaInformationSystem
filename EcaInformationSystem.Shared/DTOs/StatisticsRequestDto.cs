@@ -28,6 +28,7 @@
         // ✅ new — nullable, same "null = no filter" convention as everything above
         public bool? IsLivenessVerified { get; set; }
         public bool? IsReadyForEft { get; set; }
+        public bool? IsFaceToFace { get; set; }
 
         // ✅ new — CO (Central Office) endorsement/approval dates, distinct
         // from DateEndorsed above (that's the application's own endorsement
@@ -81,6 +82,7 @@
         public bool? IsLivenessVerified { get; set; }
         public DateTime? DateOfLiveness { get; set; }
         public bool? IsReadyForEft { get; set; }
+        public bool? IsFaceToFace { get; set; }
 
         // ✅ NEW — so the audit modal can flag payees who are deceased AND
         // EFT-ready (that payout is for a claimant/heir, not the grantee).

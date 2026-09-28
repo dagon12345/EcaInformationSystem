@@ -90,6 +90,26 @@ namespace EcaInformationSystem.Api.Controllers
             }
         }
 
+        [HttpPost("bulk-update-face-to-face")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<IActionResult> BulkUpdateFaceToFace([FromBody] BulkUpdateFaceToFaceRequestDto request)
+        {
+            try
+            {
+                var userName = User.Identity?.Name ?? "System";
+                await _service.BulkUpdateFaceToFaceAsync(request.Ids, request.IsFaceToFace, userName);
+                return Ok();
+            }
+            catch (ConcurrencyException ex)
+            {
+                return Conflict(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("edit-payment-history")]
         [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> EditPaymentHistory([FromBody] EditPaymentHistoryRequestDto request)

@@ -57,6 +57,12 @@
         public string? Remarks { get; set; }
     }
 
+    public class BulkUpdateFaceToFaceRequestDto
+    {
+        public List<Guid> Ids { get; set; } = new();
+        public bool IsFaceToFace { get; set; }
+    }
+
     public class EditPaymentHistoryRequestDto
     {
         public Guid HistoryId { get; set; }

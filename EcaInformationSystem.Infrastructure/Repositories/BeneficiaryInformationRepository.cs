@@ -562,6 +562,26 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     $"The following record(s) were modified by another user: {conflictedNames}. Please refresh and try again.", ex);
             }
         }
+        public async Task BulkUpdateFaceToFaceAsync(List<Guid> beneficiaryIds, bool isFaceToFace)
+        {
+            var beneficiaries = await _context.BeneficiaryInformations
+                .Where(b => beneficiaryIds.Contains(b.Id) && !b.IsDeleted)
+                .ToListAsync();
+
+            foreach (var b in beneficiaries)
+                b.IsFaceToFace = isFaceToFace;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var conflictedNames = GetConflictedRecordNames(ex);
+                throw new ConcurrencyException(
+                    $"The following record(s) were modified by another user: {conflictedNames}. Please refresh and try again.", ex);
+            }
+        }
         public async Task<List<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid beneficiaryId)
         {
             var currentId = await _context.BeneficiaryInformations
@@ -762,6 +782,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 query = query.Where(b => b.IsLivenessVerified == request.IsLivenessVerified.Value);
             if (request.IsReadyForEft.HasValue)
                 query = query.Where(b => b.IsReadyForEft == request.IsReadyForEft.Value);
+            if (request.IsFaceToFace.HasValue)
+                query = query.Where(b => b.IsFaceToFace == request.IsFaceToFace.Value);
 
             // ── Date Endorsed Range ───────────────────────────────────────────────
             if (request.DateEndorsedFrom.HasValue)
@@ -1496,6 +1518,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsLivenessVerified = b.IsLivenessVerified,
                     DateOfLiveness = b.DateOfLiveness,
                     IsReadyForEft = b.IsReadyForEft,
+                    IsFaceToFace = b.IsFaceToFace,
                     IsDeceased = b.IsDeceased,
                     PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
                         ? h.Select(x => new PaymentHistoryDto
@@ -2160,7 +2183,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsLivenessVerified = b.IsLivenessVerified,
                     DateOfLiveness = b.DateOfLiveness,
                     IsReadyForEft = b.IsReadyForEft,
-                    PlatformUsed = b.PlatformUsed
+                    PlatformUsed = b.PlatformUsed,
+                    IsFaceToFace = b.IsFaceToFace
                 }
             ).AsNoTracking().FirstOrDefaultAsync();
 
@@ -2731,6 +2755,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.DateOfLiveness,
                     x.b.IsReadyForEft,
                     x.b.IsDeceased,
+                    x.b.IsFaceToFace,
                     x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
                         .Any(d => d.BeneficiaryInformationId == x.b.Id && !d.IsDeleted),
@@ -2844,7 +2869,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsLivenessVerified = x.IsLivenessVerified,
                     DateOfLiveness = x.DateOfLiveness,
                     IsReadyForEft = x.IsReadyForEft,
-                    IsDeceased = x.IsDeceased
+                    IsDeceased = x.IsDeceased,
+                    IsFaceToFace = x.IsFaceToFace
                 };
             }).ToList();
 
@@ -3370,6 +3396,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.IsReadyForEft.HasValue)
                 query = query.Where(x => x.Beneficiary.IsReadyForEft == filter.IsReadyForEft.Value);
+
+            if (filter.IsFaceToFace.HasValue)
+                query = query.Where(x => x.Beneficiary.IsFaceToFace == filter.IsFaceToFace.Value);
 
             // ── Payment Date (exact) ──────────────────────────────────────────────
             if (filter.PaymentDate.HasValue)
@@ -4063,6 +4092,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.IsReadyForEft.HasValue)
                 query = query.Where(b => b.IsReadyForEft == filter.IsReadyForEft.Value);
+
+            if (filter.IsFaceToFace.HasValue)
+                query = query.Where(b => b.IsFaceToFace == filter.IsFaceToFace.Value);
 
             // Statuses other than Paid (2) typically have no meaningful payment date
             // (Unpaid/Pending/N-A records are often never given one). If the user's

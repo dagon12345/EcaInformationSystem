@@ -640,6 +640,14 @@
                                 <option value="notready">Not Ready</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Face to Face</label>
+                            <select value="@_faceToFaceValue" @onchange="OnFaceToFaceChanged" disabled="@IsLoading">
+                                <option value="">Select Face to Face</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -786,6 +794,7 @@
     private string _eligibilityValue = string.Empty;
     private string _livenessValue = string.Empty;
     private string _eftValue = string.Empty;
+    private string _faceToFaceValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
     private string _modeOfPaymentValue = string.Empty;
     private string _dataQualityValue = string.Empty;
@@ -858,6 +867,18 @@
         {
             "ready" => true,
             "notready" => false,
+            _ => null
+        };
+    }
+
+    private void OnFaceToFaceChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _faceToFaceValue = val ?? string.Empty;
+        State.Filter.IsFaceToFace = val switch
+        {
+            "yes" => true,
+            "no" => false,
             _ => null
         };
     }
@@ -1238,6 +1259,8 @@
         _livenessValue = string.Empty;
         State.Filter.IsReadyForEft = null;
         _eftValue = string.Empty;
+        State.Filter.IsFaceToFace = null;
+        _faceToFaceValue = string.Empty;
         State.Filter.GeneralSearch = null;
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
@@ -1309,6 +1332,7 @@
       string.IsNullOrWhiteSpace(f.EligibilityMode) &&
     f.IsLivenessVerified == null &&
     f.IsReadyForEft == null &&
+    f.IsFaceToFace == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
@@ -1482,6 +1506,8 @@
             chips.Add(f.IsLivenessVerified.Value ? "Liveness: Verified" : "Liveness: Not Verified");
         if (f.IsReadyForEft.HasValue)
             chips.Add(f.IsReadyForEft.Value ? "EFT: Ready" : "EFT: Not Ready");
+        if (f.IsFaceToFace.HasValue)
+            chips.Add(f.IsFaceToFace.Value ? "Face to Face: Yes" : "Face to Face: No");
 
         return chips;
     }

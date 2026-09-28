@@ -188,8 +188,14 @@
 <InputDate class="form-control form-control-sm w-auto" TValue="DateTime?"
            @bind-Value="bulkPaymentDate"
            disabled="@(bulkPaymentStatus != 2 && bulkPaymentStatus != 1)" />
+    @* ✅ Face to Face — standalone marker, no guard or date binding. Can be
+         applied on its own (no Payment Status selected) or alongside it. *@
+    <div class="form-check form-check-inline ms-2">
+        <input type="checkbox" class="form-check-input" id="bulkFaceToFaceCheck" @bind="bulkFaceToFace" />
+        <label class="form-check-label" for="bulkFaceToFaceCheck">Face to Face</label>
+    </div>
    <button class="btn btn-sm btn-primary" @onclick="OpenBulkPaymentHistoryModal"
-        disabled="@(!checkedIds.Any() || bulkPaymentStatus == null || IsBulkUpdating)">
+        disabled="@(!checkedIds.Any() || (bulkPaymentStatus == null && !bulkFaceToFace) || IsBulkUpdating)">
     Record Payment
 </button>
 }
@@ -571,6 +577,16 @@
                                                             <i class="bi bi-camera-fill tbl-badge-lv-eft-icon tbl-badge-lv-eft--pending"></i>
                                                         }
                                                     </span>
+                                                    @if (item.IsFaceToFace == true)
+                                                    {
+                                                        <span class="tbl-badge-face-to-face me-1"
+                                                              style="cursor:pointer;"
+                                                              @onclick="() => OpenDetailsPanel(item)"
+                                                              @onclick:stopPropagation="true"
+                                                              title="Face to Face">
+                                                            <i class="bi bi-people-fill"></i>
+                                                        </span>
+                                                    }
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
                                                     @if (item.HasDuplicateHistory)
                                                     {
@@ -1763,6 +1779,17 @@
             {
                 true => "Ready",
                 false => "Not Ready",
+                null => "Not Yet Checked"
+            })
+        </span>
+    </div>
+    <div class="col-6">
+        <small class="text-muted d-block">Face to Face?</small>
+        <span class="tbl-badge @(selectedDetails.IsFaceToFace == true ? "yes-g" : selectedDetails.IsFaceToFace == false ? "no-g" : "pending")">
+            @(selectedDetails.IsFaceToFace switch
+            {
+                true => "Yes",
+                false => "No",
                 null => "Not Yet Checked"
             })
         </span>
@@ -3235,30 +3262,40 @@ else
         <h5 class="modal-title">Confirm Bulk Payment Record</h5>
     </HeaderTemplate>
     <BodyTemplate>
-        <p>
-            You are about to record a new
-            <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong> payment entry
-            for <strong>@checkedIds.Count</strong> beneficiary record(s).
-        </p>
-        @* AFTER *@
-        @if (bulkPaymentStatus == 2)
+        @if (bulkPaymentStatus != null)
         {
-            <ul class="mb-0">
-                <li>Period: <strong>Q@(bulkPayrollQuarterOnly) @(_bulkFiscalYear)</strong></li>
-                <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
-                <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
-            </ul>
+            <p>
+                You are about to record a new
+                <strong>@GetPaymentStatusText(bulkPaymentStatus)</strong> payment entry
+                for <strong>@checkedIds.Count</strong> beneficiary record(s).
+            </p>
+            @* AFTER *@
+            @if (bulkPaymentStatus == 2)
+            {
+                <ul class="mb-0">
+                    <li>Period: <strong>Q@(bulkPayrollQuarterOnly) @(_bulkFiscalYear)</strong></li>
+                    <li>Mode of Payment: <strong>@GetModeOfPaymentText(bulkModeOfPayment ?? 0)</strong></li>
+                    <li>Payment Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
+                </ul>
+            }
+            else if (bulkPaymentStatus == 1)
+            {
+                <ul class="mb-0">
+                    <li>Unpaid Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
+                </ul>
+            }
+            <p class="mt-2 mb-0 text-muted small">
+                This adds a new history entry to each selected record — it does not
+                overwrite existing entries.
+            </p>
         }
-        else if (bulkPaymentStatus == 1)
+        @if (bulkFaceToFace)
         {
-            <ul class="mb-0">
-                <li>Unpaid Date: <strong>@(bulkPaymentDate?.ToString("MMMM dd, yyyy") ?? "Left blank — each record keeps its existing date")</strong></li>
-            </ul>
+            <p class="@(bulkPaymentStatus != null ? "mt-3" : "")">
+                <strong>Face to Face</strong> will also be marked for
+                <strong>@checkedIds.Count</strong> beneficiary record(s).
+            </p>
         }
-        <p class="mt-2 mb-0 text-muted small">
-            This adds a new history entry to each selected record — it does not
-            overwrite existing entries.
-        </p>
     </BodyTemplate>
     <FooterTemplate>
         <HxButton Color="ThemeColor.Secondary" @onclick="() => bulkPaymentHistoryModal.HideAsync()">Cancel</HxButton>
@@ -3578,6 +3615,7 @@ else
     private Guid? _jumpTargetRowId;
     private int? bulkPaymentStatus = null;
     private DateTime? bulkPaymentDate;
+    private bool bulkFaceToFace = false;
     private bool IsBulkUpdating;
     private BeneficiaryInformationDto? selectedDetails;
     private List<BeneficiaryDuplicateHistoryDto> _duplicateHistory = new();
@@ -3772,11 +3810,13 @@ private async Task SetCurrentPaymentHistoryEntryAsync()
 }
 private async Task OpenBulkPaymentHistoryModal()
 {
-    if (bulkPaymentStatus == null || !checkedIds.Any()) return;
+    if ((bulkPaymentStatus == null && !bulkFaceToFace) || !checkedIds.Any()) return;
     // ✅ CHANGED — Payment Date is no longer required for bulk updates (office
     // transactions are often batched before the exact date is known). Leaving
     // it blank now just carries forward each grantee's existing date instead
     // of being blocked or wiping it — see BulkAddPaymentHistoryAsync.
+    // These guards only apply when a Payment Status was actually selected —
+    // Face to Face on its own has no guard or date/field requirement.
     if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
     { toast.ShowError("Mode of Payment is required when status is Paid."); return; }
     if (bulkPaymentStatus == 2 && (bulkPayrollQuarterOnly == null || _bulkFiscalYear == null))
@@ -3842,6 +3882,8 @@ private async Task DeletePaymentHistoryEntryAsync()
 }
 private async Task ExecuteBulkAddPaymentHistoryAsync()
 {
+    // These guards only apply when a Payment Status was actually selected —
+    // Face to Face on its own (bulkPaymentStatus == null) skips them entirely.
     // ✅ CHANGED — Payment Date is no longer required for bulk updates; see
     // OpenBulkPaymentHistoryModal above and BulkAddPaymentHistoryAsync.
     if (bulkPaymentStatus == 2 && bulkModeOfPayment == null)
@@ -3859,29 +3901,67 @@ private async Task ExecuteBulkAddPaymentHistoryAsync()
     try
     {
         IsBulkUpdating = true;
-        var request = new BulkAddPaymentHistoryRequestDto
-        {
-            Ids = checkedIds.ToList(),
-            PayrollQuarter = bulkPayrollQuarterOnly,
-            FiscalYear = _bulkFiscalYear,
-            PaymentStatus = bulkPaymentStatus!.Value,
-            ModeOfPayment = bulkModeOfPayment,
-            PaymentDate = bulkPaymentDate
-        };
-        var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+        var ids = checkedIds.ToList();
+        var messages = new List<string>();
 
-        await HandleApiResponseAsync(response,
-            $"Recorded payment for {checkedIds.Count} record(s).",
-            async () =>
+        if (bulkPaymentStatus != null)
+        {
+            var request = new BulkAddPaymentHistoryRequestDto
             {
-                ClearSelection();
-                StateHasChanged();  
-                State.Invalidate();
-                await State.LoadAsync();
-            });
+                Ids = ids,
+                PayrollQuarter = bulkPayrollQuarterOnly,
+                FiscalYear = _bulkFiscalYear,
+                PaymentStatus = bulkPaymentStatus!.Value,
+                ModeOfPayment = bulkModeOfPayment,
+                PaymentDate = bulkPaymentDate
+            };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-add-payment-history", request);
+            if (!await EnsureSuccessOrToastAsync(response)) return;
+            messages.Add($"Recorded payment for {ids.Count} record(s).");
+        }
+
+        if (bulkFaceToFace)
+        {
+            var request = new BulkUpdateFaceToFaceRequestDto { Ids = ids, IsFaceToFace = true };
+            var response = await Http.PostAsJsonAsync("api/beneficiary/bulk-update-face-to-face", request);
+            if (!await EnsureSuccessOrToastAsync(response)) return;
+            messages.Add($"Marked Face to Face for {ids.Count} record(s).");
+        }
+
+        toast.ShowSuccess(string.Join(" ", messages));
+        ClearSelection();
+        StateHasChanged();
+        State.Invalidate();
+        await State.LoadAsync();
     }
     catch (Exception ex) { toast.ShowError($"An error occurred: {ex.Message}"); }
     finally { IsBulkUpdating = false; }
+}
+
+// Shared by the two calls in ExecuteBulkAddPaymentHistoryAsync — shows the
+// same Forbidden/Conflict handling as HandleApiResponseAsync but returns
+// whether the caller should continue, since two independent requests may
+// run in sequence here.
+private async Task<bool> EnsureSuccessOrToastAsync(HttpResponseMessage response)
+{
+    if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+    {
+        toast.ShowError("Access denied. You do not have permission to perform this action.");
+        return false;
+    }
+    if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+    {
+        toast.ShowError(await response.Content.ReadAsStringAsync());
+        State.Invalidate();
+        await State.LoadAsync();
+        return false;
+    }
+    if (!response.IsSuccessStatusCode)
+    {
+        toast.ShowError(await response.Content.ReadAsStringAsync());
+        return false;
+    }
+    return true;
 }
 
 private async Task OpenEditPaymentHistoryModal(PaymentHistoryDto entry)
@@ -5436,6 +5516,7 @@ private void PayrollPreviewZoomReset() => _payrollPreviewZoom = 100;
         bulkPaymentStatus = null;
         bulkPaymentDate = null;
         bulkModeOfPayment = null;
+        bulkFaceToFace = false;
         bulkPayrollQuarterOnly = null;
         _bulkFiscalYear = null;
         _clearingQuarterFiscalYear = false;

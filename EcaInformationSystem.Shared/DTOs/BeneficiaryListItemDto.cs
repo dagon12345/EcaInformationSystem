@@ -85,6 +85,7 @@ namespace EcaInformationSystem.Shared.DTOs
         // grid icon instead of looking identical to a living EFT-ready one.
         public bool IsDeceased { get; set; }
 
+        public bool? IsFaceToFace { get; set; }
 
         // ✅ Now passes RefCode — generated once, stored in DB
         public string? ReferenceNumber =>
