@@ -180,6 +180,17 @@ namespace EcaInformationSystem.Application.Services
                 // resolves; any other unrecognised name is left blank rather
                 // than guessed.
                 var matched = FindesBankDirectory.TryResolve(r.BankOrWalletName, out var bankEntry);
+
+                // ✅ Fallback to Branch Name — Section E.2's "Bank Name" and
+                // "Branch Name" fields get mixed up often enough in practice
+                // (encoders sometimes put the account holder's name in Bank
+                // Name and "BANK - BRANCH LOCATION" in Branch Name instead)
+                // that it's worth a second lookup rather than leaving a
+                // resolvable row blank just because the bank name landed in
+                // the wrong field.
+                if (!matched)
+                    matched = FindesBankDirectory.TryResolve(r.BranchName, out bankEntry);
+
                 if (!matched && r.PreferredChannel == 1 && FindesBankDirectory.Landbank is { } landbankEntry)
                 {
                     bankEntry = landbankEntry;
@@ -391,9 +402,19 @@ namespace EcaInformationSystem.Application.Services
                     return FindesBankDirectory.BuildMobileCreditorAcctNum(mobile);
             }
 
+            // CreditorAcctNum is a fixed 16-digit field in the FINDES/weAccess
+            // template (same width the mobile-wallet form above pads to with
+            // its '00000 + 11-digit prefix). A bank account number shorter
+            // than 16 digits — the common case is 12 — is left-padded with
+            // zeros to fill it out, e.g. a 12-digit number becomes
+            // "0000" + the 12 digits. Same leading apostrophe as the mobile
+            // form above — a real character, not Excel's "treat as text"
+            // marker (WriteTextCell already forces the "@" text format on
+            // every cell in this column regardless) — so weAccess sees a
+            // consistent 17-character '-prefixed value either way.
             var accountNumber = FindesBankDirectory.DigitsOnly(r.AccountNumber);
             if (accountNumber is not null)
-                return accountNumber;
+                return "'" + (accountNumber.Length < 16 ? accountNumber.PadLeft(16, '0') : accountNumber);
 
             // No account number on file — the mobile number is the only payout
             // reference left, so use it rather than leave the row unusable.
