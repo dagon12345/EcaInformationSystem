@@ -5,6 +5,7 @@
    never applies Statistics' Region/Province/Municipality/Payment/Quarter/Fiscal-Year filters here. *@
 @page "/statistics/applications-validations"
 @using Microsoft.AspNetCore.Authorization
+@using SharedDtos = EcaInformationSystem.Shared.DTOs
 @attribute [Authorize]
 @inject HttpClient Http
 
@@ -192,6 +193,11 @@
                     Compliant in the Verification Checklist. <strong>Variance</strong> is endorsed grantees not yet
                     validated.
                 </p>
+                <p class="text-muted small px-3 pt-2 mb-0">
+                    <i class="bi bi-hand-index-thumb me-1"></i>
+                    Click a number in an LGU's row to see exactly which grantees it counts, with their Date
+                    Endorsed and whether they are Compliant.
+                </p>
                 <p class="text-muted small px-3 pt-2 pb-2 mb-0">
                     <i class="bi bi-exclamation-circle me-1"></i>
                     A row showing <strong>0</strong> across the board means that LGU has <strong>not endorsed any
@@ -235,12 +241,12 @@
                                         var lguVariancePct = lguEndorsed == 0 ? 0 : (double)lguVariance / lguEndorsed * 100;
                                         <tr>
                                             <td class="ps-4">@lgu.MunicipalityName</td>
-                                            <td class="text-center lgu-group-start">@lgu.EndorsedOctoNona</td>
-                                            <td class="text-center">@lgu.EndorsedCente</td>
-                                            <td class="text-center lgu-group-start">@lgu.ValidatedOctoNona</td>
-                                            <td class="text-center">@lgu.ValidatedCente</td>
-                                            <td class="text-center lgu-group-start @(lgu.VarianceOctoNona > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceOctoNona</td>
-                                            <td class="text-center @(lgu.VarianceCente > 0 ? "text-danger fw-semibold" : "text-muted")">@lgu.VarianceCente</td>
+                                            <td class="text-center lgu-group-start">@LguCount(lgu, "endorsed", "octonona", lgu.EndorsedOctoNona)</td>
+                                            <td class="text-center">@LguCount(lgu, "endorsed", "cente", lgu.EndorsedCente)</td>
+                                            <td class="text-center lgu-group-start">@LguCount(lgu, "validated", "octonona", lgu.ValidatedOctoNona)</td>
+                                            <td class="text-center">@LguCount(lgu, "validated", "cente", lgu.ValidatedCente)</td>
+                                            <td class="text-center lgu-group-start @(lgu.VarianceOctoNona > 0 ? "text-danger fw-semibold" : "text-muted")">@LguCount(lgu, "variance", "octonona", lgu.VarianceOctoNona)</td>
+                                            <td class="text-center @(lgu.VarianceCente > 0 ? "text-danger fw-semibold" : "text-muted")">@LguCount(lgu, "variance", "cente", lgu.VarianceCente)</td>
                                             <td class="text-center lgu-group-start">
                                                 @if (lguEndorsed == 0)
                                                 {
@@ -293,6 +299,127 @@
         }
     }
 </div>
+
+@* ── Grantee drill-down for a clicked count — who is behind an LGU's
+     Endorsed / Validated / Variance number. Same modal and Prev/Next paging
+     as Statistics.razor's grantee audit modal; the list comes from the same
+     filtered set the report was counted from, so it always adds up to the
+     number that was clicked. ── *@
+<HxModal @ref="_membersModal" Size="ModalSize.ExtraLarge" CssClass="stats-members-modal-wide">
+    <HeaderTemplate>
+        <h5 class="modal-title">
+            <i class="bi bi-people-fill me-2"></i>
+            @_membersModalTitle
+        </h5>
+    </HeaderTemplate>
+    <BodyTemplate>
+        @if (_isLoadingMembers)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 mb-0">Loading grantees...</p>
+            </div>
+        }
+        else if (_membersError is not null)
+        {
+            <div class="alert alert-danger mb-0">
+                <i class="bi bi-exclamation-triangle me-2"></i>@_membersError
+                <button class="btn btn-sm btn-outline-danger ms-2" @onclick="FetchMembersPageAsync">Retry</button>
+            </div>
+        }
+        else if (!_members.Any())
+        {
+            <div class="alert alert-info mb-0">No grantees found for this count.</div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                <span class="badge bg-primary fs-6">@_membersTotalCount Total</span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber <= 1 || _isLoadingMembers)"
+                            @onclick="() => GoToMembersPageAsync(_membersPageNumber - 1)">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </button>
+                    <span class="small text-muted">
+                        Page @_membersPageNumber of @Math.Max(1, _membersTotalPages)
+                        (@(((_membersPageNumber - 1) * MembersPageSize) + 1)–@Math.Min(_membersPageNumber * MembersPageSize, _membersTotalCount) of @_membersTotalCount)
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" disabled="@(_membersPageNumber >= _membersTotalPages || _isLoadingMembers)"
+                            @onclick="() => GoToMembersPageAsync(_membersPageNumber + 1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="max-height:65vh; overflow-y:auto;">
+                <table class="table table-sm table-bordered table-hover align-middle mb-0" style="font-size:12px;">
+                    <thead class="table-dark" style="position:sticky;top:0;z-index:1;">
+                        <tr>
+                            <th style="width:36px;">#</th>
+                            <th>Full Name</th>
+                            <th style="width:50px;">Age</th>
+                            <th style="width:90px;">Milestone Year</th>
+                            <th>OSCA ID</th>
+                            <th>Batch Code</th>
+                            <th>Location</th>
+                            <th style="min-width:110px;">Date Endorsed</th>
+                            <th style="min-width:130px;">Compliant</th>
+                            <th style="min-width:220px;">Remarks (reason for variance)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowNum = ((_membersPageNumber - 1) * MembersPageSize) + 1; }
+                        @foreach (var m in _members)
+                        {
+                            <tr>
+                                <td>@rowNum</td>
+                                <td class="fw-semibold">@m.FullName</td>
+                                <td>@m.Age</td>
+                                <td>@(m.MilestoneYear > 0 ? m.MilestoneYear.ToString() : "—")</td>
+                                <td>@(string.IsNullOrWhiteSpace(m.OscaIdNumber) ? "—" : m.OscaIdNumber)</td>
+                                <td>@(string.IsNullOrWhiteSpace(m.BatchCode) ? "—" : m.BatchCode)</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(m.BarangayName))
+                                    {
+                                        <div>@m.BarangayName</div>
+                                    }
+                                    <div class="text-muted">@m.MunicipalityName, @m.ProvinceName</div>
+                                </td>
+                                <td>@(m.DateEndorsed.HasValue ? m.DateEndorsed.Value.ToLocalTime().ToString("MMM dd, yyyy") : "—")</td>
+                                <td>
+                                    <span class="badge @(m.IsCompliant ? "bg-success" : "bg-warning text-dark")">
+                                        @(m.IsCompliant ? "Compliant" : "Not Compliant")
+                                    </span>
+                                    @if (m.IsCompliant && (m.ValidationDate.HasValue || !string.IsNullOrWhiteSpace(m.Validator)))
+                                    {
+                                        <div class="small text-muted">
+                                            @(m.ValidationDate.HasValue ? m.ValidationDate.Value.ToLocalTime().ToString("MMM dd, yyyy") : "")
+                                            @(string.IsNullOrWhiteSpace(m.Validator) ? "" : "· " + m.Validator)
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    @if (m.IsCompliant || string.IsNullOrWhiteSpace(m.AssessmentRemarks))
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @m.AssessmentRemarks
+                                    }
+                                </td>
+                            </tr>
+                            rowNum++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </BodyTemplate>
+    <FooterTemplate>
+        <HxButton Color="ThemeColor.Secondary" @onclick="() => _membersModal.HideAsync()">Close</HxButton>
+    </FooterTemplate>
+</HxModal>
 
 @code {
     private bool _isLoading = true;
@@ -364,6 +491,7 @@
             if (response.IsSuccessStatusCode)
             {
                 _report = await response.Content.ReadFromJsonAsync<LguValidationReportDto>() ?? new();
+                _loadedRequest = request;
             }
             else
             {
@@ -377,6 +505,112 @@
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    // ── Clickable counts + grantee drill-down ─────────────────────────
+    private const int MembersPageSize = 50;
+    private HxModal _membersModal = default!;
+    private string _membersModalTitle = string.Empty;
+    private string _membersBucket = string.Empty;
+    private bool _isLoadingMembers;
+    private string? _membersError;
+    private List<SharedDtos.StatisticsMemberDto> _members = new();
+    private int _membersPageNumber = 1;
+    private int _membersTotalCount;
+    private int _membersTotalPages;
+
+    // The filters the CURRENTLY DISPLAYED report was loaded with — not whatever
+    // is typed into the filter panel since (those only apply on Apply). Drilling
+    // in, and paging through the list, must use these so the grantees always add
+    // up to the number that was clicked.
+    private ApplicationsValidationsRequestDto _loadedRequest = new();
+
+    // A count as a link when there's someone behind it; a plain number (or
+    // muted 0) otherwise. measure: endorsed | validated | variance;
+    // ageGroup: octonona | cente.
+    private RenderFragment LguCount(LguValidationStatisticsDto lgu, string measure, string ageGroup, int count) => builder =>
+    {
+        if (count <= 0)
+        {
+            builder.AddContent(0, count.ToString());
+            return;
+        }
+
+        builder.OpenElement(1, "button");
+        builder.AddAttribute(2, "type", "button");
+        builder.AddAttribute(3, "class", "lgu-count-link");
+        builder.AddAttribute(4, "title", "Click to view the grantees in this count");
+        builder.AddAttribute(5, "onclick", EventCallback.Factory.Create(this, () => OpenMembersModalAsync(lgu, measure, ageGroup)));
+        builder.AddContent(6, count.ToString());
+        builder.CloseElement();
+    };
+
+    private async Task OpenMembersModalAsync(LguValidationStatisticsDto lgu, string measure, string ageGroup)
+    {
+        var measureLabel = measure switch
+        {
+            "endorsed" => "Endorsed",
+            "validated" => "Validated",
+            _ => "Variance (awaiting validation)"
+        };
+        var groupLabel = ageGroup == "cente" ? "Cente (100+)" : "Octo/Nona (80–99)";
+
+        _membersModalTitle = $"{lgu.MunicipalityName}, {lgu.ProvinceName} — {measureLabel} — {groupLabel}";
+        _membersBucket = $"lgu:{lgu.MunicipalityCode}:{measure}:{ageGroup}";
+        _membersPageNumber = 1;
+        _members = new();
+        _membersTotalCount = 0;
+        _membersTotalPages = 0;
+        _membersError = null;
+        await _membersModal.ShowAsync();
+        await FetchMembersPageAsync();
+    }
+
+    private async Task GoToMembersPageAsync(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > _membersTotalPages || _isLoadingMembers) return;
+        _membersPageNumber = pageNumber;
+        await FetchMembersPageAsync();
+    }
+
+    private async Task FetchMembersPageAsync()
+    {
+        _isLoadingMembers = true;
+        _membersError = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new LguMembersRequestDto
+            {
+                Filter = _loadedRequest,
+                Bucket = _membersBucket,
+                PageNumber = _membersPageNumber,
+                PageSize = MembersPageSize
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Statistics/members", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<SharedDtos.StatisticsMembersPagedResultDto>();
+                _members = result?.Items ?? new();
+                _membersTotalCount = result?.TotalCount ?? 0;
+                _membersTotalPages = result?.TotalPages ?? 0;
+            }
+            else
+            {
+                _membersError = "Failed to load the grantees. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _membersError = $"Could not reach the server: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingMembers = false;
+            StateHasChanged();
         }
     }
 
@@ -410,6 +644,16 @@
         public DateTime? DateAddedTo { get; set; }
     }
 
+    // Same shape the shared members endpoint takes: the report's own filters
+    // plus which cell ("lgu:{municipalityCode}:{measure}:{ageGroup}") and page.
+    public class LguMembersRequestDto
+    {
+        public ApplicationsValidationsRequestDto Filter { get; set; } = new();
+        public string Bucket { get; set; } = string.Empty;
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 50;
+    }
+
     public class LguValidationReportDto
     {
         public List<LguValidationStatisticsDto> LguValidationBreakdown { get; set; } = new();
@@ -419,6 +663,7 @@
     {
         public string ProvinceName { get; set; } = string.Empty;
         public string MunicipalityName { get; set; } = string.Empty;
+        public int MunicipalityCode { get; set; }
         public int EndorsedOctoNona { get; set; }
         public int EndorsedCente { get; set; }
         public int ValidatedOctoNona { get; set; }

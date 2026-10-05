@@ -1321,13 +1321,9 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // Endorsed" filter above uses). "Validated" = IsCompliant among those
             // endorsed. Variance is whatever's endorsed but not yet validated, with
             // that beneficiary's own AssessmentRemarks surfaced as the reason.
-            static bool IsOctoNona(BeneficiaryInformation b)
-            {
-                var age = ComputeAge(b.BirthDate);
-                return age >= 80 && age < 100;
-            }
-            static bool IsCente(BeneficiaryInformation b) => ComputeAge(b.BirthDate) >= 100;
-
+            // IsOctoNona / IsCente are shared with the members drill-down
+            // (GetStatisticsMembersAsync, bucket "lgu:...") so a clicked count
+            // lists exactly the grantees this report counted.
             static string BuildVarianceReasons(IEnumerable<BeneficiaryInformation> notValidated)
             {
                 var reasons = notValidated
@@ -1349,6 +1345,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     {
                         ProvinceName = _psgcNameCache.GetProvinceName(g.Key.Province) ?? g.Key.Province.ToString(),
                         MunicipalityName = _psgcNameCache.GetMunicipalityName(g.Key.Municipality) ?? g.Key.Municipality.ToString(),
+                        MunicipalityCode = g.Key.Municipality,
                         EndorsedOctoNona = endorsedOctoNona.Count,
                         EndorsedCente = endorsedCente.Count,
                         ValidatedOctoNona = endorsedOctoNona.Count(b => b.IsCompliant),
@@ -1389,7 +1386,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     : new LguValidationStatisticsDto
                     {
                         ProvinceName = _psgcNameCache.GetProvinceName(key.Province) ?? key.Province.ToString(),
-                        MunicipalityName = _psgcNameCache.GetMunicipalityName(key.Municipality) ?? key.Municipality.ToString()
+                        MunicipalityName = _psgcNameCache.GetMunicipalityName(key.Municipality) ?? key.Municipality.ToString(),
+                        MunicipalityCode = key.Municipality
                         // Endorsed/Validated all default to 0, Reasons default to "-"
                     })
                 .OrderBy(x => x.ProvinceName).ThenBy(x => x.MunicipalityName)
@@ -1443,6 +1441,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 "channelotherbanks" => allData.Where(b => ChannelForBucket(b) == 2),
                 "channelemi" => allData.Where(b => ChannelForBucket(b) == 3),
                 "channelpsp" => allData.Where(b => ChannelForBucket(b) == 4),
+                _ when TryParseLguBucket(bucket, out var lguCode, out var lguMeasure, out var lguAgeGroup)
+                    => allData.Where(b => b.Municipality == lguCode && InLguCell(b, lguMeasure, lguAgeGroup)),
                 _ => allData
             };
 
@@ -1520,6 +1520,12 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     IsReadyForEft = b.IsReadyForEft,
                     IsFaceToFace = b.IsFaceToFace,
                     IsDeceased = b.IsDeceased,
+                    BarangayName = _psgcNameCache.GetBarangayName(b.Barangay),
+                    DateEndorsed = b.DateEndorsed,
+                    IsCompliant = b.IsCompliant,
+                    Validator = string.IsNullOrWhiteSpace(b.Validator) ? null : b.Validator,
+                    ValidationDate = b.ValidationDate == default ? null : b.ValidationDate,
+                    AssessmentRemarks = string.IsNullOrWhiteSpace(b.AssessmentRemarks) ? null : b.AssessmentRemarks,
                     PaymentHistories = historiesByBeneficiary.TryGetValue(b.Id, out var h)
                         ? h.Select(x => new PaymentHistoryDto
                         {
@@ -3725,6 +3731,45 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         // never had a window to enter the program, even though the YEAR is 2024).
         private static int ComputeMilestoneYear(DateTime birthDate) => EcaEligibilityHelper.ComputeMilestoneYear(birthDate);
         private static int ComputeAge(DateTime birthDate) => EcaEligibilityHelper.ComputeAge(birthDate);
+
+        // ── Applications & Validations by LGU — one report cell ──────────────
+        // Octogenarian/Nonagenarian = 80–99, Centenarian = 100+ (exact age).
+        private static bool IsOctoNona(BeneficiaryInformation b)
+        {
+            var age = ComputeAge(b.BirthDate);
+            return age >= 80 && age < 100;
+        }
+        private static bool IsCente(BeneficiaryInformation b) => ComputeAge(b.BirthDate) >= 100;
+
+        // "lgu:{municipalityCode}:{endorsed|validated|variance}:{octonona|cente}"
+        // — the report's Endorsed / Validated / Variance columns for one LGU.
+        private static bool TryParseLguBucket(string? bucket, out int municipalityCode, out string measure, out string ageGroup)
+        {
+            municipalityCode = 0;
+            measure = ageGroup = string.Empty;
+            var parts = bucket?.ToLowerInvariant().Split(':');
+            if (parts is not { Length: 4 } || parts[0] != "lgu") return false;
+            if (!int.TryParse(parts[1], out municipalityCode) || municipalityCode <= 0) return false;
+            if (parts[2] is not ("endorsed" or "validated" or "variance")) return false;
+            if (parts[3] is not ("octonona" or "cente")) return false;
+            measure = parts[2];
+            ageGroup = parts[3];
+            return true;
+        }
+
+        // The same rule the report counts with: Endorsed = has a Date Endorsed,
+        // Validated = endorsed AND Compliant, Variance = endorsed, not yet Compliant.
+        private static bool InLguCell(BeneficiaryInformation b, string measure, string ageGroup)
+        {
+            if (!b.DateEndorsed.HasValue) return false;
+            if (!(ageGroup == "cente" ? IsCente(b) : IsOctoNona(b))) return false;
+            return measure switch
+            {
+                "validated" => b.IsCompliant,
+                "variance" => !b.IsCompliant,
+                _ => true
+            };
+        }
 
         // ✅ Anticipation check for the Statistics "Milestone Year" filter —
         // deliberately does NOT require the milestone birthday to have

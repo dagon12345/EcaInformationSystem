@@ -51,6 +51,9 @@
     {
         public string ProvinceName { get; set; } = string.Empty;
         public string MunicipalityName { get; set; } = string.Empty;
+        // PSGC municipality code — lets the report's clickable counts ask the
+        // members endpoint for exactly this LGU's grantees (bucket "lgu:...").
+        public int MunicipalityCode { get; set; }
 
         public int EndorsedOctoNona { get; set; }
         public int EndorsedCente { get; set; }

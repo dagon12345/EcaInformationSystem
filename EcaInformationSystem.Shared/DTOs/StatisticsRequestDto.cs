@@ -41,7 +41,9 @@
 
     // ✅ NEW — powers the Statistics page's "audit this count" modal: same
     // filters as StatisticsRequestDto, plus which summary-card bucket to
-    // list ("all", "paid", "unpaid", "pending", "notapplicable", "male", "female").
+    // list ("all", "paid", "unpaid", "pending", "notapplicable", "male", "female"),
+    // or one cell of the Applications & Validations report as
+    // "lgu:{municipalityCode}:{endorsed|validated|variance}:{octonona|cente}".
     public class StatisticsMembersRequestDto
     {
         public StatisticsRequestDto Filter { get; set; } = new();
@@ -87,6 +89,17 @@
         // ✅ NEW — so the audit modal can flag payees who are deceased AND
         // EFT-ready (that payout is for a claimant/heir, not the grantee).
         public bool IsDeceased { get; set; }
+
+        // ✅ NEW — Applications & Validations drill-down: when the grantee was
+        // endorsed, whether they are validated (Compliant in the Verification
+        // Checklist), who validated them and when, and — for a grantee still
+        // awaiting validation — the assessment remarks explaining why.
+        public string? BarangayName { get; set; }
+        public DateTime? DateEndorsed { get; set; }
+        public bool IsCompliant { get; set; }
+        public string? Validator { get; set; }
+        public DateTime? ValidationDate { get; set; }
+        public string? AssessmentRemarks { get; set; }
     }
 
     // ✅ NEW — paged wrapper for the audit modal's grantee list.

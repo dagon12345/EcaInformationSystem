@@ -4721,6 +4721,26 @@
 /* ── LGU Statistical Report — visually separate Endorsed/Validated/Variance
      column groups with a solid divider, since each pair (Octo/Nona, Cente)
      alone doesn't make the group boundary obvious. ── */
+/* A count that opens the grantee list behind it. Inherits the cell's colour
+   (red for variance) so the column still reads the same, underlined to show
+   it is clickable. */
+.lgu-report-table .lgu-count-link {
+    background: none;
+    border: 0;
+    padding: 0 4px;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    border-radius: 4px;
+}
+.lgu-report-table .lgu-count-link:hover,
+.lgu-report-table .lgu-count-link:focus-visible {
+    background: rgba(13, 110, 253, 0.12);
+    text-decoration: underline solid;
+}
+
 .lgu-report-table .lgu-group-start {
     border-left: 2px solid #adb5bd;
 }
