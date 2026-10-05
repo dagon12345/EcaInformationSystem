@@ -785,6 +785,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (request.IsFaceToFace.HasValue)
                 query = query.Where(b => b.IsFaceToFace == request.IsFaceToFace.Value);
 
+            // ── Deceased ──────────────────────────────────────────────────────────
+            // Living / Deceased are exact in SQL. "Deceased before milestone age"
+            // narrows to deceased-with-a-date-of-death here, and is decided exactly
+            // (EcaEligibilityHelper.DiedBeforeReachingMilestone) in-memory below,
+            // next to RefineByMilestoneAge. Applied before locationOnlyQuery is
+            // snapshotted, so the per-quarter breakdown sees it too.
+            if (request.DeceasedStatus == DeceasedFilter.Living)
+                query = query.Where(b => !b.IsDeceased);
+            else if (request.DeceasedStatus == DeceasedFilter.Deceased)
+                query = query.Where(b => b.IsDeceased);
+            else if (request.DeceasedStatus == DeceasedFilter.DeceasedBeforeMilestone)
+                query = query.Where(b => b.IsDeceased && b.DateOfDeath != null);
+
             // ── Date Endorsed Range ───────────────────────────────────────────────
             if (request.DateEndorsedFrom.HasValue)
                 query = query.Where(b => b.DateEndorsed >= request.DateEndorsedFrom.Value.Date);
@@ -1007,12 +1020,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             // aware), applying the identical bracket rule AgeDistribution uses
             // below. The SQL-level birth-year range above is only a rough
             // prefilter; this is what actually decides membership correctly.
-            allData = RefineByMilestoneAge(allData);
+            // Exact "deceased before reaching the milestone age" check — the SQL
+            // above only keeps deceased grantees that have a date of death.
+            List<BeneficiaryInformation> RefineByDeceasedStatus(List<BeneficiaryInformation> data) =>
+                request.DeceasedStatus == DeceasedFilter.DeceasedBeforeMilestone
+                    ? data.Where(b => EcaEligibilityHelper.DiedBeforeReachingMilestone(b.BirthDate, b.DateOfDeath)).ToList()
+                    : data;
+
+            allData = RefineByDeceasedStatus(RefineByMilestoneAge(allData));
 
             // No period/status filter was applied, so locationOnlyQuery already
             // produced exactly allData — reuse it instead of hitting the DB again.
             var locationFilteredData = hasPeriodFilter
-                ? RefineByMilestoneAge(await locationOnlyQuery.ToListAsync())
+                ? RefineByDeceasedStatus(RefineByMilestoneAge(await locationOnlyQuery.ToListAsync()))
                 : allData;
 
             // ✅ Effective status/quarter/fiscal-year per beneficiary — pulled from the
@@ -1697,58 +1717,19 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             int maxPairs = 50,
             CancellationToken cancellationToken = default)
         {
-            // ✅ Don't modify the filter - use it as-is
-            // The filter already contains ALL the user's filters
-            // Just make sure PageSize is large enough
-            var scanFilter = new BeneficiaryFilterDto
-            {
-                // Copy all properties from the incoming filter
-                PsgcCodeRegion = filter.PsgcCodeRegion,
-                PsgcCodeProvinces = filter.PsgcCodeProvinces,
-                PsgcCodeMunicipalities = filter.PsgcCodeMunicipalities,
-                PsgcCodeBarangay = filter.PsgcCodeBarangay,
-                LastName = filter.LastName,
-                FirstName = filter.FirstName,
-                FullName = filter.FullName,
-                PaymentStatuses = filter.PaymentStatuses,
-                PaymentDate = filter.PaymentDate,
-                PaymentDateFrom = filter.PaymentDateFrom,
-                PaymentDateTo = filter.PaymentDateTo,
-                IsEligible = filter.IsEligible,
-                EligibilityMode = filter.EligibilityMode,
-                IsCompliant = filter.IsCompliant,
-                ComplianceMode = filter.ComplianceMode,
-                CoStatus = filter.CoStatus,
-                ReplacementStatus = filter.ReplacementStatus, // ✅ FIXED — was missing, so the scan silently ignored this filter and scanned everything
-                FindingStatus = filter.FindingStatus,
-                Sex = filter.Sex,
-                FilterModeOfPayment = filter.FilterModeOfPayment,
-                IsLivenessVerified = filter.IsLivenessVerified, // ✅ new — same gap as ReplacementStatus/FilterFiscalYear above
-                IsReadyForEft = filter.IsReadyForEft,           // ✅ new
-                SpecificAge = filter.SpecificAge,
-                MilestoneYear = filter.MilestoneYear,
-                AnticipatedMilestoneYears = filter.AnticipatedMilestoneYears,
-                SpecificBirthday = filter.SpecificBirthday,
-                BirthdayFrom = filter.BirthdayFrom,
-                BirthdayTo = filter.BirthdayTo,
-                FilterQuarter = filter.FilterQuarter,
-                FilterBatch = filter.FilterBatch,
-                FilterRefYear = filter.FilterRefYear,
-                FilterRegionRoman = filter.FilterRegionRoman,
-                FilterPayrollQuarter = filter.FilterPayrollQuarter,   // ✅ new — this was the actual bug
-                FilterPayrollQuarters = filter.FilterPayrollQuarters, // ✅ new
-                FilterFiscalYear = filter.FilterFiscalYear, // ✅ FIXED — same gap as ReplacementStatus, was silently dropped
-                DateAddedFrom = filter.DateAddedFrom,
-                DateAddedTo = filter.DateAddedTo,
-                DateEndorsedFrom = filter.DateEndorsedFrom,
-                DateEndorsedTo = filter.DateEndorsedTo,
-                Validator = filter.Validator,
-                BatchCode = filter.BatchCode,
-                GeneralSearch = filter.GeneralSearch,  // ✅ CRITICAL: Include GeneralSearch
-                DataQualityIssue = filter.DataQualityIssue,   // ✅ ADD
-                PageNumber = 1,
-                PageSize = int.MaxValue
-            };
+            // The scan covers exactly what the grid's filter covers, so EVERY
+            // property of the incoming filter is carried over automatically
+            // (serialise → deserialise). This used to be a hand-written
+            // field-by-field copy, and each newly added filter was silently
+            // dropped from it until someone noticed the scan covering everyone
+            // (ReplacementStatus, FilterFiscalYear, FilterPayrollQuarter,
+            // Face to Face, Middle Name, Suffix ... one at a time). Only what
+            // must DIFFER for a scan is overridden below.
+            var scanFilter = JsonSerializer.Deserialize<BeneficiaryFilterDto>(JsonSerializer.Serialize(filter))!;
+            scanFilter.Ids = new();                    // a scan is never "jump to this record"
+            scanFilter.IncludeKnownDuplicates = false; // already-resolved pairs stay out of the scan
+            scanFilter.PageNumber = 1;
+            scanFilter.PageSize = int.MaxValue;
 
             // ✅ Use BuildNarrowFilterQuery which already handles ALL filters including GeneralSearch
             var query = await BuildNarrowFilterQuery(scanFilter);
@@ -2269,7 +2250,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
         {
 
             // FilterAsync — AFTER:
-            var raw = await BuildBeneficiaryRawQuery(filter)
+            var deceasedBeforeMilestoneIds = await ResolveDeceasedBeforeMilestoneIdsAsync(filter);
+            var raw = await BuildBeneficiaryRawQuery(filter, deceasedBeforeMilestoneIds)
                 .OrderBy(x => x.LastName)
                   .ThenBy(x => x.FirstName)
                   .ThenBy(x => x.MiddleName)
@@ -2388,7 +2370,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             // Materialize first, then deduplicate in memory
 
-            var allItems = await BuildBeneficiaryRawQuery(filter).OrderBy(x => x.LastName)
+            var deceasedBeforeMilestoneIds = await ResolveDeceasedBeforeMilestoneIdsAsync(filter);
+            var allItems = await BuildBeneficiaryRawQuery(filter, deceasedBeforeMilestoneIds).OrderBy(x => x.LastName)
                 .ThenBy(x => x.FirstName)
                 .ThenBy(x => x.MiddleName)
                 .ToListAsync();
@@ -2761,6 +2744,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     x.b.DateOfLiveness,
                     x.b.IsReadyForEft,
                     x.b.IsDeceased,
+                    x.b.DateOfDeath,
                     x.b.IsFaceToFace,
                     x.b.CurrentPaymentHistoryId,
                     HasDocuments = _context.BeneficiaryDocuments
@@ -2876,6 +2860,7 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                     DateOfLiveness = x.DateOfLiveness,
                     IsReadyForEft = x.IsReadyForEft,
                     IsDeceased = x.IsDeceased,
+                    DateOfDeath = x.DateOfDeath,
                     IsFaceToFace = x.IsFaceToFace
                 };
             }).ToList();
@@ -2895,7 +2880,8 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
             var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
 
-            var query = BuildBeneficiaryRawQuery(filter);
+            var deceasedBeforeMilestoneIds = await ResolveDeceasedBeforeMilestoneIdsAsync(filter);
+            var query = BuildBeneficiaryRawQuery(filter, deceasedBeforeMilestoneIds);
 
             // ✅ Count distinct IDs only
             var totalCount = await query
@@ -2964,7 +2950,30 @@ namespace EcaInformationSystem.Infrastructure.Repositories
                 PageSize = pageSize
             };
         }
-        private IQueryable<BeneficiaryQueryModel> BuildBeneficiaryFilteredQuery(BeneficiaryFilterDto filter)
+        // The ids of deceased grantees who died before reaching the milestone age
+        // the existing milestone algorithm assigns them, when the grid filter is
+        // "Deceased before milestone age" (null otherwise). Decided in C# by
+        // EcaEligibilityHelper.DiedBeforeReachingMilestone — the milestone
+        // algorithm is not re-expressed in SQL — over just the deceased grantees
+        // that have a date of death, then ANDed into the query like any other
+        // filter. Resolved fresh on every call, so it can never be stale.
+        private async Task<List<Guid>?> ResolveDeceasedBeforeMilestoneIdsAsync(BeneficiaryFilterDto filter)
+        {
+            if (filter.DeceasedStatus != DeceasedFilter.DeceasedBeforeMilestone) return null;
+
+            var deceased = await _context.BeneficiaryInformations.AsNoTracking()
+                .Where(b => !b.IsDeleted && b.IsDeceased && b.DateOfDeath != null)
+                .Select(b => new { b.Id, b.BirthDate, b.DateOfDeath })
+                .ToListAsync();
+
+            return deceased
+                .Where(b => EcaEligibilityHelper.DiedBeforeReachingMilestone(b.BirthDate, b.DateOfDeath))
+                .Select(b => b.Id)
+                .ToList();
+        }
+
+        private IQueryable<BeneficiaryQueryModel> BuildBeneficiaryFilteredQuery(
+            BeneficiaryFilterDto filter, IReadOnlyCollection<Guid>? deceasedBeforeMilestoneIds = null)
         {
             var query =
                 from b in _context.BeneficiaryInformations
@@ -3406,6 +3415,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
             if (filter.IsFaceToFace.HasValue)
                 query = query.Where(x => x.Beneficiary.IsFaceToFace == filter.IsFaceToFace.Value);
 
+            // ── Deceased ──────────────────────────────────────────────────────────
+            if (filter.DeceasedStatus == DeceasedFilter.Living)
+                query = query.Where(x => !x.Beneficiary.IsDeceased);
+            else if (filter.DeceasedStatus == DeceasedFilter.Deceased)
+                query = query.Where(x => x.Beneficiary.IsDeceased);
+            else if (filter.DeceasedStatus == DeceasedFilter.DeceasedBeforeMilestone)
+            {
+                var ids = (deceasedBeforeMilestoneIds ?? Array.Empty<Guid>()).ToList();
+                query = query.Where(x => ids.Contains(x.Beneficiary.Id));
+            }
+
             // ── Payment Date (exact) ──────────────────────────────────────────────
             if (filter.PaymentDate.HasValue)
             {
@@ -3561,9 +3581,10 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
 
         // ── Keep this method returning the raw anonymous IQueryable ──────────────────
-        private IQueryable<BeneficiaryRawDto> BuildBeneficiaryRawQuery(BeneficiaryFilterDto filter)
+        private IQueryable<BeneficiaryRawDto> BuildBeneficiaryRawQuery(
+            BeneficiaryFilterDto filter, IReadOnlyCollection<Guid>? deceasedBeforeMilestoneIds = null)
         {
-            return BuildBeneficiaryFilteredQuery(filter)
+            return BuildBeneficiaryFilteredQuery(filter, deceasedBeforeMilestoneIds)
                 .Select(x => new BeneficiaryRawDto
                 {
                     Id = x.Beneficiary.Id,
@@ -4140,6 +4161,17 @@ namespace EcaInformationSystem.Infrastructure.Repositories
 
             if (filter.IsFaceToFace.HasValue)
                 query = query.Where(b => b.IsFaceToFace == filter.IsFaceToFace.Value);
+
+            // ── Deceased ──────────────────────────────────────────────────────────
+            if (filter.DeceasedStatus == DeceasedFilter.Living)
+                query = query.Where(b => !b.IsDeceased);
+            else if (filter.DeceasedStatus == DeceasedFilter.Deceased)
+                query = query.Where(b => b.IsDeceased);
+            else if (filter.DeceasedStatus == DeceasedFilter.DeceasedBeforeMilestone)
+            {
+                var ids = await ResolveDeceasedBeforeMilestoneIdsAsync(filter) ?? new List<Guid>();
+                query = query.Where(b => ids.Contains(b.Id));
+            }
 
             // Statuses other than Paid (2) typically have no meaningful payment date
             // (Unpaid/Pending/N-A records are often never given one). If the user's

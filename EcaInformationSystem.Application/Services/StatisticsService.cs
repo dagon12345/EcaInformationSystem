@@ -2,6 +2,7 @@
 using EcaInformationSystem.Application.Interfaces;
 using EcaInformationSystem.Application.Interfaces.Services;
 using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.Helpers;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace EcaInformationSystem.Application.Services
@@ -478,6 +479,7 @@ namespace EcaInformationSystem.Application.Services
                 request.IsLivenessVerified?.ToString() ?? "null",
                 request.IsReadyForEft?.ToString() ?? "null",
                 request.IsFaceToFace?.ToString() ?? "null",
+                DeceasedFilter.CacheToken(request.DeceasedStatus),
                 request.CoDateEndorsedFrom?.ToString("yyyyMMdd") ?? "null",
                 request.CoDateEndorsedTo?.ToString("yyyyMMdd") ?? "null",
                 request.CoDateApprovedFrom?.ToString("yyyyMMdd") ?? "null",

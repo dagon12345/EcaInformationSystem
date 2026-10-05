@@ -59,6 +59,32 @@ namespace EcaInformationSystem.Shared.Helpers
             return 0;
         }
 
+        // True when the grantee died BEFORE reaching the milestone age the
+        // algorithm above assigns them — an addition on top of
+        // ComputeMilestoneYear / HasAnyValidMilestone, which stay exactly as
+        // they are. Needs a recorded date of death (without one there is
+        // nothing to compare, so false).
+        //
+        //  • ComputeMilestoneYear > 0: that milestone's birthday (the same
+        //    year, the birth month/day) is the one they were assigned; they
+        //    qualify if they died before it. Milestones are five years apart
+        //    and the program only started in 2024, so there is never more
+        //    than one valid milestone to compare against.
+        //  • ComputeMilestoneYear == 0: no valid milestone has been reached as
+        //    of today. If they still have a valid one ahead (HasAnyValidMilestone)
+        //    they died before reaching it; if every milestone predates the
+        //    program (MissedProgramStartCutoff) there is no milestone to have
+        //    missed, so false.
+        public static bool DiedBeforeReachingMilestone(DateTime birthDate, DateTime? dateOfDeath)
+        {
+            if (birthDate == default || !dateOfDeath.HasValue) return false;
+
+            var milestoneYear = ComputeMilestoneYear(birthDate);
+            if (milestoneYear == 0) return HasAnyValidMilestone(birthDate);
+
+            return dateOfDeath.Value.Date < SafeDate(milestoneYear, birthDate.Month, birthDate.Day);
+        }
+
         // True when the grantee has a milestone (past, present, or future)
         // whose birthday falls on/after ProgramStartDate — i.e. NOT
         // permanently excluded. Same cutoff rule as ComputeMilestoneYear,

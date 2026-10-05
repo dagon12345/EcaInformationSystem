@@ -84,6 +84,9 @@ namespace EcaInformationSystem.Shared.DTOs
         // is for a claimant, not the grantee themself) its own distinct
         // grid icon instead of looking identical to a living EFT-ready one.
         public bool IsDeceased { get; set; }
+        // ✅ NEW — shown beside the Last Name as the grid's deceased identifier.
+        // Null when the grantee is marked deceased but no date was recorded.
+        public DateTime? DateOfDeath { get; set; }
 
         public bool? IsFaceToFace { get; set; }
 

@@ -223,6 +223,19 @@
                                     <option value="no">No</option>
                                 </select>
                             </div>
+                            @* ── Deceased — Living / Deceased / Deceased before reaching the
+                                 milestone age (the age the existing milestone logic assigns;
+                                 needs a recorded date of death). ── *@
+                            <div class="sf-field">
+                                <label>Deceased</label>
+                                <select @bind="_selectedDeceased" class="ff-input"
+                                        title="Deceased before milestone age: died before reaching the milestone age the system assigns them (needs a recorded date of death)">
+                                    <option value="">All</option>
+                                    <option value="living">Living</option>
+                                    <option value="deceased">Deceased</option>
+                                    <option value="beforemilestone">Deceased before milestone age</option>
+                                </select>
+                            </div>
                         </div>
 
                         @* ── Date Ranges ──────────────────────────────────── *@
@@ -1087,6 +1100,7 @@
     private string _selectedLiveness = string.Empty;
     private string _selectedEft = string.Empty;
     private string _selectedFaceToFace = string.Empty;
+    private string _selectedDeceased = string.Empty;
     // ✅ new — CO Date Endorsed/Approved, distinct from _dateEndorsedFrom/To above
     private DateTime? _coDateEndorsedFrom;
     private DateTime? _coDateEndorsedTo;
@@ -1331,6 +1345,7 @@
         !string.IsNullOrEmpty(_selectedLiveness) ||
         !string.IsNullOrEmpty(_selectedEft) ||
         !string.IsNullOrEmpty(_selectedFaceToFace) ||
+        !string.IsNullOrEmpty(_selectedDeceased) ||
         _coDateEndorsedFrom.HasValue ||
         _coDateEndorsedTo.HasValue ||
         _coDateApprovedFrom.HasValue ||
@@ -1419,6 +1434,7 @@
         _selectedLiveness = string.Empty;
         _selectedEft = string.Empty;
         _selectedFaceToFace = string.Empty;
+        _selectedDeceased = string.Empty;
         _dateEndorsedFrom = null;
         _dateEndorsedTo = null;
         _dateAddedFrom = null;
@@ -1491,6 +1507,13 @@
         {
             "yes" => true,
             "no" => false,
+            _ => null
+        },
+        DeceasedStatus = _selectedDeceased switch
+        {
+            "living" => EcaInformationSystem.Shared.Helpers.DeceasedFilter.Living,
+            "deceased" => EcaInformationSystem.Shared.Helpers.DeceasedFilter.Deceased,
+            "beforemilestone" => EcaInformationSystem.Shared.Helpers.DeceasedFilter.DeceasedBeforeMilestone,
             _ => null
         },
         CoDateEndorsedFrom = _coDateEndorsedFrom,

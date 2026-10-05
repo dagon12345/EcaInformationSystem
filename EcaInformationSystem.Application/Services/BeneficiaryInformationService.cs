@@ -706,6 +706,7 @@ namespace EcaInformationSystem.Application.Services
                 ListN(f.PsgcCodeProvinces),      // ✅ FIX: Use the list
                 ListN(f.PsgcCodeMunicipalities), // ✅ FIX: Use the list
                 N(f.PsgcCodeBarangay),
+                N(f.PsgcCodeProvince),
                 // ── Name filters ─────────────────────────────────────────────
                 N(f.LastName),                   // ✅ ADDED
                 N(f.FirstName),                  // ✅ ADDED
@@ -729,6 +730,7 @@ namespace EcaInformationSystem.Application.Services
                 N(f.IsLivenessVerified),
                 N(f.IsReadyForEft),
                 N(f.IsFaceToFace),
+                DeceasedFilter.CacheToken(f.DeceasedStatus),
                 // ── Age / Birthday ────────────────────────────────────────────
                 N(f.SpecificAge),
                 N(f.MilestoneYear),
@@ -751,6 +753,7 @@ namespace EcaInformationSystem.Application.Services
                 N(f.BatchCode),
                 N(f.GeneralSearch),
                 N(f.DataQualityIssue),
+                N(f.FilterPayrollQuarter),
                 ListN(f.FilterPayrollQuarters)   // ✅ new
             );
         }
@@ -5607,6 +5610,11 @@ namespace EcaInformationSystem.Application.Services
                 var names = filter.PsgcCodeMunicipalities.Select(m => _psgcNameCache.GetMunicipalityName(m) ?? m.ToString());
                 parts.Add($"Municipalities: {string.Join(", ", names)}");
             }
+            if (filter.PsgcCodeProvince.HasValue && (filter.PsgcCodeProvinces == null || !filter.PsgcCodeProvinces.Any()))
+            {
+                var name = _psgcNameCache.GetProvinceName(filter.PsgcCodeProvince.Value) ?? filter.PsgcCodeProvince.Value.ToString();
+                parts.Add($"Province: {name}");
+            }
             if (filter.PsgcCodeBarangay.HasValue)
             {
                 var name = _psgcNameCache.GetBarangayName(filter.PsgcCodeBarangay.Value) ?? filter.PsgcCodeBarangay.Value.ToString();
@@ -5621,10 +5629,22 @@ namespace EcaInformationSystem.Application.Services
                     parts.Add($"Last: {filter.LastName}");
                 if (!string.IsNullOrWhiteSpace(filter.FirstName))
                     parts.Add($"First: {filter.FirstName}");
+                if (!string.IsNullOrWhiteSpace(filter.MiddleName))
+                    parts.Add($"Middle: {filter.MiddleName}");
             }
+            if (!string.IsNullOrWhiteSpace(filter.Suffix))
+                parts.Add($"Suffix: {filter.Suffix}");
 
             if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
                 parts.Add($"Payment: {string.Join(", ", filter.PaymentStatuses.Select(GetPaymentStatusLabelForDescription))}");
+            if (filter.FilterPayrollQuarters != null && filter.FilterPayrollQuarters.Any())
+                parts.Add($"Payroll Quarter: {string.Join(", ", filter.FilterPayrollQuarters.Select(q => $"Q{q}"))}");
+            else if (filter.FilterPayrollQuarter.HasValue)
+                parts.Add($"Payroll Quarter: Q{filter.FilterPayrollQuarter}");
+            if (filter.FilterFiscalYear.HasValue)
+                parts.Add($"Fiscal Year: {filter.FilterFiscalYear}");
+            if (filter.PaymentDate.HasValue)
+                parts.Add($"Payment Date: {filter.PaymentDate.Value.ToShortDateString()}");
             if (filter.IsEligible.HasValue)
                 parts.Add($"Eligible: {(filter.IsEligible.Value ? "Yes" : "No")}");
             if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
@@ -5649,6 +5669,8 @@ namespace EcaInformationSystem.Application.Services
                 parts.Add($"EFT: {(filter.IsReadyForEft.Value ? "Ready" : "Not Ready")}");
             if (filter.IsFaceToFace.HasValue)
                 parts.Add($"Face to Face: {(filter.IsFaceToFace.Value ? "Yes" : "No")}");
+            if (filter.DeceasedStatus.HasValue)
+                parts.Add($"Deceased: {DeceasedFilter.Label(filter.DeceasedStatus.Value)}");
 
             if (filter.SpecificAge.HasValue)
                 parts.Add($"Age: {filter.SpecificAge}");
@@ -5685,6 +5707,12 @@ namespace EcaInformationSystem.Application.Services
                 var from = filter.DateAddedFrom?.ToShortDateString() ?? "any";
                 var to = filter.DateAddedTo?.ToShortDateString() ?? "any";
                 parts.Add($"Date Added: {from} - {to}");
+            }
+            if (filter.DateEndorsedFrom.HasValue || filter.DateEndorsedTo.HasValue)
+            {
+                var from = filter.DateEndorsedFrom?.ToShortDateString() ?? "any";
+                var to = filter.DateEndorsedTo?.ToShortDateString() ?? "any";
+                parts.Add($"Date Endorsed: {from} - {to}");
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Validator))
@@ -5813,6 +5841,8 @@ namespace EcaInformationSystem.Application.Services
                     : CommonConstants.Null,
 
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,  // ✅ this one IS still single-select, per your design — int?.ToString() is fine here
+                filter.PsgcCodeProvince?.ToString() ?? CommonConstants.Null,   // legacy single-province field the query still honours
+                filter.FilterPayrollQuarter?.ToString() ?? CommonConstants.Null, // legacy single-quarter field the query still honours
                 filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
@@ -5859,6 +5889,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
                 filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
                 filter.IsFaceToFace != null ? filter.IsFaceToFace.ToString() : CommonConstants.Null,
+                DeceasedFilter.CacheToken(filter.DeceasedStatus),
                 filter.DateAddedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateAddedTo?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
                 filter.DateEndorsedFrom?.ToString("yyyy-MM-dd") ?? CommonConstants.Null,
@@ -6014,6 +6045,12 @@ namespace EcaInformationSystem.Application.Services
                 (filter.PsgcCodeProvinces != null && filter.PsgcCodeProvinces.Any() ? string.Join(",", filter.PsgcCodeProvinces.OrderBy(x => x)) : CommonConstants.Null),
                 (filter.PsgcCodeMunicipalities != null && filter.PsgcCodeMunicipalities.Any() ? string.Join(",", filter.PsgcCodeMunicipalities.OrderBy(x => x)) : CommonConstants.Null),
                 filter.PsgcCodeBarangay?.ToString() ?? CommonConstants.Null,   // ✅ FIX: singular, matches actual query field
+                filter.PsgcCodeProvince?.ToString() ?? CommonConstants.Null,
+                filter.FilterPayrollQuarter?.ToString() ?? CommonConstants.Null,
+                filter.IncludeKnownDuplicates.ToString(),
+                (filter.Ids != null && filter.Ids.Any())
+                    ? string.Join(",", filter.Ids.OrderBy(x => x))
+                    : CommonConstants.Null,
                 filter.DataQualityIssue ?? CommonConstants.Null,
                 filter.LastName ?? string.Empty,
                 filter.FirstName ?? string.Empty,
@@ -6051,6 +6088,7 @@ namespace EcaInformationSystem.Application.Services
                 filter.IsLivenessVerified != null ? filter.IsLivenessVerified.ToString() : CommonConstants.Null,
                 filter.IsReadyForEft != null ? filter.IsReadyForEft.ToString() : CommonConstants.Null,
                 filter.IsFaceToFace != null ? filter.IsFaceToFace.ToString() : CommonConstants.Null,
+                DeceasedFilter.CacheToken(filter.DeceasedStatus),
                 filter.Validator ?? string.Empty,                             // ✅ ADDED
                 filter.BatchCode ?? string.Empty,                             // ✅ ADDED
                 filter.GeneralSearch ?? string.Empty,                         // ✅ ADDED — the critical one

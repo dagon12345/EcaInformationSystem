@@ -81,6 +81,10 @@
         public bool? IsReadyForEft { get; set; }
         public bool? IsFaceToFace { get; set; }
 
+        // Deceased filter — null = no filter. 0 = living, 1 = deceased,
+        // 2 = deceased before reaching the milestone age (see DeceasedFilter).
+        public int? DeceasedStatus { get; set; }
+
         // Default false — records that are the newer/duplicate side of a
         // Known Duplicate pair (see BeneficiaryDuplicateHistory) are excluded
         // from results and counts unless this is explicitly set true. Keeps

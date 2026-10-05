@@ -434,7 +434,7 @@
                                         <th style="min-width:140px;">
                                             Last Name
                                             <i class="bi bi-patch-check-fill hdr-info-icon"
-                                               title="A green check = Liveness verified, a bank icon = ready for EFT, a flower icon = deceased but EFT ready (claimant/heir payout) — hover a row's icon(s) for details"></i>
+                                               title="A green check = Liveness verified, a bank icon = ready for EFT, a flower icon = deceased but EFT ready (claimant/heir payout), a grey flower tag = deceased with the date of death — hover a row's icon(s) for details"></i>
                                         </th>
                                         <th>First Name</th>
                                         <th>Middle Name</th>
@@ -588,6 +588,20 @@
                                                         </span>
                                                     }
                                                     <span class="fw-bold text-uppercase">@Highlight(item.LastName)</span>
+                                                    @* Deceased identifier — the date of death right beside the
+                                                       name, so a deceased grantee is recognisable at a glance
+                                                       (not only when they happen to be EFT ready). Clicking
+                                                       opens the details panel, where the date is also listed. *@
+                                                    @if (item.IsDeceased)
+                                                    {
+                                                        <span class="tbl-badge-deceased ms-1"
+                                                              @onclick="() => OpenDetailsPanel(item)"
+                                                              @onclick:stopPropagation="true"
+                                                              title="@DeceasedTooltip(item)">
+                                                            <i class="bi bi-flower1"></i>
+                                                            @(item.DateOfDeath.HasValue ? item.DateOfDeath.Value.ToString("MMM dd, yyyy") : "Deceased")
+                                                        </span>
+                                                    }
                                                     @if (item.HasDuplicateHistory)
                                                     {
                                                         <span class="known-duplicate-badge ms-1"
@@ -5798,6 +5812,19 @@ private int IncompleteDetailsCount =>
     // always be allowed regardless of CO Status.
     private static bool IsCoApproved(BeneficiaryInformationDto? details) =>
         details?.CoStatus == 2;
+
+    // Hover text for the deceased tag beside the Last Name.
+    private static string DeceasedTooltip(BeneficiaryListItemDto item)
+    {
+        if (!item.DateOfDeath.HasValue)
+            return "Deceased — no date of death recorded";
+
+        var text = $"Deceased — date of death: {item.DateOfDeath.Value:MMMM dd, yyyy}";
+        // Same rule as the "Deceased before milestone age" filter.
+        if (EcaEligibilityHelper.DiedBeforeReachingMilestone(item.BirthDate, item.DateOfDeath))
+            text += " (died before reaching the milestone age)";
+        return text;
+    }
 
     private static string LivenessEftTooltip(BeneficiaryListItemDto item)
     {

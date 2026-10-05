@@ -1,7 +1,9 @@
 ﻿using EcaInformationSystem.Shared.DTOs;
+using EcaInformationSystem.Shared.Helpers;
 using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 public class BeneficiaryStateService
 {
@@ -403,7 +405,7 @@ public class BeneficiaryStateService
             : "null";
 
         return string.Join("|",
-            "dup_scan_v5",  // ✅ Version bump — invalidates every cache entry
+            "dup_scan_v6",  // ✅ Version bump — invalidates every cache entry
                             // ever produced by the broken logic above, so old
                             // poisoned entries can't be coincidentally hit.
                             // ── Location ──────────────────────────────────────────────────
@@ -411,13 +413,18 @@ public class BeneficiaryStateService
             ListN(f.PsgcCodeProvinces),      // ✅ FIX: join actual contents
             ListN(f.PsgcCodeMunicipalities), // ✅ FIX: join actual contents
             N(f.PsgcCodeBarangay),
+            N(f.PsgcCodeProvince),
             // ── Name filters ─────────────────────────────────────────────
             N(f.LastName),
             N(f.FirstName),
+            N(f.MiddleName),
+            N(f.Suffix),
             N(f.FullName),
             // ── Status ────────────────────────────────────────────────────
             ListN(f.PaymentStatuses),        // ✅ FIX: join actual contents
             ListN(f.FilterPayrollQuarters),  // ✅ new
+            N(f.FilterPayrollQuarter),
+            N(f.FilterFiscalYear),
             N(f.PaymentDate),
             N(f.PaymentDateFrom),
             N(f.PaymentDateTo),
@@ -430,6 +437,10 @@ public class BeneficiaryStateService
             N(f.FindingStatus),
             N(f.Sex),
             N(f.FilterModeOfPayment),
+            N(f.IsLivenessVerified),
+            N(f.IsReadyForEft),
+            N(f.IsFaceToFace),
+            DeceasedFilter.CacheToken(f.DeceasedStatus), // result depends on today's date for "before milestone age"
             // ── Age / Birthday ────────────────────────────────────────────
             N(f.SpecificAge),
             N(f.MilestoneYear),
@@ -445,6 +456,8 @@ public class BeneficiaryStateService
             // ── Date Added ────────────────────────────────────────────────
             N(f.DateAddedFrom),
             N(f.DateAddedTo),
+            N(f.DateEndorsedFrom),
+            N(f.DateEndorsedTo),
             // ── Validator ──────────────────────────────────────────────────
             N(f.Validator),
             N(f.BatchCode),
@@ -486,50 +499,14 @@ public class BeneficiaryStateService
         }
 
     }
-    private static BeneficiaryFilterDto CloneFilter(BeneficiaryFilterDto f) => new()
-    {
-        PsgcCodeRegion = f.PsgcCodeRegion,
-        PsgcCodeProvinces = f.PsgcCodeProvinces?.ToList(),
-        PsgcCodeMunicipalities = f.PsgcCodeMunicipalities?.ToList(),
-        PsgcCodeBarangay = f.PsgcCodeBarangay,
-        LastName = f.LastName,
-        FirstName = f.FirstName,
-        FullName = f.FullName,
-        PaymentStatuses = f.PaymentStatuses?.ToList(),
-        FilterPayrollQuarters = f.FilterPayrollQuarters?.ToList(), // ✅ new
-        PaymentDate = f.PaymentDate,
-        PaymentDateFrom = f.PaymentDateFrom,
-        PaymentDateTo = f.PaymentDateTo,
-        IsEligible = f.IsEligible,
-        EligibilityMode = f.EligibilityMode,
-        IsCompliant = f.IsCompliant,
-        ComplianceMode = f.ComplianceMode,
-        CoStatus = f.CoStatus,
-        ReplacementStatus = f.ReplacementStatus,
-        FindingStatus = f.FindingStatus,
-        Sex = f.Sex,
-        FilterModeOfPayment = f.FilterModeOfPayment,
-        IsLivenessVerified = f.IsLivenessVerified, // ✅ new — without this, the duplicate scan queued
-        IsReadyForEft = f.IsReadyForEft,           // from here silently ignored these and scanned everyone
-        SpecificAge = f.SpecificAge,
-        MilestoneYear = f.MilestoneYear,
-        AnticipatedMilestoneYears = f.AnticipatedMilestoneYears,
-        SpecificBirthday = f.SpecificBirthday,
-        BirthdayFrom = f.BirthdayFrom,
-        BirthdayTo = f.BirthdayTo,
-        FilterQuarter = f.FilterQuarter,
-        FilterBatch = f.FilterBatch,
-        FilterRefYear = f.FilterRefYear,
-        FilterRegionRoman = f.FilterRegionRoman,
-        DateAddedFrom = f.DateAddedFrom,
-        DateAddedTo = f.DateAddedTo,
-        Validator = f.Validator,
-        BatchCode = f.BatchCode,
-        GeneralSearch = f.GeneralSearch,
-        DataQualityIssue = f.DataQualityIssue,   // ✅ ADD
-        PageNumber = f.PageNumber,
-        PageSize = f.PageSize
-    };
+    // A snapshot of the grid's filter taken when a duplicate scan is queued.
+    // Copies EVERY property automatically (serialise → deserialise): the old
+    // hand-written field-by-field copy silently dropped each newly added filter
+    // and the queued scan then covered everyone (Liveness/EFT, Face to Face,
+    // Date Endorsed, Fiscal Year ... one at a time). Nothing to remember when
+    // a filter is added to BeneficiaryFilterDto.
+    private static BeneficiaryFilterDto CloneFilter(BeneficiaryFilterDto f) =>
+        JsonSerializer.Deserialize<BeneficiaryFilterDto>(JsonSerializer.Serialize(f))!;
 
     private async Task ProcessDuplicateScanQueueAsync()
     {
@@ -642,11 +619,16 @@ public class BeneficiaryStateService
             // Name filters
             a.LastName == b.LastName &&
             a.FirstName == b.FirstName &&
+            a.MiddleName == b.MiddleName &&
+            a.Suffix == b.Suffix &&
             a.FullName == b.FullName &&
+            a.PsgcCodeProvince == b.PsgcCodeProvince &&
 
             // Status
             AreListsEqual(a.PaymentStatuses, b.PaymentStatuses) &&
+            a.FilterPayrollQuarter == b.FilterPayrollQuarter &&
             AreListsEqual(a.FilterPayrollQuarters, b.FilterPayrollQuarters) && // ✅ new
+            a.FilterFiscalYear == b.FilterFiscalYear &&
             a.PaymentDate == b.PaymentDate &&
             a.PaymentDateFrom == b.PaymentDateFrom &&
             a.PaymentDateTo == b.PaymentDateTo &&
@@ -661,6 +643,8 @@ public class BeneficiaryStateService
             a.FilterModeOfPayment == b.FilterModeOfPayment &&
             a.IsLivenessVerified == b.IsLivenessVerified &&
             a.IsReadyForEft == b.IsReadyForEft &&
+            a.IsFaceToFace == b.IsFaceToFace &&
+            a.DeceasedStatus == b.DeceasedStatus &&
 
             // Age / Birthday
             a.SpecificAge == b.SpecificAge &&
@@ -679,11 +663,14 @@ public class BeneficiaryStateService
             // Date Added
             a.DateAddedFrom == b.DateAddedFrom &&
             a.DateAddedTo == b.DateAddedTo &&
+            a.DateEndorsedFrom == b.DateEndorsedFrom &&
+            a.DateEndorsedTo == b.DateEndorsedTo &&
 
             // Other
             a.Validator == b.Validator &&
             a.BatchCode == b.BatchCode &&
-            a.GeneralSearch == b.GeneralSearch;
+            a.GeneralSearch == b.GeneralSearch &&
+            a.DataQualityIssue == b.DataQualityIssue;
     }
 
     // Helper method to compare lists
@@ -720,6 +707,8 @@ public class BeneficiaryStateService
                 .Where(n => !string.IsNullOrEmpty(n));
             parts.Add($"Municipalities: {string.Join(", ", names)}");
         }
+        if (filter.PsgcCodeProvince.HasValue && (filter.PsgcCodeProvinces == null || !filter.PsgcCodeProvinces.Any()))
+            parts.Add($"Province: {GetProvinceName(filter.PsgcCodeProvince.Value)}");
         if (filter.PsgcCodeBarangay.HasValue)
         {
             var barangayName = GetBarangayName(filter.PsgcCodeBarangay.Value);
@@ -735,7 +724,11 @@ public class BeneficiaryStateService
                 parts.Add($"Last: {filter.LastName}");
             if (!string.IsNullOrWhiteSpace(filter.FirstName))
                 parts.Add($"First: {filter.FirstName}");
+            if (!string.IsNullOrWhiteSpace(filter.MiddleName))
+                parts.Add($"Middle: {filter.MiddleName}");
         }
+        if (!string.IsNullOrWhiteSpace(filter.Suffix))
+            parts.Add($"Suffix: {filter.Suffix}");
 
         // ── Status filters ───────────────────────────────────────────────────────
         if (filter.PaymentStatuses != null && filter.PaymentStatuses.Any())
@@ -747,6 +740,12 @@ public class BeneficiaryStateService
         {
             parts.Add($"Payroll Quarter: {string.Join(", ", filter.FilterPayrollQuarters.Select(q => $"Q{q}"))}");
         }
+        if (filter.FilterPayrollQuarter.HasValue && (filter.FilterPayrollQuarters == null || !filter.FilterPayrollQuarters.Any()))
+            parts.Add($"Payroll Quarter: Q{filter.FilterPayrollQuarter}");
+        if (filter.FilterFiscalYear.HasValue)
+            parts.Add($"Fiscal Year: {filter.FilterFiscalYear}");
+        if (filter.PaymentDate.HasValue)
+            parts.Add($"Payment Date: {filter.PaymentDate.Value.ToShortDateString()}");
         if (filter.IsEligible.HasValue)
             parts.Add($"Eligible: {(filter.IsEligible.Value ? "Yes" : "No")}");
         if (!string.IsNullOrWhiteSpace(filter.EligibilityMode))
@@ -769,6 +768,10 @@ public class BeneficiaryStateService
             parts.Add($"Liveness: {(filter.IsLivenessVerified.Value ? "Verified" : "Not Verified")}");
         if (filter.IsReadyForEft.HasValue)
             parts.Add($"EFT: {(filter.IsReadyForEft.Value ? "Ready" : "Not Ready")}");
+        if (filter.IsFaceToFace.HasValue)
+            parts.Add($"Face to Face: {(filter.IsFaceToFace.Value ? "Yes" : "No")}");
+        if (filter.DeceasedStatus.HasValue)
+            parts.Add($"Deceased: {DeceasedFilter.Label(filter.DeceasedStatus.Value)}");
 
         // ── Age & Birthday ──────────────────────────────────────────────────────
         if (filter.SpecificAge.HasValue)
@@ -808,6 +811,12 @@ public class BeneficiaryStateService
             var from = filter.DateAddedFrom?.ToShortDateString() ?? "any";
             var to = filter.DateAddedTo?.ToShortDateString() ?? "any";
             parts.Add($"Date Added: {from} - {to}");
+        }
+        if (filter.DateEndorsedFrom.HasValue || filter.DateEndorsedTo.HasValue)
+        {
+            var from = filter.DateEndorsedFrom?.ToShortDateString() ?? "any";
+            var to = filter.DateEndorsedTo?.ToShortDateString() ?? "any";
+            parts.Add($"Date Endorsed: {from} - {to}");
         }
 
         // ── Other ────────────────────────────────────────────────────────────────

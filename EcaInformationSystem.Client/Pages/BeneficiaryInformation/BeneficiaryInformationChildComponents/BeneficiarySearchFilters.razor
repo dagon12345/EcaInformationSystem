@@ -1,5 +1,6 @@
 ﻿@using EcaInformationSystem.Client.Services
 @using EcaInformationSystem.Shared.DTOs
+@using EcaInformationSystem.Shared.Helpers
 @inject ToastService toast
 @inject HttpClient Http
 @inject BeneficiaryStateService State
@@ -648,6 +649,16 @@
                                 <option value="no">No</option>
                             </select>
                         </div>
+                        <div class="sf-field">
+                            <label>Deceased</label>
+                            <select value="@_deceasedValue" @onchange="OnDeceasedChanged" disabled="@IsLoading"
+                                    title="Deceased before milestone age: died before reaching the milestone age the system assigns them (needs a recorded date of death)">
+                                <option value="">Select Deceased</option>
+                                <option value="living">Living</option>
+                                <option value="deceased">Deceased</option>
+                                <option value="beforemilestone">Deceased before milestone age</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -795,6 +806,7 @@
     private string _livenessValue = string.Empty;
     private string _eftValue = string.Empty;
     private string _faceToFaceValue = string.Empty;
+    private string _deceasedValue = string.Empty;
     private CancellationTokenSource? _generalSearchCts;
     private string _modeOfPaymentValue = string.Empty;
     private string _dataQualityValue = string.Empty;
@@ -883,6 +895,30 @@
         };
     }
 
+    private void OnDeceasedChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        _deceasedValue = val ?? string.Empty;
+        State.Filter.DeceasedStatus = val switch
+        {
+            "living" => DeceasedFilter.Living,
+            "deceased" => DeceasedFilter.Deceased,
+            "beforemilestone" => DeceasedFilter.DeceasedBeforeMilestone,
+            _ => null
+        };
+    }
+
+    // The filter lives in State (it survives leaving and returning to the
+    // grid) but this select's own value doesn't — re-derive it so the control
+    // never shows "Select Deceased" while a Deceased filter is actually active.
+    private static string DeceasedValueFor(int? status) => status switch
+    {
+        DeceasedFilter.Living => "living",
+        DeceasedFilter.Deceased => "deceased",
+        DeceasedFilter.DeceasedBeforeMilestone => "beforemilestone",
+        _ => string.Empty
+    };
+
     private void OnRefQuarterChanged(ChangeEventArgs e)
     {
         var val = e.Value?.ToString();
@@ -898,6 +934,7 @@
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitAsync();
+        _deceasedValue = DeceasedValueFor(State.Filter.DeceasedStatus);
         await LoadFilterRegionsAsync();
 
         // ✅ Default the Region filter to the logged-in user's own region —
@@ -1261,6 +1298,8 @@
         _eftValue = string.Empty;
         State.Filter.IsFaceToFace = null;
         _faceToFaceValue = string.Empty;
+        State.Filter.DeceasedStatus = null;
+        _deceasedValue = string.Empty;
         State.Filter.GeneralSearch = null;
         _refQuarterValue = string.Empty;
         State.Filter.FilterQuarter = null;
@@ -1333,6 +1372,7 @@
     f.IsLivenessVerified == null &&
     f.IsReadyForEft == null &&
     f.IsFaceToFace == null &&
+    f.DeceasedStatus == null &&
     (f.FindingStatus == null || f.FindingStatus == 3) &&
     string.IsNullOrWhiteSpace(f.GeneralSearch) && // ✅ add this
     string.IsNullOrWhiteSpace(f.FullName) &&
@@ -1508,6 +1548,8 @@
             chips.Add(f.IsReadyForEft.Value ? "EFT: Ready" : "EFT: Not Ready");
         if (f.IsFaceToFace.HasValue)
             chips.Add(f.IsFaceToFace.Value ? "Face to Face: Yes" : "Face to Face: No");
+        if (f.DeceasedStatus.HasValue)
+            chips.Add($"Deceased: {DeceasedFilter.Label(f.DeceasedStatus.Value)}");
 
         return chips;
     }

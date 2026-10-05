@@ -30,6 +30,10 @@
         public bool? IsReadyForEft { get; set; }
         public bool? IsFaceToFace { get; set; }
 
+        // Deceased filter — null = no filter. 0 = living, 1 = deceased,
+        // 2 = deceased before reaching the milestone age (see DeceasedFilter).
+        public int? DeceasedStatus { get; set; }
+
         // ✅ new — CO (Central Office) endorsement/approval dates, distinct
         // from DateEndorsed above (that's the application's own endorsement
         // date; these are CoDateEndorsed/CoDateApproved on the same entity).
