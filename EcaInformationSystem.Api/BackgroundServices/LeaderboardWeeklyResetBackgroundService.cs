@@ -48,7 +48,11 @@ namespace EcaInformationSystem.Api.BackgroundServices
                         var seasonService = scope.ServiceProvider.GetRequiredService<ILeaderboardSeasonService>();
                         var seasonInfo = await seasonService.GetActiveSeasonInfoAsync();
 
-                        if (DateTime.UtcNow >= seasonInfo.NextAutoResetAtUtc)
+                        // Due = the first Sunday 11:59 PM PH after the CURRENT season
+                        // began. (seasonInfo.NextAutoResetAtUtc is the UI countdown,
+                        // computed from "now" — it is always in the future, so
+                        // testing it here meant the reset could never fire.)
+                        if (WeeklyResetScheduleHelper.IsResetDue(seasonInfo.StartedAtUtc, DateTime.UtcNow))
                         {
                             var broadcaster = scope.ServiceProvider.GetRequiredService<ITransactionTierBroadcaster>();
 
@@ -56,8 +60,9 @@ namespace EcaInformationSystem.Api.BackgroundServices
                             await broadcaster.NotifyLeaderboardResetAsync(result);
 
                             _logger.LogInformation(
-                                "Leaderboard auto-reset: Season {Ended} -> Season {New}",
-                                result.EndedSeasonNumber, result.NewSeasonNumber);
+                                "Leaderboard auto-reset: Season {Ended} -> Season {New} (was due {DueUtc:u})",
+                                result.EndedSeasonNumber, result.NewSeasonNumber,
+                                WeeklyResetScheduleHelper.SeasonDueAtUtc(seasonInfo.StartedAtUtc));
                         }
                     }
                 }

@@ -1,9 +1,9 @@
 namespace EcaInformationSystem.Application.Common
 {
-    // Shared "next Sunday 11:59 PM Philippine Time" math — used by both the
-    // automatic weekly-reset background job (to know how long to sleep) and
-    // LeaderboardSeasonService (to show the countdown in the UI), so the two
-    // can never drift apart.
+    // Shared "Sunday 11:59 PM Philippine Time" math — used by both the
+    // automatic weekly-reset background job (to decide whether a reset is due)
+    // and LeaderboardSeasonService (to show the countdown in the UI), so the
+    // two can never drift apart.
     public static class WeeklyResetScheduleHelper
     {
         private static readonly TimeZoneInfo PhilippineTimeZone = ResolvePhilippineTimeZone();
@@ -37,5 +37,23 @@ namespace EcaInformationSystem.Application.Common
                 DateTime.SpecifyKind(candidateLocal, DateTimeKind.Unspecified),
                 PhilippineTimeZone);
         }
+
+        // When the season that began at `seasonStartedAtUtc` is due to end: the
+        // first Sunday 11:59 PM Philippine Time after it began. A season that
+        // started mid-week (a manual reset) ends that coming Sunday; one that
+        // started right after a Sunday reset ends the following Sunday.
+        public static DateTime SeasonDueAtUtc(DateTime seasonStartedAtUtc)
+            => NextSundayElevenFiftyNinePmUtc(seasonStartedAtUtc);
+
+        // True once the active season has passed its due time. This MUST be
+        // measured from when the season STARTED, not from "now": the next
+        // Sunday 11:59 PM computed from the current moment is, by definition,
+        // always still in the future, so comparing "now" to it can never be
+        // true — which is exactly how the automatic reset used to never fire.
+        // Anchored to the season start it stays true until the reset happens,
+        // so a reset that was missed (the app pool was idle at the time) is
+        // still caught on the very next check instead of skipped.
+        public static bool IsResetDue(DateTime seasonStartedAtUtc, DateTime nowUtc)
+            => nowUtc >= SeasonDueAtUtc(seasonStartedAtUtc);
     }
 }
