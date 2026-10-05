@@ -44,6 +44,7 @@ builder.Services.AddHttpClient("AuthorizedClientLongRunning",
 builder.Services.AddScoped<BeneficiaryStateService>();
 builder.Services.AddScoped<LiquidationStateService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<HrNavigationService>();
 builder.Services.AddScoped<ToastService>(); // ← THIS WAS MISSING
 builder.Services.AddScoped<AuthenticationStateProvider, JwtAuthStateProvider>();
 builder.Services.AddScoped<BeneficiaryFindingClientService>();

@@ -19,6 +19,7 @@
 @inject UserProfileClientService UserProfileClient
 @inject TransactionTierHubClientService TierHub
 @inject AuthService AuthService
+@inject HrNavigationService HrNav
 
 <div class="feed-page-layout">
 @if (_isAuthenticated && !_isFocal)
@@ -1269,11 +1270,10 @@
         }
     }
 
-    // Base host of the HR & Admin app. The navigator below hands the current ECA
-    // session token across so HR signs the user in on arrival instead of asking
-    // for credentials a second time.
-    private const string HrNavBaseUrl = "https://eca-hradmin.runasp.net";
-    private string _hrNavUrl = HrNavBaseUrl + "/";
+    // The HR & Admin navigator hands the current ECA session across so HR signs
+    // the user in on arrival instead of asking for credentials a second time —
+    // see HrNavigationService for the URL and how the token travels.
+    private string _hrNavUrl = HrNavigationService.LoginUrl;
 
     protected override async Task OnInitializedAsync()
     {
@@ -1291,16 +1291,7 @@
             await AuthService.InitAsync();
             _isFocal = AuthService.IsFocal();
 
-            // Carry the token in the URL FRAGMENT: never sent to a server and never
-            // written to an access log (unlike ?eca_token=). The HR app stashes it
-            // in sessionStorage and scrubs it out of the address bar on arrival. If
-            // it is absent, or the HR app has no EcaSso:SharedKey configured, HR
-            // just falls back to its normal password form, so this degrades safely.
-            var ecaToken = await AuthService.GetTokenAsync();
-            if (!string.IsNullOrWhiteSpace(ecaToken))
-            {
-                _hrNavUrl = $"{HrNavBaseUrl}/login#eca_token={Uri.EscapeDataString(ecaToken)}";
-            }
+            _hrNavUrl = await HrNav.GetSignedInUrlAsync();
 
             var fullName = authState.User.FindFirst("FullName")?.Value;
             _myDisplayName = !string.IsNullOrWhiteSpace(fullName) ? fullName : (authState.User.Identity?.Name ?? "User");
