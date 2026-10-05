@@ -9,6 +9,7 @@
 @using EcaInformationSystem.Shared.DTOs
 @using EcaInformationSystem.Shared.DTOs.ApplicationTracking
 @using EcaInformationSystem.Shared.DTOs.Common
+@using EcaInformationSystem.Shared.Helpers
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Net.Http.Json
@@ -212,6 +213,27 @@
                     <div class="dt-stat-label">Sex Not Set</div>
                 </div>
             </div>
+        </div>
+
+        @* ── Milestone-age breakdown — same brackets as Statistics.razor's
+             "Distribution by Milestone Age": each grantee counts in exactly one
+             bracket by their exact current age (80 = 80–84 … 95 = 95–99,
+             100 = 100 and up). Grantees whose birthday isn't set yet aren't
+             counted in any bracket. Click a tile to see who's in it. ── *@
+        <div class="dt-stat-row">
+            @foreach (var milestone in MilestoneAges)
+            {
+                var m = milestone;
+                <div class="dt-stat-tile dt-stat-tile--sm dt-stat-tile--age-@m dt-stat-tile--clickable"
+                     title="@MilestoneAgeLabel(m) (birthday set)"
+                     @onclick="() => OpenMilestoneDrilldown(m)">
+                    <div class="dt-stat-icon">@m</div>
+                    <div class="dt-stat-text">
+                        <div class="dt-stat-value">@MilestoneAgeCount(m).ToString("N0")</div>
+                        <div class="dt-stat-label">@MilestoneAgeLabel(m)</div>
+                    </div>
+                </div>
+            }
         </div>
 
         <div class="dt-card-list">
@@ -1322,10 +1344,40 @@
     private int FemaleCount() => AllVisibleGranteeRows().Count(x => string.Equals(x.Row.Sex, "Female", StringComparison.OrdinalIgnoreCase));
     private int SexNotSetCount() => AllVisibleGranteeRows().Count(x => string.IsNullOrWhiteSpace(x.Row.Sex));
 
-    private enum GranteeDrilldownKind { Eligible, NotEligible, EligibilityNotSet, Male, Female, SexNotSet }
+    // ── Milestone-age tiles ─────────────────────────────────────────────
+    // Same bracket rule as Statistics (BeneficiaryInformationRepository's
+    // AgeDistribution/RefineByMilestoneAge): exact current age via the shared
+    // EcaEligibilityHelper.ComputeAge, 80 = 80–84 … 95 = 95–99, 100 is
+    // open-ended — so the brackets never overlap and a grantee counts once.
+    // No birthday yet means no age, so no bracket.
+    private static readonly int[] MilestoneAges = { 80, 85, 90, 95, 100 };
+
+    private static bool IsInMilestoneBracket(ApplicationGranteeRowDto row, int milestone)
+    {
+        if (!row.Birthdate.HasValue) return false;
+        var age = EcaEligibilityHelper.ComputeAge(row.Birthdate.Value);
+        return milestone == 100
+            ? age >= 100
+            : age >= milestone && age < milestone + 5;
+    }
+
+    private int MilestoneAgeCount(int milestone) =>
+        AllVisibleGranteeRows().Count(x => IsInMilestoneBracket(x.Row, milestone));
+
+    private static string MilestoneAgeLabel(int milestone) =>
+        milestone == 100 ? "Age 100+" : $"Age {milestone}–{milestone + 4}";
+
+    private enum GranteeDrilldownKind { Eligible, NotEligible, EligibilityNotSet, Male, Female, SexNotSet, MilestoneAge }
     private GranteeDrilldownKind? _drilldownKind;
+    // Which bracket a MilestoneAge drill-down is showing.
+    private int _drilldownMilestone;
 
     private void OpenGranteeDrilldown(GranteeDrilldownKind kind) => _drilldownKind = kind;
+    private void OpenMilestoneDrilldown(int milestone)
+    {
+        _drilldownMilestone = milestone;
+        _drilldownKind = GranteeDrilldownKind.MilestoneAge;
+    }
     private void CloseGranteeDrilldown() => _drilldownKind = null;
 
     private string GranteeDrilldownTitle() => _drilldownKind switch
@@ -1336,6 +1388,7 @@
         GranteeDrilldownKind.Male => "Male Grantees",
         GranteeDrilldownKind.Female => "Female Grantees",
         GranteeDrilldownKind.SexNotSet => "Sex Not Set Yet",
+        GranteeDrilldownKind.MilestoneAge => $"{MilestoneAgeLabel(_drilldownMilestone)} Grantees",
         _ => string.Empty
     };
 
@@ -1347,6 +1400,7 @@
         GranteeDrilldownKind.Male => AllVisibleGranteeRows().Where(x => string.Equals(x.Row.Sex, "Male", StringComparison.OrdinalIgnoreCase)).ToList(),
         GranteeDrilldownKind.Female => AllVisibleGranteeRows().Where(x => string.Equals(x.Row.Sex, "Female", StringComparison.OrdinalIgnoreCase)).ToList(),
         GranteeDrilldownKind.SexNotSet => AllVisibleGranteeRows().Where(x => string.IsNullOrWhiteSpace(x.Row.Sex)).ToList(),
+        GranteeDrilldownKind.MilestoneAge => AllVisibleGranteeRows().Where(x => IsInMilestoneBracket(x.Row, _drilldownMilestone)).ToList(),
         _ => new()
     };
 

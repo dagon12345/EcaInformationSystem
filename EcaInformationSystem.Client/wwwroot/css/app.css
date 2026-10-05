@@ -11801,6 +11801,19 @@ body {
 .dt-stat-tile--female .dt-stat-icon {
     background: linear-gradient(135deg, #be185d, #f472b6);
 }
+/* Milestone-age tiles — same per-age colours as Statistics' milestone-age chips. */
+.dt-stat-tile--age-80 .dt-stat-icon,
+.dt-stat-tile--age-85 .dt-stat-icon,
+.dt-stat-tile--age-90 .dt-stat-icon,
+.dt-stat-tile--age-95 .dt-stat-icon,
+.dt-stat-tile--age-100 .dt-stat-icon {
+    font-weight: 800;
+}
+.dt-stat-tile--age-80 .dt-stat-icon { color: #1d4ed8; background: #dbeafe; }
+.dt-stat-tile--age-85 .dt-stat-icon { color: #15803d; background: #dcfce7; }
+.dt-stat-tile--age-90 .dt-stat-icon { color: #92400e; background: #fef3c7; }
+.dt-stat-tile--age-95 .dt-stat-icon { color: #c2410c; background: #ffedd5; }
+.dt-stat-tile--age-100 .dt-stat-icon { color: #b91c1c; background: #fee2e2; }
 .dt-stat-tile--sm {
     flex-basis: 170px;
     padding: 10px 14px;
